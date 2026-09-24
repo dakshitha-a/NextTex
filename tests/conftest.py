@@ -20,6 +20,10 @@ sys.path.insert(0, str(Path(__file__).resolve().parent.parent))
 os.environ["NEXTTEX_CLAUDE_BINARY"] = str(
     Path(__file__).resolve().parent / "fake_claude.py"
 )
+# And a spelling list is never fetched from the network by a test: the
+# host is a port nothing listens on, and a test that wants a list hands
+# `nexttex.dictionaries` its own fetch.
+os.environ["NEXTTEX_DICTIONARY_BASE"] = "http://127.0.0.1:9/npm"
 
 
 def pytest_configure(config):

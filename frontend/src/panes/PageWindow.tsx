@@ -53,6 +53,7 @@ export default function PageWindow({ request }: { request: PageWindowRequest }) 
             pageLimit: countOf(project.pageLimit),
             blind: project.blind === true,
             pdfa: project.pdfa === true,
+            language: typeof project.language === "string" ? project.language : "",
           },
         });
         connect(request.projectId);

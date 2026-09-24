@@ -402,6 +402,7 @@ OUTBOUND = {
     "dx.doi.org",
     "claude.ai",                # the sign-in screen links to the download page
     "github.com",               # the prebuilt interface, and the update check
+    "cdn.jsdelivr.net",         # a spelling list, once per machine, when a project asks
     # The installer, and only what the plan it printed said it would fetch.
     "yihui.org",                # TinyTeX on Unix
     "tinytex.yihui.org",        # TinyTeX on Windows, where the .bat is broken
@@ -452,7 +453,7 @@ def test_the_shipped_code_talks_to_nothing_the_readme_does_not_name():
 def test_the_readme_names_every_one_of_them():
     readme = (ROOT / "README.md").read_text(encoding="utf-8")
     section = readme.split("## What leaves this machine")[1].split("##")[0]
-    for host in ("Crossref", "OpenAlex", "Semantic Scholar", "arXiv", "doi.org"):
+    for host in ("Crossref", "OpenAlex", "Semantic Scholar", "arXiv", "doi.org", "cdn.jsdelivr.net"):
         assert host in section, f"{host} is reachable but unmentioned"
     assert "Anthropic" in section and "OpenAI" in section
 

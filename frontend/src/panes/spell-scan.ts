@@ -96,7 +96,10 @@ export function skippedLines(lines: readonly string[]): Set<number> {
 
 /** A word worth checking: letters, with internal hyphens and apostrophes.
  *  Anything with a digit in it is a label or a measurement, not a word. */
-const WORD = /[A-Za-z][A-Za-z'’-]*/g;
+// Any script's letters, with their combining marks: German, French,
+// Spanish and Portuguese are checked too now, and "Häuser" read as "H"
+// and "user" was two wrong answers.
+const WORD = /\p{L}[\p{L}\p{M}'’-]*/gu;
 
 /** Words that are correct by construction rather than by dictionary.
  *

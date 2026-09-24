@@ -44,8 +44,8 @@ from fastapi.staticfiles import StaticFiles
 from pydantic import BaseModel, Field
 
 from nexttex import (
-    arrive, attachments, auth, auxlabels, claude_auth, equation, gitrepo, plots,
-    rename, report, submit, synctex, texpkg,
+    arrive, attachments, auth, auxlabels, claude_auth, dictionaries, equation, gitrepo,
+    plots, rename, report, submit, synctex, texpkg,
 )
 from nexttex.version import VERSION
 from server.collab import identity as collab_identity
@@ -838,7 +838,11 @@ def _inline_hashes() -> str:
 def _content_policy() -> str:
     return "; ".join([
         "default-src 'self'",
-        f"script-src 'self' {_inline_hashes()}".strip(),
+        # 'wasm-unsafe-eval' lets WebAssembly compile and nothing else: no
+        # string of JavaScript is ever evaluated. Hunspell, which checks
+        # spelling in German, French, Spanish and Portuguese, is
+        # WebAssembly, and without it the browser refuses to start it.
+        f"script-src 'self' 'wasm-unsafe-eval' {_inline_hashes()}".strip(),
         "style-src 'self' 'unsafe-inline'",
         "img-src 'self' data:",
         "font-src 'self' data:",
@@ -4135,6 +4139,34 @@ async def equation_image(project_id: str, request: EquationRequest):
     return Response(made.data, media_type=made.media_type, headers={"cache-control": "no-store"})
 
 
+@app.get("/api/dictionaries")
+async def spelling_languages():
+    """The word lists NextTex can fetch, whether this machine already
+    has each, and how big it is, so the status line can say once that a
+    first fetch is on its way."""
+    return {
+        "languages": [
+            {"code": l.code, "name": l.name, "size": l.size, "cached": dictionaries.cached(l.code)}
+            for l in dictionaries.LANGUAGES.values()
+        ]
+    }
+
+
+@app.get("/api/dictionaries/{code}/{name}")
+async def spelling_list(code: str, name: str):
+    """One of a language's two Hunspell files, fetched and verified the
+    first time any project on this machine asks, and kept."""
+    if code not in dictionaries.LANGUAGES or name not in dictionaries.FILES:
+        raise HTTPException(404, "there is no such word list")
+    try:
+        path = await asyncio.to_thread(dictionaries.path_of, code, name)
+    except dictionaries.DictionaryError as error:
+        raise HTTPException(502, str(error))
+    # Pinned by version and hash, so it never changes under this URL.
+    return FileResponse(path, media_type="text/plain; charset=utf-8",
+                        headers={"cache-control": "private, max-age=31536000, immutable"})
+
+
 @app.get("/api/tools")
 async def optional_tools():
     """Which optional tools this machine has, so the interface can offer
@@ -5080,6 +5112,7 @@ async def set_project_settings(
     pageLimit: int | None = Body(None),
     blind: bool | None = Body(None),
     pdfa: bool | None = Body(None),
+    language: str | None = Body(None),
 ):
     """The three switches and the engine choice on the settings card, and
     the two venue facts the submission panel sets.
@@ -5110,6 +5143,10 @@ async def set_project_settings(
         config.blind = bool(blind)
     if pdfa is not None:
         config.pdfa = bool(pdfa)
+    if language is not None:
+        if language and language != "en" and language not in dictionaries.LANGUAGES:
+            raise HTTPException(400, f"there is no word list for {language!r}")
+        config.language = language
     try:
         config.save(session.project.root)
     except OSError as error:

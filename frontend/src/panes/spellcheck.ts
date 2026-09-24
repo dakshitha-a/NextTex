@@ -18,6 +18,8 @@ import {
 } from "@codemirror/view";
 import { normalise, proseWords, skippedLines } from "./spell-scan";
 import type { Variety } from "../dictionary/words";
+import type { Speller } from "./hunspell-speller";
+import { suggest } from "./spell-suggest";
 
 export type Spelling = {
   on: boolean;
@@ -29,6 +31,10 @@ export type Spelling = {
    *  the writer's setting and the document's own preamble to one of the
    *  three; `either` is what a document that says nothing gets. */
   variety?: Variety;
+  /** Which language the prose is in: "en", or one of the four whose lists
+   *  are fetched, "de", "fr", "es" or "pt".  The editor resolves the
+   *  project's setting and the document's preamble to one. */
+  language?: string;
 };
 
 /** Turn checking on or off, or hand it a new list of accepted words. */
@@ -45,7 +51,7 @@ const spelling = StateField.define<Resolved>({
       if (effect.is(setSpelling)) {
         // The variety is module state rather than field state: one page,
         // one list in use, and the lookup below reads it without a view.
-        use(effect.value.variety ?? "either");
+        use(effect.value.variety ?? "either", effect.value.language ?? "en");
         return {
           on: effect.value.on,
           custom: new Set(effect.value.custom.map(normalise).filter(Boolean)),
@@ -62,15 +68,47 @@ let lists: typeof import("../dictionary/words") | null = null;
 let words: Set<string> | null = null;
 let variety: Variety = "either";
 let loading = false;
+/** The language in use, and for any but English, its Hunspell once it
+ *  has arrived. */
+let language = "en";
+let hunspell: Speller | null = null;
+let hunspellLoading = "";
 
-/** Hold the prose to this English from now on.  Synchronous once the
- *  chunk is here, since every variety is decoded from the same text. */
-function use(wanted: Variety): void {
+/** Hold the prose to this English, or this language, from now on.
+ *  Synchronous for English once the chunk is here, since every variety is
+ *  decoded from the same text; another language waits for its speller. */
+function use(wanted: Variety, lang: string): void {
   variety = wanted;
   if (lists) words = lists.dictionary(wanted);
+  if (lang !== language) {
+    language = lang;
+    hunspell = null;
+  }
+}
+
+/** Whether what the current language checks with is here. */
+function ready(): boolean {
+  return language === "en" ? words !== null : hunspell !== null;
 }
 
 function load(view: EditorView): void {
+  if (language !== "en") {
+    const wanted = language;
+    if (hunspell || hunspellLoading === wanted) return;
+    hunspellLoading = wanted;
+    import("./hunspell-speller")
+      .then((module) => module.spellerFor(wanted))
+      .then((made) => {
+        if (language !== wanted) return;
+        hunspell = made;
+        view.dispatch({ effects: dictionaryReady.of(null) });
+      })
+      .catch(() => undefined)
+      .finally(() => {
+        if (hunspellLoading === wanted) hunspellLoading = "";
+      });
+    return;
+  }
   if (words || loading) return;
   loading = true;
   import("../dictionary/words")
@@ -101,7 +139,17 @@ export type { Variety } from "../dictionary/words";
  *  empty set: "no suggestions" and "the list is not here yet" are different
  *  states and the menu draws them differently. */
 export function shipped(): Set<string> | null {
-  return words;
+  return language === "en" ? words : null;
+}
+
+/** What the writer probably meant, in whichever language is in use:
+ *  Hunspell's own guesses for the four, the edit-distance search over the
+ *  English list otherwise.  Empty while nothing has loaded. */
+export function guessesFor(word: string, custom: Set<string>): string[] {
+  if (language !== "en") return hunspell ? hunspell.suggest(word) : [];
+  const list = words;
+  if (!list) return [];
+  return suggest(word, (candidate) => list.has(candidate) || custom.has(candidate));
 }
 
 /** Whether a word is one the list, or the writer, does not know.
@@ -109,10 +157,23 @@ export function shipped(): Set<string> | null {
  *  A hyphenated compound is judged on its parts: no list holds
  *  `excited-state`, and both halves are ordinary words. */
 export function unknown(word: string, custom: Set<string>): boolean {
+  if (language !== "en") {
+    if (!hunspell) return false;
+    const clean = normalise(word);
+    if (!clean || custom.has(clean)) return false;
+    // As written, since case is meaning in German, with the ends of a
+    // quotation or a dash taken off; Hunspell takes a sentence's capital
+    // itself.
+    const bare = word.replace(/^[-'’]+|[-'’]+$/g, "");
+    return !hunspell.correct(bare);
+  }
   if (!words) return false;
   const clean = normalise(word);
   if (!clean) return false;
   if (words.has(clean) || custom.has(clean)) return false;
+  // English borrows "naïve" and "rôle" and the list spells them bare.
+  const bare = clean.normalize("NFD").replace(/\p{M}/gu, "");
+  if (bare !== clean && words.has(bare)) return false;
   if (clean.includes("-")) {
     return !clean
       .split("-")
@@ -186,7 +247,7 @@ const checker = ViewPlugin.fromClass(
         this.skip = new Set();
         return;
       }
-      if (!words) {
+      if (!ready()) {
         load(this.view);
         this.decorations = Decoration.none;
         return;

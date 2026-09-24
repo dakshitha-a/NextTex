@@ -167,3 +167,19 @@ describe("a display on a single line is not prose either", () => {
     expect(words("before \\[ \\text{teh} \\] after")).toEqual(["before", "after"]);
   });
 });
+
+describe("words in other scripts", () => {
+  test("keeps an accented word whole", () => {
+    const words = proseWords("Die Häuser und l'échantillon, résultats.").map((w) => w.word);
+    expect(words).toEqual(["Die", "Häuser", "und", "l'échantillon", "résultats"]);
+  });
+
+  test("keeps a combining mark with its letter", () => {
+    const decomposed = "résultats";
+    expect(proseWords(decomposed).map((w) => w.word)).toEqual([decomposed]);
+  });
+
+  test("still masks a command inside the word's line", () => {
+    expect(proseWords("Größe \\textbf{Maß} gemessen").map((w) => w.word)).toEqual(["Größe", "Maß", "gemessen"]);
+  });
+});

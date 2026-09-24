@@ -33,6 +33,7 @@ export default function Status({
   const result = useStore((s) => s.compile);
   const diagnostics = useStore((s) => s.diagnostics);
   const cursor = useStore((s) => s.cursor);
+  const spellingNote = useStore((s) => s.spellingNote);
   const autocompile = useStore((s) => s.settings.autocompile);
   // A project asking for shell escape that this machine has not answered.
   // The question is drawn in the Build drawer, and the strip says so.
@@ -115,6 +116,11 @@ export default function Status({
       <span className="tnum hidden shrink-0 @[300px]:inline" data-testid="caret">
         Ln {cursor.line}, Col {cursor.column}
       </span>
+      {spellingNote ? (
+        <span className="hidden shrink-0 @[420px]:inline" data-testid="spelling-note">
+          {spellingNote}
+        </span>
+      ) : null}
       {/* Which document the PDF beside this strip is actually showing, and
           only when it is not the whole one: a fast build typesets one
           chapter, and a reader who does not know that will think pages

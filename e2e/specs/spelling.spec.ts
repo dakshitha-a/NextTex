@@ -1,4 +1,4 @@
-import { writeFileSync } from "node:fs";
+import { mkdirSync, readFileSync, writeFileSync } from "node:fs";
 import { join } from "node:path";
 import { test, expect, openProject } from "../fixtures";
 import type { Page } from "@playwright/test";
@@ -441,4 +441,73 @@ test("the document's own preamble chooses the variety", async ({ app, project, p
   await page.keyboard.press("End");
   await page.keyboard.type("\nThe colour of the color.");
   await expect(marked(page)).toHaveText(["color"], { timeout: 15_000 });
+});
+
+/** A German list small enough to write here, planted where the server
+ *  keeps the copy it fetched once, so nothing reaches the network. The
+ *  REP line is how Hunspell learns that "sz" is a way of typing "ß". */
+function plantGerman(sandbox: string) {
+  const folder = join(sandbox, "data", "nexttex", "dictionaries", "dictionary-de@3.0.0");
+  mkdirSync(folder, { recursive: true });
+  writeFileSync(join(folder, "index.aff"), "SET UTF-8\nTRY esnrtaoduiölcüähgmbfkzwpvjyxqß\nREP 1\nREP sz ß\n");
+  writeFileSync(join(folder, "index.dic"), "6\nDie\nHäuser\nsind\ngroß\nund\nalt\n");
+}
+
+test("a German project is checked in German, with the preamble's suggestion", async ({
+  app, project, page,
+}) => {
+  // Written before the project opens, since the preamble's language
+  // travels with the symbol table on open and after each build.
+  plantGerman(app.sandbox);
+  writeFileSync(
+    join(project.root, "main.tex"),
+    "\\documentclass{article}\n\\usepackage[ngerman]{babel}\n\\begin{document}\nDie Häuser sind grosz und alt.\n\\end{document}\n",
+  );
+  await page.goto(`${app.base}/?token=${app.token}`);
+  await page.getByText("Projects", { exact: false }).first().waitFor();
+  await openProject(page, project.root);
+  const tab = page;
+  await expect(tab.locator(".cm-line", { hasText: "Häuser" })).toBeVisible({ timeout: 30_000 });
+
+  // The row says what the preamble suggests before anybody chooses.
+  await tab.getByTestId("appearance").first().click();
+  await tab.getByTestId("settings-group-project").click();
+  await expect(tab.getByText("Suggested by")).toContainText("\\usepackage[ngerman]{babel}", { timeout: 15_000 });
+  await expect(tab.getByTestId("language-de")).toHaveAttribute("aria-pressed", "true");
+  await tab.keyboard.press("Escape");
+
+  await turnOn(tab);
+  // "Häuser" is one word, in the list; "grosz" is not.
+  await expect(marked(tab).first()).toBeVisible({ timeout: 20_000 });
+  await expect(marked(tab)).toHaveText(["grosz"]);
+
+  await marked(tab).first().click({ button: "right" });
+  const menu = tab.getByTestId("spelling-menu");
+  await menu.waitFor();
+  await expect(menu).toContainText("groß");
+});
+
+test("choosing English over the preamble's German is kept in the project", async ({
+  app, project, tab,
+}) => {
+  plantGerman(app.sandbox);
+  await expect(tab.locator(".cm-editor")).toBeVisible({ timeout: 30_000 });
+  await fetch(`${app.base}/api/projects/${project.id}/file`, {
+    method: "PUT",
+    headers: { "content-type": "application/json", "x-nexttex-token": app.token },
+    body: JSON.stringify({
+      path: "main.tex",
+      text: "\\documentclass{article}\n\\usepackage[ngerman]{babel}\n\\begin{document}\nThe results are wiht the calculation.\n\\end{document}\n",
+      compile: false,
+    }),
+  });
+  await tab.getByTestId("appearance").first().click();
+  await tab.getByTestId("settings-group-project").click();
+  await tab.getByTestId("language-en").click();
+  await expect(tab.getByText("Suggested by")).toHaveCount(0);
+  await tab.keyboard.press("Escape");
+  await expect.poll(() => readFileSync(join(project.root, "nexttex.toml"), "utf8")).toContain('language = "en"');
+
+  await turnOn(tab);
+  await expect(marked(tab)).toHaveText(["wiht"], { timeout: 20_000 });
 });

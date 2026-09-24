@@ -54,13 +54,6 @@ the reversal should have to answer it.
    per-object hook. *Small; y.*
 
 
-3. **Spelling in other languages.** The bundled word lists are English.
-   A German, French, Spanish or Portuguese list is downloaded when a
-   project asks for it, the language is set once per project in
-   `nexttex.toml`, and a `babel` or `polyglossia` line in the preamble is
-   the hint that a project should. *Medium; y.*
-
-
 ## Not adopting, and why
 
 Each of these was considered and left out for the reason beside it. A

@@ -338,6 +338,9 @@ export type State = {
     pageLimit: number;
     blind: boolean;
     pdfa: boolean;
+    /** The spelling language: "" to follow the preamble, "en", or one of
+     *  the four whose lists are fetched. */
+    language: string;
   };
   /** Which optional tools the machine has, fetched once per load; null
    *  until it answers.  The download menu and the submission panel read
@@ -413,6 +416,9 @@ export type State = {
    *  folder is missing but not why the editor just closed. */
   lostFolder: { name: string; shared: boolean } | null;
   error: string | null;
+  /** A spelling list on its first way to this machine, said once in the
+   *  status strip: "Fetching the German word list, 1.1 MB, once". */
+  spellingNote: string | null;
   notices: Notice[];
 };
 
@@ -463,7 +469,7 @@ const state: State = {
   contextStale: [],
   settings: {
     autocompile: true, markErrors: true, markWarnings: false, engine: "", shellEscape: "off",
-    pageLimit: 0, blind: false, pdfa: false,
+    pageLimit: 0, blind: false, pdfa: false, language: "",
   },
   tools: null,
   agent: null,
@@ -484,6 +490,7 @@ const state: State = {
   lostFolder: null,
   words: null,
   error: null,
+  spellingNote: null,
   notices: [],
 };
 
@@ -1288,6 +1295,7 @@ function receive(event: any) {
             pageLimit: countOf(event.pageLimit),
             blind: event.blind === true,
             pdfa: event.pdfa === true,
+            language: typeof event.language === "string" ? event.language : "",
           },
         });
       }

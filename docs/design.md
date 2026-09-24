@@ -10555,3 +10555,33 @@ line number. An author is a plain name, "You" when the email is this
 machine's git identity: a git author is not a collaborator the presence
 colours know, so the drawing's coloured names were dropped when it was
 built. Staging, branching and merging stay in the terminal.
+
+## 71. Spelling in other languages
+
+The roadmap's third item. A German, French, Spanish or Portuguese project
+is checked in its own language, and the choice is the project's, on the
+settings sheet's *This project* group, because every collaborator needs
+the same answer. The row is the kit's segmented control of five names,
+where the drawing had a dropdown, since the kit has no dropdown and five
+short names fit. Until somebody chooses, the main document's `babel` or
+`polyglossia` line decides and the row quotes it, "Suggested by
+`\usepackage[ngerman]{babel}`"; choosing English over it writes
+`language = "en"` so the line stops deciding, and choosing English with
+nothing to overrule writes nothing.
+
+The engine is Hunspell, compiled to WebAssembly, not a word list and not
+an affix engine written in JavaScript. The spike measured all three: a
+flat list cannot hold German's compounds; nspell, the JavaScript one,
+rejected "Lösungsmittel" and took ten seconds and over three hundred
+megabytes to load French; Hunspell loaded each language in 0.1 to 0.7
+seconds, accepted the compounds, and is what LibreOffice and Firefox
+check with. It is a 740 kB chunk that only a project in one of the four
+languages ever fetches. The lists are Hunspell's own, from
+`wooorm/dictionaries`; their licences, GPL for German and LGPL or MPL for
+the rest, are fine to fetch and use and are not NextTex's MIT to
+redistribute, so they are fetched on first use, once per machine, pinned
+by version and hash, and the status strip says so once: "Fetching the
+German word list, 1.1 MB, once". The fetch is the eighth thing in the
+README's account of what leaves the machine.
+
+Grammar stays English only, for R1 to say when it lands.

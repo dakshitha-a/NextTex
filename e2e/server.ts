@@ -94,6 +94,10 @@ export async function startServer(
     // Deterministic, offline, instant.  The real agent needs an account
     // and answers differently every time.
     NEXTTEX_SCRIPTED_AGENT: "reply",
+    // A word list is never fetched from the network here: a spec plants
+    // the files where the server keeps its copy, and anything else finds
+    // nothing listening.
+    NEXTTEX_DICTIONARY_BASE: "http://127.0.0.1:9/npm",
     NEXTTEX_FAKE_CLAUDE_AUTH: "1",
     // In-process peers rather than real ones. A browser test that shared a
     // project would otherwise open an iroh endpoint and talk to n0's

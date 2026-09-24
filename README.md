@@ -615,7 +615,7 @@ makes typing slower on the day it happens.
 | A settled edit written to disk | 1.4 ms | 40 ms |
 | The same, with its version recorded | 3.0 ms | 60 ms |
 | Whole project as a zip | 67 ms | 3 s |
-| Interface bundle | 858.5 kB | 860 kB |
+| Interface bundle | 859.0 kB | 860 kB |
 
 The first row is the one worth keeping. The compile rewrites `build/main.pdf`,
 the symbol cache's stamp walk used to count it, and every build therefore
@@ -776,6 +776,14 @@ If your fingers already know Vim or Emacs, the settings sheet's Keymap
 row gives the editor either, fetched only when chosen so a session that
 wants neither pays nothing. Undo stays the document's under both: `u` or
 `C-/` undoes what you typed, never what a collaborator did.
+
+Spelling is checked in the prose only, never in a command, a key or an
+equation, and a word you add is added for the project. English ships with
+NextTex. A project in German, French, Spanish or Portuguese says so on the
+settings sheet's *This project* group, or a `babel` or `polyglossia` line
+in its preamble says so for it, and that language's word list is fetched
+the first time, once for the machine. Those four are checked by Hunspell,
+the checker LibreOffice uses, so a German compound is one word.
 
 Paste a spreadsheet's cells or a `.csv` into a chapter and they arrive as
 a booktabs table, cells escaped, numbers right-aligned, the caret in the
@@ -1337,7 +1345,7 @@ than the PDF it produces.
 
 NextTex serves your own files from your own machine and ships its own
 typefaces, so the interface works on a host with no route to the internet.
-Seven things go out, all of them things you asked for:
+Eight things go out, all of them things you asked for:
 
 1. What you send the agent, to Anthropic or OpenAI, unless the OpenAI
    provider points at a local server, in which case it goes nowhere.
@@ -1378,6 +1386,10 @@ Seven things go out, all of them things you asked for:
    source of the paper whose id you typed, and the git host whose URL you
    typed, for the clone. Nothing about you goes with either request beyond
    what a browser would send.
+8. **Only when a project is spelled in German, French, Spanish or
+   Portuguese**: that language's word list from `cdn.jsdelivr.net`, once
+   per machine, checked against a hash NextTex carries before it is kept.
+   Nothing about the project goes with the request.
 
 That is the whole list, and a test fails if a new host appears in the source
 without this section changing. There is no telemetry and no analytics of any

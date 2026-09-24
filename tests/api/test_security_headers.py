@@ -107,3 +107,12 @@ def test_a_failure_is_readable_by_the_browser(raw, monkeypatch, caplog):
     # And nothing about the inside of the server is handed to the browser.
     assert "deliberately unhandled" not in shown
     assert "Traceback" not in answer.text
+
+
+def test_webassembly_may_compile_and_javascript_may_not_be_evaluated(client):
+    """Hunspell is WebAssembly, and the policy lets it start; a string of
+    JavaScript still cannot be evaluated."""
+    policy = client.get("/api/projects").headers["content-security-policy"]
+    script = next(part for part in policy.split("; ") if part.startswith("script-src"))
+    assert "'wasm-unsafe-eval'" in script.split()
+    assert "'unsafe-eval'" not in script.split()

@@ -374,6 +374,24 @@ const SURFACES: Record<string, Surface> = {
     },
     close: escape,
   },
+  "settings-language": {
+    // This project with a German preamble: the row's suggestion.
+    open: async (tab) => {
+      if (ctx) {
+        const main = path.join(ctx.root, "main.tex");
+        const text = fs.readFileSync(main, "utf8");
+        if (!text.includes("ngerman")) {
+          fs.writeFileSync(main, text.replace(/(\\documentclass[^\n]*\n)/, "$1\\usepackage[ngerman]{babel}\n"));
+        }
+        await tab.waitForTimeout(1500);
+      }
+      await tab.getByTestId("appearance").click();
+      await tab.getByTestId("settings-group-project").click();
+      await tab.getByText("Suggested by").waitFor({ timeout: 15_000 });
+      return tab.getByTestId("settings-sheet");
+    },
+    close: escape,
+  },
   "settings-narrow": {
     // Below 720 px: the groups as a row of segments above the rows.
     open: async (tab) => {

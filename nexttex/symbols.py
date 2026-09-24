@@ -80,6 +80,12 @@ class Symbols:
     #: British thesis is checked as British for everyone who opens it
     #: without anybody setting anything.
     english: dict[str, str] = field(default_factory=dict)
+    #: The main language a document's preamble declares, when it is one
+    #: NextTex can spell in other than English: "de", "fr", "es" or "pt",
+    #: with the line that said so. The project's Spelling language row
+    #: offers it; it is a suggestion, since a chapter has no preamble and
+    #: the setting is the project's.
+    languages: dict[str, dict] = field(default_factory=dict)
 
     def as_dict(self) -> dict:
         return {
@@ -90,6 +96,7 @@ class Symbols:
             "commands": self.commands,
             "environments": self.environments,
             "english": self.english,
+            "languages": self.languages,
         }
 
 
@@ -140,6 +147,50 @@ def english_of(text: str) -> str | None:
             # polyglossia's plain `english` is American, as babel's is.
             found = "american"
     return found
+
+
+#: babel's and polyglossia's names for the four languages the spelling
+#: lists cover, as the code `nexttex/dictionaries.py` fetches.
+LANGUAGE_NAMES = {
+    "german": "de", "ngerman": "de", "austrian": "de", "naustrian": "de",
+    "swissgerman": "de", "nswissgerman": "de",
+    "french": "fr", "francais": "fr", "acadian": "fr", "canadien": "fr",
+    "spanish": "es", "spanishmx": "es",
+    "portuguese": "pt", "portuges": "pt", "brazilian": "pt", "brazil": "pt",
+}
+ENGLISH_NAMES = BRITISH_NAMES | AMERICAN_NAMES | {"english", "british", "american"}
+
+
+def language_of(text: str) -> dict | None:
+    """The main language the preamble declares, when it is German,
+    French, Spanish or Portuguese: `{"code": "de", "line": "..."}` with
+    the line that said so. None for English or for nothing said.
+
+    babel's main language is the last it lists, so the last match wins;
+    polyglossia names it with \\setmainlanguage, or \\setdefaultlanguage.
+    """
+    head = text.split("\\begin{document}", 1)[0]
+    found: tuple[int, str, str] | None = None
+    for match in BABEL.finditer(head):
+        for option in match.group(1).split(","):
+            name = option.strip().split("=")[-1].strip().lower()
+            if name in LANGUAGE_NAMES:
+                found = (match.start(), LANGUAGE_NAMES[name], match.group(0))
+            elif name in ENGLISH_NAMES:
+                found = (match.start(), "", match.group(0))
+    for match in POLYGLOSSIA.finditer(head):
+        name = match.group(2).lower()
+        if name in LANGUAGE_NAMES:
+            candidate = (match.start(), LANGUAGE_NAMES[name], match.group(0))
+        elif name in ENGLISH_NAMES:
+            candidate = (match.start(), "", match.group(0))
+        else:
+            continue
+        if found is None or candidate[0] >= found[0]:
+            found = candidate
+    if not found or not found[1]:
+        return None
+    return {"code": found[1], "line": " ".join(found[2].split())}
 
 
 def _bib_entries(text: str) -> list[dict]:
@@ -375,6 +426,9 @@ def scan(
             english = english_of(text)
             if english:
                 found.english[relative] = english
+            language = language_of(text)
+            if language:
+                found.languages[relative] = language
 
         # Labels by position rather than by line, so each can say which
         # environment it sits in; the line number is counted on the way.

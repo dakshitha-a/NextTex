@@ -147,6 +147,9 @@ export type Symbols = {
   /** Which English each document's preamble declares, by file, when it
    *  declares one: "british" or "american". */
   english?: Record<string, "british" | "american">;
+  /** The main language a document's preamble declares, when it is one of
+   *  the four the spelling lists cover, with the line that said so. */
+  languages?: Record<string, { code: string; line: string }>;
   /** The bibliography styles this TeX has, for `\bibliographystyle{}`. */
   styles?: string[];
 };
@@ -911,6 +914,7 @@ const api = {
       pageLimit: number;
       blind: boolean;
       pdfa: boolean;
+      language: string;
     }>,
   ) =>
     request<{
@@ -924,6 +928,7 @@ const api = {
       pageLimit: number;
       blind: boolean;
       pdfa: boolean;
+      language: string;
     }>(`/projects/${id}/settings`, json(patch)),
   /** This machine's answer to a project that asks for shell escape. The
    *  project asks in its own toml; the answer is kept per project on the

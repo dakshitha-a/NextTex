@@ -163,6 +163,7 @@ export default function Editor({
   const emphasis = useEditorEmphasis();
   const spelling = useSpelling();
   const spellingVariety = useSpellingVariety();
+  const spellingLanguage = useStore((s) => s.settings.language);
   const keymapChoice = useKeymap();
   const keymapRef = useRef(keymapChoice);
   keymapRef.current = keymapChoice;
@@ -228,6 +229,17 @@ export default function Editor({
    *  the document that owns the open file declares in its preamble, else
    *  both spellings.  The owner rather than the file, since a chapter has
    *  no preamble of its own. */
+  /** Which language this buffer is spelled in: the project's setting,
+   *  else what the owning document's preamble declares, else English. */
+  const resolveLanguage = useCallback((): string => {
+    const state = get();
+    const chosen = state.settings.language;
+    if (chosen) return chosen;
+    const path = current.current ?? "";
+    const owner = state.owners[path]?.[0] ?? (state.previews.includes(path) ? path : state.activePreview);
+    return (owner ? symbols.current?.languages?.[owner]?.code : undefined) ?? "en";
+  }, []);
+
   const resolveVariety = useCallback((): "american" | "british" | "either" => {
     const chosen = varietyRef.current;
     if (chosen !== "follow") return chosen;
@@ -259,6 +271,7 @@ export default function Editor({
     now.dispatch({
       effects: module.setSpelling.of({
         on: true, custom: acceptedRef.current, variety: resolveVariety(),
+        language: resolveLanguage(),
       }),
     });
   }, []);
@@ -1264,7 +1277,7 @@ export default function Editor({
     // `spellingVariety` and `builtAt` are read through refs inside
     // `applySpelling`; they are here so a changed setting, or a symbol
     // table refreshed by a build, re-applies the checker.
-  }, [spelling, accepted, applySpelling, spellingVariety, builtAt, activePreview]);
+  }, [spelling, accepted, applySpelling, spellingVariety, builtAt, activePreview, spellingLanguage]);
 
   /** Open the menu on the misspelled word the caret is in.
    *
@@ -1316,13 +1329,8 @@ export default function Editor({
     (now: EditorView, node: HTMLElement, x: number, y: number, flip: number) => {
       const word = node.dataset.word ?? "";
       const from = now.posAtDOM(node);
-      const list = speller.current?.shipped() ?? null;
       const mine = new Set(accepted.map((w) => w.toLowerCase()));
-      const guesses = list
-        ? speller.current!.suggestions(word, (candidate) =>
-            list.has(candidate) || mine.has(candidate),
-          )
-        : [];
+      const guesses = speller.current?.guessesFor(word, mine) ?? [];
       return { word, x, y, flip, from, to: from + word.length, guesses };
     },
     [accepted],

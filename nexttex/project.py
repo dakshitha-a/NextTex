@@ -262,6 +262,12 @@ class ProjectConfig:
     #: Whether the venue asks for PDF/A, which makes the submission check
     #: look for pdfx or a \DocumentMetadata that names a PDF/A standard.
     pdfa: bool = False
+    #: Which language the prose is spelled in: "" to follow the main
+    #: document's babel or polyglossia line, English when it has none;
+    #: "en" for English whatever the preamble says; or one of the lists
+    #: `nexttex/dictionaries.py` fetches. Here because every collaborator
+    #: needs the same answer.
+    language: str = ""
 
     @classmethod
     def load(cls, root: Path) -> "ProjectConfig":
@@ -292,7 +298,15 @@ class ProjectConfig:
             page_limit=cls._count(section.get("page_limit")),
             blind=section.get("blind") is True,
             pdfa=section.get("pdfa") is True,
+            language=cls._language(section.get("language")),
         )
+
+    @staticmethod
+    def _language(raw: object) -> str:
+        """A spelling language NextTex has, or "" to follow the preamble."""
+        from .dictionaries import LANGUAGES
+
+        return raw if isinstance(raw, str) and (raw == "en" or raw in LANGUAGES) else ""
 
     @staticmethod
     def _count(raw: object) -> int:
@@ -369,6 +383,8 @@ class ProjectConfig:
             lines.append("blind = true")
         if self.pdfa:
             lines.append("pdfa = true")
+        if self.language:
+            lines.append(f"language = {_toml(self.language)}")
         if self.check_command:
             lines.append(f"check_command = {_toml(self.check_command)}")
         if self.exclude:
@@ -542,6 +558,7 @@ class Project:
             "pageLimit": self.config.page_limit,
             "blind": self.config.blind,
             "pdfa": self.config.pdfa,
+            "language": self.config.language,
         }
 
 

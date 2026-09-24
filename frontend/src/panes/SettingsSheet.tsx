@@ -146,6 +146,7 @@ export default function SettingsSheet({
       markErrors: boolean;
       markWarnings: boolean;
       engine: Engine | "";
+      language: string;
     }>,
   ) => {
     if (!projectId) return;
@@ -494,6 +495,11 @@ export default function SettingsSheet({
                 onChange={(engine) => toggle({ engine: engine === "pdflatex" ? "" : engine })}
               />
             </SRow>
+            <LanguageRow
+              projectId={projectId}
+              chosen={project.language}
+              onChange={(language) => toggle({ language })}
+            />
             {/* Shown only when the project asks, because a row that reads
                 "Shell escape: off" on every project advertises a switch,
                 and this is not a switch: the project asks in its own file
@@ -743,6 +749,71 @@ function AddedWords() {
           </Chip>
         ))}
       </div>
+    </SRow>
+  );
+}
+
+const LANGUAGES = [
+  { value: "en", label: "English" },
+  { value: "de", label: "German" },
+  { value: "fr", label: "French" },
+  { value: "es", label: "Spanish" },
+  { value: "pt", label: "Portuguese" },
+] as const;
+
+/** The project's spelling language.  Kept in `nexttex.toml`, since every
+ *  collaborator needs the same answer.  Until somebody chooses, the main
+ *  document's babel or polyglossia line decides, and the row says which
+ *  line; choosing English over such a line writes "en" so the line stops
+ *  deciding, and choosing it with no line to overrule writes nothing. */
+function LanguageRow({
+  projectId,
+  chosen,
+  onChange,
+}: {
+  projectId: string;
+  chosen: string;
+  onChange: (language: string) => void;
+}) {
+  const activePreview = useStore((s) => s.activePreview);
+  const [declared, setDeclared] = useState<{ code: string; line: string } | null>(null);
+  useEffect(() => {
+    let live = true;
+    api
+      .symbols(projectId)
+      .then((symbols) => {
+        if (!live) return;
+        const all = symbols.languages ?? {};
+        setDeclared((activePreview && all[activePreview]) || Object.values(all)[0] || null);
+      })
+      .catch(() => live && setDeclared(null));
+    return () => {
+      live = false;
+    };
+  }, [projectId, activePreview]);
+  const value = (chosen || declared?.code || "en") as (typeof LANGUAGES)[number]["value"];
+  return (
+    <SRow
+      title="Spelling language"
+      note={
+        !chosen && declared ? (
+          <>
+            Suggested by <span className="whitespace-nowrap font-mono">{declared.line}</span>.
+          </>
+        ) : undefined
+      }
+    >
+      <Segmented
+        label="Spelling language"
+        testid="spelling-language"
+        value={value}
+        options={LANGUAGES.map((option) => ({
+          value: option.value,
+          label: option.label,
+          testid: `language-${option.value}`,
+        }))}
+        onChange={(language) => onChange(language === "en" ? (declared ? "en" : "") : language)}
+      />
     </SRow>
   );
 }

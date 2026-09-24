@@ -529,6 +529,7 @@ export default function App() {
         pageLimit: countOf(project.pageLimit),
         blind: project.blind === true,
         pdfa: project.pdfa === true,
+        language: typeof project.language === "string" ? project.language : "",
       },
       // The last project's import progress, which belongs to the last
       // project. It was left, so opening another one showed a papers

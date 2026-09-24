@@ -856,6 +856,7 @@ class ProjectSession:
             "pageLimit": config.page_limit,
             "blind": config.blind,
             "pdfa": config.pdfa,
+            "language": config.language,
         }
 
     def documents_payload(self) -> dict:
