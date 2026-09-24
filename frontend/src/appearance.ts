@@ -95,6 +95,11 @@ export type Appearance = {
    *  ignore underlines.  Choosing a variety tightens it, so the other
    *  spelling is flagged. */
   spellingVariety: SpellingVariety;
+  /** Whether the prose is checked for grammar and style, by Harper, in
+   *  the browser. Off by default, for the reason spelling is, and because
+   *  its WebAssembly is sixteen megabytes fetched on first use. English
+   *  only. */
+  grammar: boolean;
   /** Whose fingers the editor answers to.  `default` is CodeMirror's own
    *  keymap and costs nothing; `vim` and `emacs` are fetched the first
    *  time they are chosen, and each has its undo rebound to the shared
@@ -156,7 +161,7 @@ export const WEIGHT_NAMES: Record<number, string> = {
 export const DEFAULTS: Appearance = {
   theme: "dark", scale: 100, editor: 13.5, editorTheme: "match",
   weight: 400, syntax: "subtle", emphasis: "bold", preview: "balanced",
-  spelling: false, spellingVariety: "follow", keymap: "default",
+  spelling: false, spellingVariety: "follow", grammar: false, keymap: "default",
   hover: true,
   hoverKinds: { maths: true, tables: true, figures: true, refs: true, cites: true, files: true },
 };
@@ -172,6 +177,7 @@ const KEYS = {
   preview: "nexttex.preview.quality",
   spelling: "nexttex.editor.spelling",
   spellingVariety: "nexttex.editor.spelling.variety",
+  grammar: "nexttex.editor.grammar",
   keymap: "nexttex.editor.keymap",
   hover: "nexttex.editor.hover",
   hoverKinds: "nexttex.editor.hover.hidden",
@@ -229,6 +235,7 @@ export function storedAppearance(): Appearance {
   const preview = readStored(KEYS.preview);
   const spelling = readStored(KEYS.spelling);
   const spellingVariety = readStored(KEYS.spellingVariety);
+  const grammar = readStored(KEYS.grammar);
   const keymap = readStored(KEYS.keymap);
   const hover = readStored(KEYS.hover);
   const hoverKinds = readStored(KEYS.hoverKinds);
@@ -248,6 +255,7 @@ export function storedAppearance(): Appearance {
         ? preview
         : DEFAULTS.preview,
     spelling: spelling === "on",
+    grammar: grammar === "on",
     spellingVariety:
       spellingVariety === "american" || spellingVariety === "british"
         ? spellingVariety
@@ -338,6 +346,7 @@ export function applyAppearance(appearance: Appearance): void {
   root.dataset.previewQuality = appearance.preview;
   root.dataset.spelling = appearance.spelling ? "on" : "off";
   root.dataset.spellingVariety = appearance.spellingVariety;
+  root.dataset.grammar = appearance.grammar ? "on" : "off";
   root.dataset.keymap = appearance.keymap;
   // The kinds that are on, space separated, or nothing at all while the
   // switch is off; `math-hover.ts` reads it at the moment of the hover.
@@ -354,6 +363,7 @@ export function applyAppearance(appearance: Appearance): void {
   writeStored(KEYS.preview, appearance.preview);
   writeStored(KEYS.spelling, appearance.spelling ? "on" : "off");
   writeStored(KEYS.spellingVariety, appearance.spellingVariety);
+  writeStored(KEYS.grammar, appearance.grammar ? "on" : "off");
   writeStored(KEYS.keymap, appearance.keymap);
   writeStored(KEYS.hover, appearance.hover ? "on" : "off");
   writeStored(KEYS.hoverKinds, HOVER_KINDS.filter((kind) => !appearance.hoverKinds[kind]).join(","));
@@ -380,6 +390,7 @@ export function isDefault(appearance: Appearance): boolean {
     appearance.preview === DEFAULTS.preview &&
     appearance.spelling === DEFAULTS.spelling &&
     appearance.spellingVariety === DEFAULTS.spellingVariety &&
+    appearance.grammar === DEFAULTS.grammar &&
     // The keymap was left out when it was added, so Reset this
     // computer's choices was disabled for a writer whose only choice was
     // Vim, though pressing it would have reset the keymap too.

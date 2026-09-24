@@ -268,6 +268,9 @@ const familyHighlight = ViewPlugin.fromClass(
 
 /** Where the spell checker goes when it is switched on. */
 export const spellCompartment = new Compartment();
+/** Grammar, likewise: empty until the writer turns it on, and filled from
+ *  the grammar chunk, whose Harper is sixteen megabytes of WebAssembly. */
+export const grammarCompartment = new Compartment();
 /** Where Vim or Emacs goes when one is chosen; `[]` otherwise, so a
  *  session that wants neither pays nothing.  First in the extensions so
  *  its keys are seen before the app's own. */
@@ -704,6 +707,7 @@ function base(): Extension[] {
     // hundred kilobytes that an editor with the setting off should never
     // pay for, in bytes or in work per keystroke.
     spellCompartment.of([]),
+    grammarCompartment.of([]),
     EditorView.lineWrapping,
     // The document is an ARIA textbox; without a name it is announced as an
     // unlabelled input, which is the least useful thing to hear about the

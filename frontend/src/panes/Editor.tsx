@@ -22,6 +22,7 @@ import {
   setDiff,
   setMarks,
   spellCompartment,
+  grammarCompartment,
   viewExtensions,
 } from "./editor-setup";
 import { isCode, isMarkdown, isTeX } from "./file-kinds";
@@ -36,13 +37,13 @@ import {
   useEditorSyntax,
   useKeymap,
   useSpelling,
+  useGrammar,
   useSpellingVariety,
 } from "../use-editor-theme";
 import { toShell, uiScale } from "../viewport";
-import { Menu, MenuDivider, MenuItem } from "../ui/Menu";
 import { get, markStale, set, useStore } from "../store";
 import type { ProjectCollab } from "../collab";
-import { locateWord, type WordHint } from "./locate-word";
+import type { WordHint } from "./locate-word";
 import { noteTyping, onFrame } from "../timing";
 
 /** Fetched when a writer first selects something rather than before
@@ -50,6 +51,7 @@ import { noteTyping, onFrame } from "../timing";
  *  is: `bundle.initial_kb` counts only what a first visit has to
  *  download. */
 const SelectionActions = lazy(() => import("./SelectionActions"));
+const WordMenu = lazy(() => import("./WordMenu"));
 const EditorComments = lazy(() => import("./EditorComments"));
 import { placeClear } from "./place-clear";
 import type { CommentsApi } from "./EditorComments";
@@ -162,6 +164,9 @@ export default function Editor({
   const syntax = useEditorSyntax();
   const emphasis = useEditorEmphasis();
   const spelling = useSpelling();
+  const grammarOn = useGrammar();
+  const grammarRef = useRef(grammarOn);
+  grammarRef.current = grammarOn;
   const spellingVariety = useSpellingVariety();
   const spellingLanguage = useStore((s) => s.settings.language);
   const keymapChoice = useKeymap();
@@ -206,6 +211,15 @@ export default function Editor({
   // most of the reason it can be turned on at all: it is a hundred
   // kilobytes and a pass over every visible line.
   const speller = useRef<typeof import("./spellcheck") | null>(null);
+  // Grammar, from its own chunk, and the findings this project ignores.
+  const grammarer = useRef<typeof import("./grammar-check") | null>(null);
+  const [grammarIgnored, setGrammarIgnored] = useState<string[]>([]);
+  const grammarIgnoredRef = useRef(grammarIgnored);
+  grammarIgnoredRef.current = grammarIgnored;
+  // "Ignore for now": for this sitting, in this tab, and gone on a reload.
+  // Words for spelling and finding keys for grammar; the stamp re-applies.
+  const forNow = useRef({ words: new Set<string>(), keys: new Set<string>() });
+  const [forNowStamp, setForNowStamp] = useState(0);
   // Read by the buffer swap below, which is a closure made once.
   /** The verb row's measured size, once it has been drawn, so the next
    *  placement can use it rather than a guess. */
@@ -270,12 +284,37 @@ export default function Editor({
     }
     now.dispatch({
       effects: module.setSpelling.of({
-        on: true, custom: acceptedRef.current, variety: resolveVariety(),
+        on: true, custom: [...acceptedRef.current, ...forNow.current.words], variety: resolveVariety(),
         language: resolveLanguage(),
       }),
     });
   }, []);
+
+  /** Grammar into whatever state the view holds now, for the reason
+   *  spelling is put there on every swap. Off for code, and off for a
+   *  project spelled in another language, since Harper is English only. */
+  const applyGrammar = useCallback((now: EditorView) => {
+    const module = grammarer.current;
+    if (!module) return;
+    const configured = grammarCompartment.get(now.state);
+    const present = Array.isArray(configured) && configured.length > 0;
+    if (!grammarRef.current || isCode(current.current ?? "") || resolveLanguage() !== "en") {
+      if (present) now.dispatch({ effects: grammarCompartment.reconfigure([]) });
+      return;
+    }
+    if (!present) now.dispatch({ effects: grammarCompartment.reconfigure(module.grammarChecking()) });
+    now.dispatch({
+      effects: module.setGrammar.of({
+        on: true, ignored: [...grammarIgnoredRef.current, ...forNow.current.keys],
+      }),
+    });
+  }, [resolveLanguage]);
   const [offer, setOffer] = useState<{
+    /** A misspelling, or a grammar finding with Harper's sentence and the
+     *  key "ignore in this project" remembers. */
+    kind: "spelling" | "grammar";
+    message?: string;
+    key?: string;
     word: string;
     /** Where the menu wants to be, in the shell's own pixels on the screen:
      *  under the word, or at the pointer, with the word's top as the edge
@@ -795,24 +834,41 @@ export default function Editor({
     ) => {
       const editor = view.current;
       if (!editor) return;
-      const total = editor.state.doc.lines;
-      let target = editor.state.doc.line(Math.min(Math.max(line, 1), total));
       // A double-click on the page knows which word it landed on, and
       // synctex does not: it answers every query with `Column:-1`, so
       // without this the cursor can only arrive at the start of the line.
-      // Near, and not on the words you were looking at.
-      let at = target.from;
+      // Near, and not on the words you were looking at. The word finder is
+      // a chunk of its own, fetched with the first such jump: only a
+      // double-click on the page needs it.
       if (word) {
-        const found = locateWord(
-          (number) => editor.state.doc.line(number).text,
-          total,
-          target.number,
-          word,
-        );
-        if (found) {
-          target = editor.state.doc.line(found.line);
-          at = target.from + found.column - 1;
-        }
+        void import("./locate-word")
+          .then(({ locateWord }) => land(line, endLine, steal, hold, (total, number) => locateWord(
+            (at) => view.current!.state.doc.line(at).text, total, number, word,
+          )))
+          .catch(() => land(line, endLine, steal, hold));
+        return;
+      }
+      land(line, endLine, steal, hold);
+    };
+
+    /** The second half of a jump: the caret, the scroll and the flash,
+     *  once any word on the line has been found. */
+    const land = (
+      line: number,
+      endLine: number | undefined,
+      steal: boolean,
+      hold: number,
+      find?: (total: number, line: number) => { line: number; column: number } | null,
+    ) => {
+      const editor = view.current;
+      if (!editor) return;
+      const total = editor.state.doc.lines;
+      let target = editor.state.doc.line(Math.min(Math.max(line, 1), total));
+      let at = target.from;
+      const found = find?.(total, target.number);
+      if (found) {
+        target = editor.state.doc.line(found.line);
+        at = target.from + found.column - 1;
       }
       const end = endLine
         ? editor.state.doc.line(Math.min(Math.max(endLine, 1), total))
@@ -879,6 +935,7 @@ export default function Editor({
       setOffer((open) => (open === null ? open : null));
       if (view.current) {
         applySpelling(view.current);
+        applyGrammar(view.current);
         void applyKeymap(view.current);
       }
       // Which document the view actually holds, said out loud. A tab
@@ -1277,7 +1334,41 @@ export default function Editor({
     // `spellingVariety` and `builtAt` are read through refs inside
     // `applySpelling`; they are here so a changed setting, or a symbol
     // table refreshed by a build, re-applies the checker.
-  }, [spelling, accepted, applySpelling, spellingVariety, builtAt, activePreview, spellingLanguage]);
+  }, [spelling, accepted, applySpelling, spellingVariety, builtAt, activePreview, spellingLanguage, forNowStamp]);
+
+  // ---- grammar ------------------------------------------------------------
+  useEffect(() => {
+    const projectId = get().projectId;
+    if (!projectId || !grammarOn) {
+      setGrammarIgnored([]);
+      return;
+    }
+    let live = true;
+    api
+      .grammarIgnored(projectId)
+      .then((result) => { if (live) setGrammarIgnored(result.keys); })
+      .catch(() => undefined);
+    return () => { live = false; };
+  }, [grammarOn, activePath]);
+
+  useEffect(() => {
+    const editor = view.current;
+    if (!editor) return;
+    if (!grammarOn) {
+      editor.dispatch({ effects: grammarCompartment.reconfigure([]) });
+      return;
+    }
+    let live = true;
+    const tell = (module: typeof import("./grammar-check")) => {
+      const now = view.current;
+      if (!live || !now) return;
+      grammarer.current = module;
+      applyGrammar(now);
+    };
+    if (grammarer.current) tell(grammarer.current);
+    else import("./grammar-check").then(tell).catch(() => undefined);
+    return () => { live = false; };
+  }, [grammarOn, grammarIgnored, applyGrammar, builtAt, activePreview, spellingLanguage, forNowStamp]);
 
   /** Open the menu on the misspelled word the caret is in.
    *
@@ -1305,10 +1396,10 @@ export default function Editor({
       const node = spot.node.nodeType === 1
         ? (spot.node as HTMLElement)
         : spot.node.parentElement;
-      return (node?.closest?.(".nx-misspelled") as HTMLElement | null) ?? null;
+      return (node?.closest?.(".nx-misspelled, .nx-grammar") as HTMLElement | null) ?? null;
     };
     const word = marked(at) ?? marked(at + 1) ?? marked(at - 1);
-    if (!word?.dataset.word) return false;
+    if (!word || (!word.dataset.word && word.dataset.grammar === undefined)) return false;
     const where = word.getBoundingClientRect();
     // Read in viewport pixels, written as a style inside the zoomed shell:
     // see viewport.ts for why the two are not the same number.
@@ -1327,11 +1418,24 @@ export default function Editor({
    *  re-rendered on every arrow key once it is open. */
   const offerFor = useCallback(
     (now: EditorView, node: HTMLElement, x: number, y: number, flip: number) => {
+      // A grammar finding carries its index into the checker's list, and
+      // the list carries the rest: Harper's sentence, its replacements,
+      // and exactly the stretch it found.
+      if (node.dataset.grammar !== undefined) {
+        const finding = grammarer.current?.findingOf(now, Number(node.dataset.grammar));
+        if (finding) {
+          return {
+            kind: "grammar" as const, message: finding.message,
+            key: grammarer.current!.ignoreKey(finding), word: finding.text,
+            x, y, flip, from: finding.from, to: finding.to, guesses: finding.replacements,
+          };
+        }
+      }
       const word = node.dataset.word ?? "";
       const from = now.posAtDOM(node);
       const mine = new Set(accepted.map((w) => w.toLowerCase()));
       const guesses = speller.current?.guessesFor(word, mine) ?? [];
-      return { word, x, y, flip, from, to: from + word.length, guesses };
+      return { kind: "spelling" as const, word, x, y, flip, from, to: from + word.length, guesses };
     },
     [accepted],
   );
@@ -1341,7 +1445,7 @@ export default function Editor({
   // make the document harder to edit in exactly the places it needs editing.
   useEffect(() => {
     const root = host.current;
-    if (!root || !spelling) return;
+    if (!root || (!spelling && !grammarOn)) return;
     const onMenu = (event: MouseEvent) => {
       // Shift-F10 and the Menu key arrive as a `contextmenu` event with no
       // pointer behind it, and Chromium reports 0, 0 for its coordinates.
@@ -1355,7 +1459,7 @@ export default function Editor({
         return;
       }
       const target = (event.target as HTMLElement | null)?.closest?.(
-        ".nx-misspelled",
+        ".nx-misspelled, .nx-grammar",
       ) as HTMLElement | null;
       if (!target) {
         // Shift-F10, and the keyboard's Menu key, arrive here as a
@@ -1366,8 +1470,7 @@ export default function Editor({
         if (offerAtCaret()) event.preventDefault();
         return;
       }
-      const word = target.dataset.word;
-      if (!word || !view.current) return;
+      if ((!target.dataset.word && target.dataset.grammar === undefined) || !view.current) return;
       event.preventDefault();
       const where = target.getBoundingClientRect();
       setOffer(
@@ -1393,7 +1496,7 @@ export default function Editor({
       root.removeEventListener("contextmenu", onMenu);
       root.removeEventListener("keydown", onKey);
     };
-  }, [spelling, offerAtCaret, offerFor]);
+  }, [spelling, grammarOn, offerAtCaret, offerFor]);
 
   /** Where the menu goes, and where focus goes, the moment it mounts.
    *
@@ -1505,45 +1608,15 @@ export default function Editor({
           handle={comments}
         />
       </Suspense>
-      {/* The kit's menu: placed on the screen from its measured size, put
-          away by a press anywhere else, and closed by Escape with focus
-          going back to the editor. */}
-      <Menu
-        open={offer !== null}
-        onClose={() => {
-          setOffer(null);
-          view.current?.focus();
-        }}
-        wanted={offer ? { left: offer.x, top: offer.y, flip: offer.flip } : null}
-        testid="spelling-menu"
-        width={232}
-        // A digit picks the guess with that number, which the hint beside
-        // each guess promises.
-        onKey={(event) => {
-          const digit = Number(event.key);
-          if (!offer || !Number.isInteger(digit) || digit < 1 || digit > offer.guesses.length) return false;
-          event.preventDefault();
-          const guess = offer.guesses[digit - 1];
-          const now = view.current;
-          setOffer(null);
-          now?.dispatch({
-            changes: { from: offer.from, to: offer.to, insert: guess },
-            selection: { anchor: offer.from + guess.length },
-          });
-          now?.focus();
-          return true;
-        }}
-      >
-        {/* The guesses first, because a typo is the common case and adding
-            a typo to the dictionary is the one outcome nobody wants; each
-            with its number, so the first is a keystroke away.  A word that
-            is nothing like anything in the list gets no guesses at all,
-            and then the item below is the whole menu. */}
-        {offer?.guesses.map((guess, index) => (
-          <MenuItem
-            key={guess}
-            hint={index < 9 ? String(index + 1) : undefined}
-            onClick={() => {
+      {offer ? (
+        <Suspense fallback={null}>
+          <WordMenu
+            offer={offer}
+            onClose={() => {
+              setOffer(null);
+              view.current?.focus();
+            }}
+            onReplace={(guess) => {
               const now = view.current;
               setOffer(null);
               now?.dispatch({
@@ -1552,20 +1625,31 @@ export default function Editor({
               });
               now?.focus();
             }}
-          >
-            {guess}
-          </MenuItem>
-        ))}
-        {offer?.guesses.length ? <MenuDivider /> : null}
-        <MenuItem
-          onClick={() => {
-            if (offer) accept(offer.word);
-            view.current?.focus();
-          }}
-        >
-          Add “{offer?.word}” to the dictionary
-        </MenuItem>
-      </Menu>
+            onIgnoreForNow={() => {
+              if (offer.kind === "grammar" && offer.key) forNow.current.keys.add(offer.key);
+              else forNow.current.words.add(offer.word.toLowerCase());
+              setOffer(null);
+              setForNowStamp((n) => n + 1);
+              view.current?.focus();
+            }}
+            onIgnoreInProject={() => {
+              const key = offer.key;
+              const projectId = get().projectId;
+              setOffer(null);
+              view.current?.focus();
+              if (!key || !projectId) return;
+              void api
+                .ignoreGrammar(projectId, key)
+                .then((result) => setGrammarIgnored(result.keys))
+                .catch(() => undefined);
+            }}
+            onAdd={() => {
+              accept(offer.word);
+              view.current?.focus();
+            }}
+          />
+        </Suspense>
+      ) : null}
     </div>
   );
 }

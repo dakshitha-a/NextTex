@@ -30,20 +30,9 @@ the reversal should have to answer it.
 
 ## The list
 
-1. **Grammar and style, locally.** Spelling is checked in the browser
-   without a model and without the network, and grammar can be too:
-   Harper compiles to WebAssembly and runs on a sentence in a few
-   milliseconds. It is fetched on first use, the way the word list and
-   the PDF pane are, so the bundle budget is untouched. It runs over the
-   prose mask that `frontend/src/panes/spell-scan.ts` already computes,
-   which is what keeps a `\cite` from being read as a sentence with no
-   verb, under a rule set trimmed for academic prose, and a finding gets
-   the actions a misspelling has: replace it, ignore it in this project,
-   ignore it for now. The second roadmap run left it for a run of its
-   own: it is a new WebAssembly subsystem with its own loading, rule
-   trimming and test story rather than a surface on something that
-   exists. *Medium; y.*
-
+Empty. Every item the list held was built in the run of 24 September
+2026, each with a section of its own in `docs/design.md`, 67 to 74. A new
+item goes here, in its place in the order, when somebody proposes it.
 
 ## Not adopting, and why
 

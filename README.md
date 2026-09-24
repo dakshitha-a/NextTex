@@ -615,7 +615,7 @@ makes typing slower on the day it happens.
 | A settled edit written to disk | 1.4 ms | 40 ms |
 | The same, with its version recorded | 3.0 ms | 60 ms |
 | Whole project as a zip | 67 ms | 3 s |
-| Interface bundle | 859.0 kB | 860 kB |
+| Interface bundle | 859.3 kB | 860 kB |
 
 The first row is the one worth keeping. The compile rewrites `build/main.pdf`,
 the symbol cache's stamp walk used to count it, and every build therefore
@@ -790,6 +790,15 @@ settings sheet's *This project* group, or a `babel` or `polyglossia` line
 in its preamble says so for it, and that language's word list is fetched
 the first time, once for the machine. Those four are checked by Hunspell,
 the checker LibreOffice uses, so a German compound is one word.
+
+Grammar and style can be checked too, in English, beside the spelling, by
+Harper, which runs in your browser and sends nothing anywhere. Switch it
+on under *While you write*; the first time, it fetches itself from your
+own NextTex, sixteen megabytes. A finding has a dashed line where a
+misspelling has a dotted one, and the same menu: what Harper thinks is
+wrong, what to put instead, and *Ignore for now* or *Ignore in this
+project*. It reads prose only, so a `\cite` is not a sentence with no
+verb.
 
 Paste a spreadsheet's cells or a `.csv` into a chapter and they arrive as
 a booktabs table, cells escaped, numbers right-aligned, the caret in the

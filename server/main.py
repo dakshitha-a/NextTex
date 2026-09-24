@@ -4467,6 +4467,23 @@ async def add_to_dictionary(project_id: str, word: str = Body(..., embed=True)):
     return {"words": session_for(project_id).dictionary.add(word)}
 
 
+@app.get("/api/projects/{project_id}/grammar-ignored")
+async def read_grammar_ignored(project_id: str):
+    """The grammar findings this project says to leave alone, one key each:
+    the rule's kind and the words it found."""
+    return {"keys": session_for(project_id).grammar_ignores.words()}
+
+
+@app.post("/api/projects/{project_id}/grammar-ignored")
+async def ignore_grammar(project_id: str, key: str = Body(..., embed=True)):
+    return {"keys": session_for(project_id).grammar_ignores.add(key)}
+
+
+@app.delete("/api/projects/{project_id}/grammar-ignored")
+async def unignore_grammar(project_id: str, key: str):
+    return {"keys": session_for(project_id).grammar_ignores.remove(key)}
+
+
 @app.delete("/api/projects/{project_id}/dictionary")
 async def remove_from_dictionary(project_id: str, word: str):
     """Undo an addition.

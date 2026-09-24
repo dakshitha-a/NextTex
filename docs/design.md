@@ -10641,3 +10641,27 @@ colours. Links keep their hue. A TikZ drawing set inline is part of the
 page and darkens with it. Two pages open as a book does, one and two,
 three and four. A turn is a quarter at a time and survives a reload, as
 the other two do, per browser. SyncTeX works both ways in every mode.
+
+## 74. Grammar, locally
+
+The roadmap's first item and the last built. Harper checks grammar and
+style in the browser, with no model and no network: its WebAssembly is
+part of the install and is fetched from it the first time grammar is
+switched on. A finding is drawn the way a misspelling is, in the same
+ink, dashed where spelling is dotted, because one accent has one meaning
+and the two should read as one family. The menu is the same menu: Harper's
+sentence at its head, its replacements, then *Ignore for now* and *Ignore
+in this project*. *Ignore for now* reached the spelling menu too, so the
+two menus match.
+
+The switch is under *While you write*, beside Spelling and per computer
+like it, rather than on *This project* where the drawing had it: whether
+to have a checker at all is the writer's own preference and not a thing
+a co-author should be handed. Its note says the two things worth knowing
+before turning it on, that nothing is sent and that it is sixteen
+megabytes fetched once. Harper is English only, so it rests in a project
+spelled in another language, and the note says so there.
+
+The rules that read LaTeX's masked prose wrongly are off, and so are the
+ones that are a matter of the writer's style: the serial comma either
+way, and long sentences, which academic prose has by choice.

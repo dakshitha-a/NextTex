@@ -86,13 +86,13 @@ describe("what is remembered", () => {
     applyAppearance({
       theme: "light", scale: 125, editor: 17, editorTheme: "match",
       weight: 500, syntax: "colour", emphasis: "plain", preview: "sharper",
-      spelling: true, spellingVariety: "british", keymap: "vim",
+      spelling: true, spellingVariety: "british", grammar: true, keymap: "vim",
       hover: false, hoverKinds: { ...DEFAULTS.hoverKinds, figures: false },
     });
     expect(storedAppearance()).toEqual({
       theme: "light", scale: 125, editor: 17, editorTheme: "match",
       weight: 500, syntax: "colour", emphasis: "plain", preview: "sharper",
-      spelling: true, spellingVariety: "british", keymap: "vim",
+      spelling: true, spellingVariety: "british", grammar: true, keymap: "vim",
       hover: false, hoverKinds: { ...DEFAULTS.hoverKinds, figures: false },
     });
   });
@@ -119,7 +119,7 @@ describe("what is remembered", () => {
     applyAppearance({
       theme: "light", scale: 150, editor: 21, editorTheme: "match",
       weight: 300, syntax: "colour", emphasis: "plain", preview: "sharper",
-      spelling: true, spellingVariety: "american", keymap: "emacs",
+      spelling: true, spellingVariety: "american", grammar: true, keymap: "emacs",
       hover: true, hoverKinds: { ...DEFAULTS.hoverKinds, maths: false, cites: false },
     });
     const root = document.documentElement;

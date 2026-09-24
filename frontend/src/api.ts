@@ -967,6 +967,12 @@ const api = {
     request<{ words: string[] }>(`/projects/${id}/dictionary`),
   addWord: (id: string, word: string) =>
     request<{ words: string[] }>(`/projects/${id}/dictionary`, json({ word })),
+  /** The grammar findings this project ignores, one key per finding:
+   *  the rule and the words it found. */
+  grammarIgnored: (id: string) =>
+    request<{ keys: string[] }>(`/projects/${id}/grammar-ignored`),
+  ignoreGrammar: (id: string, key: string) =>
+    request<{ keys: string[] }>(`/projects/${id}/grammar-ignored`, json({ key })),
   forgetWord: (id: string, word: string) =>
     request<{ words: string[] }>(
       `/projects/${id}/dictionary?word=${encodeURIComponent(word)}`,

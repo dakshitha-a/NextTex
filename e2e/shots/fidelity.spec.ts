@@ -963,6 +963,39 @@ const SURFACES: Record<string, Surface> = {
       await tab.getByTestId("pdf-dark").click();
     },
   },
+  "grammar-menu": {
+    // A repeated word found by Harper, its dashed line, and the menu with
+    // Harper's sentence at its head, beside a misspelling's dotted line.
+    open: async (tab) => {
+      await tab.getByTestId("appearance").click();
+      await tab.getByTestId("settings-group-write").click();
+      await tab.getByTestId("grammar-on").click();
+      await tab.getByTestId("spelling-on").click();
+      await tab.keyboard.press("Escape");
+      await typeLine(tab, "In all three solvents the the decay is consistant with one intersection.");
+      await tab.locator(".nx-grammar").first().waitFor({ timeout: 45_000 });
+      await tab.locator(".nx-grammar").first().click({ button: "right" });
+      await tab.getByTestId("spelling-menu").waitFor();
+      await tab.waitForTimeout(300);
+      return tab.getByTestId("editor-host");
+    },
+    close: async (tab) => {
+      await tab.keyboard.press("Escape");
+      await tab.getByTestId("appearance").click();
+      await tab.getByTestId("settings-group-write").click();
+      await tab.getByTestId("grammar-off").click();
+      await tab.getByTestId("spelling-off").click();
+      await tab.keyboard.press("Escape");
+    },
+  },
+  "settings-write": {
+    open: async (tab) => {
+      await tab.getByTestId("appearance").click();
+      await tab.getByTestId("settings-group-write").click();
+      return tab.getByTestId("settings-sheet");
+    },
+    close: escape,
+  },
   "history-outside": {
     // A typed change, then one from another program: the drawer's History
     // with the disk's row above the writer's.

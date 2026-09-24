@@ -35,8 +35,16 @@ def _clean(word: str) -> str:
 
 
 class ProjectDictionary:
+    #: The file, and how an entry is evened out before it is stored or
+    #: compared; a subclass keeps something other than words.
+    FILE = "dictionary.txt"
+
+    @staticmethod
+    def clean(entry: str) -> str:
+        return _clean(entry)
+
     def __init__(self, state_dir: Path) -> None:
-        self.path = state_dir / "dictionary.txt"
+        self.path = state_dir / self.FILE
 
     def words(self) -> list[str]:
         try:
@@ -45,13 +53,13 @@ class ProjectDictionary:
             return []
         seen: dict[str, None] = {}
         for line in raw:
-            word = _clean(line)
+            word = self.clean(line)
             if word:
                 seen[word] = None
         return list(seen)
 
     def add(self, word: str) -> list[str]:
-        cleaned = _clean(word)
+        cleaned = self.clean(word)
         if not cleaned:
             return self.words()
         current = self.words()
@@ -64,7 +72,7 @@ class ProjectDictionary:
         return current
 
     def remove(self, word: str) -> list[str]:
-        cleaned = _clean(word)
+        cleaned = self.clean(word)
         current = [w for w in self.words() if w != cleaned]
         self._save(current)
         return current
@@ -80,3 +88,24 @@ class ProjectDictionary:
             temp.replace(self.path)
         except OSError:
             temp.unlink(missing_ok=True)
+
+
+#: Long enough for a rule's name and the words it found in one sentence.
+MAX_KEY = 200
+
+
+class GrammarIgnores(ProjectDictionary):
+    """Grammar findings this project's writer said to leave alone.
+
+    One per line, as the grammar checker keys them: the rule's kind and the
+    words it found, in lower case with their spacing evened, so the same
+    slip anywhere in the project is left alone and a different one is not.
+    Beside the dictionary, for the same reasons: machine-local, never
+    committed, and plain text a writer can edit.
+    """
+
+    FILE = "grammar-ignored.txt"
+
+    @staticmethod
+    def clean(entry: str) -> str:
+        return " ".join(entry.split()).lower()[:MAX_KEY]

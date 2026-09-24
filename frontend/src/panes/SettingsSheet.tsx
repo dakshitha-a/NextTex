@@ -96,6 +96,7 @@ export default function SettingsSheet({
   const projectId = useStore((s) => s.projectId);
   const provider = useStore((s) => s.agent)?.provider;
   const project = useStore((s) => s.settings);
+  const projectLanguage = project.language;
   const hasProject = inProject && Boolean(projectId);
   const groups = GROUPS.filter((group) => group.id !== "project" || hasProject);
   const [group, setGroup] = useState<GroupId>(() => {
@@ -377,6 +378,27 @@ export default function SettingsSheet({
                 {hasProject ? <AddedWords /> : null}
               </>
             ) : null}
+            {/* Grammar beside spelling, per computer like it, since some
+                writers want no checker at all. Harper, locally; the note
+                says the two things a writer turning it on should know. */}
+            <SRow
+              title="Grammar"
+              note={
+                projectLanguage && projectLanguage !== "en"
+                  ? "English only, so it rests while this project is spelled in another language."
+                  : "Checked in the browser, nothing sent. Fetched the first time, 16 MB."
+              }
+            >
+              <Segmented
+                label="Grammar checking"
+                value={look.grammar ? "on" : "off"}
+                options={[
+                  { value: "off", label: "Off", testid: "grammar-off", ariaLabel: "Grammar off" },
+                  { value: "on", label: "On", testid: "grammar-on", ariaLabel: "Grammar on" },
+                ]}
+                onChange={(grammar) => change({ grammar: grammar === "on" })}
+              />
+            </SRow>
             {/* The cards the editor draws when the pointer rests on maths,
                 a table, a figure, a reference, a citation or an input.
                 One switch for all of them, so "not now" is one gesture,

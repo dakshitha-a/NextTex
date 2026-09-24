@@ -799,6 +799,14 @@ input, textarea { font: inherit; color: inherit; background: transparent; }
   text-underline-offset: 2px;
   text-decoration-skip-ink: none;
 }
+/* A grammar finding: the misspelling's ink and offset, dashed where
+   spelling is dotted, so the two read as one family and still tell apart. */
+.cm-editor .cm-line .nx-grammar {
+  text-decoration: underline dashed 1px;
+  text-decoration-color: color-mix(in oklab, var(--ink-3) 75%, transparent);
+  text-underline-offset: 2px;
+  text-decoration-skip-ink: none;
+}
 
 /* Selectable text over the rendered page.
    A canvas is a picture: it cannot be selected, searched or copied out of,

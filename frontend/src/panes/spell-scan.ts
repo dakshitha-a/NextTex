@@ -124,6 +124,41 @@ export function normalise(word: string): string {
 
 /** The prose in one line, as ranges into it. */
 export function proseWords(text: string): Word[] {
+  const { line, masked } = maskOf(text);
+  const out: Word[] = [];
+  for (const found of line.matchAll(WORD)) {
+    const at = found.index ?? 0;
+    const word = found[0];
+    // Masked anywhere is masked: a word half inside a command is not a
+    // word that was typed.
+    let hidden = false;
+    for (let i = at; i < at + word.length; i += 1) if (masked[i]) { hidden = true; break; }
+    if (hidden) continue;
+    if (!worthChecking(word)) continue;
+    out.push({ from: at, to: at + word.length, word });
+  }
+  return out;
+}
+
+/** The line as prose alone, for the grammar checker: every column that is
+ *  a command, its key, maths or a comment is a space, and so are the
+ *  braces, a tie and a forced break left between words, so what remains
+ *  reads as sentences at exactly the offsets it had. */
+export function proseLine(text: string): string {
+  const { line, masked } = maskOf(text);
+  let out = "";
+  for (let i = 0; i < text.length; i += 1) {
+    const ch = text[i];
+    if (i >= line.length || masked[i] || ch === "{" || ch === "}" || ch === "~" || ch === "\\") out += " ";
+    else out += ch;
+  }
+  return out;
+}
+
+/** Which columns of a line are not prose: its comment cut off, then
+ *  inline maths, every command, its optional argument, and the argument
+ *  of the commands whose argument is a key or a name. */
+function maskOf(text: string): { line: string; masked: Uint8Array } {
   const cut = commentStart(text);
   const line = cut < 0 ? text : text.slice(0, cut);
   // A byte per column: cheaper to write than a sorted range list is to
@@ -180,17 +215,5 @@ export function proseWords(text: string): Word[] {
     }
   }
 
-  const out: Word[] = [];
-  for (const found of line.matchAll(WORD)) {
-    const at = found.index ?? 0;
-    const word = found[0];
-    // Masked anywhere is masked: a word half inside a command is not a
-    // word that was typed.
-    let hidden = false;
-    for (let i = at; i < at + word.length; i += 1) if (masked[i]) { hidden = true; break; }
-    if (hidden) continue;
-    if (!worthChecking(word)) continue;
-    out.push({ from: at, to: at + word.length, word });
-  }
-  return out;
+  return { line, masked };
 }

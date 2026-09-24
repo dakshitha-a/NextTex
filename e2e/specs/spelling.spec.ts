@@ -225,8 +225,22 @@ test("a word nothing is like is offered the dictionary and nothing else", async 
 
   await marked(tab).first().click({ button: "right" });
   await tab.getByTestId("spelling-menu").waitFor();
-  await expect(tab.getByRole("menuitem")).toHaveCount(1);
-  await expect(tab.getByRole("menuitem")).toHaveText(/Add/);
+  // No guesses: Ignore for now, for this sitting, and Add, for good.
+  await expect(tab.getByRole("menuitem")).toHaveText(["Ignore for now", /Add/]);
+});
+
+test("Ignore for now takes the underline away until the page is reloaded", async ({ tab }) => {
+  await expect(tab.locator(".cm-editor")).toBeVisible({ timeout: 30_000 });
+  await turnOn(tab);
+  await type(tab, "The zqxjvkw dissociates.");
+  await expect(marked(tab).first()).toBeVisible({ timeout: 20_000 });
+  await marked(tab).first().click({ button: "right" });
+  await tab.getByTestId("ignore-for-now").click();
+  await expect(marked(tab)).toHaveCount(0);
+  // Nothing was kept: a reload brings it back.
+  await tab.reload();
+  await expect(tab.locator(".cm-editor")).toBeVisible({ timeout: 30_000 });
+  await expect(marked(tab).first()).toBeVisible({ timeout: 20_000 });
 });
 
 test("a word added by mistake can be taken back", async ({ tab }) => {

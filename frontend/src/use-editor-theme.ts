@@ -87,6 +87,18 @@ export function useSpelling(): boolean {
   return on;
 }
 
+/** Whether the prose is checked for grammar, live.  Read like the others. */
+export function useGrammar(): boolean {
+  const read = () => document.documentElement.dataset.grammar === "on";
+  const [on, setOn] = useState(read);
+  useEffect(() => {
+    const onChange = () => setOn(read());
+    window.addEventListener(APPEARANCE_CHANGED, onChange);
+    return () => window.removeEventListener(APPEARANCE_CHANGED, onChange);
+  }, []);
+  return on;
+}
+
 /** Whose keymap the editor answers to, live.  Read like the others. */
 export function useKeymap(): Keymap {
   const read = (): Keymap => {

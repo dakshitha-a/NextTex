@@ -24,7 +24,7 @@ from nexttex.compile import (
 )
 from nexttex.deps import DependencyGraph
 from nexttex.context import ProjectContext
-from nexttex.dictionary import ProjectDictionary
+from nexttex.dictionary import GrammarIgnores, ProjectDictionary
 from nexttex.atomic import read_text, write_atomically
 from nexttex.config import Settings
 from nexttex.history import History
@@ -273,6 +273,7 @@ class ProjectSession:
         )
         self.library = Library(project.state_dir / "library")
         self.dictionary = ProjectDictionary(project.state_dir)
+        self.grammar_ignores = GrammarIgnores(project.state_dir)
         self.events = Broadcaster(after=self._after_publish)
         #: The project's scripts, run from the source pane or by the agent,
         #: announced on the stream and remembered under `.nexttex/runs/`.
