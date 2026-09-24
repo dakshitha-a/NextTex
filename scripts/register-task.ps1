@@ -45,6 +45,18 @@ if (-not (Test-Path $venv)) {
   exit 1
 }
 
+# A server already serving this install, if there is one. Asked once and
+# used by both branches below: started unconditionally, a second server
+# races the first for the port, loses, and leaves "Port 8450 is already in
+# use" in server.err.log. Harmless in itself and not harmless in what it
+# costs: an empty server.err.log is half the signature of the bug where a
+# Windows server disappears overnight, so a line nobody asked for makes
+# that file worth less every time this is re-run. `$PID` excluded for the
+# reason the README's uninstall excludes it: this shell's own command line
+# names the install too.
+$running = @(Get-CimInstance Win32_Process -ErrorAction SilentlyContinue |
+  Where-Object { $_.ProcessId -ne $PID -and $_.CommandLine -and $_.CommandLine.Contains($entry) })
+
 $registered = $false
 try {
   $action = New-ScheduledTaskAction -Execute $venv -Argument "-u $entryArgs" -WorkingDirectory $Root
@@ -54,9 +66,17 @@ try {
   Unregister-ScheduledTask -TaskName $Name -Confirm:$false -ErrorAction SilentlyContinue
   Register-ScheduledTask -TaskName $Name -Action $action -Trigger $trigger `
     -Settings $settings -Description 'NextTex LaTeX editor' -ErrorAction Stop | Out-Null
-  Start-ScheduledTask -TaskName $Name
   $registered = $true
-  Write-Output "scheduled task '$Name' registered and started"
+  # The task branch had the race the Startup branch was cured of on 23
+  # September: it started the task whatever was already serving. Found by
+  # the Windows session reading this script before running it, 24
+  # September.
+  if ($running.Count) {
+    Write-Output "scheduled task '$Name' registered; already running as pid $($running[0].ProcessId), so not started now"
+  } else {
+    Start-ScheduledTask -TaskName $Name
+    Write-Output "scheduled task '$Name' registered and started"
+  }
 } catch {
   Write-Output 'a scheduled task needs administrator here, so using the Startup folder instead'
 }
@@ -107,17 +127,7 @@ if (-not $registered) {
   # is what makes the file's emptiness mean something: empty now means it
   # never got that far.
   $startArgs = if ($Instance) { @('-u', $entry, '--log-to-state', '--instance', $Instance) } else { @('-u', $entry, '--log-to-state') }
-  # Not if one is already serving this install.  Started unconditionally,
-  # a second run of this script raced the first server for the port, lost,
-  # and left "Port 8450 is already in use" in server.err.log.  Harmless in
-  # itself and not harmless in what it costs: an empty server.err.log is
-  # half the signature of the bug where a Windows server disappears
-  # overnight, so a line nobody asked for makes that file worth less every
-  # time this is re-run.  `$PID` excluded for the reason the README's
-  # uninstall now excludes it: this shell's own command line names the
-  # install too.
-  $running = @(Get-CimInstance Win32_Process -ErrorAction SilentlyContinue |
-    Where-Object { $_.ProcessId -ne $PID -and $_.CommandLine -and $_.CommandLine.Contains($entry) })
+  # Not if one is already serving this install; see `$running` above.
   if ($running.Count) {
     Write-Output "already running as pid $($running[0].ProcessId); leaving it alone"
   } else {

@@ -1441,3 +1441,19 @@ def test_the_token_is_printed_to_a_terminal_and_never_to_a_log():
     assert all("SECRET" not in line for line in logged)
     assert all("--print-url" in line for line in logged)
     assert logged[0].startswith("  http://127.0.0.1:8450/")
+
+
+def test_neither_windows_launcher_starts_a_second_server_beside_a_running_one():
+    """register-task.ps1 asks once whether a server is already serving this
+    install, and both branches heed the answer. The Startup branch was cured
+    of starting a second server on 23 September 2026; the task branch still
+    called Start-ScheduledTask whatever was running, which the Windows
+    session found by reading the script before running it."""
+    text = (ROOT / "scripts" / "register-task.ps1").read_text(encoding="utf-8")
+    asked = text.index("$running = @(Get-CimInstance Win32_Process")
+    task_start = text.index("Start-ScheduledTask -TaskName $Name")
+    guard = text.rindex("if ($running.Count)", 0, task_start)
+    assert asked < guard < task_start, "the task is started without asking what is running"
+    assert text.count("$running = @(Get-CimInstance") == 1, "asked twice, and the two can disagree"
+    shortcut_start = text.index("Start-Process -FilePath $runner")
+    assert text.rindex("if ($running.Count)", 0, shortcut_start) > task_start
