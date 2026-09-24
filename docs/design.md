@@ -5906,6 +5906,9 @@ single span to mark, which is accepted rather than worked around.
 
 ### "See what changed" showed the name of what changed
 
+*Since 3.12.0 the drawer also reads history; see section 70. Reading
+is not one of the four commands, because it changes nothing.*
+
 "See what changed" has been one of the four git buttons since the README named
 them, and what it showed was a status letter and a path. In the history, "Show
 what's gone" shades, in place, the lines an old version had that the file no
@@ -10532,3 +10535,23 @@ button is pressed, since the button opens something elsewhere; these
 two leave the card open, because their answer is on it. Drawn on the
 direction page's "An equation as an image" section, redrawn after the
 build so the buttons stay above the line.
+
+## 70. Reading git's history
+
+The roadmap's fourth item, and the one that reverses part of "four git
+buttons": the fifth button is still a terminal, but reading history is
+not a command, since nothing it does can lose work. The Git drawer gains
+two things under the changes. *History* lists the newest hundred
+commits, subject over author, day and short hash, and a commit opens to
+its patch in the drawer, drawn by the same `Patch` a changed file opens
+to, so a writer reads one kind of patch in one place. *The line you are
+on* follows the caret and says which commit last touched that line and
+who made it. It is a block in the drawer and not a gutter, which would
+be on all the time for something asked about rarely, and not a
+right-click, which the editor does not have. It asks git about the
+editor's own text rather than the file on disk, so a line typed a moment
+ago says "Not committed yet" instead of naming whatever commit held that
+line number. An author is a plain name, "You" when the email is this
+machine's git identity: a git author is not a collaborator the presence
+colours know, so the drawing's coloured names were dropped when it was
+built. Staging, branching and merging stay in the terminal.

@@ -508,3 +508,124 @@ def merge_three(root: Path, base: str, mine: str, theirs: str) -> tuple[str, int
     merged = result.stdout.decode("utf-8", "replace")
     # And the same on the way out, whatever git did with the endings.
     return merged.replace("\r\n", "\n"), result.returncode
+
+
+# -- reading history ----------------------------------------------------------
+#
+# Reading is not one of the four operations: nothing below changes the
+# repository. The drawer lists the commits, a commit opens to its patch,
+# and the line under the caret says which commit last touched it.
+
+#: How many commits the drawer lists; a thesis's whole history is rarely
+#: more, and the rest is a terminal's job.
+LOG_LIMIT = 100
+#: How much of one commit's patch is sent: a commit that added a dataset
+#: is megabytes nobody reads in a drawer.
+SHOW_LIMIT = 400_000
+SHA = re.compile(r"[0-9a-f]{7,40}")
+_FIELD, _RECORD = "\x1f", "\x1e"
+
+
+def _me(root: Path) -> str:
+    """The email git would commit under here, lower-cased, or ""."""
+    try:
+        ident = _run(root, "var", "GIT_COMMITTER_IDENT", timeout=10)
+    except GitError:
+        return ""
+    found = re.search(r"<([^>]*)>", ident)
+    return found.group(1).strip().lower() if found else ""
+
+
+def log(root: Path, limit: int = LOG_LIMIT) -> list[dict]:
+    """The newest commits on the current branch, newest first: hash, short
+    hash, subject, author, whether the author is this machine's git
+    identity, and when, in Unix seconds. A repository with no commit yet
+    has an empty history, not an error."""
+    if not (root / ".git").exists():
+        return []
+    fields = _FIELD.join(["%H", "%h", "%s", "%an", "%ae", "%at"])
+    try:
+        out = _run(root, "log", f"-n{max(1, int(limit))}", f"--format={fields}{_RECORD}", timeout=30)
+    except GitError:
+        return []
+    me = _me(root)
+    rows = []
+    for record in out.split(_RECORD):
+        parts = record.strip("\n").split(_FIELD)
+        if len(parts) != 6:
+            continue
+        sha, short, subject, author, email, when = parts
+        rows.append({
+            "sha": sha, "short": short, "subject": subject, "author": author,
+            "mine": bool(me) and email.strip().lower() == me,
+            "when": int(when) if when.isdigit() else 0,
+        })
+    return rows
+
+
+def show(root: Path, sha: str) -> str:
+    """One commit's patch, without its header, cut at `SHOW_LIMIT`. The
+    hash is checked for its shape before git sees it, so nothing that
+    reads as an option or a range reaches the command line."""
+    if not SHA.fullmatch(sha or ""):
+        raise GitError("that is not a commit")
+    out = _run(root, "show", "--no-color", "--format=", "--patch", sha, "--", timeout=30)
+    if len(out) > SHOW_LIMIT:
+        cut = out.rfind("\n", 0, SHOW_LIMIT)
+        out = out[: cut if cut > 0 else SHOW_LIMIT] + "\n"
+    return out
+
+
+def blame(root: Path, relative: str, line: int, contents: str | None = None) -> dict | None:
+    """Which commit last touched one line: its hash, subject, author and
+    when, or `{"uncommitted": True}` for a line no commit has. None for a
+    path that is not tracked or not a plain relative one, or a line past
+    the end.
+
+    `contents` is the file as the editor holds it, handed to git on stdin
+    with `--contents -`, so the answer is about the line on screen even
+    before the save reaches disk, and a line typed since the last commit
+    is the uncommitted one it is.
+    """
+    if not (root / ".git").exists() or line < 1:
+        return None
+    parts = Path(relative).parts
+    if (
+        not parts or Path(relative).is_absolute() or ".." in parts
+        or relative.startswith("-")
+    ):
+        return None
+    argv = ["git", "blame", "--porcelain", "-L", f"{line},{line}"]
+    if contents is not None:
+        argv += ["--contents", "-"]
+    argv += ["--", Path(*parts).as_posix()]
+    try:
+        result = subprocess.run(
+            argv, cwd=root, capture_output=True, timeout=30, env=_environment(),
+            input=(contents or "").encode("utf-8") if contents is not None else None,
+        )
+    except (subprocess.TimeoutExpired, OSError):
+        return None
+    if result.returncode != 0:
+        return None
+    lines = result.stdout.decode("utf-8", errors="replace").splitlines()
+    if not lines:
+        return None
+    sha = lines[0].split(" ", 1)[0]
+    if set(sha) == {"0"}:
+        return {"uncommitted": True, "line": line}
+    info: dict[str, str] = {}
+    for row in lines[1:]:
+        if row.startswith("\t"):
+            break
+        key, _, value = row.partition(" ")
+        info[key] = value
+    me = _me(root)
+    email = info.get("author-mail", "").strip("<>").lower()
+    when = info.get("author-time", "0")
+    return {
+        "uncommitted": False, "line": line, "sha": sha, "short": sha[:7],
+        "subject": info.get("summary", ""), "author": info.get("author", ""),
+        "mine": bool(me) and email == me,
+        "when": int(when) if when.isdigit() else 0,
+    }

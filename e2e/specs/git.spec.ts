@@ -199,3 +199,40 @@ test("setting the card aside on a project with no repository leaves a way back",
   // With a repository and no remote, the footer takes over.
   await expect(tab.getByTestId("back-up-again")).toBeVisible();
 });
+
+test("History lists the commits and opens one; the line you are on names its commit", async ({
+  tab,
+}) => {
+  // Reading history is not a fifth operation: nothing here writes. The
+  // repository is made the way a writer makes it, which commits once.
+  await gitDrawer(tab);
+  await tab.getByTestId("git-init").click();
+  await expect(tab.getByTestId("git-init")).toHaveCount(0, { timeout: 20_000 });
+  await tab.getByRole("button", { name: "Not now" }).click();
+
+  const history = tab.getByTestId("git-history");
+  await expect(history.getByTestId("git-commit")).toHaveCount(1, { timeout: 20_000 });
+  const first = history.getByTestId("git-commit").first();
+  await expect(first).toContainText("You");
+  await first.getByRole("button").click();
+  await expect(first.getByTestId("git-commit-patch")).toContainText("main.tex");
+
+  // The caret on the first line: the commit that made it, by you.
+  await tab.locator(".cm-content").click();
+  await tab.keyboard.press("Control+Home");
+  const here = tab.getByTestId("git-line");
+  await expect(here).toContainText("You", { timeout: 10_000 });
+  await expect(here).toContainText("main.tex, line 1");
+
+  // A line typed now is nobody's commit yet, before it reaches the disk.
+  await tab.keyboard.press("Control+End");
+  await tab.keyboard.type("\nA line nobody has committed.");
+  await expect(here).toContainText("Not committed yet", { timeout: 10_000 });
+
+  // Committing it moves both: History gains the commit and the line names it.
+  await tab.getByPlaceholder("What changed").fill("Add a line");
+  await tab.getByPlaceholder("What changed").press("Enter");
+  await expect(history.getByTestId("git-commit")).toHaveCount(2, { timeout: 20_000 });
+  await expect(history.getByTestId("git-commit").first()).toContainText("Add a line");
+  await expect(here).toContainText("Add a line", { timeout: 10_000 });
+});

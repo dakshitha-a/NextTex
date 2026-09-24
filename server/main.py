@@ -4801,6 +4801,47 @@ async def git_diff(project_id: str, path: str):
     return {"path": relative, "patch": patch}
 
 
+@app.get("/api/projects/{project_id}/git/log")
+async def git_log(project_id: str):
+    """The newest commits, for the Git drawer's History. Reading history
+    is not one of the four operations; nothing here writes."""
+    session = session_for(project_id)
+    commits = await asyncio.to_thread(gitrepo.log, session.project.root)
+    return {"commits": commits}
+
+
+@app.get("/api/projects/{project_id}/git/log/{sha}")
+async def git_commit_patch(project_id: str, sha: str):
+    """One commit's patch, which a History row opens to. The hash is
+    checked for its shape before git is asked, so a range or an option
+    never reaches the command line."""
+    session = session_for(project_id)
+    if not gitrepo.SHA.fullmatch(sha):
+        raise HTTPException(400, "that is not a commit")
+    try:
+        patch = await asyncio.to_thread(gitrepo.show, session.project.root, sha)
+    except gitrepo.GitError as error:
+        raise HTTPException(404, str(error))
+    return {"sha": sha, "patch": patch}
+
+
+@app.get("/api/projects/{project_id}/git/blame")
+async def git_blame(project_id: str, path: str, line: int):
+    """Which commit last touched one line, for "The line you are on".
+
+    The path goes through the fence, since blame reads a file. The text
+    git blames is the editor's, when the file is open, so a line typed a
+    moment ago is uncommitted rather than attributed to whatever held that
+    line number on disk.
+    """
+    session = session_for(project_id)
+    target = _safe(session, path)
+    relative = session.project.relative(target)
+    live = session.collab.open_texts().get(relative)
+    found = await asyncio.to_thread(gitrepo.blame, session.project.root, relative, line, live)
+    return {"path": relative, "blame": found}
+
+
 @app.post("/api/projects/{project_id}/git/{action}")
 async def git_action(
     project_id: str,

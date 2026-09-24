@@ -45,7 +45,7 @@ surface moves the inks with it, so that `--ink-3` keeps 4.5:1 on
 | Token | Meaning |
 | --- | --- |
 | `--surround` | the frame: the band across the top of the workspace, the activity bar, the foot under each column, the field the typeset page lies on, and the ground of a screen with no document |
-| `--surface` | the editor, a project card, a floating card in the dark theme |
+| `--surface` | the editor, a project card, a floating card in the dark theme, and a block of facts set on a drawer, as the Git drawer's "The line you are on" |
 | `--surface-2` | the chrome inside the frame: the drawer, the Claude column, the app bar, a field |
 | `--surface-3` | the deepest step, a segmented control's track |
 | `--ink`, `--ink-2`, `--ink-3` | text and glyphs, in three weights of attention; on `--surround` only the first two, since the third does not clear 4.5:1 on the light theme's frame |

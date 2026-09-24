@@ -1320,6 +1320,35 @@ const SURFACES: Record<string, Surface> = {
     },
     close: async (tab) => { await showDrawer(tab, "files"); },
   },
+  "drawer-git-history": {
+    // Clean, with three commits and the caret on a line the second made:
+    // the page's History and "The line you are on".
+    open: async (tab) => {
+      await showDrawer(tab, "git");
+      await tab.locator('[data-testid="git-setup"], .nx-git-status').first().waitFor({ timeout: 20_000 });
+      const init = tab.getByTestId("git-init");
+      if (await init.count()) {
+        await init.click();
+        await init.waitFor({ state: "detached", timeout: 20_000 });
+        await tab.getByRole("button", { name: "Not now" }).click();
+      }
+      for (const [line, subject] of [
+        ["Add the water data to Figure 2.", "Add the water data to Figure 2"],
+        ["Tighten the results section.", "Tighten the results section"],
+      ]) {
+        await tab.locator(".cm-content").click();
+        await tab.keyboard.press("Control+End");
+        await tab.keyboard.type(`\n${line}`);
+        await tab.getByPlaceholder("What changed").waitFor({ timeout: 30_000 });
+        await tab.getByPlaceholder("What changed").fill(subject);
+        await tab.getByPlaceholder("What changed").press("Enter");
+        await tab.getByText(subject).first().waitFor({ timeout: 20_000 });
+      }
+      await tab.getByTestId("git-line").filter({ hasText: "Tighten" }).waitFor({ timeout: 20_000 });
+      return tab.getByTestId("drawer");
+    },
+    close: async (tab) => { await showDrawer(tab, "files"); },
+  },
   "drawer-git-offer": {
     // Before a repository exists: rendered in a run of its own, since
     // drawer-git makes one.

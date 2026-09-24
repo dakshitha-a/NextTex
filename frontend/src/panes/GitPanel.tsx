@@ -1,5 +1,5 @@
 import { useCallback, useEffect, useState } from "react";
-import api from "../api";
+import api, { type GitBlame, type GitCommit } from "../api";
 import { readStored, writeStored } from "../appearance";
 import { refreshGit, set, useStore } from "../store";
 import Patch from "./Patch";
@@ -15,7 +15,12 @@ import { ChevronDownIcon, ChevronRightIcon } from "../ui/icons";
  *  somewhere that is not this machine, and pulled back on another;
  *  branching and history rewriting belong in a terminal where the
  *  mistakes are recoverable. Inside the activity bar's drawer, which draws
- *  the heading row and holds one instrument at a time. */
+ *  the heading row and holds one instrument at a time.
+ *
+ *  Reading history is not a fifth operation, since it changes nothing:
+ *  under the changes, "The line you are on" says which commit last
+ *  touched the caret's line, and History lists the commits, each opening
+ *  to its patch the way a changed file does. */
 export default function GitPanel({
   onOpen,
 }: {
@@ -31,6 +36,8 @@ export default function GitPanel({
   const [dismissed, setDismissed] = useState(false);
   const [url, setUrl] = useState("");
   const [token, setToken] = useState("");
+  // Bumped after anything that moves HEAD, so History reads again.
+  const [moved, setMoved] = useState(0);
 
   const refresh = useCallback(async () => {
     if (projectId) await refreshGit(projectId);
@@ -62,6 +69,7 @@ export default function GitPanel({
       await api.gitAction(projectId, action, message);
       if (action === "commit") setMessage("");
       await refresh();
+      setMoved((n) => n + 1);
       return true;
     } catch (error: any) {
       set({ error: error.message });
@@ -292,10 +300,10 @@ export default function GitPanel({
           ) : null}
         </div>
 
-        {dirty > 0 ? (
-          <>
-            <p className="nx-group">{dirty} {dirty === 1 ? "file changed" : "files changed"}</p>
-            <div className="min-h-0 flex-1 overflow-auto">
+        <div className="min-h-0 flex-1 overflow-auto">
+          {dirty > 0 ? (
+            <>
+              <p className="nx-group">{dirty} {dirty === 1 ? "file changed" : "files changed"}</p>
               {status.changes.map((change) => (
                 <ChangeRow
                   key={change.path}
@@ -304,9 +312,13 @@ export default function GitPanel({
                   onOpen={onOpen}
                 />
               ))}
-            </div>
-          </>
-        ) : <span className="flex-1" />}
+            </>
+          ) : (
+            <p className="nx-group">Nothing to commit</p>
+          )}
+          <LineYouAreOn projectId={id} moved={moved + dirty} />
+          <History projectId={id} moved={moved} />
+        </div>
 
         {dirty > 0 || status.ahead > 0 ? (
           <div className="flex flex-col gap-2 px-2 pb-2 pt-2">
@@ -408,3 +420,131 @@ function ChangeRow({
   );
 }
 
+
+/** "19 Sep", or "19 Sep 2025" in another year. */
+export function dayOf(seconds: number, now = Date.now()): string {
+  const date = new Date(seconds * 1000);
+  const sameYear = date.getFullYear() === new Date(now).getFullYear();
+  return date.toLocaleDateString([], {
+    day: "numeric", month: "short", ...(sameYear ? {} : { year: "numeric" }),
+  });
+}
+
+/** Which commit last touched the line the caret is on, following it.
+ *  Asked a moment after the caret settles rather than on every key, and
+ *  of the editor's own text, so a line typed since the last commit says
+ *  so instead of naming whatever held that number on disk. */
+function LineYouAreOn({ projectId, moved }: { projectId: string; moved: number }) {
+  const path = useStore((s) => s.activePath);
+  const line = useStore((s) => s.cursor.line);
+  const [blame, setBlame] = useState<GitBlame | null>(null);
+  useEffect(() => {
+    if (!path) {
+      setBlame(null);
+      return;
+    }
+    let cancelled = false;
+    const timer = window.setTimeout(() => {
+      api
+        .gitBlame(projectId, path, line)
+        .then((answer) => !cancelled && setBlame(answer.blame))
+        .catch(() => !cancelled && setBlame(null));
+    }, 300);
+    return () => {
+      cancelled = true;
+      window.clearTimeout(timer);
+    };
+  }, [projectId, path, line, moved]);
+  if (!path || !blame) return null;
+  return (
+    <>
+      <p className="nx-group">The line you are on</p>
+      <div className="nx-git-here" data-testid="git-line">
+        {blame.uncommitted ? (
+          <span className="text-ink-2">Not committed yet</span>
+        ) : (
+          <>
+            <span>
+              <span className="font-medium text-ink">{blame.mine ? "You" : blame.author}</span>
+              <span className="text-ink-3">, {dayOf(blame.when)}</span>
+            </span>
+            <span className="text-ink-2">
+              {blame.subject} <span className="t-code-sm text-ink-3">{blame.short}</span>
+            </span>
+          </>
+        )}
+        <span className="text-ink-3">
+          {path}, line {blame.line}
+        </span>
+      </div>
+    </>
+  );
+}
+
+/** The newest commits, each a row that opens to its patch. */
+function History({ projectId, moved }: { projectId: string; moved: number }) {
+  const [commits, setCommits] = useState<GitCommit[] | null>(null);
+  useEffect(() => {
+    let cancelled = false;
+    api
+      .gitLog(projectId)
+      .then((answer) => !cancelled && setCommits(answer.commits))
+      .catch(() => !cancelled && setCommits([]));
+    return () => {
+      cancelled = true;
+    };
+  }, [projectId, moved]);
+  if (!commits || commits.length === 0) return null;
+  return (
+    <>
+      <p className="nx-group">History</p>
+      <div data-testid="git-history">
+        {commits.map((commit) => (
+          <CommitRow key={commit.sha} commit={commit} projectId={projectId} />
+        ))}
+      </div>
+    </>
+  );
+}
+
+function CommitRow({ commit, projectId }: { commit: GitCommit; projectId: string }) {
+  const [showing, setShowing] = useState(false);
+  const [patch, setPatch] = useState<string | null>(null);
+  useEffect(() => {
+    if (!showing || patch !== null) return;
+    let cancelled = false;
+    api
+      .gitCommit(projectId, commit.sha)
+      .then((answer) => !cancelled && setPatch(answer.patch))
+      .catch(() => !cancelled && setPatch(""));
+    return () => {
+      cancelled = true;
+    };
+  }, [showing, projectId, commit.sha, patch]);
+  return (
+    <div data-testid="git-commit" data-sha={commit.short}>
+      <button
+        className="nx-git-commit"
+        aria-expanded={showing}
+        title={showing ? "Hide what this commit changed" : "Show what this commit changed"}
+        onClick={() => setShowing(!showing)}
+      >
+        <span className="nx-git-commit-subject">{commit.subject}</span>
+        <span className="nx-git-commit-meta">
+          <span>{commit.mine ? "You" : commit.author}</span>
+          <span className="tnum">{dayOf(commit.when)}</span>
+          <span className="t-code-sm">{commit.short}</span>
+        </span>
+      </button>
+      {showing ? (
+        patch === null ? (
+          <p className="nx-note">Reading</p>
+        ) : patch ? (
+          <Patch text={patch} testId="git-commit-patch" className="mx-2 mb-[6px]" />
+        ) : (
+          <p className="nx-note">Nothing to show for this commit.</p>
+        )
+      ) : null}
+    </div>
+  );
+}

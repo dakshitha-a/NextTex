@@ -577,6 +577,21 @@ async function request<T>(path: string, init?: RequestInit): Promise<T> {
   return (await response.json()) as T;
 }
 
+export type GitCommit = {
+  sha: string;
+  short: string;
+  subject: string;
+  author: string;
+  /** The author is this machine's git identity: drawn as "You". */
+  mine: boolean;
+  /** Unix seconds. */
+  when: number;
+};
+
+export type GitBlame =
+  | { uncommitted: true; line: number }
+  | ({ uncommitted: false; line: number } & GitCommit);
+
 function json(body: unknown): RequestInit {
   return {
     method: "POST",
@@ -1202,6 +1217,16 @@ const api = {
   gitDiff: (id: string, path: string) =>
     request<{ path: string; patch: string }>(
       `/projects/${id}/git/diff?path=${encodeURIComponent(path)}`,
+    ),
+  /** The newest commits, for the Git drawer's History. */
+  gitLog: (id: string) => request<{ commits: GitCommit[] }>(`/projects/${id}/git/log`),
+  /** One commit's patch, without its header. */
+  gitCommit: (id: string, sha: string) =>
+    request<{ sha: string; patch: string }>(`/projects/${id}/git/log/${encodeURIComponent(sha)}`),
+  /** Which commit last touched one line, blamed on the editor's text. */
+  gitBlame: (id: string, path: string, line: number) =>
+    request<{ path: string; blame: GitBlame | null }>(
+      `/projects/${id}/git/blame?path=${encodeURIComponent(path)}&line=${line}`,
     ),
   git: (id: string) =>
     request<{

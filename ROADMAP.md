@@ -61,13 +61,6 @@ the reversal should have to answer it.
    the hint that a project should. *Medium; y.*
 
 
-4. **A git log, and blame.** The panel shows the commits, each opening
-   to its diff, and the version panel can say who committed a line and
-   when. *This reverses part of "four git buttons": the fifth button is
-   still a terminal, but reading history is not a command.* Staging,
-   branching and merging stay where they are. *Medium; y.*
-
-
 ## Not adopting, and why
 
 Each of these was considered and left out for the reason beside it. A

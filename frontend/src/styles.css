@@ -1597,6 +1597,11 @@ button.nx-reads-x[data-always]:hover { color: var(--pen); }
 .nx-git-change:hover { background: var(--wash); }
 .nx-git-chevron { display: inline-flex; align-items: center; justify-content: center; width: 20px; height: 20px; border-radius: 3px; color: var(--ink-3); flex: none; }
 .nx-git-chevron:hover { color: var(--ink); }
+.nx-git-here { display: flex; flex-direction: column; margin: 2px 8px 6px; padding: 8px 10px; border-radius: 6px; background: var(--surface); font-size: 12.5px; line-height: 17px; color: var(--ink-2); }
+.nx-git-commit { display: flex; flex-direction: column; align-items: stretch; width: 100%; gap: 1px; padding: 5px 8px; text-align: left; font-size: 13px; line-height: 18px; }
+.nx-git-commit:hover, .nx-git-commit[aria-expanded="true"] { background: var(--wash); }
+.nx-git-commit-subject { color: var(--ink); overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.nx-git-commit-meta { display: flex; gap: 8px; color: var(--ink-3); font-size: 12px; }
 .nx-patch { margin: 2px 0 0; max-height: 220px; overflow: auto; white-space: pre; border-radius: var(--nx-radius-control); font-family: var(--font-mono); font-size: 11.5px; line-height: 16px; background: var(--surface-2); }
 .nx-patch > div { padding: 0 8px; }
 .nx-patch-add { background: color-mix(in oklab, var(--ok) 18%, transparent); color: var(--ink); }
