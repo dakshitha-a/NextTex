@@ -1,8 +1,8 @@
 r"""Reusable prompts: a `/` at the start of the composer names one.
 
-A prompt is a Markdown file whose stem is its name.  Two ship with
-NextTex, `review-friendly` and `review-critical`, so a fresh project has
-them with no file; a project's own live in `prompts/` at its root, and
+A prompt is a Markdown file whose stem is its name.  Three ship with
+NextTex, `review-friendly`, `review-critical` and `missing-citations`, so
+a fresh project has them with no file; a project's own live in `prompts/` at its root, and
 one there with the same stem as a built-in replaces it.  The roadmap
 put them beside the distilled style guide, which is under `.nexttex/`;
 that directory is never synced and `initialise` writes it into the

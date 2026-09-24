@@ -7,7 +7,7 @@ from conftest import wait_idle
 
 def test_the_list_carries_the_built_ins_and_the_project_overrides(client, opened, project_dir):
     listed = client.get(f"/api/projects/{opened['id']}/prompts").json()["prompts"]
-    assert [p["name"] for p in listed] == ["review-critical", "review-friendly"]
+    assert [p["name"] for p in listed] == ["missing-citations", "review-critical", "review-friendly"]
     assert all(p["source"] == "builtin" and p["hint"] and p["said"] for p in listed)
     (project_dir / "prompts").mkdir()
     (project_dir / "prompts" / "review-friendly.md").write_text("Ours.\n", encoding="utf-8")

@@ -8983,7 +8983,8 @@ composer; a writer who wanted the same three paragraphs of instruction
 every time retyped them or kept them in a note. A reusable prompt is
 now a Markdown file whose stem is its name, a hyphen in the stem read as
 a space when typed, so `review-friendly.md` is `/review friendly`. Two
-ship inside NextTex, so a fresh project has them with no file: `/review
+shipped inside NextTex, and a third since section 67, so a fresh project
+has them with no file: `/review
 friendly` reads the selected passage, or the document, as a mentor
 would, what works first and then what to strengthen, in order of how
 much it would help, kindly and concretely; `/review critical` reads it
@@ -10462,3 +10463,23 @@ the file is on screen, its card.
 arriving live included; `comment-anchors.test.ts` holds the anchors
 against a real Yjs document, and `tests/collab/test_comments.py` and
 `tests/api/test_comments_routes.py` the model and the routes.
+
+
+## 67. Where a citation is missing
+
+The roadmap's sixth item: an agent action that reads a section and names
+the claims with nothing cited, using the literature search it already
+has for the suggestions; it proposes, the writer adds. The selection
+toolbar refuses a Cite verb because a citation is never composed for the
+writer, and a verb there that seemed to produce one would be a promise
+this app does not make, so this is a third built-in prompt beside the two
+reviews, `/missing citations`, and not a verb. Its text asks for every
+claim a reader would expect a source for, quoted; looks first in the
+papers already collected with `search_library` and then in the
+literature with `find_papers`; proposes at most three records a claim,
+each with what in the paper supports it, and says plainly when nothing
+does; and never writes a `\cite` key or an entry, since a record goes in
+only through `add_reference`, from the publisher's record, when the
+writer asks. It edits nothing. The prompt list draws it like the other
+two, its first line as its hint. `tests/test_prompts.py` holds that it
+ships and names the three tools and the two refusals.

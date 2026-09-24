@@ -76,16 +76,19 @@ test("the Context panel lists the prompts, and a copy puts the file in the proje
   await tab.getByRole("button", { name: /What .* reads/ }).click();
   const list = tab.getByTestId("prompts-list");
   const entries = list.getByTestId("prompt-entry");
-  await expect(entries).toHaveCount(2, { timeout: 10_000 });
-  await expect(entries.nth(1)).toContainText("/review friendly");
-  await expect(entries.nth(1)).toHaveAttribute("data-source", "builtin");
+  // Three built-ins, in the order of their names; found by name rather than
+  // by place, since a new built-in moves the rest along.
+  await expect(entries).toHaveCount(3, { timeout: 10_000 });
+  const friendly = entries.filter({ hasText: "/review friendly" });
+  await expect(friendly).toHaveAttribute("data-source", "builtin");
+  await expect(entries.filter({ hasText: "/missing citations" })).toHaveCount(1);
 
-  await entries.nth(1).hover();
-  await entries.nth(1).getByTestId("prompt-copy").click();
+  await friendly.hover();
+  await friendly.getByTestId("prompt-copy").click();
   // The entry is the project's now, and the file is in the tree where
   // the group can edit it.
-  await expect(entries.nth(1)).toHaveAttribute("data-source", "project", { timeout: 10_000 });
-  await expect(entries.nth(1).getByTestId("prompt-copy")).toHaveCount(0);
+  await expect(friendly).toHaveAttribute("data-source", "project", { timeout: 10_000 });
+  await expect(friendly.getByTestId("prompt-copy")).toHaveCount(0);
   // The tree is the Files drawer's, which is already showing unless the
   // drawer was folded.
   if ((await tab.getByTestId("drawer").count()) === 0) await tab.getByTestId("bar-files").click();

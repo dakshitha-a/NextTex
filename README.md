@@ -1010,7 +1010,10 @@ Two come with NextTex: `/review friendly` reads the selected passage, or
 the document, as a mentor would, what works and what to strengthen, in
 that order and kindly; `/review critical` reads it as the second reviewer,
 the claims that are not supported, the weakest section, what a rejection
-letter would say. Arrow to one, press Enter to fill its name in, add a
+letter would say; and `/missing citations` names the claims in it that
+nothing cites, and finds papers for each from the publishers' records,
+for you to add or not, since it never writes a citation itself. Arrow
+to one, press Enter to fill its name in, add a
 note after it if you like, and send. What you typed is what the
 transcript shows; the prompt's text goes to the agent ahead of it.
 

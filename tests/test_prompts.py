@@ -5,7 +5,7 @@ from nexttex import prompts
 
 def test_the_two_built_ins_ship_and_read_as_two_reviews():
     names = [prompt.name for prompt in prompts.builtin()]
-    assert names == ["review-critical", "review-friendly"]
+    assert names == ["missing-citations", "review-critical", "review-friendly"]
     friendly = next(p for p in prompts.builtin() if p.name == "review-friendly")
     critical = next(p for p in prompts.builtin() if p.name == "review-critical")
     assert "mentor" in friendly.text and "kind" in friendly.text.lower()
@@ -23,7 +23,7 @@ def test_a_project_file_of_the_same_name_replaces_the_built_in(tmp_path):
     assert found["review-friendly"].text == "Our own friendly review."
     assert found["review-critical"].source == "builtin"
     assert found["tighten"].source == "project"
-    assert sorted(found) == ["review-critical", "review-friendly", "tighten"]
+    assert sorted(found) == ["missing-citations", "review-critical", "review-friendly", "tighten"]
 
 
 def test_only_markdown_files_with_plain_names_directly_in_the_folder_count(tmp_path):
@@ -69,3 +69,19 @@ def test_a_name_that_is_a_path_is_never_read(tmp_path):
     assert not prompts.NAME.match("a/b")
     assert not prompts.NAME.match(".hidden")
     assert prompts.NAME.match("review-friendly")
+
+
+def test_missing_citations_proposes_records_and_never_writes_one():
+    """The third built-in, from the roadmap: name the claims with nothing
+    cited and find papers for them. It sits beside the reviews rather than
+    as a verb on the selection toolbar, because a citation is never written
+    for the writer (SelectionActions.tsx), and the prompt says the same to
+    the model: it proposes from publishers' records through the tools the
+    agent already has, and a record goes in only through add_reference."""
+    found = next(p for p in prompts.builtin() if p.name == "missing-citations")
+    assert found.said == "missing citations"
+    assert found.as_dict()["hint"] == "Name the claims with nothing cited, and find papers for them."
+    for tool in ("search_library", "find_papers", "add_reference"):
+        assert tool in found.text
+    assert "Never write a citation yourself" in found.text
+    assert "Do not edit the files" in found.text
