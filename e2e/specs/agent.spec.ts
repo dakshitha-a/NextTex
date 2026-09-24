@@ -764,6 +764,21 @@ test("escape stops a turn before it closes the panel", async ({ tab }) => {
   await expect(tab.getByTestId("chat-panel")).toBeHidden();
 });
 
+test("a stopped turn says it was stopped, and still does after a reload", async ({ tab }) => {
+  // Found pressing Stop against the real CLI: the reply ended at "an
+  // alphabet of two d" with nothing to say it was cut off, so it read as
+  // Claude's whole answer.
+  await ask(tab, "slow", "The long one.");
+  await expect(tab.getByTestId("stop")).toBeVisible({ timeout: 20_000 });
+  await tab.getByTestId("stop").click();
+  const panel = tab.getByTestId("chat-panel");
+  await expect(panel.getByText("Stopped.", { exact: true })).toBeVisible({ timeout: 20_000 });
+  await tab.reload();
+  await expect(tab.getByTestId("chat-panel").getByText("Stopped.", { exact: true })).toBeVisible({
+    timeout: 20_000,
+  });
+});
+
 test("a question after Stop is answered in its own turn", async ({ tab }) => {
   // Reported from a writing session: after Stop, every reply arrived one
   // question late, because the server cancelled its reader before the CLI

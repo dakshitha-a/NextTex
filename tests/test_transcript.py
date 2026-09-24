@@ -344,3 +344,15 @@ def test_a_turn_that_never_ended_has_no_full_stop(tmp_path):
               "input": {"file_path": "main.tex"}})
 
     assert [item["kind"] for item in t.items()] == ["user", "tool"]
+
+
+def test_a_stopped_turn_is_said_to_have_been_stopped():
+    """A reply cut off by Stop ends mid-sentence, and reads as the whole
+    answer unless something says otherwise; the pump puts a plain notice
+    before the interrupted turn's end, and only there."""
+    from server.session import _said_before
+
+    stopped = _said_before({"type": "done", "subtype": "interrupted"})
+    assert stopped == [{"type": "notice", "message": "Stopped."}, {"type": "done", "subtype": "interrupted"}]
+    assert _said_before({"type": "done", "subtype": "success"}) == [{"type": "done", "subtype": "success"}]
+    assert _said_before({"type": "text", "text": "x"}) == [{"type": "text", "text": "x"}]

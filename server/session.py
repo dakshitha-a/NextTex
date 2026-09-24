@@ -218,6 +218,20 @@ def spawn(coro, what: str) -> asyncio.Task | None:
     return task
 
 
+def _said_before(event: dict) -> list[dict]:
+    """An agent event, and anything the conversation should say first.
+
+    A turn the writer stopped ends mid-sentence, and a reply that stops at
+    "an alphabet of two d" reads as Claude's whole answer unless something
+    says otherwise; every provider ends a stopped turn with a `done` whose
+    subtype is `interrupted`, so a plain notice goes before it, recorded in
+    the transcript like any other line, and a reload shows it too.
+    """
+    if event.get("type") == "done" and event.get("subtype") == "interrupted":
+        return [{"type": "notice", "message": "Stopped."}, event]
+    return [event]
+
+
 class ProjectSession:
     def __init__(
         self,
@@ -1477,29 +1491,33 @@ class ProjectSession:
             return
 
         async def pump() -> None:
-            async for event in self.agent.events():
-                # Recorded before it is broadcast, so the panel and the file
-                # on disk always show the same conversation -- and so an
-                # event that arrives while nobody is watching is still kept.
-                # One unserialisable tool argument used to kill this task,
-                # and with it every later event including `done`: the panel
-                # then said Claude was thinking, forever.
-                try:
-                    event = self.transcript.record(event)
-                except Exception:
-                    # The transcript is the account of what was done to
-                    # somebody's dissertation.  It may not take the whole
-                    # turn down, which is why this is caught at all, but a
-                    # record that quietly stops recording is the one failure
-                    # here nobody would ever notice on their own.
-                    log.warning("the transcript did not record a %s event",
-                                event.get("type", "?"), exc_info=True)
-                try:
-                    await self.events.publish({"scope": "agent", **event})
-                except asyncio.CancelledError:
-                    raise
-                except Exception:
-                    continue
+            async for arrived in self.agent.events():
+                for event in _said_before(arrived):
+                    await forward(event)
+
+        async def forward(event: dict) -> None:
+            # Recorded before it is broadcast, so the panel and the file
+            # on disk always show the same conversation -- and so an
+            # event that arrives while nobody is watching is still kept.
+            # One unserialisable tool argument used to kill this task,
+            # and with it every later event including `done`: the panel
+            # then said Claude was thinking, forever.
+            try:
+                event = self.transcript.record(event)
+            except Exception:
+                # The transcript is the account of what was done to
+                # somebody's dissertation.  It may not take the whole
+                # turn down, which is why this is caught at all, but a
+                # record that quietly stops recording is the one failure
+                # here nobody would ever notice on their own.
+                log.warning("the transcript did not record a %s event",
+                            event.get("type", "?"), exc_info=True)
+            try:
+                await self.events.publish({"scope": "agent", **event})
+            except asyncio.CancelledError:
+                raise
+            except Exception:
+                return
 
         self._agent_pump = spawn(pump(), "the agent event pump")
 

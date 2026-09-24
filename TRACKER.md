@@ -119,15 +119,15 @@ this host could not reproduce; each says which.
       here to find out with; the local run says the parser, the tool
       loop, the card and the usage chunk all hold against a server that
       speaks the same protocol.
-- [ ] **Stop has not been pressed against the real CLI since the buffer
-      fix.** The one-behind reply after Stop was diagnosed in a writing
-      session's transcript and is reproduced by a stub with the SDK's
-      buffer in `tests/test_agent_robustness.py`; the real `interrupt`
-      control request and the `result` the CLI sends for a stopped turn
-      are exercised only by `tests/test_live_agent.py` under
-      `NEXTTEX_LIVE`. `tests/fake_claude.py` speaks the sign-in commands
-      and not the stream protocol, and teaching it the protocol is a
-      day's work that would still be a stand-in.
+- [x] **Stop against the real CLI, since the buffer fix.** Pressed on 24
+      September 2026 in a throwaway install of 3.16.0 under `~/work/tests`
+      signed in through the machine's own `claude`, on Sonnet 5: Stop 5.5
+      s into a streaming reply, nothing more arrived after it, and the
+      next question, "reply with exactly PINEAPPLE", was answered with
+      exactly that, not with the rest of the stopped reply. Two turns,
+      $0.01. It showed one thing wrong, fixed the same day: the stopped
+      reply ended mid-word with nothing to say so; a stopped turn now ends
+      with "Stopped.".
 - [x] **Windows: a clean install of current master is on the record.**
       Done on 23 September 2026 on the owner's laptop, by the documented
       `irm ... | iex` route, from an uninstall of the previous install
