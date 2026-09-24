@@ -442,6 +442,32 @@ def test_renaming_a_previewed_document_keeps_its_place_and_its_page(
     assert previews_events(seen)[0]["renamed"] == {"main.tex": "paper.tex"}
 
 
+def test_a_pass_in_the_middle_of_a_rename_keeps_the_place(client, project_dir, opened):
+    """The race a flaky spec found: the route renamed the file and awaited,
+    a watcher-driven pass in the gap found the old name missing and dropped
+    it, and the new name then arrived at the end of the strip. A move the
+    route has announced is read by every pass as a move."""
+    from server import main as server_main
+
+    project_id = opened["id"]
+    add(client, project_dir, "esi.tex", STANDALONE)
+    client.post(f"/api/projects/{project_id}/previews", json={"path": "esi.tex"})
+    session = server_main.SESSIONS[project_id]
+
+    async def in_the_gap():
+        session.moving["main.tex"] = "paper.tex"
+        (project_dir / "main.tex").rename(project_dir / "paper.tex")
+        # What the watcher's refresh does when it finds a document missing.
+        await session.reconcile_documents()
+        session.moving.pop("main.tex", None)
+        # And the route's own pass after it, which then has nothing to do.
+        await session.reconcile_documents(moved={"main.tex": "paper.tex"})
+
+    client.portal.call(in_the_gap)
+    body = client.get(f"/api/projects/{project_id}/documents").json()
+    assert body["previews"] == ["paper.tex", "esi.tex"]
+
+
 def test_moving_a_folder_carries_the_document_inside_it(client, project_dir, opened):
     project_id = opened["id"]
     (project_dir / "drafts").mkdir()

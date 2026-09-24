@@ -327,6 +327,12 @@ class ProjectSession:
         # `previews`; one with neither gets the best guess, which is nothing
         # at all for a folder with no document in it yet.
         self.previews = PreviewList(project.state_dir)
+        #: Moves a route has started and not yet reconciled: the rename
+        #: route puts its move here before it renames on disk, so any pass
+        #: of `reconcile_documents` that runs in between reads the document
+        #: as moving rather than gone. And one pass at a time.
+        self.moving: dict[str, str] = {}
+        self._reconciling = asyncio.Lock()
         remembered = self.previews.load()
         never_written = remembered is None
         if remembered is None:
@@ -652,8 +658,20 @@ class ProjectSession:
         the strip silently staying put is the failure a writer cannot work
         out the cause of.  Nothing matched means nothing published, so a
         chapter's rename does not redraw every strip.
+
+        One pass at a time, and every pass reads the moves a route has
+        announced: the rename route renamed the file and then awaited, and
+        a watcher-driven pass in that gap found the old name missing and
+        dropped it, so the route's own pass had nothing to rename and the
+        new name arrived at the end of the strip rather than in its place,
+        a flake of the 24 September runs that was this race.
         """
-        moved = moved or {}
+        async with self._reconciling:
+            await self._reconcile_documents({**self.moving, **(moved or {})}, gone)
+
+    async def _reconcile_documents(
+        self, moved: dict[str, str], gone: list[str] | tuple[str, ...],
+    ) -> None:
         away = set(gone)
 
         def under(path: str, prefix: str) -> bool:

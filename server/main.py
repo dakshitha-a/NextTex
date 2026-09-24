@@ -2943,9 +2943,13 @@ async def rename_entry(project_id: str, path: str = Body(...), to: str = Body(..
     if target.exists():
         raise HTTPException(409, "a file of that name already exists")
     target.parent.mkdir(parents=True, exist_ok=True)
+    # Announced before the file moves, so a pass over the strip that runs
+    # while this route awaits reads the old name as moving, not gone.
+    session.moving[path] = to
     try:
         source.rename(target)
     except OSError as error:
+        session.moving.pop(path, None)
         raise HTTPException(400, f"could not rename: {error}")
     # The shared document first, or the manifest goes on naming the old
     # path: the watcher then sees one file vanish and another appear,
@@ -2964,7 +2968,10 @@ async def rename_entry(project_id: str, path: str = Body(...), to: str = Body(..
     # follow the file never sees the two disagree.  Published first for
     # that reason: with the tabs moved first the effect asked the server
     # about the new name before the server had reconciled.
-    await session.reconcile_documents(moved={path: to})
+    try:
+        await session.reconcile_documents(moved={path: to})
+    finally:
+        session.moving.pop(path, None)
     # A second tab has the file open under its old name, and the watcher
     # only tells it the tree changed -- not that this path became that one.
     # Every tab gets this, the originating one included, which is safe
