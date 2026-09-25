@@ -538,6 +538,9 @@ back, and are drawn again when they return.
 
 *Size:* medium. *Version:* z.
 
+*Fixed in 3.18.9.* Pages more than three screens past the drawing window
+give their canvas back and are drawn again on return.
+
 ### Q-032 · Preview · performance · medium · confirmed
 **The first find in a long PDF is slow.**
 
@@ -552,6 +555,8 @@ pages are slow. The first search in a long document pays that cost.
 does.
 
 *Size:* small. *Version:* z.
+
+*Fixed in 3.18.9.* The first find reads every page's text at once.
 
 ### Q-033 · Editor · performance · low · confirmed
 **Spelling rescans the whole file on each key.**

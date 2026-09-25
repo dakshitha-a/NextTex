@@ -10801,3 +10801,8 @@ A second tab signing in to Claude is told, in the sheet's own error line,
 "Another tab is signing in to Claude. Finish there, or start again here,
 which stops that one.", with *Start again here* under it; the first tab
 then says "Another tab started the sign-in again, so this one stopped."
+
+Reading a long document through no longer grows the tab: pages far
+behind or ahead of the view let go of their pixels and are drawn again as
+they come back, a moment before they are on screen. The first find in a
+long PDF reads every page at once and answers sooner.

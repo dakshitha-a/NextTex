@@ -51,6 +51,13 @@ function resolution(): number {
 
 /** How far outside the viewport a page is still worth drawing. */
 const NEAR = 400;
+/** How far past the drawing window a drawn page keeps its pixels, in
+ *  screen heights. Beyond it the canvas gives its backing store back and is
+ *  drawn again on the way back: reading a 600-page thesis through once left
+ *  147 megapixels of canvas, about 590 MB, climbing with every page read
+ *  (Q-031). Three screens either side keeps a page scrolled back to at
+ *  once from blanking. */
+const KEEP_SCREENS = 3;
 
 /** The range the zoom controls and the wheel share, so a pinch cannot
  *  reach a scale the buttons will not admit to. */
@@ -554,6 +561,23 @@ export default function Pdf({
     }
   }, [darken]);
 
+  /** Give a page's pixels back: a canvas of zero size holds no backing
+   *  store. Its box keeps its size, so nothing moves, and the page is drawn
+   *  again when it comes near. */
+  const release = (view: PageView) => {
+    if (view.drawnFor === -1 && !view.task && view.canvas.width === 0) return;
+    view.task?.cancel();
+    view.task = null;
+    view.canvas.width = 0;
+    view.canvas.height = 0;
+    if (view.figures) {
+      view.figures.width = 0;
+      view.figures.height = 0;
+    }
+    view.drawnFor = -1;
+    view.drawnAt = 0;
+  };
+
   /** Draw what is on screen, and the page either side of it. */
   const drawVisible = useCallback(() => {
     const root = scroller.current;
@@ -580,10 +604,15 @@ export default function Pdf({
     let first = -1;
     let reading = -1;
     let mostShown = 0;
+    const keep = root.clientHeight * KEEP_SCREENS;
     for (let index = 0; index < pages.current.length; index += 1) {
       const element = pages.current[index].container;
       const start = element.offsetTop;
       const end = start + element.offsetHeight;
+      if (end < top - keep || start > bottom + keep) {
+        release(pages.current[index]);
+        continue;
+      }
       if (end < top || start > bottom) continue;
       if (first < 0) first = index;
       const shown = Math.max(0, Math.min(end, viewBottom) - Math.max(start, viewTop));
@@ -1333,17 +1362,22 @@ export default function Pdf({
       }
       const mine = generation.current;
       if (!pageTexts.current || pageTexts.current.generation !== mine) {
-        const texts: string[] = [];
+        let texts: string[];
         try {
-          for (let number = 1; number <= document.numPages; number += 1) {
-            const page = await document.getPage(number);
-            const content = await page.getTextContent();
-            texts.push(textOf(content.items as { str: string; hasEOL?: boolean }[]));
-            if (cancelled || mine !== generation.current) return;
-          }
+          // Every page at once, as the layout reads them: one after another
+          // the first find in a long document waited on each page's round
+          // trip to the worker in turn (Q-032).
+          texts = await Promise.all(
+            Array.from({ length: document.numPages }, async (_, index) => {
+              const page = await document.getPage(index + 1);
+              const content = await page.getTextContent();
+              return textOf(content.items as { str: string; hasEOL?: boolean }[]);
+            }),
+          );
         } catch {
           return;
         }
+        if (cancelled || mine !== generation.current) return;
         pageTexts.current = { generation: mine, texts };
       }
       if (cancelled) return;
