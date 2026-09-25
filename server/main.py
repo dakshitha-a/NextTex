@@ -2756,10 +2756,10 @@ async def search_project(
     at all across the project, so renaming a label meant opening every
     chapter and pressing Ctrl-F in each of them.
 
-    The regular expression work happens in a thread. A pattern is written
-    by whoever is holding the keyboard and Python's `re` has no timeout,
-    so a pattern that backtracks exponentially would otherwise stop the
-    whole install; in a thread it costs a worker.
+    The matching happens in a thread, and a pattern is held to
+    `search.TIME_LIMIT` by a matcher that lets go of the interpreter lock,
+    because a pattern that backtracks exponentially once stopped the whole
+    install from inside its thread.
     """
     session = session_for(project_id)
     try:
@@ -2769,7 +2769,10 @@ async def search_project(
     live = session.collab.open_texts()
     texts = await asyncio.to_thread(_project_texts, session)
     texts.update({path: body for path, body in live.items() if path in texts})
-    hits, capped = await asyncio.to_thread(search.find, texts, pattern)
+    try:
+        hits, capped = await asyncio.to_thread(search.find, texts, pattern)
+    except search.SearchError as error:
+        raise HTTPException(400, str(error))
     return {
         "hits": [hit.as_dict() for hit in hits],
         "capped": capped,
@@ -2807,18 +2810,28 @@ async def replace_in_project(
     texts = await asyncio.to_thread(_project_texts, session)
     texts.update({path: body for path, body in live.items() if path in texts})
 
+    def every_replacement() -> dict[str, tuple[str, int]]:
+        # All of them before any is saved, under one time limit, so a
+        # pattern that runs out of time, or a replacement that does not fit
+        # the pattern, leaves every file as it was.
+        deadline = time.monotonic() + search.TIME_LIMIT
+        return {
+            relative: search.replace(
+                before, pattern, to, regex=regex, deadline=deadline,
+            )
+            for relative, before in texts.items()
+            if wanted is None or relative in wanted
+        }
+
+    try:
+        replacements = await asyncio.to_thread(every_replacement)
+    except search.SearchError as error:
+        raise HTTPException(400, str(error))
+
     changed: list[str] = []
     replaced = 0
-    for relative, before in texts.items():
-        if wanted is not None and relative not in wanted:
-            continue
-        try:
-            after, count = await asyncio.to_thread(
-                search.replace, before, pattern, to, regex=regex,
-            )
-        except search.SearchError as error:
-            raise HTTPException(400, str(error))
-        if not count or after == before:
+    for relative, (after, count) in replacements.items():
+        if not count or after == texts[relative]:
             continue
         await _save_text(session, _safe(session, relative), after, source=origin)
         changed.append(relative)

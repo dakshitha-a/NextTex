@@ -437,6 +437,10 @@ drawer with the regular-expression switch on.
 
 *Size:* medium. *Version:* z.
 
+*Fixed in 3.18.2.* A search or replace with the pattern switch on goes
+through the `regex` package with a time limit, and lets go of the
+interpreter lock while it matches.
+
 ### Q-029 · References · bug · medium · confirmed
 **The library writes to the wrong .bib file.**
 

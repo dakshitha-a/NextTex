@@ -91,3 +91,91 @@ def test_a_group_that_is_not_there_is_reported_rather_than_raised():
 def test_replacing_keeps_the_lines_it_did_not_touch():
     text, count = search.replace("a\nb\na", compiled("a"), "z")
     assert (text, count) == ("z\nb\nz", 2)
+
+
+# A pattern whose backtracking is exponential in the line it is run over.
+# `(a+)+$` was the probe's example, and `re` needs about two to the
+# thirty-fourth steps for it on this line; `(a|aa)+$` is catastrophic in
+# every backtracking engine, including the one that now does the work.
+RUNAWAY = "a" * 34 + "!"
+
+
+def _in_a_child(code: str, limit: float = 20.0) -> str:
+    """Run `code` in a fresh interpreter and give back what it printed.
+
+    A child rather than a thread, because the fault under test is a match
+    that holds the interpreter lock: in this process it would stop the
+    test's own timer along with everything else, and the suite would hang
+    instead of failing.
+    """
+    import subprocess
+    import sys
+    done = subprocess.run(
+        [sys.executable, "-c", code], capture_output=True, text=True,
+        timeout=limit, cwd=str(__import__("pathlib").Path(__file__).parents[1]),
+    )
+    assert done.returncode == 0, done.stderr
+    return done.stdout
+
+
+@pytest.mark.parametrize("query", ["(a+)+$", "(a|aa)+$"])
+def test_a_runaway_pattern_ends_within_the_time_limit(query):
+    out = _in_a_child(f"""
+import time
+from nexttex import search
+pattern = search.compile_pattern({query!r}, regex=True)
+start = time.monotonic()
+try:
+    search.find({{"evil.tex": {RUNAWAY!r}}}, pattern)
+    print("finished", time.monotonic() - start)
+except search.SearchError as error:
+    print("refused", time.monotonic() - start, error)
+""")
+    verdict, seconds, *rest = out.split(" ", 2)
+    assert float(seconds) <= search.TIME_LIMIT + 1.0
+    if verdict == "refused":
+        assert "too long" in rest[0]
+
+
+def test_a_runaway_pattern_leaves_other_threads_running():
+    """The limit is only half of it: while the match runs, the rest of
+    the server has to keep answering, so the match must not hold the lock."""
+    out = _in_a_child(f"""
+import threading, time
+from nexttex import search
+ticks = []
+stop = threading.Event()
+def tick():
+    while not stop.is_set():
+        ticks.append(time.monotonic())
+        time.sleep(0.01)
+thread = threading.Thread(target=tick)
+thread.start()
+try:
+    search.find({{"evil.tex": {RUNAWAY!r}}},
+                search.compile_pattern("(a|aa)+$", regex=True))
+except search.SearchError:
+    pass
+stop.set()
+thread.join()
+gaps = [b - a for a, b in zip(ticks, ticks[1:])]
+print(max(gaps))
+""")
+    assert float(out) < 0.5
+
+
+def test_a_runaway_replacement_ends_within_the_time_limit():
+    out = _in_a_child(f"""
+import time
+from nexttex import search
+pattern = search.compile_pattern("(a|aa)+$", regex=True)
+start = time.monotonic()
+try:
+    search.replace({RUNAWAY!r}, pattern, "x", regex=True)
+    print("finished", time.monotonic() - start)
+except search.SearchError as error:
+    print("refused", time.monotonic() - start)
+""")
+    verdict, seconds = out.split()
+    assert verdict == "refused"
+    assert float(seconds) <= search.TIME_LIMIT + 1.0

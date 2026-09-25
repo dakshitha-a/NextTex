@@ -418,7 +418,7 @@ A single process with no database means nothing is bounded unless something boun
 | Installing a package | 300 second timeout |
 | A file sent by a peer | 64 MB each, 512 MB parked in memory in all, held until the flush that writes it |
 | A peer link | pinged after 20 s of send silence, dropped after 60 s of hearing nothing |
-| A project search | 200 characters of pattern, 500 hits, and the regular expression runs in a thread |
+| A project search | 200 characters of pattern, 500 hits, and two seconds of matching for a pattern, with the interpreter lock released |
 
 ## Security posture
 
@@ -428,7 +428,7 @@ Enforced: origin on every unsafe method, two separate credentials with constant-
 
 `/api/browse` is the one route that reads the disk outside any project, and it is not fenced to one on purpose: a project is already an absolute path typed into a box on the projects screen, so the folder picker behind that screen's Browse button and the papers chooser reach what the box reaches. What holds it instead is its shape, which `tests/api/test_browse.py` asserts: it answers folder names and, when asked, PDF counts, never contents; it does not follow symlinks; a file or a missing path is refused; and no tool the agent can call reaches it. The `pdfs` flag is a cost switch rather than a permission: counting opens every child of the folder being looked at, which the papers chooser wants and the project picker, opening on home, does not.
 
-Project-wide search is the one route that compiles a regular expression written by whoever is holding the keyboard. Python's `re` has no timeout and a short pattern can backtrack exponentially, so the pattern is capped at two hundred characters, escaped unless a pattern was explicitly asked for, and matched in a worker thread: a pathological pattern then costs a worker rather than stopping every other request on the install.
+Project-wide search is the one route that compiles a regular expression written by whoever is holding the keyboard. A short pattern can backtrack exponentially: `(a|aa)+$` is eight characters and runs for minutes on a line of thirty letters. Python's `re` has no timeout and holds the interpreter lock while it matches, so a worker thread was no protection, and the probe of September 2026 found one such search stopped every request on the install (Q-028). So a literal search is escaped and stays on `re`, which cannot backtrack on an escaped string, and a search with the pattern switch on is compiled by the `regex` package and matched with `timeout` and `concurrent=True`: the match lets go of the lock while it runs, and a search, or a whole replace across the project, stops after `search.TIME_LIMIT` seconds of matching with a sentence saying why. A replace works out every file's result before it saves any, so a pattern that runs out of time, or a replacement that does not fit the pattern, changes nothing.
 
 **One thing is not fixed, and it is written down rather than claimed.** `openin_any` is passed to the engine and the pdfTeX this was tested against ignores it, under `a`, `r` and `p` alike, through the environment and through a `texmf.cnf`. Writes out of a project are refused; reads into it are not. A hostile source file can therefore read what the server's user can read and write it into a project file, which on a shared project reaches every peer. No amount of code here closes that.
 

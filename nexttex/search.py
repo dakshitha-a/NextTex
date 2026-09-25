@@ -16,11 +16,33 @@ somebody can be sent to: a file, a line, a column.
 from __future__ import annotations
 
 import re
+import time
 from dataclasses import dataclass
 
-#: Long enough for anything a person types, short enough that a pattern
-#: whose backtracking is exponential in its own length cannot be built.
+import regex as _regex
+
+#: Long enough for anything a person types.  Not a defence against a
+#: pattern that backtracks: `(a|aa)+$` is eight characters.
 MAX_PATTERN = 200
+
+#: How long one search or one replace may spend matching, in seconds.
+#:
+#: A pattern is written by whoever holds the keyboard, and one that
+#: backtracks exponentially runs for minutes on a line of thirty letters.
+#: Python's `re` has no limit and holds the interpreter lock while it
+#: matches, so running it in a thread did not help: one search stopped the
+#: whole install, every tab and every collaborator, until it finished.  A
+#: pattern search therefore goes through the `regex` package, which takes a
+#: timeout and, with `concurrent=True`, lets go of the lock while it
+#: matches.  A literal search stays on `re`: an escaped string cannot
+#: backtrack.
+TIME_LIMIT = 2.0
+
+_TOO_LONG = (
+    "That pattern took too long to match, so the search stopped. A repeat "
+    "inside a repeat, such as (a+)+, can take ages on a long line; try a "
+    "simpler pattern."
+)
 
 #: A search that matches thousands of lines is not an answer anybody reads,
 #: and sending them all is a megabyte of JSON for a panel showing twenty.
@@ -64,11 +86,25 @@ def compile_pattern(query: str, *, regex: bool = False, case: bool = False):
             f"A pattern is limited to {MAX_PATTERN} characters, and this is "
             f"{len(query)}."
         )
-    flags = 0 if case else re.IGNORECASE
+    if not regex:
+        return re.compile(re.escape(query), 0 if case else re.IGNORECASE)
     try:
-        return re.compile(query if regex else re.escape(query), flags)
-    except re.error as error:
+        return _regex.compile(query, 0 if case else _regex.IGNORECASE)
+    except _regex.error as error:
         raise SearchError(f"That is not a pattern: {error}") from error
+
+
+def _limited(pattern) -> bool:
+    """Whether matching with `pattern` needs the clock."""
+    return isinstance(pattern, _regex.Pattern)
+
+
+def _left(deadline: float) -> float:
+    """What remains of the time limit, or a `SearchError` if nothing does."""
+    left = deadline - time.monotonic()
+    if left <= 0:
+        raise SearchError(_TOO_LONG)
+    return left
 
 
 def find(texts: dict[str, str], pattern) -> tuple[list[Hit], bool]:
@@ -79,9 +115,22 @@ def find(texts: dict[str, str], pattern) -> tuple[list[Hit], bool]:
     the count in the confirmation is the number that will change.
     """
     hits: list[Hit] = []
+    limited = _limited(pattern)
+    deadline = time.monotonic() + TIME_LIMIT
     for path, text in texts.items():
         for number, line in enumerate(text.split("\n"), start=1):
-            for found in pattern.finditer(line):
+            if limited:
+                try:
+                    # The whole line is matched inside the call, so the
+                    # list is what takes the time and what the limit covers.
+                    matches = list(pattern.finditer(
+                        line, timeout=_left(deadline), concurrent=True,
+                    ))
+                except TimeoutError:
+                    raise SearchError(_TOO_LONG) from None
+            else:
+                matches = pattern.finditer(line)
+            for found in matches:
                 if len(hits) >= MAX_HITS:
                     return hits, True
                 hits.append(Hit(
@@ -94,8 +143,8 @@ def find(texts: dict[str, str], pattern) -> tuple[list[Hit], bool]:
     return hits, False
 
 
-def replace(text: str, pattern, replacement: str, *, regex: bool = False
-            ) -> tuple[str, int]:
+def replace(text: str, pattern, replacement: str, *, regex: bool = False,
+            deadline: float | None = None) -> tuple[str, int]:
     """The text with every match replaced, and how many there were.
 
     The replacement goes through a function rather than being handed to
@@ -105,7 +154,13 @@ def replace(text: str, pattern, replacement: str, *, regex: bool = False
     it with `\\1` would quietly substitute a group.  With regex on, `\\1`
     is what the writer meant, so the match expands it and a bad reference
     is reported rather than raised into the request.
+
+    `deadline` is a `time.monotonic()` reading shared by every file of one
+    replace, so the limit covers the whole replace rather than each file.
     """
+    limited = _limited(pattern)
+    if deadline is None:
+        deadline = time.monotonic() + TIME_LIMIT
     count = 0
     out: list[str] = []
     for line in text.split("\n"):
@@ -113,7 +168,7 @@ def replace(text: str, pattern, replacement: str, *, regex: bool = False
             def swap(found, _replacement=replacement):
                 try:
                     return found.expand(_replacement)
-                except (re.error, IndexError) as error:
+                except (re.error, _regex.error, IndexError) as error:
                     raise SearchError(
                         f"That replacement does not work with that pattern: "
                         f"{error}"
@@ -121,7 +176,15 @@ def replace(text: str, pattern, replacement: str, *, regex: bool = False
         else:
             def swap(found, _replacement=replacement):
                 return _replacement
-        new, changed = pattern.subn(swap, line)
+        if limited:
+            try:
+                new, changed = pattern.subn(
+                    swap, line, timeout=_left(deadline), concurrent=True,
+                )
+            except TimeoutError:
+                raise SearchError(_TOO_LONG) from None
+        else:
+            new, changed = pattern.subn(swap, line)
         count += changed
         out.append(new)
     return "\n".join(out), count

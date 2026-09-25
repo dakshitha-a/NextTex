@@ -109,3 +109,36 @@ def test_a_replacement_of_backslashes_is_not_read_as_escapes(client, opened):
     assert answer.status_code == 200, answer.text
     read = client.get(f"/api/projects/{pid}/file", params={"path": "one.tex"})
     assert read.json()["text"] == "\\citep{a}"
+
+
+def test_a_runaway_pattern_is_refused_within_the_limit(client, opened):
+    """Q-028: `(a|aa)+$` over thirty-four letters and a mark once held the
+    interpreter lock for minutes and stopped the whole install."""
+    import time
+    from nexttex import search
+    pid = opened["id"]
+    seed(client, pid, "evil.tex", "a" * 34 + "!")
+    start = time.monotonic()
+    answer = client.get(
+        f"/api/projects/{pid}/search",
+        params={"q": "(a|aa)+$", "regex": "true"},
+    )
+    assert time.monotonic() - start < search.TIME_LIMIT + 2
+    assert answer.status_code == 400
+    assert "too long" in answer.json()["detail"]
+
+
+def test_a_runaway_replace_changes_no_file(client, opened):
+    """The replacements are all worked out before any file is saved, so a
+    pattern that runs out of time leaves every file as it was, including
+    the ones before the one it stuck on."""
+    pid = opened["id"]
+    seed(client, pid, "a.tex", "aaa done")
+    seed(client, pid, "b.tex", "a" * 34 + "!")
+    answer = client.post(
+        f"/api/projects/{pid}/search/replace",
+        json={"q": "(a|aa)+$", "with": "x", "regex": True},
+    )
+    assert answer.status_code == 400
+    read = client.get(f"/api/projects/{pid}/file", params={"path": "a.tex"})
+    assert read.json()["text"] == "aaa done"
