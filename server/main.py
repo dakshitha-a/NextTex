@@ -5845,7 +5845,7 @@ async def agent_permission(
 # model rather than anything the writer could act on.
 CLAUDE_MODELS = [
     {"id": "", "name": "Default", "note": "Whatever your Claude plan gives"},
-    {"id": "claude-opus-5", "name": "Opus 5", "note": "The most careful"},
+    {"id": "claude-opus-5-5", "name": "Opus 5.5", "note": "The most careful"},
     {"id": "claude-sonnet-5", "name": "Sonnet 5", "note": "Quick, and good at prose"},
     {"id": "claude-haiku-4-5", "name": "Haiku 4.5", "note": "Fastest, for small edits"},
 ]

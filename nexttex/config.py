@@ -49,6 +49,12 @@ def default_port() -> int:
     digest = hashlib.blake2b(name.encode(), digest_size=2).digest()
     return DEFAULT_PORT + 1 + int.from_bytes(digest, "big") % 40
 
+
+# Model ids the model menu used to offer, and the id that took each one's
+# row.  "The most careful" was Opus 5 until Opus 5.5 (24 September 2026).
+RETIRED_MODELS = {"claude-opus-5": "claude-opus-5-5"}
+
+
 @dataclass
 class Settings:
     port: int = field(default_factory=default_port)
@@ -148,7 +154,11 @@ class Settings:
                 pass      # unwritable state directory: run anyway, in memory
             return settings
         known = {f for f in cls.__dataclass_fields__}
-        return cls(**{k: v for k, v in data.items() if k in known})
+        settings = cls(**{k: v for k, v in data.items() if k in known})
+        # A model the menu no longer offers, carried to the one that took
+        # its row, so the menu still shows the writer's choice as chosen.
+        settings.model = RETIRED_MODELS.get(settings.model, settings.model)
+        return settings
 
     def save(self) -> None:
         # Through `write_atomically`, for the reason its own docstring gives:

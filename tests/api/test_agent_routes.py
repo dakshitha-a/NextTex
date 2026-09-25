@@ -28,9 +28,9 @@ def test_changing_the_model_does_not_500(client, opened):
 
 def test_the_chosen_model_is_remembered(client, opened):
     client.post(f"/api/projects/{opened['id']}/agent/model",
-                json={"model": "claude-opus-5"})
+                json={"model": "claude-opus-5-5"})
     usage = client.get(f"/api/projects/{opened['id']}/agent/usage").json()
-    assert usage["model"] == "claude-opus-5"
+    assert usage["model"] == "claude-opus-5-5"
 
 
 def test_an_unknown_model_is_refused(client, opened):
@@ -42,7 +42,7 @@ def test_an_unknown_model_is_refused(client, opened):
 
 def test_the_default_model_can_be_chosen_back(client, opened):
     client.post(f"/api/projects/{opened['id']}/agent/model",
-                json={"model": "claude-opus-5"})
+                json={"model": "claude-opus-5-5"})
     response = client.post(f"/api/projects/{opened['id']}/agent/model",
                            json={"model": ""})
     assert response.status_code == 200
@@ -217,7 +217,7 @@ def test_a_claude_model_is_not_carried_over_to_openai(client, opened, back_to_cl
     """
     client.post("/api/agent/provider", json={"provider": "claude"})
     client.post(f"/api/projects/{opened['id']}/agent/model",
-                json={"model": "claude-opus-5"})
+                json={"model": "claude-opus-5-5"})
     body = client.post(
         "/api/agent/provider", json={"provider": "openai", "key": "sk-test"}
     ).json()
@@ -249,7 +249,7 @@ def test_a_claude_model_is_refused_while_openai_is_chosen(client, opened, back_t
     client.post("/api/agent/provider", json={"provider": "openai", "key": "sk-test"})
     response = client.post(
         f"/api/projects/{opened['id']}/agent/model",
-        json={"model": "claude-opus-5"},
+        json={"model": "claude-opus-5-5"},
     )
     assert response.status_code == 400
 
