@@ -1223,3 +1223,14 @@ test("selecting the whole of a long file still shows a verb row", async ({ app, 
   await expect(row).toBeVisible({ timeout: 10_000 });
   await expect(row).toContainText("Lines 1 to 205");
 });
+
+test("the last position's description says what ChatGPT and a local model still refuse", async ({
+  tab,
+}) => {
+  // Q-004: the position means one thing under Claude and a safer thing
+  // under the other providers, and nothing said so.
+  await tab.getByTestId("model-open").click();
+  await expect(tab.getByTestId("mode-all")).toContainText(
+    "With ChatGPT or a local model, a write outside this project is still refused.",
+  );
+});

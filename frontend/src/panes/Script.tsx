@@ -216,13 +216,13 @@ export default function Script({
                 {result.out.trimEnd()}
               </pre>
             ) : null}
-            {result.err.trim() ? (
+            {result.err.trim() && !(result.busy && !result.run) ? (
               <Stderr text={result.err} failed={!result.ok} />
             ) : null}
             {result.clipped ? (
               <p className="t-micro text-ink-3">Output clipped at 64 kB per stream.</p>
             ) : null}
-            {!result.ok && !result.stopped ? (
+            {!result.ok && !result.stopped && !result.busy ? (
               <div className="flex flex-wrap items-center gap-2" data-testid="script-actions">
                 {onAsk ? (
                   <Button variant="ghost" data-testid="script-ask-agent" onClick={() => onAsk(path, result)}>

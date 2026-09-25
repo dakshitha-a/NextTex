@@ -65,7 +65,22 @@ COLUMN_INCHES = 3.4
 ASPECT = {"page": 0.45, "column": 0.62}
 DEFAULT_ASPECT = 0.5
 
-plt.style.use(str(HERE / "plotstyle.mplstyle"))
+STYLE = HERE / "plotstyle.mplstyle"
+
+# The style sheet is yours to edit, rename or delete. Gone, every figure
+# script that imports this file failed at import with a traceback that
+# did not say why; now it says so on the run's first line and draws with
+# matplotlib's own style.
+try:
+    plt.style.use(str(STYLE))
+except OSError:
+    import sys
+
+    print(
+        f"{STYLE.relative_to(PROJECT).as_posix()} is missing, so this figure "
+        "uses matplotlib's own style.",
+        file=sys.stderr,
+    )
 
 
 def figure(width="page", aspect=None, **kwargs):

@@ -45,6 +45,7 @@ from enum import Enum
 from pathlib import Path
 from typing import Callable
 
+from .childenv import without_secrets
 from .deps import uncommented
 from .proctree import end_tree
 from .latexlog import ParsedLog, parse as parse_log
@@ -747,7 +748,8 @@ class CompileScheduler:
         # output directory; the engine will not create those directories.
         self._mirror_build_tree(main_source)
 
-        env = {**os.environ, **LOG_ENV, **self.paths.search_env()}
+        # Without the server's credentials, as a figure script is (Q-006).
+        env = {**without_secrets(os.environ), **LOG_ENV, **self.paths.search_env()}
         miktex = is_miktex(engine, env)
         if full_pass and miktex and not has_perl(env):
             # MiKTeX's latexmk is a Perl script and MiKTeX brings no Perl:

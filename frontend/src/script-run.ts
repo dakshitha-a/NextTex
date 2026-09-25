@@ -14,6 +14,7 @@ export function outcomeLabel(
   if (running) return "Running";
   if (!result) return "Not run yet";
   if (result.stopped) return "Stopped";
+  if (result.busy) return `Not run: ${result.busy} are running`;
   if (result.timeout) return "Stopped after 120 s";
   if (result.ok) return `Ran in ${seconds(result.duration_ms ?? 0)}`;
   return `Exit ${result.code}`;

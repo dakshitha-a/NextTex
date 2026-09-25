@@ -549,3 +549,70 @@ def test_install_package_asks_and_installs(tmp_path, monkeypatch):
     assert opened[0]["headline"] == "Install a Python package: numpy"
     assert opened[0]["rule"] == "install:numpy"
     assert installed == ["numpy"]
+
+
+def test_a_turn_whose_first_message_fails_still_ends(tmp_path):
+    """Q-001: the first message was built before the guard, so a failure
+    reading the editor's state ended the task with no `done`."""
+    made = agent(tmp_path, [sse(text_chunk("never reached"))])
+
+    def broken(text):
+        raise ValueError("the editor state could not be read")
+
+    made._with_context = broken
+    seen = asyncio.run(run(made, "hello"))
+    assert seen[-1]["type"] == "done"
+    assert seen[-1]["subtype"] == "error_during_execution"
+    assert [event for event in seen if event["type"] == "error"]
+
+
+def test_the_round_limit_is_said_and_is_not_a_success(tmp_path):
+    """Q-002: twelve rounds of tools ended the loop and reported success."""
+    from nexttex import openai_agent
+
+    rounds = [
+        sse(tool_chunk(0, f"call-{n}", "read_file", json.dumps({"path": "main.tex"})))
+        for n in range(openai_agent.ROUNDS)
+    ]
+    made = agent(tmp_path, rounds)
+    seen = asyncio.run(run(made, "rename every label"))
+    notices = [event["message"] for event in seen if event["type"] == "notice"]
+    assert notices == [openai_agent.ROUND_LIMIT_NOTICE]
+    assert "carry on" in notices[0]
+    assert seen[-1]["type"] == "done"
+    assert seen[-1]["subtype"] == "error_max_turns"
+
+
+def test_a_stream_that_drops_partway_is_a_sentence(tmp_path):
+    """Q-003: a refusal was explained, a dropped stream was Python's text."""
+    import requests
+
+    made = agent(tmp_path, [])
+
+    def dropping(messages):
+        yield text_chunk("Continuing with chapter 7, where")
+        raise requests.exceptions.ChunkedEncodingError(
+            "Connection broken: IncompleteRead(0 bytes read)"
+        )
+
+    made._request = dropping
+    seen = asyncio.run(run(made, "carry on"))
+    problems = [event["message"] for event in seen if event["type"] == "error"]
+    assert problems == [
+        "The connection to OpenAI dropped partway through the answer. Try again in a moment."
+    ]
+    assert seen[-1]["type"] == "done"
+
+
+def test_a_connection_that_never_opens_is_a_sentence_too(tmp_path):
+    import requests
+
+    made = agent(tmp_path, [])
+
+    def refused(messages):
+        raise requests.exceptions.ConnectionError("Max retries exceeded with url")
+
+    made._request = refused
+    seen = asyncio.run(run(made, "hello"))
+    problems = [event["message"] for event in seen if event["type"] == "error"]
+    assert problems == ["Could not reach OpenAI. Check the connection and try again."]

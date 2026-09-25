@@ -370,6 +370,8 @@ export type ScriptResult = {
   missing?: string;
   timeout?: boolean;
   stopped?: boolean;
+  /** Not started, because this many scripts were already running. */
+  busy?: number;
   duration_ms?: number;
   figures: string[];
   saved: string[];

@@ -49,6 +49,14 @@ OpenAI provider against OpenAI itself.
 
 ### Known gaps, with a cost somebody will eventually pay
 
+- [ ] **A script that starts a session of its own outlives its stop.**
+      A stopped or timed-out script is ended by killing its process
+      group, and a script that forks and calls `setsid` leaves the group.
+      The fix run capped scripts at three at once (Q-007); the other
+      half, a Linux cgroup per run or tracking by descendant, is medium
+      work for a low finding, since such a script runs as the writer's
+      own user and was written or approved by them.
+
 The backlog close-out worked every line here that this host could work.
 What stays needs a Windows machine, GitHub, or a report that names what
 this host could not reproduce; each says which.

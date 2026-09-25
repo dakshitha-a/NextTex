@@ -26,6 +26,13 @@ from typing import Any, Awaitable, Callable
 
 from . import plots
 
+#: Scripts running at once, across every project on this server. One run
+#: per script was the only limit, so a model asked to draw twenty figures
+#: could start twenty interpreters (Q-007). A rerun of a script that is
+#: running replaces it and is not counted twice.
+AT_ONCE = 3
+_EVERYWHERE: set[asyncio.Task] = set()
+
 RUNS = "runs"
 RESULT = "result.json"
 
@@ -146,7 +153,17 @@ class ScriptRuns:
     async def run(self, relative: str, by: str = "writer") -> dict:
         """Run one script, announce it, keep its result, and answer it."""
         previous = self._running.get(relative)
-        if previous is not None and not previous.done():
+        replacing = previous is not None and not previous.done()
+        busy = sum(1 for task in _EVERYWHERE if not task.done())
+        if not replacing and busy >= AT_ONCE:
+            # Not started, and said in the strip where the run's outcome
+            # goes; the answer is a result so the agent reads it too.
+            return {
+                "script": relative, "by": by, "ok": False, "code": -1,
+                "out": "", "err": f"Not run: {busy} scripts are running. Try again when one has finished.",
+                "busy": busy, "figures": [], "saved": [], "stopped": False,
+            }
+        if replacing:
             previous.cancel()
             try:
                 await previous
@@ -154,9 +171,11 @@ class ScriptRuns:
                 pass
         task = asyncio.ensure_future(self._run(relative, by))
         self._running[relative] = task
+        _EVERYWHERE.add(task)
         try:
             return await task
         finally:
+            _EVERYWHERE.discard(task)
             if self._running.get(relative) is task:
                 self._running.pop(relative, None)
 
@@ -208,6 +227,16 @@ class ScriptRuns:
             pass
         await self.publish({"type": "script_done", **result})
         return result
+
+    def snapshot(self) -> dict:
+        """Which scripts are running, as the event stream's first frames
+        say it: a stream that dropped during a run came back with the tab
+        saying Running for ever, since `script_done` went out while it was
+        away and nothing else lowers the flag (Q-034)."""
+        return {
+            "type": "script_state",
+            "running": sorted(path for path in self._running if self.running(path)),
+        }
 
     async def stop(self, relative: str) -> bool:
         """End the run in flight, if there is one.  True if there was."""

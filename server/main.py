@@ -6630,6 +6630,10 @@ async def events(project_id: str, request: Request):
             # browser has no way to ask, so a tab that connected a moment
             # late, or reloaded a project that was already shared, showed
             # the People drawer with no invite on a project with members.
+            # And scripts, for the same reason as builds: a run's
+            # `script_done` that went out while this stream was away left
+            # the tab saying Running (Q-034).
+            yield f"data: {_json.dumps(session.scripts.snapshot())}\n\n"
             peers = session.peers_snapshot()
             if peers:
                 yield f"data: {_json.dumps(peers)}\n\n"

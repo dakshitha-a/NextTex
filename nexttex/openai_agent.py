@@ -382,6 +382,33 @@ TOOLS: list[dict] = [
 SCRIPT_TOOLS = frozenset(gate.SCRIPT_TOOLS)
 
 
+#: Rounds of tool calls one turn may take before it stops and says so.
+ROUNDS = 12
+ROUND_LIMIT_NOTICE = (
+    f"Stopped after {ROUNDS} rounds of tools without finishing. "
+    'Say "carry on" to continue, or ask for less at once.'
+)
+
+
+class RoundLimit(Exception):
+    """A turn that used every round and was still asking for tools."""
+
+
+def dropped(error: Exception, began: bool) -> str:
+    """What a failure of the request means, in words the writer can act on.
+
+    A refusal is already a sentence, from `_explain`. A connection that
+    breaks is `requests`' own text, the class name and a tuple of
+    arguments, which the panel showed as it was (Q-003).
+    """
+    if isinstance(error, requests.RequestException):
+        if began:
+            return ("The connection to OpenAI dropped partway through the "
+                    "answer. Try again in a moment.")
+        return "Could not reach OpenAI. Check the connection and try again."
+    return str(error)
+
+
 class OpenAIAgent:
     """A writing agent bound to one project, talking to OpenAI."""
 
@@ -655,18 +682,29 @@ class OpenAIAgent:
     async def _run(self, prompt: str, context: str = "") -> None:
         started = time.monotonic()
         self._ended = False
-        # The question as typed is what the conversation shows; the model is
-        # given the passage the writer had selected as well.
-        await self._emit({"type": "turn_start", "prompt": prompt})
-        self._messages.append({
-            "role": "user",
-            "content": self._with_context(
-                f"{context}\n\n{prompt}" if context else prompt
-            ),
-        })
         try:
+            # Inside the guard, like everything else the turn does: building
+            # the first message reads the editor's state and the diagnostics,
+            # and a failure there ended the task with no `done`, so the
+            # panel waited for an ending that never came (Q-001).
+            #
+            # The question as typed is what the conversation shows; the
+            # model is given the passage the writer had selected as well.
+            await self._emit({"type": "turn_start", "prompt": prompt})
+            self._messages.append({
+                "role": "user",
+                "content": self._with_context(
+                    f"{context}\n\n{prompt}" if context else prompt
+                ),
+            })
             await self._within_budget(self._converse())
             subtype = "success"
+        except RoundLimit:
+            # Said, where the loop used to end and report success, the last
+            # round's tool results unseen by the model (Q-002). Kept in the
+            # conversation, so "carry on" picks up from them.
+            await self._emit({"type": "notice", "message": ROUND_LIMIT_NOTICE})
+            subtype = "error_max_turns"
         except asyncio.CancelledError:
             # Re-raised rather than swallowed: a task that returns normally
             # from its own cancellation reports success for a turn nobody
@@ -731,7 +769,7 @@ class OpenAIAgent:
 
     async def _converse(self) -> None:
         """Stream, run whatever tools are asked for, and go round again."""
-        for _ in range(12):        # a turn that has not settled by now is stuck
+        for _ in range(ROUNDS):    # a turn that has not settled by now is stuck
             text, calls = await self._stream_once()
             message: dict = {"role": "assistant", "content": text or None}
             if calls:
@@ -746,6 +784,7 @@ class OpenAIAgent:
                     "tool_call_id": call["id"],
                     "content": result,
                 })
+        raise RoundLimit
 
     async def _stream_once(self) -> tuple[str, list[dict]]:
         """One request.  Text is emitted as it arrives; tool calls come back."""
@@ -753,11 +792,15 @@ class OpenAIAgent:
         queue: asyncio.Queue = asyncio.Queue()
 
         def pump() -> None:
+            began = False
             try:
                 for chunk in self._request(self._messages):
+                    began = True
                     loop.call_soon_threadsafe(queue.put_nowait, chunk)
             except Exception as error:                 # network, auth, quota
-                loop.call_soon_threadsafe(queue.put_nowait, {"error": str(error)})
+                loop.call_soon_threadsafe(
+                    queue.put_nowait, {"error": dropped(error, began)},
+                )
             finally:
                 loop.call_soon_threadsafe(queue.put_nowait, None)
 

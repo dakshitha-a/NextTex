@@ -20,6 +20,8 @@ describe("the outcome in four words", () => {
     expect(outcomeLabel(ran({ ok: false, code: -1, timeout: true }), false))
       .toBe("Stopped after 120 s");
     expect(outcomeLabel(ran({ ok: false, code: -1, stopped: true }), false)).toBe("Stopped");
+    // Q-007: not started, because three scripts were running.
+    expect(outcomeLabel(ran({ busy: 3 }), false)).toBe("Not run: 3 are running");
   });
 });
 

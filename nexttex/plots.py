@@ -35,6 +35,8 @@ import time
 from pathlib import Path
 from typing import Callable
 
+from .childenv import without_secrets
+
 #: Where a script lives, and where its figure goes.  Both inside the
 #: project, both ordinary directories the writer can open.
 SCRIPTS = "scripts"
@@ -111,7 +113,7 @@ def environment(state_dir: Path) -> dict[str, str]:
     """
     env = {
         key: value
-        for key, value in os.environ.items()
+        for key, value in without_secrets(os.environ).items()
         if key not in {"DISPLAY", "WAYLAND_DISPLAY"}
     }
     env["MPLBACKEND"] = "Agg"
@@ -208,6 +210,11 @@ async def run(
     a pane can show what a script prints while it is still running.
     """
     (state_dir / "matplotlib").mkdir(parents=True, exist_ok=True)
+    # Made before the run, since the tool tells the model figures go there
+    # and a script with a plain `savefig('figures/square.pdf')` failed on a
+    # project with none, and the model spent two rounds finding out why
+    # (Q-044).
+    (root / FIGURES).mkdir(exist_ok=True)
     env = environment(state_dir)
     argv = [sys.executable, str(path)]
     if capture is not None:

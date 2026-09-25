@@ -1,5 +1,5 @@
 import { spawnSync } from "node:child_process";
-import { mkdirSync, writeFileSync } from "node:fs";
+import { mkdirSync, readFileSync, writeFileSync } from "node:fs";
 import { dirname, join } from "node:path";
 import { fileURLToPath } from "node:url";
 import { test, expect, openFolders, openProject } from "../fixtures";
@@ -355,4 +355,62 @@ test("a plain script keyword keeps the quiet colour, as a plain command does", a
   const keyword = await spanColour(page, "def");
   expect(keyword?.weight).toBe(body);
   expect(keyword?.colour).toBe(await familyColour(page, "--syn-command"));
+});
+
+test("a fourth script is not started while three run, and the strip says so", async ({
+  app, project, page,
+}) => {
+  // Q-007's cap: at most three scripts run at once on this computer.
+  mkdirSync(join(project.root, "scripts"), { recursive: true });
+  for (const n of [1, 2, 3]) {
+    writeFileSync(join(project.root, "scripts", `slow${n}.py`), "import time\ntime.sleep(30)\n");
+  }
+  await withScript({ app, project, page });
+  const running = [1, 2, 3].map((n) =>
+    fetch(`${app.base}/api/projects/${project.id}/scripts/run`, {
+      method: "POST",
+      headers: { "content-type": "application/json", "x-nexttex-token": app.token },
+      body: JSON.stringify({ path: `scripts/slow${n}.py` }),
+    }).catch(() => undefined),
+  );
+  await expect.poll(async () => {
+    const answers = await Promise.all([1, 2, 3].map((n) =>
+      fetch(`${app.base}/api/projects/${project.id}/scripts/last?path=scripts/slow${n}.py`, {
+        headers: { "x-nexttex-token": app.token },
+      }).then((r) => (r.ok ? r.json() : { running: false }))));
+    return answers.filter((a: any) => a.running).length;
+  }, { timeout: 20_000 }).toBe(3);
+
+  await page.getByTestId("run-script").click();
+  await expect(page.getByTestId("script-outcome")).toHaveText("Not run: 3 are running", {
+    timeout: 10_000,
+  });
+  for (const n of [1, 2, 3]) {
+    await fetch(`${app.base}/api/projects/${project.id}/scripts/stop`, {
+      method: "POST",
+      headers: { "content-type": "application/json", "x-nexttex-token": app.token },
+      body: JSON.stringify({ path: `scripts/slow${n}.py` }),
+    });
+  }
+  await Promise.all(running);
+});
+
+test("a figure whose style sheet is gone is drawn, and the first line says why", async ({
+  app, project, page,
+}) => {
+  // Q-005. The helper and the style sheet are the writer's; deleting the
+  // sheet broke every figure script at import with a traceback.
+  const helper = spawnSync(join(ROOT, ".venv", "bin", "python"), ["-c", "import matplotlib"]);
+  test.skip(helper.status !== 0, "matplotlib is not in the virtual environment");
+  const scripts = join(project.root, "scripts");
+  mkdirSync(scripts, { recursive: true });
+  writeFileSync(join(scripts, "figure.py"), readFileSync(join(ROOT, "nexttex", "figure_helper.py")));
+  await withScript({ app, project, page },
+    "import figure\nfig, ax = figure.figure()\nax.plot([0, 1], [0, 1])\nprint('Saved', figure.save(fig, 'line'))\n");
+  await page.getByTestId("run-script").click();
+  await expect(page.getByTestId("script-outcome")).toHaveText(/Ran in/, { timeout: 30_000 });
+  await expect(page.getByTestId("script-stderr")).toContainText(
+    "scripts/plotstyle.mplstyle is missing, so this figure uses matplotlib's own style.",
+  );
+  await expect(page.getByTestId("script-stdout")).toContainText("Saved figures/line.pdf");
 });

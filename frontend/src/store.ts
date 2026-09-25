@@ -7,7 +7,7 @@ import { useSyncExternalStore } from "react";
 import type { WordHint } from "./panes/locate-word";
 import type { Heading } from "./outline";
 import { afterReconcile } from "./agent-state";
-import { agentChangedScript } from "./script-run";
+import { agentChangedScript, resultFrom } from "./script-run";
 import { renamePaths } from "./tabs";
 import api, {
   clientId,
@@ -1231,6 +1231,33 @@ function receive(event: any) {
         ? { ...held.live, err: held.live.err + event.text }
         : { ...held.live, out: held.live.out + event.text };
       set({ script: { ...held, live } });
+      break;
+    }
+    // Which scripts are running, first thing on every connection. A run
+    // that ended while the stream was away left the tab saying Running
+    // (Q-034); one that started while it was away showed nothing. Either
+    // way the last run is asked for, as a tab coming to the front does.
+    case "script_state": {
+      const held = state.script;
+      if (!held) break;
+      const now = (event.running as string[]).includes(held.path);
+      if (now === held.running) break;
+      const id = state.projectId;
+      set({ script: { ...held, running: now, live: now ? held.live : null } });
+      if (!id) break;
+      api.lastScriptRun(id, held.path).then(
+        (last) => {
+          const current = get().script;
+          if (current?.path !== held.path) return;
+          set({ script: {
+            ...current,
+            running: last.running,
+            result: resultFrom(last, current.result),
+            live: last.running ? (last.live ?? null) : null,
+          } });
+        },
+        () => undefined,
+      );
       break;
     }
     case "script_done": {

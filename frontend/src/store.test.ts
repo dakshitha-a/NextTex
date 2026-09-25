@@ -572,3 +572,33 @@ describe("the share's state, from its events", () => {
     expect(get().share?.removed).toBe(true);
   });
 });
+
+describe("a reconnection says which scripts are running", () => {
+  // Q-034: a stream that dropped during a run came back with the tab
+  // saying Running for ever, since `script_done` went out while it was away.
+  test("a run that ended while the stream was away is lowered", () => {
+    set({
+      projectId: null,
+      script: { path: "scripts/fig.py", running: true, result: null, live: null, changedByAgent: false },
+    });
+    __receive({ type: "script_state", running: [] });
+    expect(get().script?.running).toBe(false);
+  });
+
+  test("a run that started while the stream was away is raised", () => {
+    set({
+      projectId: null,
+      script: { path: "scripts/fig.py", running: false, result: null, live: null, changedByAgent: false },
+    });
+    __receive({ type: "script_state", running: ["scripts/fig.py"] });
+    expect(get().script?.running).toBe(true);
+  });
+
+  test("a state that agrees changes nothing", () => {
+    const script = { path: "scripts/fig.py", running: false, result: null, live: null, changedByAgent: false };
+    set({ projectId: null, script });
+    __receive({ type: "script_state", running: ["scripts/other.py"] });
+    expect(get().script).toBe(script);
+  });
+});
+

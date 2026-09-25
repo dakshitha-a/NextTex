@@ -627,6 +627,9 @@ state, as it carries the builds'.
 
 *Size:* small. *Version:* z.
 
+*Fixed in 3.18.11.* The event stream's first frames say which scripts are
+running.
+
 ### Q-035 · Projects · performance · low · confirmed
 **Forgotten projects leave their browser keys.**
 
@@ -665,6 +668,9 @@ turn always ends with `done`.
 
 *Size:* small. *Version:* z.
 
+*Fixed in 3.18.11.* The first message is built inside the guard, so a turn
+always ends with done.
+
 ### Q-002 · Agent · bug · medium · confirmed
 **The OpenAI provider's round limit reports success.**
 
@@ -681,6 +687,9 @@ limit, and a subtype that says so.
 
 *Size:* small. *Version:* z.
 
+*Fixed in 3.18.11.* The turn ends with a notice saying it stopped after twelve
+rounds and how to carry on, and the subtype error_max_turns.
+
 ### Q-003 · Agent · comfort · low · confirmed
 **A dropped stream shows Python's own error text.**
 
@@ -693,6 +702,9 @@ is streaming is shown as Python's own exception text.
 *What should happen:* both go through the same explanation.
 
 *Size:* small. *Version:* z.
+
+*Fixed in 3.18.11.* A dropped connection, before or during the answer, is a
+sentence.
 
 ### Q-004 · Agent · docs · low · confirmed
 **The last permission position means two things.**
@@ -711,6 +723,10 @@ explained, or the two are made the same.
 
 *Size:* small. *Version:* z.
 
+*Fixed in 3.18.11.* Stated, not unified: the last position's description says
+that with ChatGPT or a local model a write outside the project is still
+refused.
+
 ### Q-005 · Agent · bug · medium · confirmed
 **A renamed style sheet breaks every figure script.**
 
@@ -728,6 +744,9 @@ writer is not told what went wrong. The helper has no test at all.
 a warning in the run's output, and the helper gets tests of its own.
 
 *Size:* small. *Version:* z.
+
+*Fixed in 3.18.11.* A missing style sheet falls back to matplotlib's own style
+with a line saying so; the helper has tests of its own.
 
 ### Q-006 · Agent · security · low · confirmed
 **Builds and scripts inherit the server's whole environment.**
@@ -749,6 +768,10 @@ as git does.
 
 *Size:* small. *Version:* z.
 
+*Fixed in 3.18.11.* A build and a script are started without any variable
+named like a credential. Done as a list of what is taken out rather than of
+what may pass, since TeX reads more variables than a list could name.
+
 ### Q-007 · Agent · security · low · likely
 **A script that daemonises outlives its stop.**
 
@@ -765,6 +788,9 @@ the limit is one run per script.
 tracked by descendant, and a small cap limits concurrent runs.
 
 *Size:* medium. *Version:* z.
+
+*Fixed in 3.18.11.* Partly: at most three scripts run at once, and a fourth
+says so. The cgroup half is in TRACKER.md's backlog, with its reason.
 
 ### Collaboration and comments
 
@@ -1348,6 +1374,8 @@ again.
 script, since that is where the tool tells the model figures go.
 
 *Size:* small. *Version:* z.
+
+*Fixed in 3.18.11.* figures/ is made before a script runs.
 
 ### What a writer reaches for and does not find
 

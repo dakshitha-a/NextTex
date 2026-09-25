@@ -10829,3 +10829,20 @@ upload whose folder went to the trash partway says "2 of 3 files arrived
 in figures. spectrum.pdf did not, because the folder was moved to the
 trash during the upload." A tab on Windows names a file with forward
 slashes, `chapters/one.tex`, as it does everywhere else.
+
+With ChatGPT or a local model, a turn that uses all twelve rounds of
+tools ends with a notice in the third ink: "Stopped after 12 rounds of
+tools without finishing. Say "carry on" to continue, or ask for less at
+once." It used to end as if it had finished. A connection that drops
+mid-answer says "The connection to OpenAI dropped partway through the
+answer. Try again in a moment." in the error ink, where it showed
+Python's own exception. The last permission position's description adds
+"With ChatGPT or a local model, a write outside this project is still
+refused.", since the providers differ there.
+
+At most three scripts run at once. A fourth is not started, and its
+strip says "Not run: 3 are running" while the pane keeps the last run's
+output. A figure script whose `scripts/plotstyle.mplstyle` is gone runs
+with matplotlib's own style, and the first line of its stderr says so.
+A script tab that was running when the connection dropped shows the
+truth when it comes back.

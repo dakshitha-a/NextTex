@@ -24,5 +24,9 @@ export const MODE_NOTES: Record<Mode, string> = {
   ask: "A card for every command, every fetch and every write that leaves this project.",
   project:
     "Commands and edits run silently. Still asked about: writing outside this project, and anything reaching the internet.",
-  all: "Nothing is asked about at all. Everything is still recorded here.",
+  // The providers differ here, and the words say so (Q-004): Claude asks
+  // about nothing at all, while the OpenAI provider's own tools refuse a
+  // path outside the project in every position.
+  all:
+    "Nothing is asked about at all. Everything is still recorded here. With ChatGPT or a local model, a write outside this project is still refused.",
 };

@@ -1508,6 +1508,13 @@ export default function App() {
       const result = await api.runScript(id, path);
       const now = get().script;
       if (now?.path !== path) return;
+      // Not started, because three scripts were running: the last run's
+      // output stays in the pane and the strip says why nothing happened.
+      if (result.busy) {
+        set({ script: { ...now, running: false, live: null,
+          result: now.result ? { ...now.result, busy: result.busy } : result } });
+        return;
+      }
       set({ script: { ...now, running: false, result, live: null, changedByAgent: false } });
     } catch (problem: any) {
       const now = get().script;
