@@ -362,3 +362,40 @@ def test_the_tests_are_read_from_githubs_check_runs(monkeypatch, tmp_path):
     for runs, expected in cases:
         answers["runs"] = runs
         assert updates.ci_state(tmp_path, "abc123") == expected
+
+
+def test_an_up_to_date_answer_is_asked_again_soon_and_an_offer_is_kept(tmp_path, monkeypatch):
+    """Q-073, seen on the Windows laptop: the dialog said "up to date" while
+    a new version was on the remote, until the writer pressed Check again.
+    The check is kept for six hours so the screen does not wait on the
+    network, and an "up to date" kept that long hides an update for as
+    long. So a current answer is asked again after ten minutes; an answer
+    that offers an update keeps its six hours, since it cannot go stale in
+    the direction that hides anything."""
+    asked = []
+
+    def check(root, avoid=""):
+        asked.append(1)
+        report = updates.Report()
+        report.at = now[0]
+        report.can_update = offer[0]
+        report.behind = 3 if offer[0] else 0
+        return report
+
+    now = [1000.0]
+    offer = [False]
+    monkeypatch.setattr(updates, "check", check)
+    monkeypatch.setattr(updates.time, "time", lambda: now[0])
+    cache = updates.Cache(tmp_path)
+    cache.get()
+    now[0] += 5 * 60
+    cache.get()
+    assert len(asked) == 1
+    now[0] += 6 * 60
+    cache.get()
+    assert len(asked) == 2, "an up to date answer was kept past ten minutes"
+    offer[0] = True
+    cache.get(force=True)
+    now[0] += 60 * 60
+    cache.get()
+    assert len(asked) == 3, "an offer was asked again inside its six hours"

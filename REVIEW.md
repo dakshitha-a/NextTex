@@ -1677,7 +1677,8 @@ paper.
 The Windows tester session sent its results on 25 September 2026, after
 the probe had closed. The update from the page, from 3.17.4 to 3.18.1,
 worked: 82 seconds from the press to the page reloading itself on the new
-version. Q-019 above is confirmed by it. Three new records follow.
+version. Q-019 above is confirmed by it. Three new records follow, and
+Q-073 came from its second report, on 3.18.8.
 
 ### Q-070 · Install · bug · medium · confirmed
 **A Windows server that dies stays dead.**
@@ -1697,9 +1698,15 @@ failure, as the Linux service does.
 
 *Size:* small. *Version:* z.
 
-*Fixed in 3.18.7, unverified on Windows.* The task repeats every five
+*Partly fixed in 3.18.7 and 3.18.10.* A new install's task repeats every five
 minutes, ignored while the server runs, and asks for Windows' restart on
-failure as well.
+failure. An existing task may not take it: on the owner's laptop the task was
+registered from an administrator shell and gives its owner read access only,
+so re-running the script without administrator was refused, the catch hid
+that, and a Startup shortcut was written beside the live task. Since 3.18.10
+the script prints the error, keeps the task, writes no shortcut, and says to
+run the installer once from an administrator PowerShell. Verified on the
+laptop only once that has been done.
 
 ### Q-071 · Files · bug · low · confirmed
 **A tab shows a backslash in a path on Windows.**
@@ -1730,6 +1737,22 @@ commits, the dialog's heading still reads "Fetching the new version".
 
 *Fixed in 3.18.7.* The drawer's chunk is prefetched, and until it has
 arrived the chord holds what is typed for the box.
+
+### Q-073 · Install · bug · low · confirmed
+**The update dialog says "up to date" for hours after an update exists.**
+
+*Found by:* the Windows tester, on 3.18.1. *Where:* `nexttex/updates.py`.
+
+*What happens:* the check is kept for six hours so the screen does not wait
+on the network. An answer of "up to date" kept that long hides a new version
+until the writer presses Check again.
+
+*What should happen:* a current answer is asked again soon.
+
+*Size:* small. *Version:* z.
+
+*Fixed in 3.18.10.* An answer that offers an update is kept six hours; any
+other is asked again after ten minutes.
 
 ### The documents
 

@@ -31,6 +31,11 @@ from .version import VERSION, parse as parse_version
 # How long a check is trusted before the network is asked again.  A writer
 # who opens the app four times in an afternoon should pay for one fetch.
 CACHE_SECONDS = 6 * 60 * 60
+#: How long an answer that says "up to date" is kept. Six hours hid a new
+#: version for as long, until the writer pressed Check again (Q-073); an
+#: answer that offers an update cannot go stale in that direction, and one
+#: held while its tests run is asked again as soon.
+CURRENT_SECONDS = 10 * 60
 
 # What a changed path means for the install.  Ordered: the first prefix that
 # matches wins, so `frontend/` beats the catch-all.
@@ -493,7 +498,9 @@ class Cache:
         fresh = (
             self.report is not None
             and not force
-            and time.time() - self.report.at < CACHE_SECONDS
+            and time.time() - self.report.at < (
+                CACHE_SECONDS if self.report.can_update else CURRENT_SECONDS
+            )
         )
         if not fresh:
             self.report = check(self.root, self.avoid)

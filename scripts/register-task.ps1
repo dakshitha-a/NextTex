@@ -69,6 +69,7 @@ $running = @(Get-CimInstance Win32_Process -ErrorAction SilentlyContinue |
   Where-Object { $_.ProcessId -ne $PID -and $_.CommandLine -and $_.CommandLine.Contains($entry) })
 
 $registered = $false
+$kept = $false
 try {
   $action = New-ScheduledTaskAction -Execute $venv -Argument "-u $entryArgs" -WorkingDirectory $Root
   # At logon, and every five minutes after it. A server that dies stayed
@@ -101,10 +102,24 @@ try {
     Write-Output "scheduled task '$Name' registered and started"
   }
 } catch {
-  Write-Output 'a scheduled task needs administrator here, so using the Startup folder instead'
+  $why = $_.Exception.Message
+  # A task that is already there and could not be changed is kept, and no
+  # shortcut is written beside it (Q-070). A task registered from an
+  # administrator shell gives its owner read access only, so re-running
+  # this without administrator is refused with "Access is denied"; the
+  # catch used to say only that a task needs administrator and write a
+  # Startup shortcut, so the next sign-in started two servers racing for
+  # the port, and the task kept its old triggers without a word.
+  if (Get-ScheduledTask -TaskName $Name -ErrorAction SilentlyContinue) {
+    $kept = $true
+    Write-Output "scheduled task '$Name' is already there and could not be changed: $why"
+    Write-Output "it keeps its old settings; to give it the restart after a crash, run the installer once from an administrator PowerShell"
+  } else {
+    Write-Output "a scheduled task could not be registered ($why), so using the Startup folder instead"
+  }
 }
 
-if (-not $registered) {
+if (-not $registered -and -not $kept) {
   # The same windowless interpreter as the task, for the same reason: a
   # minimised console window is one a person can close, and closing it
   # ends the server. Its output goes to server.log and server.err.log

@@ -1504,3 +1504,21 @@ def test_a_windowless_server_gives_its_children_no_window_either(monkeypatch):
     subprocess.Popen(["y"], creationflags=0x10)      # CREATE_NEW_CONSOLE
     assert seen == [winproc.CREATE_NO_WINDOW, 0x200 | winproc.CREATE_NO_WINDOW, 0x10]
     assert winproc.quiet_children("win32") is False  # once
+
+
+def test_a_task_that_cannot_be_changed_is_said_and_gets_no_shortcut_beside_it():
+    """Q-070 on the owner's laptop. The task there was registered from an
+    administrator shell, so its file gives the owner read access only, and
+    re-running this script without administrator could not change it:
+    "Access is denied". The catch hid that error, said "a scheduled task
+    needs administrator here, so using the Startup folder instead", and
+    wrote a Startup shortcut beside the live task, so the next sign-in
+    would have started two servers racing for one port. The task kept its
+    logon trigger alone, and a killed server stayed dead."""
+    text = (ROOT / "scripts" / "register-task.ps1").read_text(encoding="utf-8")
+    catch = text[text.index("} catch {"):text.index("if (-not $registered -and")]
+    assert "$_.Exception.Message" in catch, "the catch still hides the error"
+    assert "Get-ScheduledTask -TaskName $Name" in catch
+    assert "administrator" in catch
+    # The shortcut branch is reached only when no task is there to keep.
+    assert "if (-not $registered -and -not $kept)" in text

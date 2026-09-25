@@ -346,7 +346,11 @@ as a Linux or Mac service does straight away. `Stop-ScheduledTask` stops it
 for good until the next sign-in or the next five minutes, so to keep it
 stopped, disable the task: `Disable-ScheduledTask -TaskName NextTex`. An
 install set up before 3.18.7 has a task that only starts at sign-in; run
-`scripts\register-task.ps1` once more to give it the second trigger.
+`scripts\register-task.ps1` once more to give it the second trigger. If
+the task was first made from an administrator PowerShell, Windows lets
+only an administrator change it: the script then says the task is kept as
+it was, and running it once from an administrator PowerShell gives the
+task its restart.
 
 **Any platform.** To print the URL and token again, which is the way back in
 if you have forgotten the password. A server started as a service prints
