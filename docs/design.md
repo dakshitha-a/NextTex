@@ -10780,3 +10780,8 @@ file tree are fetched when a project opens, not with the first screen.
 The composer's menu opens at its first press, where it used to wait
 nearly a second, and a word typed at once after the search chord goes
 into the Search drawer's box, never into the document.
+
+The Claude column stays at the bottom while the reader is there when
+anything above grows, so opening a folded run of tool calls while a
+permission card waits keeps the card's answers in view; its last row used
+to slide behind the composer.

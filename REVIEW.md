@@ -1523,6 +1523,9 @@ the stream.
 
 *Size:* small. *Version:* z.
 
+*Fixed in 3.18.7.* While pinned, the column follows its content growing
+for any reason, through a resize observer on the stream.
+
 ### Use as a writer
 
 `e2e/review/q-journey.spec.ts` does a week of a paper in one sitting on a

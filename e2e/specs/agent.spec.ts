@@ -98,6 +98,31 @@ test("a run of tool calls is one sentence that opens to its rows", async ({ tab 
   await tab.getByTestId("deny").click();
 });
 
+test("opening a folded run while a card waits keeps the card's buttons in view", async ({ tab }) => {
+  // Q-063: the column follows the stream while the reader is at the
+  // bottom, and re-pinned only when the conversation changed. Opening the
+  // folded run above a waiting card made the content taller without
+  // changing the conversation, and the card's last row went behind the
+  // composer.
+  // Tall enough that the run and the card fit until the run opens; a
+  // button off screen would be scrolled to by the click itself.
+  await tab.setViewportSize({ width: 1400, height: 840 });
+  await ask(tab, "showcase", "Tighten the abstract's first sentence.");
+  const card = tab.getByTestId("permission-card");
+  await expect(card).toBeVisible({ timeout: 20_000 });
+  const run = tab.getByTestId("tool-run").first();
+  await run.getByRole("button").first().click();
+  await expect(run.locator(".nx-tool-line")).toHaveCount(4);
+  const deny = tab.getByTestId("deny");
+  const stream = tab.getByTestId("chat-stream");
+  await expect.poll(async () => {
+    const button = await deny.boundingBox();
+    const view = await stream.boundingBox();
+    return button && view ? Math.round(view.y + view.height - (button.y + button.height)) : -999;
+  }, { timeout: 3_000 }).toBeGreaterThanOrEqual(-1);
+  await deny.click();
+});
+
 test("an agent edit is a version of its own, kept apart from yours", async ({
   app, project, tab,
 }) => {

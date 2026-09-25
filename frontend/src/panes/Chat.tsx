@@ -436,6 +436,21 @@ export default function Chat({
     if (element && pinned.current) element.scrollTop = element.scrollHeight;
   }, [chat]);
 
+  // And stay there when what is on screen grows for any other reason.
+  // Opening a folded run of tool calls while a permission card waited
+  // made the content above the card taller without changing the
+  // conversation, so the effect above did not run and the card's last row,
+  // Always and Deny, went behind the composer (Q-063).
+  useEffect(() => {
+    const element = stream.current;
+    if (!element || typeof ResizeObserver === "undefined") return;
+    const follow = new ResizeObserver(() => {
+      if (pinned.current) element.scrollTop = element.scrollHeight;
+    });
+    for (const child of Array.from(element.children)) follow.observe(child);
+    return () => follow.disconnect();
+  }, [chat, view]);
+
   /** Take images somebody pasted, dropped or picked.
    *
    *  Only images, and quietly: a paste is usually text, and a drop on the
@@ -661,6 +676,7 @@ export default function Chat({
 
       <div
         ref={stream}
+        data-testid="chat-stream"
         className="min-h-0 flex-1 overflow-auto px-[10px] py-3"
         onScroll={(event) => {
           const element = event.currentTarget;
