@@ -766,6 +766,9 @@ limits as a local one when it is read.
 
 *Size:* small. *Version:* z.
 
+*Fixed in 3.18.4.* The listing holds a peer's thread to the local shapes
+and limits, treats an empty anchor as detached and catches the panic.
+
 ### Q-009 · Collaboration · bug · high · confirmed
 **Two people's new files of one name merge into one.**
 

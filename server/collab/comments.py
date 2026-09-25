@@ -90,12 +90,19 @@ class Comments:
             return out
         start = _decode(thread.get("start") or "")
         end = _decode(thread.get("end") or "")
-        if start is None or end is None:
+        # Empty is valid base64 for no bytes, and pycrdt panics on it.
+        if not start or not end:
             return out
         try:
             at = StickyIndex.decode(start, text).get_index()
             to = StickyIndex.decode(end, text).get_index()
-        except Exception:  # a position that names nothing in this document
+        except BaseException as error:
+            # A position that names nothing in this document. A pycrdt
+            # panic is a `BaseException`, not an `Exception`, and one from
+            # an anchor a peer wrote went straight past `except Exception`
+            # and took the drawer down (Q-008).
+            if isinstance(error, (KeyboardInterrupt, SystemExit)):
+                raise
             return out
         whole = str(text)
         if to > at:
@@ -201,18 +208,46 @@ def _clean(body: str) -> str:
     return body
 
 
+def _whole(value, default: int) -> int:
+    """A count or a line from a peer, which may be anything."""
+    try:
+        return max(1, int(value))
+    except (TypeError, ValueError, OverflowError):
+        return default
+
+
+def _words(value, limit: int) -> str:
+    return value[:limit] if isinstance(value, str) else ("" if value is None else str(value)[:limit])
+
+
 def _plain(value) -> dict:
-    """A thread as plain data, whatever shape a peer sent it in."""
+    """A thread as plain data, whatever shape a peer sent it in.
+
+    Held to the shapes and the limits this install's own routes keep,
+    because a peer's thread arrives on the manifest without passing them:
+    a `line` of text beside a number broke the listing's sort, and a body
+    of any length was drawn (Q-008).
+    """
     if isinstance(value, Map):
         data = value.to_py()
     elif isinstance(value, dict):
         data = dict(value)
     else:
-        return {"messages": []}
+        data = {}
     messages = data.get("messages")
-    data["messages"] = [m for m in messages if isinstance(m, dict)] if isinstance(messages, list) else []
+    data["messages"] = [
+        {**m, "body": _words(m.get("body"), MAX_BODY),
+         "name": _words(m.get("name"), 200), "peer": _words(m.get("peer"), 200)}
+        for m in (messages if isinstance(messages, list) else [])
+        if isinstance(m, dict)
+    ]
     if not isinstance(data.get("resolved"), dict):
         data["resolved"] = {}
+    data["line"] = _whole(data.get("line"), 1)
+    data["quote"] = _words(data.get("quote"), MAX_QUOTE)
+    created = data.get("created")
+    data["created"] = created if isinstance(created, (int, float)) else 0
+    data["file_id"] = _words(data.get("file_id"), 64)
     return data
 
 
