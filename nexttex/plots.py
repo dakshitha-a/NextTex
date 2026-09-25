@@ -126,14 +126,15 @@ def environment(state_dir: Path) -> dict[str, str]:
 
 
 def _kill(process: asyncio.subprocess.Process) -> None:
-    """End the run and everything it started."""
+    """End the run and everything it started, on either platform; see
+    `nexttex/proctree.py`, since Windows has no `os.killpg`."""
+    from .proctree import end_tree
+
+    end_tree(process.pid, hard=True)
     try:
-        os.killpg(os.getpgid(process.pid), 9)
-    except (OSError, ProcessLookupError):
-        try:
-            process.kill()
-        except ProcessLookupError:
-            pass
+        process.kill()
+    except (ProcessLookupError, OSError):
+        pass
 
 
 def _clip(raw: bytes) -> tuple[str, bool]:

@@ -36,8 +36,9 @@ import asyncio
 from contextlib import asynccontextmanager
 import os
 import re
-import signal
+import shutil
 import subprocess
+import sys
 import time
 from dataclasses import dataclass, field
 from enum import Enum
@@ -45,6 +46,7 @@ from pathlib import Path
 from typing import Callable
 
 from .deps import uncommented
+from .proctree import end_tree
 from .latexlog import ParsedLog, parse as parse_log
 
 #: The stand-in written beside a document when only part of it is being
@@ -205,6 +207,25 @@ def engine_for(main_source: str, setting: str = "") -> str:
         setting if setting in ENGINES else DEFAULT_ENGINE
     )
 
+
+
+#: MiKTeX's engines install a missing package on the fly, and ask first in a
+#: window of their own: on the owner's laptop on 24 September 2026 a build
+#: sat behind a "Package Installation" dialog for its whole timeout. With
+#: this the build fails at once on the missing file, which NextTex reads,
+#: and the Build drawer's Install is how a package arrives.
+NO_INSTALLER = "--disable-installer"
+ROOT = Path(__file__).resolve().parent.parent
+
+
+def is_miktex(engine: str, env: dict[str, str]) -> bool:
+    """Whether the engine this build will run is MiKTeX's."""
+    found = shutil.which(engine, path=env.get("PATH"))
+    return bool(found) and "miktex" in found.lower()
+
+
+def has_perl(env: dict[str, str]) -> bool:
+    return shutil.which("perl", path=env.get("PATH")) is not None
 
 @dataclass
 class CompileResult:
@@ -572,19 +593,14 @@ class CompileScheduler:
         proc = self._process
         if proc is None or proc.returncode is not None:
             return
-        try:
-            # latexmk spawns pdflatex and biber; killing only the parent
-            # leaves them writing into the build directory.
-            os.killpg(os.getpgid(proc.pid), signal.SIGTERM)
-        except (ProcessLookupError, PermissionError):
-            return
+        # latexmk spawns pdflatex and biber; killing only the parent
+        # leaves them writing into the build directory. The whole tree, on
+        # either platform: see `nexttex/proctree.py`.
+        end_tree(proc.pid)
         try:
             await asyncio.wait_for(proc.wait(), timeout=3)
         except asyncio.TimeoutError:
-            try:
-                os.killpg(os.getpgid(proc.pid), signal.SIGKILL)
-            except (ProcessLookupError, PermissionError):
-                pass
+            end_tree(proc.pid, hard=True)
 
     async def build(
         self, focus: Path | None = None, force_full: bool = False
@@ -641,12 +657,23 @@ class CompileScheduler:
         # output directory; the engine will not create those directories.
         self._mirror_build_tree(main_source)
 
-        argv = (
-            self.full_argv(source_file, engine, escape == "on", force=force_rerun)
-            if full_pass
-            else self.fast_argv(source_file, engine, escape == "on")
-        )
         env = {**os.environ, **LOG_ENV, **self.paths.search_env()}
+        miktex = is_miktex(engine, env)
+        if full_pass and miktex and not has_perl(env):
+            # MiKTeX's latexmk is a Perl script and MiKTeX brings no Perl:
+            # the passes are run by `nexttex/passes.py` instead.
+            env["PYTHONPATH"] = os.pathsep.join(filter(None, [str(ROOT), env.get("PYTHONPATH", "")]))
+            argv = [
+                sys.executable, "-m", "nexttex.passes",
+                f"--outdir={self.paths.build_dir}", f"--jobname={self.paths.jobname}", "--",
+                *self.fast_argv(source_file, engine, escape == "on", miktex=True),
+            ]
+        else:
+            argv = (
+                self.full_argv(source_file, engine, escape == "on", force=force_rerun, miktex=miktex)
+                if full_pass
+                else self.fast_argv(source_file, engine, escape == "on", miktex=miktex)
+            )
         try:
             proc = await asyncio.create_subprocess_exec(
                 *argv,
@@ -778,7 +805,7 @@ class CompileScheduler:
 
     def full_argv(
         self, source_file: Path, engine: str = DEFAULT_ENGINE,
-        shell_escape: bool = False, force: bool = False,
+        shell_escape: bool = False, force: bool = False, miktex: bool = False,
     ) -> list[str]:
         """latexmk: citations through bibtex or biber, cross-references, the lot.
 
@@ -812,7 +839,7 @@ class CompileScheduler:
         # and an option that says how to run it.  The inner flags are the
         # same for all three engines.
         mode, command = LATEXMK_ENGINE[engine]
-        flag = " -shell-escape" if shell_escape else ""
+        flag = (" -shell-escape" if shell_escape else "") + (f" {NO_INSTALLER}" if miktex else "")
         argv = ["latexmk", mode, "-interaction=nonstopmode", "-file-line-error"]
         if shell_escape:
             argv.append("-shell-escape")
@@ -832,11 +859,12 @@ class CompileScheduler:
 
     def fast_argv(
         self, source_file: Path, engine: str = DEFAULT_ENGINE,
-        shell_escape: bool = False,
+        shell_escape: bool = False, miktex: bool = False,
     ) -> list[str]:
         """One engine pass: what an ordinary edit gets."""
         return [
             engine, *(["-shell-escape"] if shell_escape else []),
+            *([NO_INSTALLER] if miktex else []),
             "-interaction=nonstopmode", "-file-line-error",
             "-synctex=1", f"-jobname={self.paths.jobname}",
             f"-output-directory={self.paths.build_dir}", str(source_file),

@@ -97,6 +97,14 @@ this host could not reproduce; each says which.
       the last heartbeat and names it, and "stopped without saying why"
       now means what it says.
 
+- [ ] **MiKTeX on a real machine: the fixes are in, the rerun is not
+      yet.** The first MiKTeX build on the owner's laptop, 24 September
+      2026, found three faults, fixed in 3.17.3: a MiKTeX dialog a build
+      waited on, a timeout that could not end its build on Windows, and a
+      latexmk with no Perl to run it. What is left is the laptop's build
+      on 3.17.3, a citation that resolves, and the Install button on a
+      package MiKTeX lacks.
+
 ### Never run against the real thing
 
 - [x] **The restart helper's scheduled-task branch on a real machine.**
