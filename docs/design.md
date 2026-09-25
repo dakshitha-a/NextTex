@@ -10755,3 +10755,8 @@ files. The notices region says once, on each machine, "Two people made
 chapters/03.tex while apart. One of them is now chapters/03 (2).tex;
 nothing was merged." It used to merge the two into one file holding both,
 and say nothing.
+
+A comment whose paragraph another editor or a pull replaced is shown as
+detached, in the drawer and in the editor, with its quote, the way one
+whose text was deleted is. It used to stay underlined on the two letters
+the old and new paragraphs happened to share.

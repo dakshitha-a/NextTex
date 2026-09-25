@@ -1507,6 +1507,13 @@ class CollabStore:
             # The merge kept what the file does not have yet: write it out.
             self._dirty.add(file_id)
             self._schedule()
+        # A thread on this file may have lost its text to the fold, and the
+        # drawer reads threads again only when told (Q-054).
+        if any(
+            isinstance(thread, Map) and thread.get("file_id") == file_id
+            for thread in self.comments.values()
+        ):
+            self._comments_changed(None)
         return True
 
     # --- document -> disk -------------------------------------------------

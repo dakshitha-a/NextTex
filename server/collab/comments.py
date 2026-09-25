@@ -105,7 +105,7 @@ class Comments:
                 raise
             return out
         whole = str(text)
-        if to > at:
+        if to > at and _still_quoted(whole, at, to, thread.get("quote")):
             out["line"] = _line_at(whole, at)
             out["detached"] = False
         return out
@@ -206,6 +206,42 @@ def _clean(body: str) -> str:
     if len(body) > MAX_BODY:
         raise CommentError("that comment is longer than a comment should be")
     return body
+
+
+def _still_quoted(whole: str, at: int, to: int, quote) -> bool:
+    """Whether the range still holds something like the text it was on.
+
+    An outside edit that replaces a paragraph is folded in as a character
+    diff, which keeps the letters the old and new paragraphs happen to
+    share, and a thread's two positions can land on a pair of them: the
+    probe found one still attached to "ly" from "entirely" (Q-054). Typing
+    the same change deletes the range, which detaches it. So a range that
+    shares little with the quote counts as gone. A rewording keeps most of
+    its letters and stays.
+    """
+    if not isinstance(quote, str) or len(quote) < 3:
+        return True
+    held = whole.encode("utf-8")[at:to].decode("utf-8", errors="replace")
+    if len(quote) >= MAX_QUOTE:
+        held = held[:len(quote)]
+    return likeness(quote, held) >= 0.5
+
+
+def likeness(one: str, two: str) -> float:
+    """How alike two strings are, from 0 to 1: the Dice coefficient of
+    their pairs of adjacent letters. `comment-anchors.ts` has the same
+    function, so the drawer and the editor agree about a thread."""
+    def pairs(text: str) -> dict[str, int]:
+        counts: dict[str, int] = {}
+        for i in range(len(text) - 1):
+            counts[text[i:i + 2]] = counts.get(text[i:i + 2], 0) + 1
+        return counts
+    a, b = pairs(one), pairs(two)
+    total = sum(a.values()) + sum(b.values())
+    if not total:
+        return 1.0 if one == two else 0.0
+    shared = sum(min(count, b.get(pair, 0)) for pair, count in a.items())
+    return 2 * shared / total
 
 
 def _whole(value, default: int) -> int:

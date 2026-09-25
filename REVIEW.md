@@ -854,6 +854,10 @@ range is.
 
 *Size:* small. *Version:* z.
 
+*Fixed in 3.18.4.* A range that holds little like its quote is detached,
+by one measure in the server and the editor, and an outside edit tells
+the drawer to read its threads again.
+
 ### The server
 
 ### Q-011 · Server · test · low · confirmed
