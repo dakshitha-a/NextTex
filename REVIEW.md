@@ -957,6 +957,49 @@ reasons.
 
 *Size:* large. *Version:* z.
 
+### The outside legs
+
+**What was run, and what it showed.** On 25 September 2026.
+
+- **Crossref and doi.org.** `tests/test_papers_live.py` with `NEXTTEX_LIVE`
+  set: 3 passed in 3.3 seconds. The publishers still answer in the shape
+  the importer, the tool and the checker read.
+- **Ollama.** `tests/test_openai_ollama.py` against `qwen3-coder:30b`: 2
+  passed in 19 seconds. Then four turns through the server's own routes on
+  a sandbox set to the OpenAI provider: an edit, a figure, a Stop six
+  seconds into a long answer, and the transcript a reload rebuilds. On the
+  second run all four behaved: the edit landed through `edit_file`, the
+  figure ran with its cards answered, and Stop ended `interrupted` with the
+  notice "Stopped.". On the first run the model answered the edit and the
+  figure in prose without calling a tool, which is the model's choice and
+  not a fault in NextTex.
+- **Claude.** `tests/test_live_agent.py`: 3 passed in 12 seconds. Then the
+  same four turns on `claude-sonnet-5`, twice. The edit changed the one
+  word and made one version. The figure turn drew `figures/square.pdf`,
+  inserted a figure environment, added `graphicx` and built cleanly. Stop
+  ended `interrupted`. The transcript a reload rebuilds held 31 items of
+  the same kinds the live stream showed; it was not compared item by item.
+  Three turns cost $0.24; the whole live leg cost about $0.55.
+- **The login.** The Claude credentials' fingerprint was the same before
+  the first live call and after the last. The sign-out control was never
+  pressed.
+
+### Q-044 · Agent · improvement · low · confirmed
+
+*Found by:* the Ollama leg. *Where:* `nexttex/plots.py:41`, and the
+helper's own `save` at `nexttex/figure_helper.py:110`.
+
+*What happens:* the figure helper creates `figures/` when it saves. A
+script the model writes with a plain `savefig('figures/square.pdf')`, which
+`qwen3-coder` did, fails on a project with no `figures/` yet. The model
+then spends a round listing files and a second card running the script
+again.
+
+*What should happen:* the runner creates `figures/` before it runs a
+script, since that is where the tool tells the model figures go.
+
+*Size:* small. *Version:* z.
+
 ### The documents
 
 ### Q-039 · Documents · docs · medium · confirmed
