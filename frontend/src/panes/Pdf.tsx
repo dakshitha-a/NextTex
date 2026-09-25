@@ -1512,7 +1512,7 @@ export default function Pdf({
         {absence === "building" ? (
           <div className="flex h-full items-center justify-center px-8 text-center">
             <div className="max-w-[42ch]">
-              <p className="t-display text-ink-3">Typesetting.</p>
+              <p className="t-display text-ink-2">Typesetting.</p>
               <p className="t-meta mt-2 text-ink-2">
                 The first build of a project takes a few seconds. The page
                 appears here when it lands.
@@ -1523,7 +1523,7 @@ export default function Pdf({
         {absence === "unbuilt" ? (
           <div className="flex h-full items-center justify-center px-8 text-center">
             <div className="max-w-[42ch]">
-              <p className="t-display text-ink-3">Not built yet.</p>
+              <p className="t-display text-ink-2">Not built yet.</p>
               <p className="t-meta mt-2 text-ink-2">
                 Nothing has been typeset for this document in this session.
                 Write a line, or build it, and the page appears here.
@@ -1534,7 +1534,7 @@ export default function Pdf({
         {absence === "empty" ? (
           <div className="flex h-full items-center justify-center px-8 text-center">
             <div className="max-w-[42ch]">
-              <p className="t-display text-ink-3">Nothing has been typeset yet.</p>
+              <p className="t-display text-ink-2">Nothing has been typeset yet.</p>
               <p className="t-meta mt-2 text-ink-2">
                 An empty document produces no pages. Write a line and it will
                 appear here about a second later, or start from something
@@ -1551,7 +1551,7 @@ export default function Pdf({
         {absence === "stopped" ? (
           <div className="flex h-full items-center justify-center px-8 text-center">
             <div className="max-w-[42ch]">
-              <p className="t-display text-ink-3">The build stopped before a page was made.</p>
+              <p className="t-display text-ink-2">The build stopped before a page was made.</p>
               <p className="t-meta mt-2 text-ink-2">
                 The Build drawer says where and why. The page appears here as
                 soon as the document builds.
@@ -1567,7 +1567,7 @@ export default function Pdf({
         {absence === "nodocument" ? (
           <div className="flex h-full items-center justify-center px-8 text-center">
             <div className="max-w-[42ch]">
-              <p className="t-display text-ink-3">No document to preview.</p>
+              <p className="t-display text-ink-2">No document to preview.</p>
               <p className="t-meta mt-2 text-ink-2">
                 A file with a \documentclass and a \begin{"{"}document{"}"} of
                 its own is a document, and none is on the strip. One that
@@ -1585,7 +1585,7 @@ export default function Pdf({
         {absence === "unreachable" ? (
           <div className="flex h-full items-center justify-center px-8 text-center">
             <div className="max-w-[42ch]">
-              <p className="t-display text-ink-3">The preview could not be fetched.</p>
+              <p className="t-display text-ink-2">The preview could not be fetched.</p>
               <p className="t-meta mt-2 text-ink-2">
                 Your document is not the problem, and nothing has been lost.
                 This tries again after the next build.

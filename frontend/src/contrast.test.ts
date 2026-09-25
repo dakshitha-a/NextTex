@@ -253,6 +253,13 @@ test("the band and the feet write only the first two inks", () => {
   const opening = footer.slice(0, footer.indexOf(">"));
   expect(opening).toMatch(/text-ink-2/);
   expect(opening).not.toMatch(/text-ink-3/);
+  // The preview's own words while there is no page, "Typesetting." and
+  // the rest, sit on the field, which is the surround: in the third ink
+  // they measured 4.39:1 in the light theme, found by the review's axe
+  // sweep once it stopped skipping (Q-056).
+  for (const line of pdf.match(/<p className="t-display[^"]*">/g) ?? []) {
+    expect(line).not.toMatch(/text-ink-3/);
+  }
   const css = CSS;
   const head = css.slice(css.indexOf(".nx-column-head {"), css.indexOf(".nx-column-head {") + 400);
   expect(head).not.toMatch(/--ink-3/);
