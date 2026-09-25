@@ -98,11 +98,25 @@ async def test_a_file_the_sender_no_longer_has_is_answered_with_a_miss_and_asked
     # next manifest sync, which the test stands in for by asking directly:
     # a standing ask is left alone, and one older than the age goes again.
     (alice.project.root / "figures" / "plot.png").write_bytes(b"second")
+    # Counted at the sender rather than waited for: `want_files` awaits
+    # its own sends, so what it asked is known when it returns. The test
+    # slept 0.4 s and looked for the file instead, which a slow runner
+    # could read either way (Q-015).
+    asked = []
+    send = link.send
+
+    async def counting_send(data):
+        # An encoded frame starts with its kind, one byte.
+        if data[0] == wire.FILE_WANT:
+            asked.append(data)
+        await send(data)
+
+    link.send = counting_send
     await link.want_files()
-    await asyncio.sleep(0.4)
-    assert not (bob.project.root / "figures" / "plot.png").exists(), "asked again too soon"
+    assert asked == [], "asked again too soon"
     link.wanted_files[file_id] -= 10.0
     await link.want_files()
+    assert len(asked) == 1
     assert await until(lambda: (bob.project.root / "figures" / "plot.png").exists(), 4.0)
     assert (bob.project.root / "figures" / "plot.png").read_bytes() == b"second"
 

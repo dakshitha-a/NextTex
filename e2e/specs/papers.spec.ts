@@ -1,7 +1,6 @@
 import { test, expect } from "../fixtures";
 import { mkdirSync, writeFileSync } from "node:fs";
 import { join } from "node:path";
-import { tmpdir } from "node:os";
 
 /** Pointing at a folder of papers.
  *
@@ -25,7 +24,9 @@ test("only a .bib file offers to be filled from a folder", async ({ tab }) => {
 });
 
 test("the chooser browses the machine running NextTex", async ({ tab }) => {
-  const folder = join(tmpdir(), `nexttex-papers-${Date.now()}`);
+  // In the test's own output folder, which Playwright clears on the next
+  // run; under /tmp these were never removed (Q-069).
+  const folder = test.info().outputPath("papers");
   mkdirSync(join(folder, "collection"), { recursive: true });
   writeFileSync(join(folder, "collection", "one.pdf"), "%PDF-1.4");
   writeFileSync(join(folder, "collection", "two.pdf"), "%PDF-1.4");
@@ -60,7 +61,7 @@ test("a folder's outcome reads as prose, and a PDF with no DOI is a row that can
   // Two PDFs with nothing in them to find a DOI by: the scan runs, adds
   // nothing, and the drawer says so in words rather than as "2 not
   // identified", with a row per PDF and the one thing to do about it.
-  const folder = join(tmpdir(), `nexttex-papers-${Date.now()}`);
+  const folder = test.info().outputPath("papers");
   mkdirSync(join(folder, "scans"), { recursive: true });
   // Two different files: the scan folds identical bytes into one paper.
   writeFileSync(join(folder, "scans", "scan-2019-03.pdf"), "%PDF-1.4\n% scan");
@@ -92,7 +93,7 @@ test("a folder's outcome reads as prose, and a PDF with no DOI is a row that can
 });
 
 test("a folder with no papers cannot be read by accident", async ({ tab }) => {
-  const empty = join(tmpdir(), `nexttex-empty-${Date.now()}`);
+  const empty = test.info().outputPath("empty");
   mkdirSync(empty, { recursive: true });
 
   await tab.getByLabel("Actions for references.bib").click();

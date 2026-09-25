@@ -1,4 +1,4 @@
-import { test, openFolders } from "../fixtures";
+import { test, expect, openFolders } from "../fixtures";
 import type { Page } from "@playwright/test";
 import AxeBuilder from "@axe-core/playwright";
 
@@ -18,6 +18,9 @@ async function sweep(page: Page, where: string) {
   const bad = results.violations.filter(
     (v) => !ALLOWED.includes(v.id) && ["serious", "critical"].includes(v.impact ?? ""),
   );
+  // Soft, so the sweep goes on and says everything it found, and the
+  // test still fails for it.
+  expect.soft(bad.map((v) => `${v.id}: ${v.help}`), where).toEqual([]);
   if (!bad.length) {
     console.log(`OK   ${where}`);
     return;
@@ -40,91 +43,51 @@ async function dress(page: Page, theme: string) {
   await page.waitForTimeout(800);
 }
 
-async function click(page: Page, selector: string, label: string): Promise<boolean> {
+/** Press a control the sweep needs. A control it cannot find or press is
+ *  a failure: this sweep skipped five of its eight surfaces once the
+ *  visual overhaul renamed them, and passed (Q-056). */
+async function click(page: Page, selector: string, label: string): Promise<void> {
   const target = page.locator(selector).first();
-  if (!(await target.count())) {
-    console.log(`SKIP ${label}: no ${selector}`);
-    return false;
-  }
-  try {
-    await target.click({ timeout: 5000 });
-    await page.waitForTimeout(700);
-    return true;
-  } catch {
-    console.log(`SKIP ${label}: ${selector} would not take a click`);
-    return false;
-  }
+  await expect(target, `${label}: no ${selector}`).toHaveCount(1, { timeout: 10_000 });
+  await target.click({ timeout: 10_000 });
+  await page.waitForTimeout(700);
 }
+
+/** Every drawer the bar opens, in the bar's order. */
+const DRAWERS = [
+  "files", "sections", "search", "papers", "history", "git", "people",
+  "comments", "build", "submit", "download", "trash",
+];
 
 for (const theme of ["light", "dark"] as const) {
   test(`the surfaces the accessibility spec does not visit, ${theme}`, async ({ tab }) => {
     const page = tab;
     await dress(page, theme);
 
-    // The rail's panels.
-    if (await click(page, '[data-testid="sections-toggle"]', `sections ${theme}`)) {
-      await sweep(page, `sections panel ${theme}`);
-    }
-    if (await click(page, '[data-testid="files-toggle"]', `files ${theme}`)) {
-      await sweep(page, `files folded ${theme}`);
-      await click(page, '[data-testid="files-toggle"]', "files back");
+    // Every drawer, from the bar.
+    for (const id of DRAWERS) {
+      const showing = (await page.getByTestId("drawer").getAttribute("data-drawer")) === id;
+      if (!showing) await click(page, `[data-testid="bar-${id}"]`, `${id} drawer ${theme}`);
+      await sweep(page, `${id} drawer ${theme}`);
     }
 
     // The settings sheet.
-    if (await click(page, '[aria-label="Settings"]', `settings ${theme}`)) {
-      await page.waitForTimeout(1200);
-      await sweep(page, `settings sheet ${theme}`);
-      await click(page, '[data-testid="settings-close"]', "settings close");
-    }
-
-    // The share panel.
-    if (await click(page, '[aria-label="Share this project"]', `share ${theme}`)) {
-      await page.waitForTimeout(800);
-      await sweep(page, `share panel ${theme}`);
-      await click(page, '[data-testid="share-close"]', "share close");
-    }
-
-    // The diagnostics drawer.
-    if (await click(page, '[data-testid="status"]', `status ${theme}`)) {
-      await sweep(page, `diagnostics drawer ${theme}`);
-    }
-
-    // The download menu on the project bar.
-    if (await click(page, '[data-testid="open-download"]', `downloads ${theme}`)) {
-      await sweep(page, `download menu ${theme}`);
-      await page.keyboard.press("Escape");
-    }
-
-    // The history panel, opened on a real file.
-    await openFolders(page, "main.tex");
-    if (await click(page, '[aria-label="Actions for main.tex"]', `history ${theme}`)) {
-      await page.waitForTimeout(900);
-      await sweep(page, `history panel ${theme}`);
-    }
-
-    // The tab strip's own menu.
-    const tabRow = page.locator('[data-testid="tab"], [role="tab"]').first();
-    if (await tabRow.count()) {
-      await tabRow.click({ button: "right" }).catch(() => undefined);
-      await page.waitForTimeout(500);
-      await sweep(page, `tab menu ${theme}`);
-      await page.keyboard.press("Escape");
-    }
+    await click(page, '[aria-label="Settings"]', `settings ${theme}`);
+    await page.waitForTimeout(1200);
+    await sweep(page, `settings sheet ${theme}`);
+    await click(page, '[data-testid="settings-close"]', "settings close");
 
     // A file row's own menu.
-    const row = page.locator('[role="tree"] [data-path="main.tex"]').first();
-    if (await row.count()) {
-      await row.click({ button: "right" }).catch(() => undefined);
-      await page.waitForTimeout(500);
-      await sweep(page, `file row menu ${theme}`);
-      await page.keyboard.press("Escape");
-    }
+    await click(page, '[data-testid="bar-files"]', "files again");
+    await openFolders(page, "main.tex");
+    await click(page, '[aria-label="Actions for main.tex"]', `file row menu ${theme}`);
+    await sweep(page, `file row menu ${theme}`);
+    await page.keyboard.press("Escape");
 
-    // The agent panel at rest, and its composer.
-    if (await click(page, '[data-testid="agent-pill"], [data-testid="chat-header"]', `chat ${theme}`)) {
-      await page.waitForTimeout(900);
-      await sweep(page, `agent panel ${theme}`);
-    }
+    // The Claude column's composer menu.
+    await click(page, '[data-testid="model-open"]', `composer menu ${theme}`);
+    await sweep(page, `composer menu ${theme}`);
+    await page.keyboard.press("Escape");
   });
 }
 

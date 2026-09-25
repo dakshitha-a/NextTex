@@ -49,6 +49,16 @@ OpenAI provider against OpenAI itself.
 
 ### Known gaps, with a cost somebody will eventually pay
 
+- [ ] **Three dependencies are a major version behind.** `pdfjs-dist`
+      is at 4.10 against 6.3, `vite` at 6 against 8 and `diff` at 7
+      against 9 (Q-036). Each is a migration with its own risk: pdf.js
+      carries the whole preview, the dark page's operator walk and
+      SyncTeX's mapping, so it goes first and alone, with the preview's
+      specs and a long thesis read through before and after. The four
+      `npm audit` advisories, three in `nanoid` under the spelling
+      loader and one in `diff`'s patch functions, are in code the app
+      never calls.
+
 - [ ] **A script that starts a session of its own outlives its stop.**
       A stopped or timed-out script is ended by killing its process
       group, and a script that forks and calls `setsid` leaves the group.
@@ -79,6 +89,14 @@ this host could not reproduce; each says which.
       one more, and reads it once the menu is open now. Two others that
       looked the same were real defects and are fixed: a new file's
       first keystrokes lost, and a Markdown note rebuilding the paper.
+      The probe of 25 September ran that full tier three times with
+      retries off, under load: 1,725 runs, none failed, so there is no
+      trace to read (Q-055). The fix run's full checks, with retries on,
+      rescued the rail's handle once, and the dark page
+      (`pdf-view.spec.ts`), the history panel's Markdown versions and the
+      writing find and replace once each. The next step moves to CI, whose
+      retry reports are kept: read which of these the retries rescue
+      there before spending another local hour.
 - [x] **A logon-started server took five minutes to begin serving.**
       Measured again on 24 September 2026 after a restart, on 3.17.2 with
       the windowless task: logon at 20:12:55, the task's process at

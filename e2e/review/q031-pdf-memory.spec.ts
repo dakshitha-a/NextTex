@@ -19,7 +19,9 @@ import { join } from "node:path";
 const THESIS = process.env.NEXTTEX_THESIS ?? "";
 
 test("the page canvases held after reading a thesis through", async ({ page }) => {
-  test.skip(!THESIS, "set NEXTTEX_THESIS to a bench project directory");
+  // A driver that skips reads as one that passed (Q-056), so a missing
+  // project is a failure that says what to set.
+  if (!THESIS) throw new Error("set NEXTTEX_THESIS to a bench project directory");
   test.setTimeout(600_000);
   const app = await startServer();
   const root = join(app.projects, "thesis");

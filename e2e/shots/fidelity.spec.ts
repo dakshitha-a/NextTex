@@ -66,6 +66,15 @@ async function commentSentence(tab: Page) {
   for (let i = 0; i < 6; i += 1) await tab.keyboard.press("Shift+ArrowLeft");
 }
 
+/** A thread on the sentence, posted, for a surface that shows one. */
+async function aComment(tab: Page) {
+  await commentSentence(tab);
+  await tab.getByTestId("selection-comment").click();
+  await tab.getByRole("textbox", { name: "Comment" }).fill("Which solvent is the slow one?");
+  await tab.keyboard.press("Control+Enter");
+  await tab.locator(".cm-content .nx-comment").last().waitFor();
+}
+
 const escape = async (tab: Page) => {
   await tab.keyboard.press("Escape");
   await tab.waitForTimeout(150);
@@ -407,10 +416,12 @@ const SURFACES: Record<string, Surface> = {
   },
   share: {
     open: async (tab) => {
-      await tab.getByRole("button", { name: /share/i }).first().click();
+      // Sharing lives in the People drawer since the frame run; the bar's
+      // Share button this pressed is gone.
+      await showDrawer(tab, "people");
       return tab.getByTestId("share-panel");
     },
-    close: escape,
+    close: async (tab) => showDrawer(tab, "files"),
   },
   access: {
     open: async (tab) => {
@@ -797,7 +808,10 @@ const SURFACES: Record<string, Surface> = {
     close: escape,
   },
   "comment-preview": {
+    // Its own thread: it used to hover the one "comment-thread" left
+    // behind, and failed whenever it was rendered alone (Q-056).
     open: async (tab) => {
+      await aComment(tab);
       await tab.locator(".cm-content .nx-comment").last().hover();
       await tab.getByTestId("comment-preview").waitFor();
       return tab.getByTestId("editor-host");
@@ -805,6 +819,7 @@ const SURFACES: Record<string, Surface> = {
   },
   "drawer-comments": {
     open: async (tab) => {
+      await aComment(tab);
       await showDrawer(tab, "comments");
       await tab.getByTestId("comment-row").first().waitFor();
       return tab.getByTestId("drawer");
@@ -1264,8 +1279,14 @@ const SURFACES: Record<string, Surface> = {
       if ((await folder.getAttribute("aria-expanded")) !== "true") await folder.click();
       const row = tab.locator('[role="tree"] [data-path="figures/decay-fit.png"]');
       await row.waitFor({ timeout: 10_000 });
-      await row.hover();
-      await tab.getByTestId("file-card").locator("img").waitFor({ timeout: 10_000 });
+      // Hovered again until the card has its image: the card arms after
+      // 400 ms and the thumbnail is fetched after that, and a hover that
+      // lands while the tree is still settling is dropped.
+      await expect(async () => {
+        await tab.mouse.move(10, 10);
+        await row.hover();
+        await tab.getByTestId("file-card").locator("img").waitFor({ timeout: 4_000 });
+      }).toPass({ timeout: 30_000 });
       return tab.locator(".nx-shell");
     },
     close: async (tab) => {
@@ -1550,14 +1571,18 @@ const SURFACES: Record<string, Surface> = {
     },
   },
   notices: {
+    // A real notice rather than one forced through the store, which a
+    // production build does not expose: an upload of a file the build
+    // would run is refused and said.
     open: async (tab) => {
-      await tab.evaluate(() => {
-        // The store is on the window in development builds; when it is not,
-        // the notice cannot be forced and this surface is compared by hand.
-        const w = window as unknown as { __nexttex?: { set: (s: object) => void } };
-        w.__nexttex?.set({ error: "Could not download the PDF: the build has not finished." });
+      await showDrawer(tab, "files");
+      await tab.getByTestId("upload").click();
+      await tab.locator("#nx-upload").setInputFiles({
+        name: "latexmkrc", mimeType: "text/plain", buffer: Buffer.from("$pdf_mode = 1;\n"),
       });
-      await tab.waitForTimeout(200);
+      const chooser = tab.getByTestId("upload-staging");
+      await chooser.getByRole("button", { name: "Upload", exact: true }).click();
+      await tab.getByTestId("notices").getByText(/refused/).waitFor();
       return tab.getByTestId("notices");
     },
   },
@@ -1571,48 +1596,44 @@ async function dress(tab: Page, theme: string) {
   await tab.waitForTimeout(800);
 }
 
-test("the named surfaces, in both themes, beside the page", async ({ app, project, tab }) => {
-  test.setTimeout(900_000);
-  fs.mkdirSync(OUT, { recursive: true });
-  // A short leash per action: a surface the fixture cannot open is written
-  // down as failed and the run goes on to the next one.
-  tab.setDefaultTimeout(6_000);
-  // A second document, so the preview strip is a strip with a "+" and the
-  // download menu has two rows, as on the page.
-  for (const name of ["supplement.tex", "appendix.tex"]) {
-    fs.writeFileSync(
-      path.join(project.root, name),
-      "\\documentclass{article}\n\\begin{document}\nSupplementary information.\n\\end{document}\n",
-    );
-  }
-  // The second is previewed, so the strip has two tabs; the third is not,
-  // so the "+" has something to offer.
-
-  await fetch(`${app.base}/api/projects/${project.id}/previews`, {
-    method: "POST",
-    headers: { "content-type": "application/json", "x-nexttex-token": app.token },
-    body: JSON.stringify({ path: "supplement.tex" }),
-  });
-  ctx = { base: app.base, token: app.token, id: project.id, root: project.root };
-  const names = WANTED.length ? WANTED : Object.keys(SURFACES);
-  for (const theme of THEMES) {
-    await dress(tab, theme);
-    for (const name of names) {
+/* One test per surface and theme, each with a server and a project of its
+ * own (the fixtures'). The harness used to render every surface in one
+ * test on one project, catching each failure as a note: earlier surfaces
+ * edited the project, so by the Sections drawer main.tex had no section
+ * to list, and 13 of 98 surfaces wrote a failure note while the run said
+ * "1 passed" (Q-056). Now a surface that cannot be reached fails its test,
+ * and each starts from the fixture as it is. */
+const NAMES = WANTED.length ? WANTED : Object.keys(SURFACES);
+for (const theme of THEMES) {
+  for (const name of NAMES) {
+    test(`${name}, ${theme}`, async ({ app, project, tab }) => {
+      test.setTimeout(180_000);
       const surface = SURFACES[name];
       if (!surface) throw new Error(`no surface called ${name}`);
-      try {
-        const target = await surface.open(tab);
-        await target.waitFor({ timeout: 5_000 });
-        await tab.waitForTimeout(250);
-        await target.screenshot({ path: path.join(OUT, `${name}--${theme}.png`) });
-      } catch (error) {
-        // The reason, and the screen as it was: a surface that would not
-        // open is easier to read from a picture than from a locator.
-        fs.writeFileSync(path.join(OUT, `${name}--${theme}.failed.txt`), String(error));
-        await tab.screenshot({ path: path.join(OUT, `${name}--${theme}.failed.png`) }).catch(() => undefined);
+      fs.mkdirSync(OUT, { recursive: true });
+      // A second document, so the preview strip is a strip with a "+" and
+      // the download menu has two rows, as on the page. The second is
+      // previewed, so the strip has two tabs; the third is not, so the
+      // "+" has something to offer.
+      for (const extra of ["supplement.tex", "appendix.tex"]) {
+        fs.writeFileSync(
+          path.join(project.root, extra),
+          "\\documentclass{article}\n\\begin{document}\nSupplementary information.\n\\end{document}\n",
+        );
       }
-      await surface.close?.(tab);
-      await tab.waitForTimeout(150);
-    }
+      await fetch(`${app.base}/api/projects/${project.id}/previews`, {
+        method: "POST",
+        headers: { "content-type": "application/json", "x-nexttex-token": app.token },
+        body: JSON.stringify({ path: "supplement.tex" }),
+      });
+      ctx = { base: app.base, token: app.token, id: project.id, root: project.root };
+      scanned = false;
+      await dress(tab, theme);
+      tab.setDefaultTimeout(15_000);
+      const target = await surface.open(tab);
+      await target.waitFor({ timeout: 15_000 });
+      await tab.waitForTimeout(250);
+      await target.screenshot({ path: path.join(OUT, `${name}--${theme}.png`) });
+    });
   }
-});
+}

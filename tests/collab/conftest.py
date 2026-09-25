@@ -14,7 +14,9 @@ earliest place it can live.
 from __future__ import annotations
 
 import asyncio
+import atexit
 import os
+import shutil
 import tempfile
 from pathlib import Path
 
@@ -24,10 +26,11 @@ os.environ["NEXTTEX_COLLAB_TRANSPORT"] = "loopback"
 # Sharing writes a card into the install's state directory, and nothing
 # under here redirected that: every shared test project would have left a
 # card in the developer's own `~/.local/share/nexttex/shares`.
-os.environ.setdefault(
-    "XDG_DATA_HOME",
-    tempfile.mkdtemp(prefix="nexttex-collab-tests-"),
-)
+if "XDG_DATA_HOME" not in os.environ:
+    _MADE = tempfile.mkdtemp(prefix="nexttex-collab-tests-")
+    os.environ["XDG_DATA_HOME"] = _MADE
+    # Removed when the run ends; every run used to leave one (Q-069).
+    atexit.register(shutil.rmtree, _MADE, ignore_errors=True)
 
 from nexttex.history import History                              # noqa: E402
 from nexttex.trash import Trash                                  # noqa: E402

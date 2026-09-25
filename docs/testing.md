@@ -4,10 +4,17 @@ Four tiers, and each exists because the one above it cannot see what it
 sees.
 
 ```bash
-scripts/check.sh          # types, frontend and Python: about three minutes
-scripts/check.sh --all    # adds the browser tier: about twelve minutes
+scripts/check.sh          # types, frontend and Python: about seven minutes
+scripts/check.sh --all    # adds the build and the browser tier: about thirty minutes
 scripts/check.sh --bench  # what the slow parts cost, on a project shaped like a long document
 ```
+
+The times are what the run of September 2026 measured on the
+development machine, with about 2,500 Python tests and 600 browser
+tests: six minutes of pytest, and twenty-four of Playwright under four
+workers. They grow with the suites, and a loaded machine stretches the
+browser tier most; the probe found the twelve minutes written here had
+become twenty-two (Q-041).
 
 If the Node on your PATH is older than 20, point `NEXTTEX_NODE_BIN` at a
 newer one rather than changing the system's.
@@ -198,9 +205,14 @@ both themes, as element screenshots rather than pages: a menu, a sheet, a
 hover card, the completion list, cropped to the element, so each can be put
 beside the direction page's drawing of it. `NEXTTEX_FIDELITY` names the
 surfaces, comma-separated, or leaves it empty for all of them, and
-`NEXTTEX_FIDELITY_DIR` says where the images go. A surface the fixture
-cannot open is written down as a `.failed.txt` beside the others and the
-run goes on, because the point is the pictures that came out, not a pass.
+`NEXTTEX_FIDELITY_DIR` says where the images go. Each surface in each
+theme is a test of its own, with a server and a project of its own, and a
+surface that cannot be reached fails its test; `--workers 4` takes the
+whole set in a few minutes. It used to render every surface in one test on
+one project and write a `.failed.txt` for a surface it could not open: the
+surfaces before it had edited the project, so 13 of 98 failed while the run
+said "1 passed" (Q-056). The review drivers kept under `e2e/review/` fail
+in the same way where they used to skip.
 
 `e2e/shots/sweep.spec.ts` and `e2e/shots/front-sweep.spec.ts` are the two
 run at a push and looked through rather than asserted on: the first walks

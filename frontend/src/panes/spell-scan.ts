@@ -58,6 +58,16 @@ export const OPAQUE_ENVIRONMENTS = new Set([
   "tikzpicture", "picture", "tabbing",
 ]);
 
+/** Whether an edit's text could change which lines `skippedLines` skips:
+ *  a line break renumbers the lines after it, a backslash can make or
+ *  break a `\begin`, `\end`, `\[` or `\]`, a brace or a bracket can
+ *  finish one, and a `%` can comment one out. Anything else, which is
+ *  almost every keystroke, leaves the set as it was, so the whole file is
+ *  not scanned again on each key (Q-033). */
+export function touchesStructure(text: string): boolean {
+  return /[\n\\%{}[\]]/.test(text);
+}
+
 /** Which lines are inside one of those, 1-based.
  *
  *  Whole lines rather than exact ranges: an equation body is a whole line

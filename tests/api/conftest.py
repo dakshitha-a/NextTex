@@ -8,6 +8,7 @@ none.  So the environment has to be redirected before anything under
 state and hands out a different token to the browser tab somebody has open.
 """
 
+import atexit
 import os
 import shutil
 import tempfile
@@ -17,6 +18,9 @@ import pytest
 
 # --- before any server import ---------------------------------------------
 _STATE = Path(tempfile.mkdtemp(prefix="nexttex-tests-"))
+# Removed when the run ends. Every run left one behind, and a developer's
+# /tmp held 378 of them by the probe of September 2026 (Q-069).
+atexit.register(shutil.rmtree, _STATE, ignore_errors=True)
 os.environ["XDG_DATA_HOME"] = str(_STATE / "data")
 os.environ["XDG_CONFIG_HOME"] = str(_STATE / "config")
 os.environ["NEXTTEX_SCRIPTED_AGENT"] = "reply"

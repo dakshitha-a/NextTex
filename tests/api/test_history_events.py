@@ -60,7 +60,15 @@ def test_a_saved_markdown_file_announces_its_version_without_a_build(client, ope
     assert "compile_start" not in kinds
 
 
-def test_several_files_in_one_moment_are_one_event(client, opened):
+def test_several_files_in_one_moment_are_one_event(client, opened, monkeypatch):
+    # "One moment" is the session's delay, 0.3 s, and three saves through
+    # the test client took longer than that on a CI runner of 23 September
+    # and again on 25 September, so they were two events (Q-015). What is
+    # under test is that saves inside the delay fold, so the delay is made
+    # longer than any runner takes, rather than hoping the runner is quick.
+    from server import session as session_module
+
+    monkeypatch.setattr(session_module, "HISTORY_EVENT_DELAY", 3.0)
     project_id = opened["id"]
     session = server_main.session_for(project_id)
     queue = session.events.subscribe()
@@ -72,7 +80,7 @@ def test_several_files_in_one_moment_are_one_event(client, opened):
                   "origin": "tab-a", "create": True},
         )
 
-    heard = _wait_for(queue, "history_changed")
+    heard = _wait_for(queue, "history_changed", seconds=8.0)
     assert len(heard) == 1, [e["paths"] for e in heard]
     assert heard[0]["paths"] == ["a.md", "b.md", "c.md"]
 

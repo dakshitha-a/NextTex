@@ -27,7 +27,9 @@ import { join } from "node:path";
 const THESIS = process.env.NEXTTEX_THESIS ?? "";
 
 test("a keystroke, in a seventy kilobyte chapter, with spelling on", async ({ page }) => {
-  test.skip(!THESIS, "set NEXTTEX_THESIS to a bench project directory");
+  // A driver that skips reads as one that passed (Q-056), so a missing
+  // project is a failure that says what to set.
+  if (!THESIS) throw new Error("set NEXTTEX_THESIS to a bench project directory");
   const app = await startServer();
   const root = join(app.projects, "thesis");
   cpSync(THESIS, root, { recursive: true });

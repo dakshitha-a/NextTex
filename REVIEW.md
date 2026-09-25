@@ -610,6 +610,9 @@ only, or waits for typing to pause, as grammar does.
 
 *Size:* small. *Version:* z.
 
+*Fixed in 3.18.12.* Only an edit that could move a skipped line rescans; the
+typing driver's header is true.
+
 ### Q-034 · Editor · bug · medium · likely
 **A script's running state can stick.**
 
@@ -1041,6 +1044,10 @@ clock, and the tracker names them until it does.
 
 *Size:* small. *Version:* none.
 
+*Fixed in the fix run's step 9.* The history test makes the session's delay
+longer than any runner takes; the peer test counts the frames it sends instead
+of sleeping.
+
 ### Q-055 · Suites · test · low · confirmed
 **The six browser flakes did not reproduce.**
 
@@ -1059,6 +1066,9 @@ the next step moves to CI, where the retries' own reports are kept: read
 which of the six the retries rescued there, if any.
 
 *Size:* small. *Version:* none.
+
+*Fixed in the fix run's step 9.* The backlog item says what the three runs
+showed and moves the next step to CI.
 
 ### Q-056 · Suites · test · medium · confirmed
 **The fidelity harness and the axe sweep pass while skipping.**
@@ -1091,6 +1101,10 @@ kept: a skip is a failure.
 
 *Size:* medium. *Version:* none.
 
+*Fixed in the fix run's step 9.* The fidelity harness is one test per surface
+and theme, each on a project of its own, and fails a surface it cannot reach;
+the axe sweep and the kept drivers fail where they skipped.
+
 ### Q-069 · Suites · test · low · confirmed
 **The suites leave their temporary folders behind.**
 
@@ -1114,6 +1128,10 @@ run, 41 of them, and left the older ones.
 cleanup, so a developer's machine does not fill with them.
 
 *Size:* small. *Version:* none.
+
+*Fixed in the fix run's step 9.* The Python suites remove their state folders
+at exit, the papers spec uses its own output folder, and the browser harness
+sweeps sandboxes a day old.
 
 ### Q-016 · Suites · test · low · confirmed
 **The local venv is newer than the Python floor.**
@@ -1152,6 +1170,10 @@ weighed, `pdfjs-dist` first, since the preview is built on it.
 
 *Size:* medium. *Version:* z.
 
+*Fixed in 3.18.12.* The build prints no warning. The advisories stay
+unreachable and are recorded; the major upgrades are weighed in TRACKER.md's
+backlog.
+
 ### Q-037 · Suites · security · low · confirmed
 **Workflow actions are pinned by tag.**
 
@@ -1183,6 +1205,9 @@ from 228 tests to 575 since the numbers were written.
 say what the time depends on.
 
 *Size:* small. *Version:* none.
+
+*Fixed in the fix run's step 9.* docs/testing.md and scripts/check.sh give the
+measured times and say what they depend on.
 
 ### Q-042 · Suites · improvement · medium · confirmed
 **The projects screen loads the whole workspace.**

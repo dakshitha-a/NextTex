@@ -1,10 +1,9 @@
 #!/usr/bin/env bash
 # Everything that can say "this is still working", in the order it is worth
-# hearing.  Fast first: the browser tier takes about seven minutes and the
-# Python tier about two, so a mistake in a route should not cost seven
-# minutes to find out about.  Both numbers have grown by an order of
-# magnitude since this comment was written, and the argument they support
-# has only got stronger.
+# hearing.  Fast first: the browser tier takes about twenty-four minutes
+# and the Python tier about six (measured in September 2026, and growing
+# with the suites; docs/testing.md has the numbers), so a mistake in a
+# route should not cost half an hour to find out about.
 #
 #   scripts/check.sh          the fast tier -- types, frontend, Python
 #   scripts/check.sh --all    adds the browser tier

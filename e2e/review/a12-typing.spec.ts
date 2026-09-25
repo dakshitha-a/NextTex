@@ -8,8 +8,12 @@ import { join } from "node:path";
  *
  *  The benchmark measures the server.  Nothing measures the one number a
  *  writer actually feels: the gap between pressing a key and the character
- *  reaching the screen, with spelling and syntax colouring both on, in a
- *  chapter long enough for the decorations to cost something.
+ *  reaching the screen, with syntax colouring on and spelling at its
+ *  default, which is off, in a chapter long enough for the decorations to
+ *  cost something. `q033-typing-spelling.spec.ts` is the same measure with
+ *  spelling switched on first; this header claimed spelling was on here,
+ *  and every comparison with the September number measured without it
+ *  (Q-033).
  *
  *  Measured inside the page, from `keydown` to the first mutation of the
  *  editor's own DOM, so the number is the app's work and not two frames of
@@ -18,7 +22,9 @@ import { join } from "node:path";
 const THESIS = process.env.NEXTTEX_THESIS ?? "";
 
 test("a keystroke, in a seventy kilobyte chapter", async ({ page }) => {
-  test.skip(!THESIS, "set NEXTTEX_THESIS to a bench project directory");
+  // A driver that skips reads as one that passed (Q-056), so a missing
+  // project is a failure that says what to set.
+  if (!THESIS) throw new Error("set NEXTTEX_THESIS to a bench project directory");
   const app = await startServer();
   const root = join(app.projects, "thesis");
   cpSync(THESIS, root, { recursive: true });

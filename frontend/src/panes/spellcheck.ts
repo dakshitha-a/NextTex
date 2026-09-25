@@ -16,7 +16,7 @@ import {
   ViewPlugin,
   type ViewUpdate,
 } from "@codemirror/view";
-import { normalise, proseWords, skippedLines } from "./spell-scan";
+import { normalise, proseWords, skippedLines, touchesStructure } from "./spell-scan";
 import type { Variety } from "../dictionary/words";
 import type { Speller } from "./hunspell-speller";
 import { suggest } from "./spell-suggest";
@@ -237,7 +237,18 @@ const checker = ViewPlugin.fromClass(
         tr.effects.some((e) => e.is(setSpelling) || e.is(dictionaryReady)),
       );
       if (update.docChanged || update.viewportChanged || told) {
-        this.sync(update.docChanged || told);
+        // The skipped lines are scanned again only when an edit could move
+        // them; a letter typed into a paragraph cannot (Q-033).
+        let moved = told;
+        if (update.docChanged && !moved) {
+          update.changes.iterChanges((fromA, toA, _fromB, _toB, inserted) => {
+            if (moved) return;
+            moved =
+              touchesStructure(inserted.toString()) ||
+              touchesStructure(update.startState.doc.sliceString(fromA, toA));
+          });
+        }
+        this.sync(moved);
       }
     }
     sync(rescan: boolean) {

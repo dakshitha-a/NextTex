@@ -250,15 +250,16 @@ def test_the_two_places_that_quote_a_tier_time_agree():
     script = (ROOT / "scripts" / "check.sh").read_text(encoding="utf-8")
     guide = (ROOT / "docs" / "testing.md").read_text(encoding="utf-8")
 
-    for phrase in ("about seven minutes", "about two"):
+    for phrase in ("about twenty-four minutes", "about six"):
         assert phrase in script, f"check.sh no longer says {phrase!r}"
-    for phrase in ("about three minutes", "about twelve minutes"):
+    for phrase in ("about seven minutes", "about thirty minutes"):
         assert phrase in guide, f"docs/testing.md no longer says {phrase!r}"
 
     # The browser tier is the bulk of `--all`, so the two files' figures
-    # have to be consistent with each other: seven minutes of browser
-    # inside twelve minutes of everything.
-    assert "about twelve minutes" in guide and "about seven minutes" in script
+    # have to be consistent with each other: twenty-four minutes of
+    # browser inside thirty of everything, as measured in September 2026
+    # (Q-041; the twelve written here before had become twenty-two).
+    assert "about thirty minutes" in guide and "about twenty-four minutes" in script
 
 
 def test_the_file_row_menu_in_the_design_document_is_the_menu_that_is_built():

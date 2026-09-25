@@ -3,6 +3,7 @@ import {
   normalise,
   proseWords,
   skippedLines,
+  touchesStructure,
   worthChecking,
 } from "./spell-scan";
 
@@ -181,5 +182,17 @@ describe("words in other scripts", () => {
 
   test("still masks a command inside the word's line", () => {
     expect(proseWords("Größe \\textbf{Maß} gemessen").map((w) => w.word)).toEqual(["Größe", "Maß", "gemessen"]);
+  });
+});
+
+describe("which edits move the skipped lines", () => {
+  // Q-033: every keystroke scanned the whole file again.
+  test("a letter or a space does not", () => {
+    for (const text of ["a", "e", " ", "word", ""]) expect(touchesStructure(text)).toBe(false);
+  });
+  test("a line break, a command, a brace, a bracket or a comment does", () => {
+    for (const text of ["\n", "\\", "\\end{align}", "{", "}", "[", "]", "%"]) {
+      expect(touchesStructure(text)).toBe(true);
+    }
   });
 });

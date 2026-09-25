@@ -25,7 +25,9 @@ type Diagnostic = { file?: string; severity?: string; message?: string };
 type Done = { type: string; scope?: string; diagnostics?: Diagnostic[]; outcome?: string };
 
 test("an error in one chapter, after typing in another", async ({ page }) => {
-  test.skip(!THESIS, "set NEXTTEX_THESIS to a bench project directory");
+  // A driver that skips reads as one that passed (Q-056), so a missing
+  // project is a failure that says what to set.
+  if (!THESIS) throw new Error("set NEXTTEX_THESIS to a bench project directory");
   test.setTimeout(900_000);
   const app = await startServer();
   const root = join(app.projects, "thesis");
