@@ -58,7 +58,14 @@ import {
   type Tab,
   useStore,
 } from "./store";
-import Editor, { type EditorHandle } from "./panes/Editor";
+import { type EditorHandle } from "./panes/Editor";
+// The workspace's three heavy panes, fetched when a project opens rather
+// than with the projects screen, which draws none of them. CodeMirror came
+// in with the editor and was a third of the entry chunk (Q-042).
+const loadEditor = () => import("./panes/Editor");
+const loadChat = () => import("./panes/Chat");
+const loadFileTree = () => import("./panes/FileTree");
+const Editor = lazy(loadEditor);
 // Shown only for a file CodeMirror cannot hold, which most sessions
 // never open, so it is fetched when one is.
 const FileView = lazy(() => import("./panes/FileView"));
@@ -96,12 +103,21 @@ const HistoryPanel = lazy(() => import("./panes/History"));
 // a first visit that never searches the project should not download
 // it, the way the error drawer and the share sheet are not
 // downloaded until something opens them.
-const SearchPanel = lazy(() => import("./panes/SearchPanel"));
+// Whether the Search drawer's code has arrived: until it has, the chord
+// holds what is typed for its box rather than leaving it to the document.
+let searchLoaded = false;
+const loadSearch = () =>
+  import("./panes/SearchPanel").then((module) => {
+    searchLoaded = true;
+    return module;
+  });
+const SearchPanel = lazy(loadSearch);
 const ViewingBanner = lazy(() =>
   import("./panes/History").then((m) => ({ default: m.ViewingBanner })),
 );
 import { type PdfHandle } from "./panes/Pdf";
-import Chat, { type ChatHandle } from "./panes/Chat";
+import { type ChatHandle } from "./panes/Chat";
+const Chat = lazy(loadChat);
 import SourceHeader from "./panes/SourceHeader";
 import PreviewHeader from "./panes/PreviewHeader";
 import AgentButton, { AgentStateDot } from "./panes/AgentButton";
@@ -120,7 +136,7 @@ import Status from "./panes/Status";
  *  panel, and it is what kept the entry chunk under its budget while the
  *  review's fixes went in. */
 const Diagnostics = lazy(() => import("./panes/Diagnostics"));
-import FileTree from "./panes/FileTree";
+const FileTree = lazy(loadFileTree);
 import { bibIn } from "./tree";
 import Projects from "./panes/Projects";
 import Collapsed from "./panes/Collapsed";
@@ -132,6 +148,7 @@ import { APPEARANCE_CHANGED } from "./appearance";
 import { pageTitle } from "./page-title";
 import { includePath } from "./tree";
 import { actionFor } from "./actions";
+import { holdTyping, type Held } from "./held-typing";
 /** The rail's four footer panels: the trash, the papers, the context and
  *  git.  Each draws nothing, or a header, in a project that has not used
  *  it, and each fetches its own state on mount, which a lazy mount does a
@@ -352,6 +369,21 @@ export default function App() {
   const pdfPane = useRef<HTMLDivElement | null>(null);
 
   const projectId = useStore((s) => s.projectId);
+  /** Letters typed after the search chord, held while the drawer's code
+   *  arrives (Q-067). */
+  const heldSearch = useRef<Held | null>(null);
+  // The workspace's chunks once the first screen has drawn, and the lazy
+  // parts a writer reaches for first once a project is open, so neither a
+  // project opening nor a first press waits on the network.
+  useEffect(() => {
+    const later = window.setTimeout(() => {
+      void loadEditor();
+      void loadChat();
+      void loadFileTree();
+      if (projectId) void loadSearch();
+    }, 1500);
+    return () => window.clearTimeout(later);
+  }, [projectId]);
   const projectName = useStore((s) => s.projectName);
   const instance = useStore((s) => s.instance);
   // The tab names the paper while one is open.  On `view` rather than on
@@ -1850,6 +1882,7 @@ export default function App() {
         // Find in the project, from anywhere. Mod-F belongs to the
         // editor's own find panel and searches the file in front of you;
         // this is the same question asked of every file.
+        if (!searchLoaded && !heldSearch.current) heldSearch.current = holdTyping();
         openDrawer("search");
         setFocusSearch((count) => count + 1);
         break;
@@ -2328,7 +2361,15 @@ export default function App() {
                 <div className="flex min-h-0 flex-1 flex-col overflow-y-auto">
                   {drawerId === "search" ? (
                     <Suspense fallback={null}>
-                      <SearchPanel onOpen={openFile} focusNonce={focusSearch} />
+                      <SearchPanel
+                        onOpen={openFile}
+                        focusNonce={focusSearch}
+                        takeHeld={() => {
+                          const held = heldSearch.current;
+                          heldSearch.current = null;
+                          return held ? held.stop() : "";
+                        }}
+                      />
                     </Suspense>
                   ) : null}
                   <Suspense fallback={null}>
@@ -2516,11 +2557,13 @@ export default function App() {
           ) : null}
           <div className="relative flex min-h-0 flex-1">
             <div className="relative min-h-0 flex-1">
-              <Editor
-                handleRef={(handle) => (editor.current = handle)}
-                onAskAbout={askAboutSelection}
-                onOpen={openFile}
-              />
+              <Suspense fallback={<div className="h-full bg-surface" />}>
+                <Editor
+                  handleRef={(handle) => (editor.current = handle)}
+                  onAskAbout={askAboutSelection}
+                  onOpen={openFile}
+                />
+              </Suspense>
 
               {/* A figure is a file in this project like any other: it has
                   a tab, a place in the tree, and -- since it can now be
@@ -2833,6 +2876,7 @@ export default function App() {
         data-nx-chat=""
         data-testid="chat-panel"
       >
+        <Suspense fallback={<div className="h-full bg-surface-2" />}>
         <Chat
           onAddContext={async (kind) => {
             if (kind === "template") {
@@ -2862,6 +2906,7 @@ export default function App() {
             }
           }}
         />
+        </Suspense>
       </div>
       )}
 

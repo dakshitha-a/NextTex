@@ -35,11 +35,15 @@ function group(hits: SearchHit[]): [string, SearchHit[]][] {
 export default function SearchPanel({
   onOpen,
   focusNonce,
+  takeHeld,
 }: {
   onOpen: (path: string, line?: number) => void;
   /** Bumped when the shortcut asks for the caret. A number rather than a
    *  boolean nobody clears, the way the tree's filter row is asked for. */
   focusNonce: number;
+  /** What was typed after the chord while this drawer's code arrived,
+   *  taken once when it first draws (Q-067). */
+  takeHeld?: () => string;
 }) {
   const projectId = useStore((s) => s.projectId);
   const [query, setQuery] = useState("");
@@ -66,6 +70,19 @@ export default function SearchPanel({
   useEffect(() => {
     if (focusNonce) box.current?.select();
   }, [focusNonce]);
+
+  // Letters typed before this drawer arrived go into its box, with the
+  // caret after them, as if it had been there all along.
+  useEffect(() => {
+    const held = takeHeld?.() ?? "";
+    if (!held) return;
+    setQuery(held);
+    requestAnimationFrame(() => {
+      box.current?.focus();
+      box.current?.setSelectionRange(held.length, held.length);
+    });
+    // Once, on first drawing.
+  }, []);
 
   // A request from the editor: list the references and, when asked,
   // open the rename with the name filled in and selected.

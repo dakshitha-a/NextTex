@@ -19,15 +19,11 @@ import Prose from "./prose";
 // conversation, and the list and its renderers should not ship ahead of that.
 const PastConversation = lazy(() => import("./PastConversation"));
 const ContextPanel = lazy(() => import("./ContextPanel"));
-// The menu under the composer's chip, for the same reason: it draws
-// nothing until the chip is pressed, and most sessions never press it.
-const ComposerMenu = lazy(() =>
-  import("./ComposerMenus").then((m) => ({ default: m.ComposerMenu })),
-);
-// And the prompt menu, which draws only while the draft starts with `/`.
-const PromptMenu = lazy(() =>
-  import("./ComposerMenus").then((m) => ({ default: m.PromptMenu })),
-);
+// The menus under the composer's chip and for a `/` prompt. They were
+// fetched on first use to keep them out of the entry chunk, which cost
+// 870 ms of nothing on screen at the first press (Q-062); this column is
+// its own chunk now, fetched when a project opens, so they come with it.
+import { ComposerMenu, PromptMenu } from "./ComposerMenus";
 import {
   alreadyNamed,
   completed,

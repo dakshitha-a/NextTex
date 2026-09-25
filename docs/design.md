@@ -10774,3 +10774,9 @@ taken for the chords that show the Claude column, Writing mode and quick
 open. A press with AltGraph held, or with Ctrl and Alt making a character
 other than the chord's own letter, is left to the text; on a Mac the
 chords hold Cmd and are unchanged.
+
+The projects screen draws sooner: the editor, the Claude column and the
+file tree are fetched when a project opens, not with the first screen.
+The composer's menu opens at its first press, where it used to wait
+nearly a second, and a word typed at once after the search chord goes
+into the Search drawer's box, never into the document.

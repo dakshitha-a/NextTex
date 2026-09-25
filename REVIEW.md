@@ -1140,6 +1140,10 @@ budget room for years. The fix plan does this before it adds any weight.
 
 *Size:* medium. *Version:* z.
 
+*Fixed in 3.18.7.* The editor, the Claude column and the file tree are
+fetched when a project opens; the entry chunk is 349.7 kB and its
+budget 400.
+
 ### The look
 
 ### Q-038 · Look · consistency · medium · confirmed
@@ -1498,6 +1502,8 @@ rest.
 
 *Size:* small. *Version:* z.
 
+*Fixed in 3.18.7.* The menus come with the Claude column's own chunk.
+
 ### Q-063 · Agent · comfort · low · confirmed
 **A waiting card is pushed behind the composer.**
 
@@ -1693,6 +1699,9 @@ commits, the dialog's heading still reads "Fetching the new version".
 *What should happen:* the heading names the step the output belongs to.
 
 *Size:* small. *Version:* z.
+
+*Fixed in 3.18.7.* The drawer's chunk is prefetched, and until it has
+arrived the chord holds what is typed for the box.
 
 ### The documents
 
