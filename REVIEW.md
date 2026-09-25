@@ -131,10 +131,10 @@ here.
 
 ### Compile, diagnostics, the preview and the page
 
-### Q-017 · Compile · bug · high · likely
+### Q-017 · Compile · bug · high · confirmed
 
-*Found by:* reading, from a lead a reading agent raised, with the mechanism
-followed through three files. Not yet reproduced on a thesis.
+*Found by:* reading, from a lead a reading agent raised, then reproduced in
+a browser by `e2e/review/q017-scoped-diagnostics.spec.ts`.
 
 *Where:* `server/session.py:1114`, `nexttex/compile.py:632`,
 `server/session.py:1142`.
@@ -152,8 +152,18 @@ started for a fast pass that asks for a rerun or for citations.
 files it opened, and keeps the rest until a build that opens them says
 otherwise.
 
-*How to reach it again:* a project from `bench.build_project`, an error put
-in one chapter, a full build, then an edit in another chapter.
+*Reproduced.* The driver copies the bench's thesis, slows every build past
+the two second line with a counting loop in the preamble, puts an undefined
+command at the end of chapter 00, and waits for the build that reports it:
+a full build, outcome errors, one error in chapter 00. It then types a
+sentence in chapter 01. The next build is scoped to `chapters/01`, its
+outcome is ok, and it carries no diagnostics at all. The error in chapter
+00 is still in the file and is gone from what the app says, and the build
+strip reports a clean build. It stays that way until something forces a
+full build.
+
+*How to reach it again:* `e2e/review/q017-scoped-diagnostics.spec.ts`, with
+`NEXTTEX_THESIS` pointing at a project `bench.build_project` made.
 
 *Size:* small. *Version:* z.
 
@@ -358,7 +368,7 @@ and the files already written are listed.
 
 *Size:* small. *Version:* z.
 
-### Q-028 · Files · bug · high · confirmed
+### Q-028 · Files · security · high · confirmed
 
 *Found by:* reading, from a lead a reading agent raised.
 *Where:* `nexttex/search.py:21`.
@@ -382,8 +392,14 @@ not just one worker: a request for `/api/instance`, which touches nothing,
 waited out its full two-minute timeout, and so did the Git drawer's log
 after it. Python's `re` holds the interpreter lock while it matches, so a
 thread does not protect the event loop at all. One search typed into the
-Search drawer hangs the install for every tab and every collaborator until
-the server is restarted.
+Search drawer hangs the install for every tab and every collaborator. The
+pattern needs about two to the thirty-fourth steps, so the hang lasts
+minutes at least; the run did not wait to see it end. While the loop is
+held nothing is flushed to disk, so a writer who sees the frozen tab and
+reloads it loses what they typed since the hang. That is this review's
+definition of a blocker, reached only by a pattern nobody types by
+accident, which is why it is recorded as high. Reported to the writer when
+it was confirmed.
 
 *How to reach it again:* `measure.py` in the probe's scratch directory, or
 by hand: a chapter holding that line, and that pattern in the Search drawer
@@ -647,51 +663,80 @@ tracked by descendant, and a small cap limits concurrent runs.
 
 ### Collaboration and comments
 
-### Q-008 · Collaboration · bug · medium · likely
+### Q-008 · Collaboration · bug · medium · confirmed
 
-*Found by:* reading, from a lead a reading agent raised.
-*Where:* `server/collab/comments.py:119`, with the peer path at
+*Found by:* a reading agent's lead, then `e2e/review/q008_comment_shape.py`,
+which found a second way in. *Where:* `server/collab/comments.py:96` and
+`server/collab/comments.py:119`, with the peer path at
 `server/collab/peers.py:516`.
 
 *What happens:* comments live on the shared manifest, and a peer's changes
-to it are applied as they arrive. The limits on a comment's length and
-quote are enforced only by this install's own routes, so a peer can write
-comments of any size. The listing reads threads defensively, but it then
-sorts by path, line and creation time, and a peer that writes a line or a
-time of another type makes that sort raise. The comments drawer then fails
-for everyone on the project until the thread is removed. A collaborator is
-someone the writer let in, so the main risk is a buggy or older peer
-rather than a hostile one.
+to it are applied as they arrive, without the checks this install's own
+routes make. The driver puts threads on the manifest the way a sync would,
+and asks for the listing the Comments drawer reads.
 
-*What should happen:* the listing coerces what it reads to the types it
-sorts on, and the store trims a peer's comment to the same limits a local
-one has.
+- **Anchors that are not base64.** The thread is treated as detached and
+  keeps the `line` the peer wrote. With one thread's line a number and
+  another's text, the listing's sort raises `TypeError`.
+- **An empty anchor.** That is valid base64 for no bytes, and pycrdt's
+  `StickyIndex.decode` panics on it. A pyo3 panic is a `BaseException`, not
+  an `Exception`, so the `except Exception` written around exactly this
+  call does not catch it.
+- **Length.** A peer's comment body of thirty thousand characters is
+  accepted; the twenty thousand limit applies only to this install's
+  routes.
 
-*How to reach it again:* two loopback peers, one writing a thread with a
-string line; driven in Phase 2.
+In both of the first two cases the Comments drawer fails for everyone on
+the project. The drawer is also the only way to delete the thread that
+broke it. A collaborator is someone the writer let in, so the likely cause
+is a buggy or older peer rather than a hostile one. The same class of
+fault, a pycrdt panic escaping an `except Exception`, could in principle
+reach other places pycrdt reads what a peer sent; this probe did not look
+further.
+
+*What should happen:* `where` catches the panic as well, and treats an
+anchor shorter than a sticky index as detached. The listing coerces what it
+sorts on to the types it expects. A peer's comment is trimmed to the same
+limits as a local one when it is read.
+
+*How to reach it again:* `.venv/bin/python e2e/review/q008_comment_shape.py`.
 
 *Size:* small. *Version:* z.
 
-### Q-009 · Collaboration · bug · high · likely
+### Q-009 · Collaboration · bug · high · confirmed
 
-*Found by:* reading, from a lead a reading agent raised.
-*Where:* `server/collab/store.py:508`, `server/collab/store.py:557`.
+*Found by:* a reading agent's lead, which was wrong in its mechanism, then a
+driver that found the real one. *Where:* `server/collab/store.py:975`, the
+id rule at `server/collab/store.py:540`, and the test at
+`tests/collab/test_hostile_peers.py:75`.
 
-*What happens:* two collaborators who each create `chapters/03.tex` while
-apart are given different random ids, on purpose: the store's own comment
-records that a shared id once interleaved two chapters. When they meet,
-the manifest holds two live records with the same path. Nothing reconciles
-them. Lookups by path take whichever came first. Both documents go on being
-written to the same file on disk, so each flush overwrites the other
-collaborator's chapter on disk, and a tab bound to the losing id keeps
-editing a document no new tab will open.
+*What happens:* the September review found that two collaborators who each
+created `chapters/03.tex` while apart derived the same id from the path,
+and their two documents merged, each ending up with both chapters
+interleaved. Its fix, in `b2ef5d1`, gave a file created here random bytes
+for an id and kept the path-derived id for adopting a project's existing
+files. The docstring of `_new_id` still describes that. But the only caller
+of `_new_id` in the program is `adopt`, with `adopting=True`, and every new
+file reaches the manifest through `adopt`: a file made in another editor,
+by the agent, by a script, by a pull. So every new file gets the id derived
+from its path again. The random branch is reached only by the test meant
+to guard it, which calls `_new_id` directly, so the test passes while the
+fault it was written for is back.
 
-*What should happen:* when a merge leaves two live records on one path,
-one keeps the path and the other is renamed, for example to the kept-both
-name the upload chooser uses, and both people are told.
+*Reproduced.* `e2e/review/q009_same_path.py` gives two peers the same
+`main.tex`, has each write and ingest its own `chapters/03.tex`, then
+exchanges manifests and documents as a sync does. Both got the id
+`ad764fcd17c7e88e`. After the sync both documents, and both disks, read
+"Bob's chapter three." followed by "Alice's chapter three.", and neither
+person was told. On real prose typed at the same time the two would
+interleave rather than sit one after the other.
 
-*How to reach it again:* two loopback peers joined, the link dropped, the
-same new path created on each, the link restored. Driven in Phase 2.
+*What should happen:* a file first seen on disk in a shared project gets a
+random id, as the docstring says, and only a project's first adoption uses
+the path. If two live records still meet on one path, one keeps the path
+and the other is renamed to the kept-both name the upload chooser uses,
+and both people are told. The test drives the real path, a file ingested
+on two peers, rather than calling the private method.
 
 *Size:* medium. *Version:* z.
 
@@ -845,6 +890,47 @@ to commits.
 
 *Size:* small. *Version:* none.
 
+### Q-041 · Suites · docs · low · confirmed
+
+*Found by:* the baseline. *Where:* `docs/testing.md`, the first code block,
+and the comment at the top of `scripts/check.sh`.
+
+*What happens:* both say the full run takes about twelve minutes. It took
+22 minutes and 8 seconds, 18 of them in the browser tier, which has grown
+from 228 tests to 575 since the numbers were written.
+
+*What should happen:* the numbers are the ones measured, or the passages
+say what the time depends on.
+
+*Size:* small. *Version:* none.
+
+### Q-042 · Suites · improvement · medium · confirmed
+
+*Found by:* the baseline. *Where:* `bench/thresholds.json`.
+
+*What happens:* the initial bundle is 861.0 kB against a budget of 864, so
+three kilobytes of room are left. The budget's own comment names the
+settings card's trigger as the refactor that would win room back, and it
+has not been done.
+
+*Measured.* A build with source maps, written to the probe's scratch
+directory, attributes the initial chunk's 861 kB by source. CodeMirror is
+about 355 kB of it: the view 182, the state 46, completion 34, language 30,
+commands 23, search 20, and lezer 27. React's DOM is 177. Then the app:
+`frontend/src/App.tsx` 33, `frontend/src/panes/Chat.tsx` 24,
+`frontend/src/panes/Projects.tsx` 23, `frontend/src/panes/Editor.tsx` 20,
+`frontend/src/panes/FileTree.tsx` 20, and the `diff` package 12. Everything
+a project's workspace needs is in the chunk the projects screen loads,
+although the projects screen is what every visit shows first and draws none
+of it. The Claude column ships to installs that have turned the agent off.
+
+*What should happen:* the workspace, meaning the editor, the tree and the
+Claude column, becomes a chunk fetched when a project opens. That takes
+roughly 450 kB off the first paint of the projects screen and gives the
+budget room for years. The fix plan does this before it adds any weight.
+
+*Size:* medium. *Version:* z.
+
 ### The look
 
 ### Q-038 · Look · consistency · medium · confirmed
@@ -887,35 +973,6 @@ correctly elsewhere, so only the bar's own account is stale.
 them.
 
 *Size:* small. *Version:* none.
-
-### Q-041 · Suites · docs · low · confirmed
-
-*Found by:* the baseline. *Where:* `docs/testing.md`, the first code block,
-and the comment at the top of `scripts/check.sh`.
-
-*What happens:* both say the full run takes about twelve minutes. It took
-22 minutes and 8 seconds, 18 of them in the browser tier, which has grown
-from 228 tests to 575 since the numbers were written.
-
-*What should happen:* the numbers are the ones measured, or the passages
-say what the time depends on.
-
-*Size:* small. *Version:* none.
-
-### Q-042 · Suites · improvement · low · confirmed
-
-*Found by:* the baseline. *Where:* `bench/thresholds.json`.
-
-*What happens:* the initial bundle is 861.0 kB against a budget of 864, so
-three kilobytes of room are left. The budget's own comment names the
-settings card's trigger as the refactor that would win room back, and it
-has not been done.
-
-*What should happen:* the fix plan's frontend work takes some weight out
-before it adds any, starting with what the first paint does not need.
-Phase 3 lists what is in the initial chunk.
-
-*Size:* medium. *Version:* z.
 
 ### Q-040 · Documents · docs · low · confirmed
 
