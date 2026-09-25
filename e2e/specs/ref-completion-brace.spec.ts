@@ -10,11 +10,20 @@ import { test, expect } from "../fixtures";
 test("a label accepted inside \\ref{ closes the brace", async ({ tab }) => {
   await expect(tab.locator(".cm-editor")).toBeVisible({ timeout: 30_000 });
   await tab.locator(".cm-content").click();
+  // A line of its own, above \end{document}.
   await tab.keyboard.press("Control+End");
   await tab.keyboard.press("ArrowUp");
   await tab.keyboard.press("Home");
+  await tab.keyboard.press("Enter");
+  await tab.keyboard.press("ArrowUp");
   await tab.keyboard.type("See Section~\\ref{sec:");
-  await tab.locator(".cm-tooltip-autocomplete").waitFor({ timeout: 5000 });
+  // The list with an option chosen, not only the list: under load the
+  // list can draw before its options do, and an Enter then is a newline.
+  await expect(tab.locator(".cm-tooltip-autocomplete li[aria-selected=true]")).toBeVisible({ timeout: 5000 });
+  // CodeMirror ignores Enter for its `interactionDelay`, 75 ms after the
+  // list opens, so a keystroke meant for the text is not taken as a pick;
+  // under load the test's Enter fell inside it and became a newline.
+  await tab.waitForTimeout(200);
   await tab.keyboard.press("Enter");
   await tab.keyboard.type(" shows it.");
   await expect(tab.locator(".cm-activeLine")).toHaveText(
