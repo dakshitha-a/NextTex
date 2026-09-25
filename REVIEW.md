@@ -132,6 +132,7 @@ here.
 ### Compile, diagnostics, the preview and the page
 
 ### Q-017 · Compile · bug · high · confirmed
+**A chapter's build hides the other chapters' errors.**
 
 *Found by:* reading, from a lead a reading agent raised, then reproduced in
 a browser by `e2e/review/q017-scoped-diagnostics.spec.ts`.
@@ -168,6 +169,7 @@ full build.
 *Size:* small. *Version:* z.
 
 ### Q-043 · Compile · performance · high · confirmed
+**A build with many warnings freezes the server.**
 
 *Found by:* measurement, then a profile. Phase 3 pinged `/api/instance`
 every ten milliseconds while the thesis built, and the longest wait was
@@ -196,12 +198,13 @@ made relative once and cached by file, the work runs off the loop, and the
 diagnostics sent to the browser are capped, with the count of what was left
 out.
 
-*How to reach it again:* `compile_probe.py` in the probe's scratch
-directory, against a project `bench.build_project` made.
+*How to reach it again:* `e2e/review/q043_build_loop_block.py`, with
+`NEXTTEX_THESIS` pointing at a project `bench.build_project` made.
 
 *Size:* small. *Version:* z.
 
 ### Q-018 · Compile · bug · medium · confirmed
+**A deleted file's labels stay in completion.**
 
 *Found by:* reading. *Where:* `nexttex/symbols.py:489`.
 
@@ -219,6 +222,7 @@ count and the newest time together, so a deletion is a change.
 *Size:* small. *Version:* z.
 
 ### Q-019 · Compile · bug · medium · likely
+**Windows drive paths confuse the log parser.**
 
 *Found by:* reading. *Where:* `nexttex/latexlog.py:56` against
 `nexttex/latexlog.py:32`.
@@ -239,6 +243,7 @@ MiKTeX log goes into the parser's tests.
 *Size:* small. *Version:* z.
 
 ### Q-020 · Compile · comfort · low · likely
+**A queued TeX install says nothing about why.**
 
 *Found by:* reading. *Where:* `nexttex/texpkg.py:60`, the route at
 `server/main.py:3206`.
@@ -255,6 +260,7 @@ nothing about why.
 ### Files, history, trash and git
 
 ### Q-021 · Files · performance · low · confirmed
+**The history timeline runs on the event loop.**
 
 *Found by:* reading, from a lead a reading agent raised.
 *Where:* `server/main.py:3545` calling `nexttex/history.py:644`.
@@ -275,6 +281,7 @@ neighbours do.
 *Size:* small. *Version:* z.
 
 ### Q-022 · Files · performance · medium · confirmed
+**Trashing a folder holds the event loop.**
 
 *Found by:* reading, from a lead a reading agent raised.
 *Where:* `server/main.py:3097` and `server/main.py:3259`, calling
@@ -291,6 +298,7 @@ whole install while it moves.
 *Size:* small. *Version:* z.
 
 ### Q-023 · Files · bug · medium · confirmed
+**The Git drawer commits conflict markers.**
 
 *Found by:* reading. *Where:* `nexttex/gitrepo.py:262`.
 
@@ -314,6 +322,7 @@ terminal has finished it.
 *Size:* small. *Version:* z.
 
 ### Q-024 · Files · comfort · low · confirmed
+**A detached head shows as a branch name.**
 
 *Found by:* reading. *Where:* `nexttex/gitrepo.py:189`.
 
@@ -327,6 +336,7 @@ same driver.
 *Size:* small. *Version:* z.
 
 ### Q-025 · Files · bug · medium · confirmed
+**Replace-all stops halfway without saying so.**
 
 *Found by:* reading. *Where:* `server/main.py:2782` and
 `server/main.py:2859`.
@@ -345,6 +355,7 @@ History drawer folds them into one row that can be undone together.
 *Size:* medium. *Version:* z.
 
 ### Q-026 · Projects · bug · low · confirmed
+**Adding a folder revives an archived project.**
 
 *Found by:* reading. *Where:* `nexttex/project.py:676`.
 
@@ -363,6 +374,7 @@ back.
 *Size:* small. *Version:* z.
 
 ### Q-027 · Files · bug · medium · likely
+**An upload into a vanished folder loses its report.**
 
 *Found by:* reading. *Where:* `server/main.py:3632`, the writes near
 `server/main.py:3733`.
@@ -379,17 +391,17 @@ and the files already written are listed.
 *Size:* small. *Version:* z.
 
 ### Q-028 · Files · security · high · confirmed
+**One regex search stops the whole server.**
 
 *Found by:* reading, from a lead a reading agent raised.
 *Where:* `nexttex/search.py:21`.
 
-*What happens:* the pattern cap of two hundred characters is described as
-short enough that an exponentially backtracking pattern cannot be built.
-That is not so: `(a+)+$` is seven characters. The search runs in a worker
-thread, so the loop is safe, but Python cannot stop a thread, and the
-regular expression has no time limit. A few such searches hold a few of the
-default pool's workers until the server restarts, and the git, history and
-compile routes share that pool.
+*What happens:* project search caps a pattern at two hundred characters,
+and the comment above the cap says that is short enough that a pattern
+which backtracks exponentially cannot be built. It is not: `(a+)+$` is
+seven characters. The reading assumed the damage stopped at a worker
+thread, since the search runs in one. The measurement below found it does
+not.
 
 *What should happen:* a pattern search runs in a child process with a time
 limit, or through a matcher that cannot backtrack, and the comment stops
@@ -411,13 +423,14 @@ definition of a blocker, reached only by a pattern nobody types by
 accident, which is why it is recorded as high. Reported to the writer when
 it was confirmed.
 
-*How to reach it again:* `measure.py` in the probe's scratch directory, or
-by hand: a chapter holding that line, and that pattern in the Search drawer
-with the regular-expression switch on.
+*How to reach it again:* `.venv/bin/python e2e/review/q028_search_freeze.py`,
+or by hand: a chapter holding that line, and that pattern in the Search
+drawer with the regular-expression switch on.
 
 *Size:* medium. *Version:* z.
 
 ### Q-029 · References · bug · medium · confirmed
+**The library writes to the wrong .bib file.**
 
 *Found by:* reading. *Where:* `server/main.py:3838`.
 
@@ -439,6 +452,7 @@ the loop and skips `.git`.
 ### The editor and the preview in the browser
 
 ### Q-030 · Editor · bug · high · confirmed
+**AltGr letters are taken for the app's shortcuts.**
 
 *Found by:* reading, from a lead a reading agent raised.
 *Where:* `frontend/src/actions.ts:90`, the chords at `frontend/src/actions.ts:43`.
@@ -469,6 +483,7 @@ is already installed.
 *Size:* small. *Version:* z.
 
 ### Q-031 · Preview · performance · high · confirmed
+**The preview never frees a page it drew.**
 
 *Found by:* reading. *Where:* `frontend/src/panes/Pdf.tsx:546`, drawing at
 `frontend/src/panes/Pdf.tsx:484`.
@@ -495,6 +510,7 @@ back, and are drawn again when they return.
 *Size:* medium. *Version:* z.
 
 ### Q-032 · Preview · performance · medium · confirmed
+**The first find in a long PDF is slow.**
 
 *Found by:* reading. *Where:* `frontend/src/panes/Pdf.tsx:1324`.
 
@@ -509,6 +525,7 @@ does.
 *Size:* small. *Version:* z.
 
 ### Q-033 · Editor · performance · low · confirmed
+**Spelling rescans the whole file on each key.**
 
 *Found by:* reading. *Where:* `frontend/src/panes/spellcheck.ts:238`.
 
@@ -538,6 +555,7 @@ only, or waits for typing to pause, as grammar does.
 *Size:* small. *Version:* z.
 
 ### Q-034 · Editor · bug · medium · likely
+**A script's running state can stick.**
 
 *Found by:* reading. *Where:* `frontend/src/App.tsx:1631`.
 
@@ -554,6 +572,7 @@ state, as it carries the builds'.
 *Size:* small. *Version:* z.
 
 ### Q-035 · Projects · performance · low · confirmed
+**Forgotten projects leave their browser keys.**
 
 *Found by:* reading. *Where:* `frontend/src/panes/Projects.tsx:314`,
 the keys written in `frontend/src/App.tsx`.
@@ -570,6 +589,7 @@ and forgets projects often, and the keys only accumulate.
 ### The agent
 
 ### Q-001 · Agent · bug · medium · likely
+**An OpenAI turn can end without saying so.**
 
 *Found by:* reading, from a lead a reading agent raised.
 *Where:* `nexttex/openai_agent.py:660`.
@@ -587,6 +607,7 @@ turn always ends with `done`.
 *Size:* small. *Version:* z.
 
 ### Q-002 · Agent · bug · medium · confirmed
+**The OpenAI provider's round limit reports success.**
 
 *Found by:* reading. *Where:* `nexttex/openai_agent.py:733`.
 
@@ -602,6 +623,7 @@ limit, and a subtype that says so.
 *Size:* small. *Version:* z.
 
 ### Q-003 · Agent · comfort · low · confirmed
+**A dropped stream shows Python's own error text.**
 
 *Found by:* reading. *Where:* `nexttex/openai_agent.py:758`.
 
@@ -614,6 +636,7 @@ is streaming is shown as Python's own exception text.
 *Size:* small. *Version:* z.
 
 ### Q-004 · Agent · docs · low · confirmed
+**The last permission position means two things.**
 
 *Found by:* reading. *Where:* `nexttex/agent.py:1273` against
 `nexttex/openai_agent.py:883`.
@@ -630,6 +653,7 @@ explained, or the two are made the same.
 *Size:* small. *Version:* z.
 
 ### Q-005 · Agent · bug · medium · confirmed
+**A renamed style sheet breaks every figure script.**
 
 *Found by:* reading. *Where:* `nexttex/figure_helper.py:68`,
 `nexttex/plots.py:65`.
@@ -647,6 +671,7 @@ a warning in the run's output, and the helper gets tests of its own.
 *Size:* small. *Version:* z.
 
 ### Q-006 · Agent · security · low · confirmed
+**Builds and scripts inherit the server's whole environment.**
 
 *Found by:* reading, from leads two reading agents raised.
 *Where:* `nexttex/compile.py:660`, `nexttex/plots.py:112`.
@@ -666,6 +691,7 @@ as git does.
 *Size:* small. *Version:* z.
 
 ### Q-007 · Agent · security · low · likely
+**A script that daemonises outlives its stop.**
 
 *Found by:* reading. *Where:* `nexttex/proctree.py`, called from
 `nexttex/scripts.py`.
@@ -684,6 +710,7 @@ tracked by descendant, and a small cap limits concurrent runs.
 ### Collaboration and comments
 
 ### Q-008 · Collaboration · bug · medium · confirmed
+**A peer's comment of the wrong shape breaks the Comments drawer.**
 
 *Found by:* a reading agent's lead, then `e2e/review/q008_comment_shape.py`,
 which found a second way in. *Where:* `server/collab/comments.py:96` and
@@ -724,6 +751,7 @@ limits as a local one when it is read.
 *Size:* small. *Version:* z.
 
 ### Q-009 · Collaboration · bug · high · confirmed
+**Two people's new files of one name merge into one.**
 
 *Found by:* a reading agent's lead, which was wrong in its mechanism, then a
 driver that found the real one. *Where:* `server/collab/store.py:975`, the
@@ -761,6 +789,7 @@ on two peers, rather than calling the private method.
 *Size:* medium. *Version:* z.
 
 ### Q-010 · Collaboration · test · low · confirmed
+**The hostile-peer tests miss comments and races.**
 
 *Found by:* reading. *Where:* `tests/collab/test_hostile_peers.py`.
 
@@ -774,6 +803,7 @@ flight, and none races a rename on one side with an edit on the other.
 *Size:* medium. *Version:* none.
 
 ### Q-054 · Collaboration · bug · medium · confirmed
+**A comment stays on stray letters after an outside edit.**
 
 *Found by:* `e2e/review/q054_comment_outside_edit.py`, written for the
 outside-edits area. *Where:* `server/collab/comments.py:79`, with the fold
@@ -803,6 +833,7 @@ range is.
 ### The server
 
 ### Q-011 · Server · test · low · confirmed
+**The rename route has no path-escape test.**
 
 *Found by:* reading, from a lead a reading agent raised.
 *Where:* `tests/api/test_files.py`.
@@ -820,6 +851,7 @@ either has an escape test or takes no path at all.
 ### Install and update
 
 ### Q-012 · Install · bug · high · likely
+**An update that fails to start cannot come back.**
 
 *Found by:* reading, from a lead a reading agent raised.
 *Where:* `server/main.py:6201`, `nexttex/install/service.py:77`.
@@ -842,6 +874,7 @@ the commit, not only once its interface exists.
 *Size:* medium. *Version:* z.
 
 ### Q-013 · Install · bug · low · confirmed
+**The update script skips the interface check.**
 
 *Found by:* reading. *Where:* `scripts/update.sh:150`.
 
@@ -857,6 +890,7 @@ the commit is not published yet, as the page does.
 *Size:* small. *Version:* z.
 
 ### Q-014 · Settings · bug · low · likely
+**Two tabs signing in to Claude cancel each other.**
 
 *Found by:* reading. *Where:* `nexttex/claude_auth.py:70`.
 
@@ -872,6 +906,7 @@ is told another is in progress.
 ### The suites, CI and dependencies
 
 ### Q-015 · Suites · test · medium · confirmed
+**Two Python tests fail on CI by timing.**
 
 *Found by:* reading the last fifty-three runs of each workflow with
 `gh run list`.
@@ -894,6 +929,7 @@ clock, and the tracker names them until it does.
 *Size:* small. *Version:* none.
 
 ### Q-055 · Suites · test · low · confirmed
+**The six browser flakes did not reproduce.**
 
 *Found by:* the capped flake hunt the tracker's backlog asked for.
 
@@ -912,6 +948,7 @@ which of the six the retries rescued there, if any.
 *Size:* small. *Version:* none.
 
 ### Q-056 · Suites · test · medium · confirmed
+**The fidelity harness and the axe sweep pass while skipping.**
 
 *Found by:* the screen pass. *Where:* `e2e/shots/fidelity.spec.ts`.
 
@@ -942,6 +979,7 @@ kept: a skip is a failure.
 *Size:* medium. *Version:* none.
 
 ### Q-016 · Suites · test · low · confirmed
+**The local venv is newer than the Python floor.**
 
 *Found by:* reading. *Where:* the checkout's own virtual environment.
 
@@ -955,6 +993,7 @@ newer than the floor, or the venv is made with 3.10.
 *Size:* small. *Version:* none.
 
 ### Q-036 · Suites · security · low · confirmed
+**Audit advisories and a noisy build.**
 
 *Found by:* `npm audit` and `pip-audit` on 25 September 2026.
 
@@ -975,6 +1014,7 @@ weighed, `pdfjs-dist` first, since the preview is built on it.
 *Size:* medium. *Version:* z.
 
 ### Q-037 · Suites · security · low · confirmed
+**Workflow actions are pinned by tag.**
 
 *Found by:* reading. *Where:* every `uses:` line under `.github/workflows/`.
 
@@ -988,6 +1028,7 @@ to commits.
 *Size:* small. *Version:* none.
 
 ### Q-041 · Suites · docs · low · confirmed
+**The documented check times are half the real ones.**
 
 *Found by:* the baseline. *Where:* `docs/testing.md`, the first code block,
 and the comment at the top of `scripts/check.sh`.
@@ -1002,6 +1043,7 @@ say what the time depends on.
 *Size:* small. *Version:* none.
 
 ### Q-042 · Suites · improvement · medium · confirmed
+**The projects screen loads the whole workspace.**
 
 *Found by:* the baseline. *Where:* `bench/thresholds.json`.
 
@@ -1031,6 +1073,7 @@ budget room for years. The fix plan does this before it adds any weight.
 ### The look
 
 ### Q-038 · Look · consistency · medium · confirmed
+**Raw controls and literal sizes outside the kit.**
 
 *Found by:* grep. *Where:* 32 files under `frontend/src/panes/` and
 `frontend/src/App.tsx`.
@@ -1065,6 +1108,7 @@ every animation. A scan for icon-only controls with no name found none.
 What it found is on the newest surfaces. Each lead was checked here.
 
 ### Q-050 · Accessibility · accessibility · high · confirmed
+**The Comments drawer's rows nest buttons.**
 
 *Found by:* reading. *Where:* `frontend/src/panes/CommentsPanel.tsx:55`.
 
@@ -1091,6 +1135,7 @@ the a11y spec opens the Comments drawer.
 *Size:* small. *Version:* z.
 
 ### Q-051 · Accessibility · accessibility · medium · confirmed
+**A thread's card takes no focus.**
 
 *Found by:* reading. *Where:* `frontend/src/panes/CommentCards.tsx`.
 
@@ -1106,6 +1151,7 @@ returns it, and the card is a labelled dialog or region.
 *Size:* small. *Version:* z.
 
 ### Q-052 · Accessibility · accessibility · medium · confirmed
+**The build strip changes without being announced.**
 
 *Found by:* reading. *Where:* `frontend/src/panes/Status.tsx`, and the
 update control in `frontend/src/panes/Projects.tsx`.
@@ -1124,6 +1170,7 @@ own.
 *Size:* small. *Version:* z.
 
 ### Q-053 · Accessibility · accessibility · low · confirmed
+**The pane dividers move only by dragging.**
 
 *Found by:* a reading agent's comfort list, checked here.
 *Where:* the dividers in `frontend/src/chrome.tsx`.
@@ -1166,6 +1213,7 @@ value, and moves with the arrow keys.
   pressed.
 
 ### Q-044 · Agent · improvement · low · confirmed
+**A figure script fails without a figures folder.**
 
 *Found by:* the Ollama leg. *Where:* `nexttex/plots.py:41`, and the
 helper's own `save` at `nexttex/figure_helper.py:110`.
@@ -1189,6 +1237,7 @@ and refused. Each was checked here against the code before it was written
 down. Phase 5's use of the app adds to this section.
 
 ### Q-045 · Files · comfort · medium · confirmed
+**Renaming a file breaks every reference to it.**
 
 *Found by:* a reading agent, checked here. *Where:* `nexttex/rename.py:31`,
 the rename route at `server/main.py:2936`.
@@ -1207,6 +1256,7 @@ rename already is.
 *Size:* medium. *Version:* y.
 
 ### Q-046 · Collaboration · comfort · medium · confirmed
+**A comment cannot suggest a replacement.**
 
 *Found by:* a reading agent, checked here.
 *Where:* `frontend/src/panes/CommentCards.tsx`, `server/collab/comments.py`.
@@ -1224,6 +1274,7 @@ rather than a second being added.
 *Size:* large. *Version:* y.
 
 ### Q-047 · Files · comfort · low · confirmed
+**A project cannot be duplicated.**
 
 *Found by:* a reading agent, checked here.
 *Where:* `frontend/src/panes/Projects.tsx`, and `_copy_tree_skips` in
@@ -1241,6 +1292,7 @@ before the destructive items.
 *Size:* small. *Version:* y.
 
 ### Q-048 · Compile · improvement · low · confirmed
+**No marked-up PDF of what changed.**
 
 *Found by:* a reading agent, checked here.
 
@@ -1264,6 +1316,7 @@ and checked before it was written down. Where a render matched its drawing
 the reading is not repeated.
 
 ### Q-057 · Look · consistency · low · confirmed
+**An undrawn Back on the projects screen.**
 
 *Found by:* the screen pass, checked in the light render of the projects screen and in the code.
 *Where:* `frontend/src/panes/Projects.tsx:728`.
@@ -1283,6 +1336,7 @@ visible change.
 *Size:* small. *Version:* z.
 
 ### Q-058 · Look · consistency · low · confirmed
+**Browse sits outside its field.**
 
 *Found by:* the screen pass, checked in the dark render of the New project sheet.
 *Where:* `frontend/src/panes/Projects.tsx:1243`.
@@ -1299,6 +1353,7 @@ decided.
 *Size:* small. *Version:* z.
 
 ### Q-059 · Look · consistency · low · confirmed
+**The composer menu hides its unchosen options.**
 
 *Found by:* the screen pass, checked in the light render of the composer's
 menu. *Where:* the menu under the composer's chip,
@@ -1318,6 +1373,7 @@ colour on the last.
 *Size:* small. *Version:* z.
 
 ### Q-060 · Look · consistency · low · confirmed
+**The file menu's order and length.**
 
 *Found by:* the screen pass, checked in the light render of a file row's
 menu. *Where:* the file menu in `frontend/src/panes/FileTree.tsx`.
@@ -1335,6 +1391,7 @@ already has a way to reach it.
 *Size:* small. *Version:* z.
 
 ### Q-061 · Look · comfort · low · confirmed
+**The upload sheet does not name its folder.**
 
 *Found by:* the screen pass, checked in the light render of the upload
 sheet and in `frontend/src/panes/UploadStaging.tsx:141`.
@@ -1351,6 +1408,7 @@ text when it is not open to question.
 *Size:* small. *Version:* z.
 
 ### Q-062 · Agent · performance · low · confirmed
+**The composer's menu takes 870 ms to open first.**
 
 *Found by:* the screen pass, whose 1.25 sweep never caught the menu open,
 then `e2e/review/q-model-menu-125.spec.ts`. *Where:* the lazy
@@ -1371,6 +1429,7 @@ rest.
 *Size:* small. *Version:* z.
 
 ### Q-063 · Agent · comfort · low · confirmed
+**A waiting card is pushed behind the composer.**
 
 *Found by:* the screen pass, checked in the dark render of the live Claude
 column. *Where:* `frontend/src/panes/Chat.tsx:438`.
@@ -1398,6 +1457,7 @@ typed and gone 1.9 seconds after it was fixed, History and Download each
 open in under a second. What it could not do, or did twice, is below.
 
 ### Q-064 · Editor · comfort · medium · confirmed
+**No word count on a 1440 pixel laptop.**
 
 *Found by:* the writer journey, then `frontend/src/panes/Status.tsx:178`.
 
@@ -1416,6 +1476,7 @@ less when it has to drop one.
 *Size:* small. *Version:* z.
 
 ### Q-065 · Editor · comfort · low · confirmed
+**Text after end-document is ignored unmarked.**
 
 *Found by:* the writer journey, whose first run typed three lines after
 `\end{document}`, the same mistake the September review recorded making.
@@ -1431,6 +1492,7 @@ with a hover that says TeX ignores it.
 *Size:* small. *Version:* y.
 
 ### Q-066 · Preview · bug · high · confirmed
+**An unclosed brace wipes the preview, which then says the document is empty.**
 
 *Found by:* the writer journey, three runs out of three, then the same
 journey with the file on disk, the PDF route and the last build logged at
@@ -1467,6 +1529,7 @@ finds the PDF gone, the end of `main.tex` and the log's fatal lines.
 *Size:* medium. *Version:* z.
 
 ### Q-068 · Editor · comfort · medium · confirmed
+**A label accepted in a reference leaves its brace open.**
 
 *Found by:* the writer journey, then `e2e/review/q068-ref-completion-brace.spec.ts`.
 *Where:* the editor's completion, `frontend/src/panes/latex-complete.ts`.
@@ -1484,6 +1547,7 @@ cursor after it.
 *Size:* small. *Version:* z.
 
 ### Q-067 · Editor · bug · medium · confirmed
+**The first search typed goes into the document.**
 
 *Found by:* the writer journey, then `e2e/review/q067-search-focus.spec.ts`.
 *Where:* the lazily fetched Search drawer, `frontend/src/panes/SearchPanel.tsx`.
@@ -1506,6 +1570,7 @@ paper.
 ### The documents
 
 ### Q-039 · Documents · docs · medium · confirmed
+**The README counts eleven buttons on the bar.**
 
 *Found by:* a reading agent, checked here. *Where:* `README.md:109` and
 `README.md:856`, against `frontend/src/App.tsx:164`.
@@ -1521,6 +1586,7 @@ them.
 *Size:* small. *Version:* none.
 
 ### Q-049 · Documents · docs · medium · confirmed
+**The README says there are no comments.**
 
 *Found by:* a reading agent, checked here. *Where:* `README.md:1250`.
 
@@ -1535,6 +1601,7 @@ and tracked changes, and points at comments.
 *Size:* small. *Version:* none.
 
 ### Q-040 · Documents · docs · low · confirmed
+**The architecture diagram's route count is stale.**
 
 *Found by:* a reading agent, checked here. *Where:* `docs/architecture.md:17`.
 
@@ -1545,3 +1612,173 @@ named route exists, not a count.
 *What should happen:* the diagram gives no number, or the test checks it.
 
 *Size:* small. *Version:* none.
+
+## What worked
+
+A review that lists only faults is not a picture of the app. These were
+looked at as hard as anything above and held.
+
+- **The suites.** All green at the start, 1137 frontend, 2403 Python and
+  575 browser tests, and the browser tier then ran three more times with
+  retries off, 1725 runs, without one failure.
+- **The server's discipline.** No path-taking route could be made to
+  escape the project, including the ones with no escape test. Every one of
+  the 43 broad `except` blocks logs, reports or has a documented reason.
+  Authentication is uniform, scrypt runs off the loop, comparisons are
+  constant-time, the rate limiter is bounded and keyed on the socket, and
+  the report of a problem redacts before anything reaches the clipboard.
+- **The kit.** An icon button cannot be built without a label, sheets trap
+  and return focus, the settings sheet is a proper set of tabs, one
+  reduced-motion rule covers every animation, and axe finds nothing of
+  serious impact on eleven of the twelve drawers in either theme.
+- **Every width and the fractional scale.** The projects screen and its
+  sheets at five widths down to a phone, and the workspace at a device
+  pixel ratio of 1.25, the first photographs ever taken at a fractional
+  ratio, with no clipping, overlap or blurred hairline anywhere.
+- **The agent, live.** Both providers, against Claude and against a local
+  model, made an edit, drew a figure through its cards, stopped cleanly
+  and replayed after a reload. The live leg cost about $0.55, and the
+  login was untouched.
+- **The speed a writer feels.** A keystroke reaches the screen in about 4
+  ms in a seventy kilobyte chapter, the same as in September, and a
+  second peer in 1.4 ms. A pinch on the page costs 3.8 ms of layout over
+  sixty events. The server starts answering in 0.8 seconds. A new project
+  is on screen, built, in 2.2 seconds.
+- **Outside edits,** in the cases most writers meet: text added above a
+  comment moves it, a rewording keeps it, and a keystroke's merge with a
+  file changed on disk is sound.
+- **The install workflow** passed against master when dispatched, on
+  every platform it covers.
+
+## Unverifiable here
+
+- **The Windows laptop.** It was sent six checks early in the probe: an
+  update from the page, the logon launcher and a restart, a MiKTeX build
+  log with drive-letter paths for Q-019, AltGr on a real layout for Q-030,
+  and the display at 125 percent. The tester session runs over Remote
+  Control and holds a message from another session until someone approves
+  it on that machine; nothing came back. What stood in for it: Playwright
+  at a device pixel ratio of 1.25 for the display, and synthesized key
+  events of the shape Windows sends for AltGr. Q-019, a real update on
+  Windows, and a figure sent between two machines, which September could
+  not test either, remain unverified.
+- **macOS.** Nothing here can run it.
+- **The OpenAI provider against OpenAI itself.** There is no key; a local
+  model stood in.
+- **A real network cut.** Stopping a server is not the same thing, and
+  Chrome's offline emulation does not sever an open socket.
+- **Q-012's rollback.** Reasoned from the code and the service file; a
+  broken commit was not pushed to watch an install loop on it.
+- **Q-066's cause in isolation** was pinned by the journey's own log; the
+  commit that removes the PDF is pdfTeX's, and whether other engines do the
+  same was not tried.
+
+## What the findings have in common
+
+Sixty-eight records: 9 high, 27 medium, 32 low, no blocker. Of them 21 are
+bugs, 11 comfort, 8 performance, 6 test, 5 security, 5 docs, 5
+consistency, 4 accessibility and 3 improvements. Sixty are confirmed, most
+by reproduction, and eight are likely. Grouped by the mechanism that
+produced them, so that one change closes several:
+
+1. **The server's one loop, held.** Q-028, a regular expression that holds
+   the interpreter lock and so stops every thread; Q-043, 72,000
+   diagnostics made relative one by one after a build; Q-029, a walk of
+   the whole project on every open of the reference library; Q-022 and
+   Q-021, the trash and the timeline. The codebase's own rule is that such
+   work runs off the loop, and a thread is not enough when the work never
+   releases the lock.
+2. **A part replacing the whole.** Q-017, a chapter's build replacing the
+   whole document's diagnostics; Q-066, a failed build replacing the last
+   good PDF with nothing; Q-018, a cache keyed on the newest time, which a
+   deletion does not change; Q-026, a fresh registry entry replacing an
+   archived one; Q-025 and Q-027, bulk writes that stop halfway and say
+   nothing about the half that happened.
+3. **A peer's data taken on trust where a local route checks it.** Q-008,
+   comments of any shape and size; Q-009, the path-derived id that merges
+   two people's new chapters, which is September's fix undone; Q-054, an
+   outside edit's character diff leaving a comment on two stray letters;
+   Q-010, the tests that would have caught the first two.
+4. **Two providers, one promise.** Q-001 to Q-004: the OpenAI provider's
+   endings, its round cap, its raw errors, and what the last permission
+   position means under each.
+5. **Code fetched on first use, with nothing held meanwhile.** Q-062, an
+   870 ms first open of the composer's menu; Q-067, the first search
+   typed into the document. The other side of the same decision is Q-042,
+   the whole workspace in the chunk the projects screen loads. Fetching
+   the workspace when a project opens, and prefetching its lazy parts once
+   it has drawn, addresses all three.
+6. **Guards that pass while doing less than they say.** Q-056, the
+   fidelity harness reaching 85 of 98 surfaces and reporting one test
+   passed, and the axe sweep skipping five of eight; Q-009's test calling
+   the private method its fix added, while the path users take went back;
+   the typing driver's header claiming spelling was on; Q-015, timing
+   tests red on CI and missing from the tracker's list of flakes. This is
+   the most reusable lesson here: each of these let a regression through
+   while every light stayed green.
+7. **The newest surfaces relearning old lessons.** Q-050, the Comments rows
+   built the way Diagnostics and History carry comments against; Q-038,
+   raw controls returning after the overhaul; Q-039 and Q-049, the README
+   left behind by comments; Q-057 to Q-061, built surfaces drifting from
+   the page that specifies them.
+8. **Keys.** Q-030, AltGr taken for chords, so three Polish letters cannot
+   be typed on Windows; Q-053, dividers that move only by dragging;
+   Q-051, a thread's card that takes no focus; Q-068, a brace not closed.
+
+## What this means for the order of the fix plan
+
+Each step is its own push, highest version level first within it.
+
+1. **Q-028**, the search that stops the server, on its own, because it is
+   the one security finding with a high severity and it is small.
+2. **Q-066 and Q-068**, then **Q-017**: the preview and the diagnostics
+   telling the truth after a failed or scoped build. These are the ones a
+   writer meets in an ordinary afternoon and believes.
+3. **Q-009**, with Q-008, Q-054 and Q-010: collaboration's trust in a
+   peer, and the test that drives the real path.
+4. **Q-043** with the rest of mechanism 1.
+5. **Q-030**, then Q-067 and Q-062 with Q-042's split of the workspace
+   chunk, which also answers the bundle budget.
+6. **Q-012**, the update that cannot come back, and Q-013.
+7. **Q-031**, the preview's memory.
+8. Mechanism 2's remainder, mechanism 4, then accessibility, Q-050 to
+   Q-053.
+9. **Mechanism 6 as its own run**: make the harness and the review drivers
+   fail when they do less than they claim, and fix Q-015. Doing it before
+   the look work below means that work is checked by tools that are
+   honest.
+10. **The look and the comfort features**, Q-038 the large one, Q-057 to
+    Q-061, Q-045 to Q-048, Q-064 and Q-065. These change what a writer
+    sees, so under `CLAUDE.md` each is drawn on the direction page and
+    approved before it is built.
+11. The documents last, in the same commits as whatever makes them true.
+
+Nearly all of it is patch-level, z. The comfort features that add
+something a writer can newly do, Q-045 to Q-048 and Q-065, are y. Nothing
+here changes what an install is.
+
+## Cost and time
+
+The probe ran on 25 September 2026 from about 23:55 on the 24th to about
+03:05, in one Opus session with Fable as the advisor at the three
+checkpoints the plan names. Commits to `REVIEW.md` went up after each
+area, so the times can be read off the log.
+
+| | |
+|---|---|
+| Baseline, `scripts/check.sh --all` | 22 m 8 s |
+| Flake hunt, three browser tiers with retries off | 53 m, in the background |
+| Fidelity harness, 98 surfaces in two themes | 10.9 m |
+| Live Claude spend | about $0.55, `claude-sonnet-5` |
+| Reading agents on Sonnet | 14, and 3 more while the plan was written |
+| Leads from agents dropped or reframed after checking | about 10 |
+
+What the time went on: reading was again the cheapest source of findings
+per hour, and seven reading agents in parallel covered the code in about
+eight minutes, but a third of their leads needed correcting or dropping,
+and one of them, Q-009, was wrong in a way that hid a worse fault. The
+drivers found what reading could not: Q-066, Q-067 and Q-028's real
+reach all came from running the app. The largest waste was the driver's
+own mistakes, the same one September made, typing after `\end{document}`,
+and a menu measured at 200 ms. Both are fixed in the drivers kept under
+`e2e/review/`.

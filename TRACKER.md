@@ -24,7 +24,15 @@ things go to be forgotten rather than a list anybody reads.
 
 ## In hand
 
-Nothing. The pass after Opus 5.5 closed at 3.18.0 on 24 September 2026;
+The probe, a whole-app review, closed on 25 September 2026 at 3.18.1. Its
+findings are `REVIEW.md`, 68 records, and they are the input to the fix
+plan that comes next; nothing in them is fixed yet. Its report page is
+https://claude.ai/artifact/4mdUwu1mLwVYquc7Bm7vkS. Two of its records
+touch the backlog below: Q-055 on the six browser flakes, which did not
+fail in three full tiers with retries off, and Q-015 on two Python tests
+that did fail on CI and are not listed here.
+
+Before the probe: the pass after Opus 5.5 closed at 3.18.0 on 24 September 2026;
 its tracker page is https://claude.ai/artifact/SqdkLWZHqSaMBS5nvKCRtF.
 It left nothing new in the backlog. The run before it, the roadmap, the
 rest of the backlog and comments, closed at 3.17.4; its tracker page is

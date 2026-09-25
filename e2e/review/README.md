@@ -35,3 +35,38 @@ signed in to a real Claude account, and they spend real money on every run.
 They start nothing, so with no such server they simply fail to connect.
 Nothing in them presses the sign-out control, which would log the machine's
 own `claude` out.
+
+## The probe of 25 September 2026
+
+The second whole-app review, whose findings are `REVIEW.md` at the root of
+the repository, numbered `Q-001` onward. Each driver below reached the
+record it is named for, and prints what it reaches, so the fix plan can
+watch it turn. The Python ones start a sandboxed server through
+`probe_sandbox.py` and stop it by the process they started; run them from
+the repository root with `.venv/bin/python`. The Playwright ones run with
+`review.config.ts`, as above. `NEXTTEX_THESIS` is a project
+`bench.build_project` made.
+
+| driver | record | what it prints at the time of the probe |
+|---|---|---|
+| `q028_search_freeze.py` | Q-028 | the server not answering while one regular-expression search runs |
+| `q043_build_loop_block.py` | Q-043 | the server's longest silence during a full build of the thesis, 17.6 s |
+| `q017-scoped-diagnostics.spec.ts` | Q-017 | a chapter's error gone after typing in another chapter |
+| `q-journey.spec.ts` | Q-064 to Q-067 | a week of a paper, timed, with the preview's PDF on disk, the route and the last build at each step |
+| `q066-failed-build-preview.spec.ts`, `q066_failed_build_preview.py` | Q-066 | the cleaner attempts, which keep the PDF because their errors are not fatal |
+| `q067-search-focus.spec.ts` | Q-067 | where typing lands just after the chord for find across files |
+| `q068-ref-completion-brace.spec.ts` | Q-068 | the brace left open after a label is accepted |
+| `q009_same_path.py` | Q-009 | two peers' `chapters/03.tex` merged into one |
+| `q008_comment_shape.py` | Q-008 | the Comments listing raising on a peer's thread |
+| `q054_comment_outside_edit.py` | Q-054 | a comment left on two letters after an outside edit |
+| `q023_git_and_projects.py` | Q-023, Q-024, Q-026 | conflict markers committed, a detached head, an archived project revived |
+| `q030-altgr.spec.ts` | Q-030 | AltGr letters taken as chords |
+| `q031-pdf-memory.spec.ts` | Q-031 | the canvas held after reading a 600-page thesis, 590 MB |
+| `q033-typing-spelling.spec.ts` | Q-033 | keystroke latency with spelling confirmed on |
+| `q050-axe-drawers.spec.ts` | Q-050 | axe over all twelve drawers, both themes |
+| `q-model-menu-125.spec.ts` | Q-062 | the first open of the composer's menu, 870 ms |
+| `q-collab-keystroke.py` | none | a keystroke reaching a second loopback peer, 1.4 ms |
+
+`a-axe-sweep.spec.ts` above skips five of its eight surfaces since the
+visual overhaul renamed what it clicks, and passes anyway; that is part of
+Q-056, and `q050-axe-drawers.spec.ts` is what replaced it for the probe.
