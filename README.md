@@ -107,8 +107,8 @@ close the tab. No database, no Docker, no nginx.
   preamble each take a hue, which is what makes a long chapter skimmable for
   its shape rather than its words.
 - **One bar, one drawer.** Files, Sections, Search, References, History, Git,
-  People, Build, Before you submit, Download and Deleted are eleven
-  buttons down the left edge, and one drawer shows the one you chose at
+  People, Comments, Build, Before you submit, Download and Deleted are
+  twelve buttons down the left edge, and one drawer shows the one you chose at
   full height, so the tree or the outline can stay open for as long as a
   chapter takes without pushing the other out. People is who is in the
   project and the invite to send; Build is the errors, the log and
@@ -881,9 +881,9 @@ when you close the last of them, while one you added with `+` or clicked on
 stays until you stop it yourself. Reopening a closed tab with `⌘⌥⇧T` /
 `Ctrl-Alt-Shift-T` brings its document back too.
 
-The bar down the left edge has eleven buttons, Files, Sections, Search,
-References, History, Git, People, Build, Before you submit, Download and
-Deleted, and one drawer beside it shows whichever you chose at full
+The bar down the left edge has twelve buttons, Files, Sections, Search,
+References, History, Git, People, Comments, Build, Before you submit,
+Download and Deleted, and one drawer beside it shows whichever you chose at full
 height; a second press on the lit button folds the drawer away, and
 `⌘B` / `Ctrl-B` hides the whole column. The project's name heads the
 column, and the top of every pane is one band across the window.
@@ -1283,8 +1283,9 @@ shared, the chat is not.
 shared project runs their own NextTex and holds the whole thing: the files,
 their history, their own git repository. There are no accounts and no guest
 links, and a collaborator is a public key, so there is nobody to sign up with
-and nothing in the middle to go down. What there is not: comments,
-suggestions, tracked changes, or any notion of who is allowed to do what.
+and nothing in the middle to go down. Comments, and suggested words a
+co-author accepts with one press, are described above. What there is not:
+tracked changes, or any notion of who is allowed to do what.
 Everybody in a shared project can do everything, including inviting somebody
 else, disconnecting somebody else, and leaving.
 

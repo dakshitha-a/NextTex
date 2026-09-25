@@ -75,7 +75,10 @@ ROUTE_DEFINITION = re.compile(
 
 
 def documents() -> list[tuple[str, str]]:
-    return [(name, (ROOT / name).read_text(encoding="utf-8")) for name in DOCUMENTS]
+    # A review's findings are in REVIEW.md only while a fix run works
+    # through them; the file is deleted when the last is fixed.
+    return [(name, (ROOT / name).read_text(encoding="utf-8")) for name in DOCUMENTS
+            if name != "REVIEW.md" or (ROOT / name).exists()]
 
 
 def test_every_file_a_document_names_is_there():

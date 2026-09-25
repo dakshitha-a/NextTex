@@ -14,7 +14,7 @@ That constraint drives most of what follows. A single process means anything syn
    browser ──WS────┤        │                                             │
                    └───────▶│  FastAPI app                                │
                             │    middleware: headers, then the gate       │
-                            │    113 routes                               │
+                            │    its routes, in server/main.py            │
                             │                                             │
                             │  SESSIONS: one ProjectSession per project   │
                             │    ├─ CollabStore   the documents           │

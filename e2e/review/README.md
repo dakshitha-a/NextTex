@@ -38,8 +38,10 @@ own `claude` out.
 
 ## The probe of 25 September 2026
 
-The second whole-app review, whose findings are `REVIEW.md` at the root of
-the repository, numbered `Q-001` onward. Each driver below reached the
+The second whole-app review, whose findings were `REVIEW.md` at the root of
+the repository, numbered `Q-001` onward, until the fix run of the same
+day had fixed or set down every one; the file is in the history, at the
+commit before it was deleted. Each driver below reached the
 record it is named for, and prints what it reaches, so the fix plan can
 watch it turn. The Python ones start a sandboxed server through
 `probe_sandbox.py` and stop it by the process they started; run them from

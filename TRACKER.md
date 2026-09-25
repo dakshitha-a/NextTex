@@ -24,15 +24,15 @@ things go to be forgotten rather than a list anybody reads.
 
 ## In hand
 
-The fix run: the probe's findings, fixed in the order its report
-proposed, one push per step. Its tracker page is
-https://claude.ai/artifact/1PHFeRFMcKicS3PZFCqCzW. The findings are
-`REVIEW.md`, now 72 records with the three the Windows laptop sent after
-the probe closed, and each is marked there as it is fixed. The file is
-deleted when the run ends. Two of the records touch the backlog below:
-Q-055 on the six browser flakes, which did not fail in three full tiers
-with retries off, and Q-015 on two Python tests that did fail on CI and
-are not listed here.
+Nothing is in hand. The fix run closed on 25 September 2026 at 3.19.0,
+having fixed the probe's findings in the order its report proposed, one
+push per step, 3.18.2 to 3.19.0. Its tracker page is
+https://claude.ai/artifact/1PHFeRFMcKicS3PZFCqCzW. The findings were
+`REVIEW.md`, 73 records with the four the Windows laptop sent after the
+probe closed, and the file was deleted at the close once every record was
+fixed or set down below: the cgroup half of Q-007, the kit's remaining
+raw controls (Q-038), the laptop's task that only an administrator can
+change (Q-070), and the major upgrades Q-036 weighed.
 
 The probe itself closed on 25 September 2026 at 3.18.1. Its report page
 is https://claude.ai/artifact/4mdUwu1mLwVYquc7Bm7vkS.
@@ -48,6 +48,16 @@ OpenAI provider against OpenAI itself.
 ## Backlog
 
 ### Known gaps, with a cost somebody will eventually pay
+
+- [ ] **The owner's Windows task has no restart until it is run again
+      as administrator.** A new install's logon task repeats every five
+      minutes, so a server that dies comes back (Q-070). The laptop's task
+      was registered from an administrator shell and gives its owner read
+      access only, so the script could not change it without
+      administrator; it now says so and writes no shortcut beside it.
+      Running the installer once from an administrator PowerShell applies
+      the restart, and a killed server should then be back within five
+      minutes. That is the check left, and it is the owner's to make.
 
 - [ ] **Raw controls and literal sizes outside the kit.** 89 raw
       controls and 331 literal sizes in 52 files when the rule began to

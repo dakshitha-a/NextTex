@@ -1896,6 +1896,9 @@ them.
 
 *Size:* small. *Version:* none.
 
+*Fixed in the fix run's step 11.* Both passages name twelve buttons, Comments
+among them.
+
 ### Q-049 · Documents · docs · medium · confirmed
 **The README says there are no comments.**
 
@@ -1911,6 +1914,9 @@ and tracked changes, and points at comments.
 
 *Size:* small. *Version:* none.
 
+*Fixed in the fix run's step 11.* The passage says comments and suggestions
+are there and names what is not.
+
 ### Q-040 · Documents · docs · low · confirmed
 **The architecture diagram's route count is stale.**
 
@@ -1923,6 +1929,8 @@ named route exists, not a count.
 *What should happen:* the diagram gives no number, or the test checks it.
 
 *Size:* small. *Version:* none.
+
+*Fixed in the fix run's step 11.* The diagram names no count.
 
 ## What worked
 
