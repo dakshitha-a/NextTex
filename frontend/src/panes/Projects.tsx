@@ -1,4 +1,5 @@
 import { lazy, Suspense, useEffect, useRef, useState } from "react";
+import { forgetProject } from "../remember";
 import api, {
   saveBlob,
   type JoinOffer,
@@ -318,6 +319,7 @@ export default function Projects({
     // swallowed.
     try {
       await api.forgetProject(project.id);
+      forgetProject(project.id);
       await refresh();
     } catch (problem: any) {
       setListError(`${project.name}: ${problem.message}`);
@@ -329,6 +331,7 @@ export default function Projects({
       if ((project.state ?? "active") !== "trashed") continue;
       try {
         await api.forgetProject(project.id);
+        forgetProject(project.id);
       } catch (problem: any) {
         setListError(`${project.name}: ${problem.message}`);
       }

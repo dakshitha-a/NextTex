@@ -92,3 +92,38 @@ test("replacing everywhere is asked about first, and says what the undo is", asy
     timeout: 10_000,
   });
 });
+
+test("a replace that cannot save one file names it in a notice and saves the rest", async ({
+  tab, project,
+}) => {
+  // Q-025. One save failing partway ended the replace with a bare error,
+  // and the files already changed were not named. A folder the disk will
+  // not write into is a save that fails for real.
+  const { chmodSync, mkdirSync, readFileSync, writeFileSync } = await import("node:fs");
+  const { join } = await import("node:path");
+  const locked = join(project.root, "locked");
+  mkdirSync(locked);
+  writeFileSync(join(locked, "kept.tex"), "quillwort here\n");
+  writeFileSync(join(project.root, "open.tex"), "quillwort there\n");
+  chmodSync(locked, 0o555);
+  try {
+    await expect(tab.locator(".cm-editor")).toBeVisible({ timeout: 30_000 });
+    await tab.keyboard.press("Control+Shift+F");
+    await tab.getByTestId("project-search").fill("quillwort");
+    await expect(tab.getByTestId("search-hit")).toHaveCount(2, { timeout: 15_000 });
+    await tab.getByTestId("search-replace-toggle").click();
+    await tab.getByTestId("project-replace").fill("sedge");
+    await tab.getByTestId("search-replace-all").click();
+    await tab.getByTestId("search-replace-confirm").click();
+
+    await expect(tab.getByTestId("notices")).toContainText(
+      "Replaced 1 match in 1 file. locked/kept.tex was left as it was: it could not be written.",
+      { timeout: 15_000 },
+    );
+    await expect.poll(() => readFileSync(join(project.root, "open.tex"), "utf-8"))
+      .toBe("sedge there\n");
+    expect(readFileSync(join(locked, "kept.tex"), "utf-8")).toBe("quillwort here\n");
+  } finally {
+    chmodSync(locked, 0o755);
+  }
+});

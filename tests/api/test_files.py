@@ -642,3 +642,65 @@ def test_a_non_canonical_path_still_reaches_the_shared_document(
     assert seen == ["main.tex"]
     assert (project_dir / "main.tex").read_text(encoding="utf-8") == \
         "typed through an odd path"
+
+
+
+
+# Q-011: the rename route takes two paths and had no escape test for
+# either, which CLAUDE.md asks of every route that takes a path.
+
+
+@pytest.mark.parametrize("escape", ESCAPES)
+def test_renaming_from_outside_the_project_is_refused(client, opened, project_dir, escape):
+    outside = project_dir.parent / "outside.tex"
+    outside.write_text("not the project's\n")
+    answer = client.post(f"/api/projects/{opened['id']}/file/rename",
+                         json={"path": escape, "to": "inside.tex"})
+    assert answer.status_code in (400, 403, 404), answer.text
+    assert outside.read_text() == "not the project's\n"
+    assert not (project_dir / "inside.tex").exists()
+
+
+@pytest.mark.parametrize("escape", ESCAPES)
+def test_renaming_to_outside_the_project_is_refused(client, opened, project_dir, escape):
+    answer = client.post(f"/api/projects/{opened['id']}/file/rename",
+                         json={"path": "main.tex", "to": escape})
+    assert answer.status_code in (400, 403, 404), answer.text
+    assert (project_dir / "main.tex").exists()
+    assert not (project_dir.parent / "outside.tex").exists()
+
+
+
+
+def test_an_upload_whose_folder_goes_says_which_files_arrived(client, opened, project_dir, monkeypatch):
+    """Q-027: a folder moved to the trash in another tab between two files
+    of an upload made the next write raise, the route answered 500, and
+    the report of the files already written was lost."""
+    import shutil
+
+    from server import main as server_main
+
+    folder = project_dir / "figures"
+    folder.mkdir(exist_ok=True)
+    real = server_main._ingest
+    seen = []
+
+    def ingest_then_trash(session, target, text):
+        real(session, target, text)
+        seen.append(target.name)
+        if len(seen) == 1:
+            shutil.rmtree(folder)
+
+    monkeypatch.setattr(server_main, "_ingest", ingest_then_trash)
+    answer = client.post(
+        f"/api/projects/{opened['id']}/upload",
+        data={"directory": "figures"},
+        files=[("files", ("one.png", b"\\x89PNG one", "image/png")),
+               ("files", ("two.png", b"\\x89PNG two", "image/png"))],
+    )
+    assert answer.status_code == 200, answer.text
+    body = answer.json()
+    assert body["written"] == ["figures/one.png"]
+    failed = [r for r in body["results"] if r["outcome"] == "failed"]
+    assert [r["name"] for r in failed] == ["two.png"]
+    assert "trash" in failed[0]["reason"]

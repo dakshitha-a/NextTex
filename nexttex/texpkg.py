@@ -58,6 +58,10 @@ _KNOWN: dict[str, str] = {}
 #: One install at a time.  tlmgr keeps a lock of its own and a second run
 #: fails on it, which is a worse answer than waiting.
 _INSTALLING = asyncio.Lock()
+#: The package being installed now, "" when none is. A second project's
+#: Install waited on the lock for up to five minutes and said nothing about
+#: why (Q-020); the drawer asks this while it waits.
+CURRENT = ""
 
 
 #: The managers a TeX's own bin directory can hold, in the order asked:
@@ -218,13 +222,17 @@ async def install(package: str) -> dict:
     if not kind:
         return {"ok": False, "err": "No TeX package manager was found on this computer."}
     argv = install_argv(kind, path, package)
+    global CURRENT
     async with _INSTALLING:
+        CURRENT = package
         try:
             code, output = await _run(argv, INSTALL_TIMEOUT)
         except asyncio.TimeoutError:
             return {"ok": False, "err": "The install was still running after five minutes."}
         except OSError as error:
             return {"ok": False, "err": str(error)}
+        finally:
+            CURRENT = ""
     if code == 0:
         return {"ok": True, "err": ""}
     return {"ok": False, "err": output.strip()[-2000:] or f"{kind} exited with {code}."}

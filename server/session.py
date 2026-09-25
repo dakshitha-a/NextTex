@@ -132,7 +132,7 @@ def _relative_to(root: Path, path: str | None) -> str | None:
     if not path:
         return None
     try:
-        return str(Path(path).resolve().relative_to(root))
+        return Path(path).resolve().relative_to(root).as_posix()
     except (ValueError, OSError):
         return Path(path).name
 BEGIN = re.compile(r"\\begin\s*\{([^}]+)\}")
@@ -478,7 +478,7 @@ class ProjectSession:
         target = self.project.resolve(relative)
         if not target.is_file():
             raise ValueError(f"no such file: {relative}")
-        name = str(target.relative_to(self.project.root.resolve()))
+        name = target.relative_to(self.project.root.resolve()).as_posix()
         existing = self.documents.get(name)
         if existing is not None:
             return existing
@@ -621,7 +621,7 @@ class ProjectSession:
         that cannot build on its own, and `ValueError` when the root would
         share a jobname with a document already registered.
         """
-        name = str(self.project.resolve(relative).relative_to(self.project.root.resolve()))
+        name = self.project.resolve(relative).relative_to(self.project.root.resolve()).as_posix()
         # A registered document is its own answer, however many other roots
         # happen to read it too: a writer who opened it wants to see it.
         if name in self.documents:
@@ -642,7 +642,7 @@ class ProjectSession:
         return state
 
     async def unregister_preview(self, relative: str) -> None:
-        name = str(self.project.resolve(relative).relative_to(self.project.root.resolve()))
+        name = self.project.resolve(relative).relative_to(self.project.root.resolve()).as_posix()
         if name not in self.documents:
             return
         if len(self.documents) == 1:

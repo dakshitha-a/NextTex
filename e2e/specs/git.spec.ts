@@ -1,6 +1,7 @@
 import { test, expect, openProject } from "../fixtures";
 import type { Page } from "@playwright/test";
-import { existsSync } from "node:fs";
+import { execFileSync } from "node:child_process";
+import { existsSync, writeFileSync } from "node:fs";
 import { join } from "node:path";
 import { landed } from "../typing";
 
@@ -235,4 +236,78 @@ test("History lists the commits and opens one; the line you are on names its com
   await expect(history.getByTestId("git-commit")).toHaveCount(2, { timeout: 20_000 });
   await expect(history.getByTestId("git-commit").first()).toContainText("Add a line");
   await expect(here).toContainText("Add a line", { timeout: 10_000 });
+});
+
+/** Past the GitHub offer a repository with no remote opens with. */
+async function pastTheOffer(tab: Page, shown: ReturnType<Page["getByTestId"]>) {
+  const notNow = tab.getByRole("button", { name: "Not now" });
+  await expect(shown.or(notNow)).toBeVisible({ timeout: 20_000 });
+  if (await notNow.isVisible()) await notNow.click();
+}
+
+/** git in the project's folder, the way a terminal beside the app runs it. */
+function git(root: string, ...args: string[]) {
+  return execFileSync("git", args, {
+    cwd: root,
+    encoding: "utf-8",
+    env: {
+      ...process.env,
+      GIT_AUTHOR_NAME: "t", GIT_AUTHOR_EMAIL: "t@t",
+      GIT_COMMITTER_NAME: "t", GIT_COMMITTER_EMAIL: "t@t",
+    },
+  });
+}
+
+test("a merge a terminal left with conflicts is said, and nothing is committed over it", async ({
+  tab, project,
+}) => {
+  // Q-023. The drawer's Commit ran `git add -A`, which marks a conflicted
+  // file resolved whatever it holds, and committed the markers. The file in
+  // conflict is one the editor does not have open, so the merge is all the
+  // terminal's.
+  const root = project.root;
+  git(root, "init", "-q", "-b", "main");
+  // What the app's own init writes: the build is never committed, and a
+  // build writing into it must not stand in the way of a checkout.
+  writeFileSync(join(root, ".gitignore"), "build/\n");
+  writeFileSync(join(root, "notes.tex"), "The first line.\n");
+  git(root, "add", "-A");
+  git(root, "commit", "-qm", "first");
+  git(root, "checkout", "-qb", "other");
+  writeFileSync(join(root, "notes.tex"), "Their line.\n");
+  git(root, "commit", "-qam", "theirs");
+  git(root, "checkout", "-q", "main");
+  writeFileSync(join(root, "notes.tex"), "Our line.\n");
+  git(root, "commit", "-qam", "ours");
+  try { git(root, "merge", "other"); } catch { /* the conflict is the point */ }
+  const head = git(root, "rev-parse", "HEAD");
+
+  await gitDrawer(tab);
+  const block = tab.getByTestId("git-merging");
+  await pastTheOffer(tab, block);
+  await expect(block).toBeVisible({ timeout: 20_000 });
+  await expect(block).toContainText("A merge is in progress.");
+  await expect(block).toContainText("One file still has conflicts: notes.tex.");
+  await expect(block).toContainText("Finish the merge in a terminal");
+  await expect(tab.getByPlaceholder("What changed")).toHaveCount(0);
+  expect(git(root, "rev-parse", "HEAD")).toBe(head);
+});
+
+test("a detached head names the commit it is at", async ({ tab, project }) => {
+  // Q-024. The status header's "HEAD (no branch)" was shown as a branch.
+  const root = project.root;
+  git(root, "init", "-q", "-b", "main");
+  // What the app's own init writes: the build is never committed, and a
+  // build writing into it must not stand in the way of a checkout.
+  writeFileSync(join(root, ".gitignore"), "build/\n");
+  git(root, "add", "-A");
+  git(root, "commit", "-qm", "first");
+  git(root, "checkout", "-q", "--detach");
+  const short = git(root, "rev-parse", "--short", "HEAD").trim();
+
+  await gitDrawer(tab);
+  const where = tab.getByTestId("git-detached");
+  await pastTheOffer(tab, where);
+  await expect(where).toHaveText(`detached at ${short}`, { timeout: 20_000 });
+  await expect(tab.getByTestId("drawer")).not.toContainText("HEAD (no branch)");
 });

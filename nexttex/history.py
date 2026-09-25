@@ -102,6 +102,12 @@ FORMAT = "2"
 #: The `source` a version carries when the watcher recorded it: the tick's
 #: stamp, `outside:<ms>`, shared by every file that tick touched.
 OUTSIDE = "outside:"
+#: The stamp every version one replace across the project records shares,
+#: so the History drawer folds them into one row as it folds a watcher
+#: tick (Q-025).
+REPLACE = "replace:"
+#: Sources whose versions the timeline folds, one row per stamp.
+FOLDED = (OUTSIDE, REPLACE)
 
 
 def _source_class(source: str) -> str:
@@ -665,7 +671,7 @@ class History:
         ticks: dict[str, dict] = {}
         for entry in entries:
             source = entry.get("source") or ""
-            if not source.startswith(OUTSIDE):
+            if not source.startswith(FOLDED):
                 folded.append(entry)
                 continue
             tick = ticks.get(source)
@@ -675,7 +681,12 @@ class History:
             else:
                 tick["paths"].append(entry["path"])
                 tick["count"] += 1
-        for tick in ticks.values():
+        for source, tick in ticks.items():
+            # A replace's row names the files it changed from the versions
+            # it recorded, so a file it could not save is not counted.
+            if source.startswith(REPLACE) and tick.get("why"):
+                files = tick["count"]
+                tick["why"] = f"{tick['why']} in {files} {'file' if files == 1 else 'files'}"
             if tick["count"] == 1:
                 del tick["paths"], tick["count"]
             else:

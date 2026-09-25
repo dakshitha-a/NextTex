@@ -141,3 +141,20 @@ def test_a_citation_carries_its_authors_venue_and_doi(tmp_path):
     assert second["authors"] == "One, Two, Three and 2 more"
     assert second["venue"] == "Proceedings of Something"
     assert second["doi"] == ""
+
+
+def test_deleting_a_file_that_is_not_the_newest_drops_its_labels(tmp_path):
+    """Q-018: the stamp was the newest modification time alone, and a
+    deletion of any other file left it where it was, so a chapter a pull
+    removed kept its labels in completion until something else changed."""
+    import os, time
+
+    root = project(tmp_path)
+    old = time.time() - 100
+    os.utime(root / "chapters" / "one.tex", (old, old))
+    cache = SymbolCache(root)
+    first = cache.get(build_dir=root / "build")
+    assert "sec:one" in [label["name"] for label in first.labels]
+    (root / "chapters" / "one.tex").unlink()
+    second = cache.get(build_dir=root / "build")
+    assert "sec:one" not in [label["name"] for label in second.labels]

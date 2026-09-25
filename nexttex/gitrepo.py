@@ -137,11 +137,24 @@ class Status:
     remote: str = ""
     changes: list[dict] | None = None
     detail: str = ""
+    #: A merge started in a terminal and not finished, and the paths it
+    #: left in conflict. `git add -A` marks a conflicted file resolved
+    #: whatever it holds, so the drawer's commit wrote the markers into
+    #: the manuscript (Q-023); the drawer says so and does not commit.
+    merging: bool = False
+    conflicts: list[str] | None = None
+    #: The commit a detached head is at, short, and "" on a branch. The
+    #: status header says "HEAD (no branch)" there, which the drawer showed
+    #: as the branch's name (Q-024).
+    detached: str = ""
 
     def as_dict(self) -> dict:
         return {
             "repository": self.repository,
             "branch": self.branch,
+            "merging": self.merging,
+            "conflicts": self.conflicts or [],
+            "detached": self.detached,
             "ahead": self.ahead,
             "behind": self.behind,
             "remote": self.remote,
@@ -187,6 +200,8 @@ def status(root: Path) -> Status:
         if line.startswith("## "):
             head = line[3:]
             branch = head.split("...")[0].strip()
+            if branch.startswith("HEAD (no branch)"):
+                branch = ""
             if match := re.search(r"ahead (\d+)", head):
                 ahead = int(match.group(1))
             if match := re.search(r"behind (\d+)", head):
@@ -208,7 +223,35 @@ def status(root: Path) -> Status:
         pass
     # A URL can carry a token if someone pasted one in; never send it back.
     remote = re.sub(r"//[^/@]*@", "//", remote)
-    return Status(True, branch, ahead, behind, remote, changes)
+    detached = ""
+    if not branch:
+        try:
+            detached = _run(root, "rev-parse", "--short", "HEAD", timeout=15).strip()
+        except GitError:
+            detached = ""
+    return Status(
+        True, branch, ahead, behind, remote, changes,
+        merging=_merging(root), conflicts=_conflicted(changes), detached=detached,
+    )
+
+
+#: The two-letter states `git status` gives a path a merge left unmerged.
+UNMERGED = {"DD", "AU", "UD", "UA", "DU", "AA", "UU"}
+
+
+def _conflicted(changes: list[dict]) -> list[str]:
+    return [change["path"] for change in changes if change.get("state") in UNMERGED]
+
+
+def _merging(root: Path) -> bool:
+    """Whether a merge is in progress, which `MERGE_HEAD` says. Asked of
+    git for the directory, since a worktree keeps it somewhere else."""
+    try:
+        where = _run(root, "rev-parse", "--git-path", "MERGE_HEAD", timeout=15).strip()
+    except GitError:
+        return False
+    target = Path(where)
+    return (target if target.is_absolute() else root / target).exists()
 
 
 def diff(root: Path, relative: str) -> str:
@@ -259,6 +302,17 @@ def diff(root: Path, relative: str) -> str:
 def commit(root: Path, message: str) -> str:
     if not message.strip():
         raise GitError("a commit needs a message")
+    # Refused before `git add -A`, which would mark every conflicted file
+    # resolved whatever it holds and commit the markers (Q-023).
+    if _merging(root):
+        stuck = _conflicted(status(root).changes or [])
+        if stuck:
+            raise GitError(
+                "a merge is in progress and " + ", ".join(stuck[:3])
+                + (" and more" if len(stuck) > 3 else "")
+                + (" still has" if len(stuck) == 1 else " still have")
+                + " conflicts; finish the merge in a terminal first"
+            )
     _run(root, "add", "-A")
     try:
         return _run(root, "commit", "-m", message)

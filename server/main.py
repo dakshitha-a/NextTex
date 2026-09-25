@@ -52,6 +52,7 @@ from server.collab import identity as collab_identity
 from server.collab import transport as collab_transport
 from server.collab.peers import PeerNetwork, WELL_FORMED_SHARE_ID
 from server.collab.store import CollabStore
+from nexttex.history import REPLACE as history_replace
 from server import comeback
 from server.transcript import TranscriptError
 from nexttex.atomic import (
@@ -2625,7 +2626,7 @@ async def read_file(project_id: str, path: str):
 
 
 async def _save_text(session: ProjectSession, target: Path, text: str, *,
-                     source: str = "") -> str | None:
+                     source: str = "", why: str = "") -> str | None:
     """Write one file, record a version of it, and fold it into the share.
 
     The five steps `write_file` has always taken, in the order it takes
@@ -2653,7 +2654,7 @@ async def _save_text(session: ProjectSession, target: Path, text: str, *,
     session.mark_written(target)
     await asyncio.to_thread(
         session.record_version, target, text,
-        by="you", previous=previous, source=source,
+        by="you", previous=previous, source=source, why=why,
     )
     # And into the shared document, so anybody with this file open sees it
     # arrive rather than finding out at their next reload.
@@ -2839,12 +2840,35 @@ async def replace_in_project(
     except search.SearchError as error:
         raise HTTPException(400, str(error))
 
+    # One stamp for every version this replace records, so the History
+    # drawer shows it as one row with its files under it (Q-025).
+    stamp = f"{history_replace}{secrets.token_hex(6)}"
+    def short(text: str) -> str:
+        return text if len(text) <= 40 else text[:39] + "…"
+
+    # The timeline adds "in N files" from the versions recorded, so a file
+    # this replace could not save is not counted in it.
+    why = f"Replaced {short(q)} with {short(to)}"
     changed: list[str] = []
+    failed: list[dict] = []
     replaced = 0
     for relative, (after, count) in replacements.items():
         if not count or after == texts[relative]:
             continue
-        await _save_text(session, _safe(session, relative), after, source=origin)
+        # One file that cannot be saved, renamed a moment before or
+        # refused, no longer ends the replace with a bare error and no word
+        # about the files already changed (Q-025): it is named, and the
+        # rest go on.
+        try:
+            await _save_text(session, _safe(session, relative), after,
+                             source=stamp, why=why)
+        except HTTPException as error:
+            # A refusal says why in words already; a disk that said no
+            # gives an errno, which is not a sentence for a notice.
+            reason = (str(error.detail) if error.status_code < 500
+                      else "it could not be written")
+            failed.append({"path": relative, "reason": reason})
+            continue
         changed.append(relative)
         replaced += count
 
@@ -2854,7 +2878,7 @@ async def replace_in_project(
             "type": "files_changed", "paths": changed, "origin": origin,
             "structural": False,
         })
-    return {"files": len(changed), "replaced": replaced, "paths": changed}
+    return {"files": len(changed), "replaced": replaced, "paths": changed, "failed": failed}
 
 
 @app.get("/api/projects/{project_id}/references")
@@ -3228,6 +3252,13 @@ async def tex_package_for(project_id: str, file: str):
     if not texpkg.MISSING_FILE.match(file or ""):
         raise HTTPException(400, "not a file a package could provide")
     return await texpkg.package_for_file(file)
+
+
+@app.get("/api/tex/installing")
+async def tex_installing():
+    """Which package this computer is installing now, "" when none: a
+    second project's Install waits for it, and says so while it does."""
+    return {"package": texpkg.CURRENT}
 
 
 @app.post("/api/projects/{project_id}/tex/install")
@@ -3761,10 +3792,25 @@ async def upload(
             raise HTTPException(409, f"{name} is a folder")
 
         temp = target.with_name(target.name + ".part")
-        with temp.open("wb") as handle:
-            while chunk := await item.read(1 << 20):
-                handle.write(chunk)
-        temp.replace(target)
+        # One file that cannot be written, because its folder was moved to
+        # the trash in another tab a moment ago or the disk said no, is a
+        # file that did not arrive. It raised out of the route, a 500, and
+        # the report of the files already written went with it, so the
+        # writer did not know which had arrived (Q-027).
+        try:
+            with temp.open("wb") as handle:
+                while chunk := await item.read(1 << 20):
+                    handle.write(chunk)
+            temp.replace(target)
+        except OSError:
+            temp.unlink(missing_ok=True)
+            gone = not target.parent.exists()
+            results.append({
+                "name": name, "path": "", "outcome": "failed",
+                "reason": "the folder was moved to the trash during the upload"
+                if gone else "it could not be written",
+            })
+            continue
         accepted += size
         session.mark_written(target)
         relative = session.project.relative(target)

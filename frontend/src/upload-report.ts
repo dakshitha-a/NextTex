@@ -1,5 +1,14 @@
 import type { UploadResult } from "./api";
 
+/** The outcomes of a file that is now in the project. */
+const ARRIVED = new Set(["written", "replaced", "renamed"]);
+
+/** The folder a project path is in, "" at the top. */
+function directoryOf(path: string): string {
+  const cut = path.lastIndexOf("/");
+  return cut > 0 ? path.slice(0, cut) : "";
+}
+
 /** "a", "a and b", "a, b and c". */
 function list(names: string[]): string {
   if (names.length <= 1) return names[0] ?? "";
@@ -27,6 +36,26 @@ export function whatDidNotLand(results: UploadResult[]): string {
   const refused = named("refused");
   const tooBig = named("too-big");
   const parts: string[] = [];
+  // A file the server could not write, with the reason it gave: the folder
+  // it was going into went to the trash during the upload, most often
+  // (Q-027). Said first, with how many of the files did arrive and where,
+  // since the upload went on past it.
+  const failed = results.filter((r) => r.outcome === "failed");
+  if (failed.length) {
+    const arrived = results.filter((r) => ARRIVED.has(r.outcome));
+    const offered = arrived.length + failed.length;
+    const folder = arrived.length ? directoryOf(arrived[0].path) : "";
+    const reasons = new Set(failed.map((r) => r.reason ?? "it could not be written"));
+    // The server's reasons are about one file; several share it as "they".
+    const one = [...reasons][0] ?? "";
+    const reason = failed.length > 1 ? one.replace(/^it /, "they ") : one;
+    const why = reasons.size === 1 ? `, because ${reason}` : "";
+    parts.push(
+      `${arrived.length} of ${offered} ${offered === 1 ? "file" : "files"} arrived` +
+        (folder ? ` in ${folder}` : "") +
+        `. ${list(failed.map((r) => r.name))} did not${why}`,
+    );
+  }
 
   if (refused.length) {
     parts.push(

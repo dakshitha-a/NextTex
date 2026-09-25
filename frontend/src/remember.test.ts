@@ -1,6 +1,6 @@
 import { afterEach, describe, expect, it, vi } from "vitest";
 
-import { forget, keep, recall, recallText } from "./remember";
+import { forget, forgetProject, keep, recall, recallText } from "./remember";
 
 afterEach(() => {
   // Unstubbed first: a test that replaced localStorage with something that
@@ -59,5 +59,20 @@ describe("what the interface remembers", () => {
     expect(recallText("nexttex.lastProject")).toBe("abc123");
     forget("nexttex.lastProject");
     expect(recallText("nexttex.lastProject")).toBe("");
+  });
+});
+
+describe("forgetting a project forgets what was remembered about it", () => {
+  // Q-035: the drawer, folds, widths and open tabs stayed in the browser
+  // after the project was forgotten, one set per project, for ever.
+  it("removes every key of ours that ends in its id, and nothing else", () => {
+    window.localStorage.clear();
+    for (const key of ["nexttex.drawer.p1", "nexttex.open.p1", "nexttex.backup.dismissed.p1",
+                       "nexttex.drawer.p12", "nexttex.words", "other.p1"]) {
+      window.localStorage.setItem(key, "{}");
+    }
+    forgetProject("p1");
+    const left = Object.keys(window.localStorage).sort();
+    expect(left).toEqual(["nexttex.drawer.p12", "nexttex.words", "other.p1"]);
   });
 });

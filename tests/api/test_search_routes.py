@@ -142,3 +142,52 @@ def test_a_runaway_replace_changes_no_file(client, opened):
     assert answer.status_code == 400
     read = client.get(f"/api/projects/{pid}/file", params={"path": "a.tex"})
     assert read.json()["text"] == "aaa done"
+
+
+
+
+def test_a_replace_that_cannot_save_one_file_says_which_and_saves_the_rest(
+    client, opened, monkeypatch,
+):
+    """Q-025: one save failing partway ended the replace with a bare error;
+    the files already saved stayed changed and nothing said which."""
+    from fastapi import HTTPException
+
+    from server import main as server_main
+
+    pid = opened["id"]
+    seed(client, pid, "a.tex", "quill this\n")
+    seed(client, pid, "b.tex", "quill that\n")
+    seed(client, pid, "c.tex", "quill more\n")
+    real = server_main._save_text
+
+    async def refusing(session, target, text, **kwargs):
+        if target.name == "b.tex":
+            raise HTTPException(409, "it was renamed a moment before")
+        return await real(session, target, text, **kwargs)
+
+    monkeypatch.setattr(server_main, "_save_text", refusing)
+    answer = client.post(f"/api/projects/{pid}/search/replace",
+                         json={"q": "quill", "with": "quote"})
+    assert answer.status_code == 200, answer.text
+    body = answer.json()
+    assert sorted(body["paths"]) == ["a.tex", "c.tex"]
+    assert body["failed"] == [{"path": "b.tex", "reason": "it was renamed a moment before"}]
+    # History's row counts the files that changed, not the one left alone.
+    rows = client.get(f"/api/projects/{pid}/history/timeline").json()["versions"]
+    folded = [row for row in rows if row.get("count")]
+    assert folded[0]["why"] == "Replaced quill with quote in 2 files"
+    assert set(folded[0]["paths"]) == {"a.tex", "c.tex"}
+
+
+def test_one_replace_is_one_row_in_the_projects_history(client, opened):
+    """The versions one replace records share a stamp, and the History
+    drawer's timeline folds them into one row with the files under it."""
+    pid = opened["id"]
+    seed(client, pid, "a.tex", "quill this\n")
+    seed(client, pid, "b.tex", "quill that\n")
+    client.post(f"/api/projects/{pid}/search/replace", json={"q": "quill", "with": "quote"})
+    rows = client.get(f"/api/projects/{pid}/history/timeline").json()["versions"]
+    folded = [row for row in rows if row.get("count")]
+    assert folded and set(folded[0]["paths"]) == {"a.tex", "b.tex"}
+    assert folded[0]["why"] == "Replaced quill with quote in 2 files"

@@ -52,4 +52,21 @@ describe("what the writer is told about an upload", () => {
     expect(said).toContain("scan.tiff");
     expect(said.endsWith(".")).toBe(true);
   });
+
+  it("says how many arrived and which did not when a write failed (Q-027)", () => {
+    const said = whatDidNotLand([
+      { name: "a.pdf", path: "figures/a.pdf", outcome: "written" },
+      { name: "b.pdf", path: "figures/b.pdf", outcome: "written" },
+      {
+        name: "spectrum.pdf",
+        path: "",
+        outcome: "failed",
+        reason: "the folder was moved to the trash during the upload",
+      },
+    ] as any);
+    expect(said).toBe(
+      "2 of 3 files arrived in figures. spectrum.pdf did not, because the " +
+        "folder was moved to the trash during the upload.",
+    );
+  });
 });

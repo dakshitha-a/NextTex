@@ -103,3 +103,58 @@ test("a missing package is installed from its row in two presses, and the build 
     await app.stop();
   }
 });
+
+test("an install queued behind another project's says it is waiting, then installs", async ({
+  page,
+}, info) => {
+  // Q-020. TeX's packages go in one at a time for the whole computer, and a
+  // second project's Install waited up to five minutes saying nothing.
+  const app = await startServer({
+    NEXTTEX_TLMGR: join(ROOT, "tests", "fake_tlmgr.py"),
+    NEXTTEX_FAKE_TLMGR_LOG: join(info.outputPath(), "tlmgr.jsonl"),
+    NEXTTEX_FAKE_TLMGR_SLOW: "8",
+  });
+  try {
+    const other = await seedProject(app, `tex-other-${Date.now()}`);
+    const project = await seedProject(app, `tex-${Date.now()}`);
+    await put(
+      app, project.id, "main.tex",
+      "\\documentclass{article}\n\\usepackage{nothere}\n\\begin{document}\nHello.\n\\end{document}\n",
+    );
+    await page.goto(`${app.base}/?token=${app.token}`);
+    await page.getByText("Projects", { exact: false }).first().waitFor();
+    await openProject(page, project.root);
+    await expect(page.getByTestId("status")).toHaveAttribute("data-state", "errors", {
+      timeout: 60_000,
+    });
+    await page.getByTestId("status").click();
+    await page.getByTestId("diagnostics").getByRole("button", { name: /nothere\.sty/ }).first().click();
+    const install = page.getByTestId("tex-install");
+    await expect(install).toHaveText("Install nothere-pkg", { timeout: 15_000 });
+    await install.click();
+
+    // The other project's install starts first and holds the lock.
+    const first = fetch(`${app.base}/api/projects/${other.id}/tex/install`, {
+      method: "POST",
+      headers: { "content-type": "application/json", "x-nexttex-token": app.token },
+      body: JSON.stringify({ package: "slow-pkg" }),
+    });
+    await expect.poll(async () => {
+      const now = await fetch(`${app.base}/api/tex/installing`, {
+        headers: { "x-nexttex-token": app.token },
+      });
+      return (await now.json()).package;
+    }, { timeout: 10_000 }).toBe("slow-pkg");
+
+    await install.click();
+    await expect(install).toHaveText("Waiting to install nothere-pkg", { timeout: 5_000 });
+    await expect(page.getByTestId("tex-install-waiting")).toHaveText(
+      "Another project on this computer is installing a package. This one starts when that finishes.",
+    );
+    await first;
+    await expect(page.getByTestId("tex-install-done")).toBeVisible({ timeout: 20_000 });
+    await expect(page.getByTestId("tex-install-waiting")).toHaveCount(0);
+  } finally {
+    await app.stop();
+  }
+});

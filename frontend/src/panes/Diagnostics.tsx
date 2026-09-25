@@ -36,6 +36,8 @@ function InstallPackage({ file }: { file: string }) {
   const [found, setFound] = useState<{ package: string; manager: string } | null>(null);
   const [installing, setInstalling] = useState<"" | "asked" | "running" | "done">("");
   const [said, setSaid] = useState("");
+  /** Another project's package, while this one waits for it (Q-020). */
+  const [behind, setBehind] = useState("");
 
   useEffect(() => {
     let live = true;
@@ -68,6 +70,14 @@ function InstallPackage({ file }: { file: string }) {
       return;
     }
     setInstalling("running");
+    // TeX's packages are installed one at a time for the whole computer, so
+    // this may queue behind another project's; asked while it waits, so the
+    // button can say why nothing is happening.
+    const asking = window.setInterval(() => {
+      api.texInstalling()
+        .then((now) => setBehind(now.package && now.package !== pkg ? now.package : ""))
+        .catch(() => undefined);
+    }, 1000);
     try {
       const answer = await api.texInstall(projectId, pkg);
       if (answer.ok) {
@@ -79,6 +89,9 @@ function InstallPackage({ file }: { file: string }) {
     } catch (problem: any) {
       setSaid(problem?.message ?? String(problem));
       setInstalling("");
+    } finally {
+      window.clearInterval(asking);
+      setBehind("");
     }
   };
 
@@ -100,7 +113,7 @@ function InstallPackage({ file }: { file: string }) {
           }}
         >
           {installing === "running"
-            ? `Installing ${pkg}`
+            ? behind ? `Waiting to install ${pkg}` : `Installing ${pkg}`
             : installing === "asked"
               ? `Yes, install ${pkg}`
               : `Install ${pkg}`}
@@ -109,6 +122,12 @@ function InstallPackage({ file }: { file: string }) {
       {installing === "asked" ? (
         <span className="t-meta text-ink-2">
           Downloads {pkg} from a CTAN mirror with tlmgr, then builds again.
+        </span>
+      ) : null}
+      {installing === "running" && behind ? (
+        <span className="t-meta w-full text-ink-3" data-testid="tex-install-waiting">
+          Another project on this computer is installing a package. This one
+          starts when that finishes.
         </span>
       ) : null}
       {said ? (

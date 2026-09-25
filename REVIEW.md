@@ -228,6 +228,9 @@ count and the newest time together, so a deletion is a change.
 
 *Size:* small. *Version:* z.
 
+*Fixed in 3.18.10.* The symbol cache's stamp carries the file count and a hash
+of the names, so a deletion is a change.
+
 ### Q-019 · Compile · bug · medium · confirmed
 **Windows drive paths confuse the log parser.**
 
@@ -257,6 +260,9 @@ log's line width. The fix's test uses these lines.
 
 *Size:* small. *Version:* z.
 
+*Fixed in 3.18.10.* The file pattern takes a drive letter and either
+separator, with the laptop's log lines as the test.
+
 ### Q-020 · Compile · comfort · low · likely
 **A queued TeX install says nothing about why.**
 
@@ -271,6 +277,9 @@ nothing about why.
 *What should happen:* the drawer says another project's install is running.
 
 *Size:* small. *Version:* z.
+
+*Fixed in 3.18.10.* While a second project's install waits, its button says so
+and a line names why.
 
 ### Files, history, trash and git
 
@@ -340,6 +349,9 @@ terminal has finished it.
 
 *Size:* small. *Version:* z.
 
+*Fixed in 3.18.10.* The drawer says a merge is in progress, names the files in
+conflict, and does not commit until it is done.
+
 ### Q-024 · Files · comfort · low · confirmed
 **A detached head shows as a branch name.**
 
@@ -353,6 +365,8 @@ same driver.
 *What should happen:* a detached head is named as such, with its commit.
 
 *Size:* small. *Version:* z.
+
+*Fixed in 3.18.10.* A detached head reads "detached at" and the short commit.
 
 ### Q-025 · Files · bug · medium · confirmed
 **Replace-all stops halfway without saying so.**
@@ -373,6 +387,9 @@ History drawer folds them into one row that can be undone together.
 
 *Size:* medium. *Version:* z.
 
+*Fixed in 3.18.10.* A file that cannot be saved is named with its reason and
+the rest are saved; one replace is one History row.
+
 ### Q-026 · Projects · bug · low · confirmed
 **Adding a folder revives an archived project.**
 
@@ -392,6 +409,8 @@ back.
 
 *Size:* small. *Version:* z.
 
+*Fixed in 3.18.10.* Adding a folder already listed keeps its entry's state.
+
 ### Q-027 · Files · bug · medium · likely
 **An upload into a vanished folder loses its report.**
 
@@ -408,6 +427,9 @@ written is lost, so the writer does not know which arrived.
 and the files already written are listed.
 
 *Size:* small. *Version:* z.
+
+*Fixed in 3.18.10.* A file that cannot be written is reported as failed, with
+the reason, beside the files that arrived.
 
 ### Q-028 · Files · security · high · confirmed
 **One regex search stops the whole server.**
@@ -619,6 +641,9 @@ and forgets projects often, and the keys only accumulate.
 *What should happen:* forgetting a project forgets its keys.
 
 *Size:* small. *Version:* z.
+
+*Fixed in 3.18.10.* Forgetting a project forgets what the browser remembered
+for it.
 
 ### The agent
 
@@ -898,6 +923,8 @@ either has an escape test or takes no path at all.
 *What should happen:* the rename route gets escape tests for both fields.
 
 *Size:* small. *Version:* none.
+
+*Fixed in 3.18.10.* The rename route has escape tests for both of its paths.
 
 ### Install and update
 
@@ -1672,6 +1699,9 @@ paper.
 
 *Size:* small. *Version:* z.
 
+*Fixed in 3.18.7.* The drawer's chunk is prefetched, and until it has
+arrived the chord holds what is typed for the box.
+
 ### The Windows leg, after the close
 
 The Windows tester session sent its results on 25 September 2026, after
@@ -1721,6 +1751,9 @@ separator, where everywhere else it uses a forward slash.
 
 *Size:* small. *Version:* z.
 
+*Fixed in 3.18.10.* Every path the server names a file by uses forward
+slashes.
+
 ### Q-072 · Install · comfort · low · confirmed
 **The update dialog's heading lags behind git's output.**
 
@@ -1734,9 +1767,6 @@ commits, the dialog's heading still reads "Fetching the new version".
 *Size:* small. *Version:* z.
 
 *Fixed in 3.18.8.* git's own lines move the step to Updating the files.
-
-*Fixed in 3.18.7.* The drawer's chunk is prefetched, and until it has
-arrived the chord holds what is typed for the box.
 
 ### Q-073 · Install · bug · low · confirmed
 **The update dialog says "up to date" for hours after an update exists.**

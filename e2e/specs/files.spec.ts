@@ -521,3 +521,44 @@ test("a file can be duplicated from its row in the tree, and so can a folder", a
     timeout: 10_000,
   });
 });
+
+test("an upload whose folder went to the trash partway says which files arrived", async ({
+  tab,
+}) => {
+  // Q-027. The route answered 500 and the report of the files already
+  // written went with it. The server half is `tests/api/test_files.py`;
+  // here the drawn answer is served, so the notice is the one the writer
+  // reads when another tab trashes the folder between two files.
+  await tab.route("**/api/projects/*/upload*", (route) =>
+    route.fulfill({
+      status: 200,
+      contentType: "application/json",
+      body: JSON.stringify({
+        written: ["figures/a.pdf", "figures/b.pdf"],
+        results: [
+          { name: "a.pdf", path: "figures/a.pdf", outcome: "written" },
+          { name: "b.pdf", path: "figures/b.pdf", outcome: "written" },
+          {
+            name: "spectrum.pdf", path: "", outcome: "failed",
+            reason: "the folder was moved to the trash during the upload",
+          },
+        ],
+      }),
+    }),
+  );
+  await tab.getByTestId("upload").click();
+  await tab.locator("#nx-upload").setInputFiles([
+    { name: "a.pdf", mimeType: "application/pdf", buffer: Buffer.from("%PDF-1.4\n") },
+    { name: "b.pdf", mimeType: "application/pdf", buffer: Buffer.from("%PDF-1.4\n") },
+    { name: "spectrum.pdf", mimeType: "application/pdf", buffer: Buffer.from("%PDF-1.4\n") },
+  ]);
+  const chooser = tab.getByTestId("upload-staging");
+  await expect(chooser).toBeVisible({ timeout: 10_000 });
+  await chooser.getByRole("button", { name: /Into/ }).click();
+  await chooser.getByRole("option", { name: "figures" }).click();
+  await chooser.getByRole("button", { name: "Upload", exact: true }).click();
+  await expect(tab.getByTestId("notices")).toContainText(
+    "2 of 3 files arrived in figures. spectrum.pdf did not, because the folder was moved to the trash during the upload.",
+    { timeout: 15_000 },
+  );
+});

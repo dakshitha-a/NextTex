@@ -315,6 +315,11 @@ export type State = {
     behind: number;
     remote: string;
     changes: { state: string; path: string }[];
+    /** A merge a terminal left unfinished, and the paths still in conflict. */
+    merging?: boolean;
+    conflicts?: string[];
+    /** The commit a detached head is at, or "" on a branch. */
+    detached?: string;
     gh: boolean;
     ghReason: string;
   } | null;

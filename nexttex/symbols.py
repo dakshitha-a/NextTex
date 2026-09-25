@@ -477,7 +477,7 @@ class SymbolCache:
 
     def __init__(self, root: Path):
         self.root = root
-        self._stamp: float = -1.0
+        self._stamp: tuple = ()
         self._value: Symbols | None = None
 
     def get(self, *, excluded=None, build_dir: Path | None = None) -> Symbols:
@@ -489,6 +489,7 @@ class SymbolCache:
         """
         files = walk_project(self.root, excluded=excluded, build_dir=build_dir)
         newest = 0.0
+        names: list[str] = []
         for path in files:
             if path.suffix.lower() not in STAMP_SUFFIXES:
                 continue
@@ -496,9 +497,16 @@ class SymbolCache:
                 newest = max(newest, path.stat().st_mtime)
             except OSError:
                 continue
-        if self._value is None or newest != self._stamp:
+            names.append(str(path))
+        # The newest time alone did not move when a file that was not the
+        # newest was deleted, so everything it defined stayed in completion
+        # and the hover cards until some other file was touched (Q-018). The
+        # set of files is part of the stamp too, so a deletion, or a rename,
+        # is a change.
+        stamp = (newest, len(names), hash(tuple(sorted(names))))
+        if self._value is None or stamp != self._stamp:
             self._value = scan(
                 self.root, excluded=excluded, build_dir=build_dir, files=files,
             )
-            self._stamp = newest
+            self._stamp = stamp
         return self._value

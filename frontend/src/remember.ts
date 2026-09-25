@@ -55,3 +55,26 @@ export function forget(key: string): void {
     /* as above */
   }
 }
+
+/** Everything remembered about one project: its drawer, folds, widths,
+ *  open tabs and the rest, all kept under keys that end in its id.
+ *
+ *  Forgetting a project left them behind, and a writer who keeps one
+ *  project per job application makes and forgets projects often, so the
+ *  keys only accumulated (Q-035). Matched by the id at the end of a key
+ *  of ours rather than by a list of names, so a key a later change adds
+ *  goes too. */
+export function forgetProject(id: string): void {
+  if (!id) return;
+  try {
+    const store = window.localStorage;
+    const mine: string[] = [];
+    for (let index = 0; index < store.length; index += 1) {
+      const key = store.key(index);
+      if (key && key.startsWith("nexttex.") && key.endsWith(`.${id}`)) mine.push(key);
+    }
+    for (const key of mine) store.removeItem(key);
+  } catch {
+    /* as above */
+  }
+}

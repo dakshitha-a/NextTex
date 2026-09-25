@@ -190,11 +190,17 @@ export default function SearchPanel({
         regex,
         case: matchCase,
       });
+      // What changed, and what did not: a file that could not be saved
+      // is named with its reason, rather than the whole replace ending in a
+      // bare error that said nothing of the files already changed (Q-025).
+      const left = (answer.failed ?? [])
+        .map((miss) => `${miss.path} was left as it was: ${miss.reason}.`)
+        .join(" ");
       set({
         error:
           `Replaced ${answer.replaced} ` +
           `${answer.replaced === 1 ? "match" : "matches"} in ${answer.files} ` +
-          `${answer.files === 1 ? "file" : "files"}.`,
+          `${answer.files === 1 ? "file" : "files"}.` + (left ? ` ${left}` : ""),
       });
       setHits([]);
     } catch (error: any) {

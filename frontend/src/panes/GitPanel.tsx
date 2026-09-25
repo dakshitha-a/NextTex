@@ -21,6 +21,12 @@ import { ChevronDownIcon, ChevronRightIcon } from "../ui/icons";
  *  under the changes, "The line you are on" says which commit last
  *  touched the caret's line, and History lists the commits, each opening
  *  to its patch the way a changed file does. */
+/** A small count as a word, the way a sentence says it: "Two files". */
+function spelled(count: number): string {
+  const words = ["Two", "Three", "Four", "Five", "Six", "Seven", "Eight", "Nine"];
+  return words[count - 2] ?? String(count);
+}
+
 export default function GitPanel({
   onOpen,
 }: {
@@ -277,7 +283,15 @@ export default function GitPanel({
             changes, the branch in the mono, ahead and behind, and Pull. */}
         <div className="nx-git-status">
           <span className={`nx-git-dot ${dirty ? "bg-warn" : "bg-ok"}`} />
-          <span className="t-code-sm text-ink">{status.branch || "detached"}</span>
+          {status.branch ? (
+            <span className="t-code-sm text-ink">{status.branch}</span>
+          ) : (
+            // A detached head names the commit it is at (Q-024).
+            <span className="t-meta text-ink-2" data-testid="git-detached">
+              detached at{" "}
+              <span className="t-code-sm text-ink">{status.detached || "an unknown commit"}</span>
+            </span>
+          )}
           {status.ahead || status.behind ? (
             <span className="t-meta tnum text-ink-3">
               {status.ahead ? `↑${status.ahead}` : ""}
@@ -300,6 +314,29 @@ export default function GitPanel({
           ) : null}
         </div>
 
+        {/* A merge a terminal left unfinished: said, with the files in
+            conflict, and nothing is committed until it is done (Q-023). */}
+        {status.merging && status.conflicts?.length ? (
+          <div className="nx-git-here" data-testid="git-merging">
+            {/* One paragraph, so the names and the full stop flow as a
+                sentence; the block itself stacks its children. */}
+            <p className="m-0">
+              <span className="font-medium text-ink">A merge is in progress.</span>{" "}
+              {status.conflicts.length === 1
+                ? "One file still has"
+                : `${spelled(status.conflicts.length)} files still have`}{" "}
+              conflicts:{" "}
+              {status.conflicts.slice(0, 3).map((path, index) => (
+                <span key={path}>
+                  {index ? (index === Math.min(status.conflicts!.length, 3) - 1 ? " and " : ", ") : ""}
+                  <span className="t-code-sm text-ink">{path}</span>
+                </span>
+              ))}
+              {status.conflicts.length > 3 ? " and more" : ""}. Finish the merge in a
+              terminal; committing here waits until it is done.
+            </p>
+          </div>
+        ) : null}
         <div className="min-h-0 flex-1 overflow-auto">
           {dirty > 0 ? (
             <>
@@ -320,7 +357,7 @@ export default function GitPanel({
           <History projectId={id} moved={moved} />
         </div>
 
-        {dirty > 0 || status.ahead > 0 ? (
+        {(dirty > 0 || status.ahead > 0) && !(status.merging && status.conflicts?.length) ? (
           <div className="flex flex-col gap-2 px-2 pb-2 pt-2">
             {dirty > 0 ? (
               <Field

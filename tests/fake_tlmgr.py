@@ -6,7 +6,8 @@ Point NEXTTEX_TLMGR at it.  `search --file --global /<name>` answers that
 the package `<stem>-pkg` provides the file, in tlmgr's own layout; a file
 whose stem is `nowhere` gets no answer, which is what a typo gets from the
 real thing.  `install <pkg>` succeeds, or fails with the stale-mirror
-message the real tlmgr prints when `<pkg>` is `stale-pkg`.  Every call's
+message the real tlmgr prints when `<pkg>` is `stale-pkg`, and takes six
+seconds over `slow-pkg`, so a second install can be seen waiting on it.  Every call's
 argv is appended as one JSON line to the file NEXTTEX_FAKE_TLMGR_LOG
 names, so a spec can assert what would have been run.
 """
@@ -38,6 +39,10 @@ def main(argv: list[str]) -> int:
             print("Cross release updates are only supported with", file=sys.stderr)
             print("  update-tlmgr-latest(.sh/.exe) --update", file=sys.stderr)
             return 1
+        if argv[1] == "slow-pkg":
+            # Long enough for another project's Install to queue behind it.
+            import time
+            time.sleep(float(os.environ.get("NEXTTEX_FAKE_TLMGR_SLOW", "6")))
         print(f"tlmgr: package repository https://mirror.invalid/tlnet (verified)")
         print(f"[1/1, ??:??/??:??] install: {argv[1]} [12k]")
         print("tlmgr: package log updated")

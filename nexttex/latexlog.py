@@ -52,8 +52,14 @@ BOX_WARNING = re.compile(
     r"(?:.*?(?:at lines? (?P<line>\d+)(?:--(?P<endline>\d+))?))?"
 )
 
-# A file TeX opens looks like `(/abs/path.tex` or `(./rel/path.tex`.
-FILE_OPEN_PATH = re.compile(r"(?:/|\.\.?/)[^\s(){}]*")
+# A file TeX opens looks like `(/abs/path.tex` or `(./rel/path.tex`, and on
+# Windows `(C:/dir/main.tex` or `(C:\dir\chapters/one.tex`, separators
+# mixed within one path as MiKTeX writes them. The drive letter was missing
+# here while `FILE_LINE_ERROR` accepted it, so on Windows the stack kept an
+# unnamed entry for every file and a warning TeX did not attribute went to
+# whichever file was below it: an overfull box in chapters/one.tex was put
+# against main.tex (Q-019, seen on the Windows laptop).
+FILE_OPEN_PATH = re.compile(r"(?:/|\.\.?[/\\]|[A-Za-z]:[/\\])[^\s(){}]*")
 
 # Which key an undefined citation or reference was for, so the count the
 # compile tool reports can be a set of keys rather than a tally of lines.
@@ -226,7 +232,13 @@ class _FileStack:
         self.opened: set[Path] = set()
 
     def resolve(self, path: Path) -> Path:
-        if path.is_absolute():
+        # A Windows engine's path on this platform's `Path`: turned into one
+        # with forward slashes, which every platform reads, before asking
+        # whether it is absolute.
+        text = str(path)
+        if "\\" in text:
+            path = Path(text.replace("\\", "/"))
+        if path.is_absolute() or re.match(r"^[A-Za-z]:/", str(path)):
             return path
         against_base = self.base / path
         if self.base != self.root and not against_base.exists() and (self.root / path).exists():

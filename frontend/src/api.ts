@@ -541,13 +541,16 @@ export type UploadOutcome =
   | "renamed"
   | "skipped"
   | "refused"
-  | "too-big";
+  | "too-big"
+  | "failed";
 
 export type UploadResult = {
   name: string;
   path: string;
   outcome: UploadOutcome;
   renamedTo?: string;
+  /** Why a file that failed did not arrive. */
+  reason?: string;
 };
 
 export class ApiError extends Error {
@@ -824,6 +827,7 @@ const api = {
     ),
   /** Install that package with tlmgr, then build again.  Reaches a CTAN
    *  mirror, which is why the row asks first. */
+  texInstalling: () => request<{ package: string }>("/tex/installing"),
   texInstall: (id: string, pkg: string) =>
     request<{ ok: boolean; err: string }>(`/projects/${id}/tex/install`, json({ package: pkg })),
 
@@ -1039,7 +1043,13 @@ const api = {
     replacement: string,
     options: { regex?: boolean; case?: boolean; paths?: string[] } = {},
   ) =>
-    request<{ files: number; replaced: number; paths: string[] }>(
+    request<{
+      files: number;
+      replaced: number;
+      paths: string[];
+      /** Files the replace could not save, and why; the rest were saved. */
+      failed?: { path: string; reason: string }[];
+    }>(
       `/projects/${id}/search/replace`,
       json({
         q: query,
@@ -1262,6 +1272,12 @@ const api = {
       remote: string;
       changes: { state: string; path: string }[];
       detail: string;
+      /** A merge started in a terminal and not finished, and the paths it
+       *  left in conflict. */
+      merging?: boolean;
+      conflicts?: string[];
+      /** The commit a detached head is at, or "". */
+      detached?: string;
       gh: boolean;
       ghReason: string;
     }>(`/projects/${id}/git`),

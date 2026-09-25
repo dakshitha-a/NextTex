@@ -465,7 +465,10 @@ class Project:
         return target
 
     def relative(self, path: Path) -> str:
-        return str(Path(path).resolve().relative_to(self.root.resolve()))
+        # With forward slashes on every platform: the browser, the manifest
+        # and the history all name files that way, and `str()` of a path
+        # on Windows said `chapters\\one.tex`, which a tab showed (Q-071).
+        return Path(path).resolve().relative_to(self.root.resolve()).as_posix()
 
     def _relative_below(self, path: Path) -> str:
         """The relative path of something reached by walking from the root.
@@ -476,7 +479,7 @@ class Project:
         something the file tree cannot open.
         """
         try:
-            return str(path.relative_to(self.root))
+            return path.relative_to(self.root).as_posix()
         except ValueError:
             return self.relative(path)
 
@@ -674,12 +677,28 @@ class Registry:
         return result
 
     def add(self, root: Path | str) -> Project:
+        """Register a folder, or touch the entry it already has.
+
+        A folder already in the list keeps its entry's state: adding it
+        wrote a fresh entry over one that was archived or in the trash, so
+        the project came back as active without the Restore the projects
+        screen offers for exactly that (Q-026). `relocate` already carried
+        the state across. Opening the project afterwards is still what
+        makes it active, as it is from the archive's own view.
+        """
         project = Project.open(root)
-        entries = [e for e in self._read() if Path(e.path) != project.root]
+        entries, state, state_at = [], "active", 0.0
+        for entry in self._read():
+            if Path(entry.path) == project.root:
+                state, state_at = entry.state, entry.state_at
+                continue
+            entries.append(entry)
         entries.append(RegistryEntry(
             path=str(project.root),
             name=project.config.name,
             last_opened=time.time(),
+            state=state,
+            state_at=state_at,
         ))
         self._write(entries)
         return project
@@ -808,7 +827,7 @@ def guess_document(root: Path) -> str | None:
             score += 5
         if path.stem in {"main", "thesis", "dissertation", "paper", "report"}:
             score += 5
-        candidates.append((score, str(path.relative_to(root))))
+        candidates.append((score, path.relative_to(root).as_posix()))
     if not candidates:
         return None
     return max(candidates)[1]

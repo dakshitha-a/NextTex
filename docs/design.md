@@ -10806,3 +10806,26 @@ Reading a long document through no longer grows the tab: pages far
 behind or ahead of the view let go of their pixels and are drawn again as
 they come back, a moment before they are on screen. The first find in a
 long PDF reads every page at once and answers sooner.
+
+The Git drawer says what state a terminal left the repository in. While
+a merge is in progress it draws a block under the status row: "A merge
+is in progress. Two files still have conflicts: main.tex and
+references.bib. Finish the merge in a terminal; committing here waits
+until it is done." The commit box is not offered until the merge is
+finished; it used to commit the conflict markers. A detached head reads
+"detached at" and the short commit where the branch goes, where it read
+"HEAD (no branch)".
+
+A package install that waits on another project's says so: its button
+reads "Waiting to install siunitx", dimmed, and a line under it in the
+third ink says "Another project on this computer is installing a
+package. This one starts when that finishes."
+
+A replace across the project that could not save a file says so in a
+notice: "Replaced 8 matches in 2 files. chapter-2.tex was left as it
+was: it was renamed a moment before." In History the replace is one row,
+"Replaced \cite with \citep in 3 files", with its files under it. An
+upload whose folder went to the trash partway says "2 of 3 files arrived
+in figures. spectrum.pdf did not, because the folder was moved to the
+trash during the upload." A tab on Windows names a file with forward
+slashes, `chapters/one.tex`, as it does everywhere else.
