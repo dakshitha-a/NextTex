@@ -25,6 +25,7 @@ DOCUMENTS = [
     "README.md",
     "TRACKER.md",
     "ROADMAP.md",
+    "REVIEW.md",
     "docs/architecture.md",
     "docs/design.md",
     "docs/testing.md",

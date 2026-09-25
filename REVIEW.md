@@ -1,0 +1,859 @@
+# The probe: a review of NextTex, September 2026
+
+This is a review in progress, not documentation. Like `TRACKER.md` it lives
+here rather than in `docs/` because it describes what is wrong and what is
+missing, which is the opposite of what the documents are for. It is the
+input to a fix plan, and it is deleted when that plan's fixes have landed,
+because the commit log is then the record.
+
+The live tracker, which becomes the finished report when the probe ends, is
+https://claude.ai/artifact/4mdUwu1mLwVYquc7Bm7vkS.
+
+## Why this review, and why now
+
+The last whole-app review ran on 11 and 12 September 2026 at `5942653` and
+is readable with `git show 8746e16^:REVIEW.md`. Since then about five
+hundred commits have landed and `docs/design.md` has grown from section 45
+to section 75. Comments, the settings sheet, the visual overhaul, the frame
+and its drawers, the hover cards, outside edits merged and named, git's
+history, spelling in other languages, grammar, the page in the dark and the
+projects archive have none of them been looked at as a whole. This review
+looks at all of it, and at everything older again, starting from 3.18.0.
+
+## How it is run
+
+**Record, never fix.** Every finding, however small, is a record below, and
+nothing is repaired while the review runs. A list fixed as it is found is a
+list that stops at the first hard item. The standing rule that a tangent is
+fixed on sight is paused for this run, on the writer's word. A confirmed
+blocker or security finding is reported to the writer the moment it is
+confirmed, and is still only recorded.
+
+**Five ways a fault is found, and each finds a different kind.** A *test*
+finds a broken contract, and the suites already do that. A *reading* finds a
+correct line doing what it says in a case its author did not have in front
+of them. A *screen* finds what is drawn wrong, missing, cut off or stale,
+read against `docs/design.md` and against the direction page, the Artifact
+at https://claude.ai/artifact/9dczkpMaP23Be5H5AEJVPp, which is the
+interface's specification. A *measurement* finds the path that is fine on a
+fixture and slow on a thesis. And *use*, a stretch of writing with the
+question of what was done twice, waited for, or reached for and not found,
+finds what is not a fault at all. The README compares NextTex to a Jupyter
+notebook, so that is the standard.
+
+**The questions asked of every area.** What sets this state back? How many
+ways can this job end, and does each ending reach the screen: success,
+failure, timeout, cancel, the server restarting underneath, a reload in the
+middle? Does the replayed version equal the live one? Does every
+implementation behind a seam keep the promise? What happens on a thesis
+rather than a fixture, on a second tab, a second peer, a second instance?
+What happens when the file is changed outside NextTex while it is open?
+Can it be done from the keyboard, and does a screen reader hear what a
+sighted person sees? What does the document say, and is it still true?
+
+**A document's claim is a lead, not a finding.** `docs/design.md` narrates
+the state when each section was written, so a sentence saying the app
+cannot do something is checked against the code before it is recorded.
+
+**Nothing touches the writer's own install or login.** It runs as a
+`systemd --user` service on port 8450 with its state in the writer's own
+data directory. Every server this review starts redirects `XDG_DATA_HOME`
+and `XDG_CONFIG_HOME` into a sandbox and takes a port of its own, the way
+`e2e/server.ts` does, and every one that is not a deliberate live session
+runs the scripted agent, the fake sign-in and the loopback transport. No
+process is ever killed by pattern or by name: the September review
+probably stopped the writer's service that way. A server is stopped by the
+number it started under, after its environment has been read to confirm it
+is this review's. The Claude login was fingerprinted before the first live
+turn and is compared after the last, and the sign-out control is never
+pressed. Live turns use `claude-sonnet-5`, within two dollars for the run.
+
+## The record format
+
+One record per finding, numbered `Q-001` onward across the whole run, so
+that the numbers never collide with the September review's `R-` records.
+The heading is `Q-NNN · area · category · severity · confidence`.
+
+- **Categories.** `bug`, `security`, `performance`, `accessibility`,
+  `consistency` for a departure from `docs/style-guide.md` or the direction
+  page, `docs`, `test` for a gap or a flake in the suites, `comfort` for
+  something a writer reaches for and does not find, and `improvement` for a
+  change that makes something better that is not broken.
+- **Severity.** `blocker` loses work or exposes the machine. `high` means a
+  feature fails in an ordinary case. `medium` means it works and is wrong in
+  a case a writer will meet. `low` is cosmetic or rare.
+- **Confidence.** `confirmed` means reproduced in the running app, or read
+  line by line with the mechanism named; the *Found by* line says which.
+  `likely` means read in the code and consistent with a screen, with one
+  step not pinned down. `suspected` means a reading only.
+- **The body.** *Found by*, *Where* as a file and line, *What happens*,
+  *What should happen*, *How to reach it again* naming a driver under
+  `e2e/review/` when one was written, the *Size* of the fix as small,
+  medium or large, and the *Version* level the fix would earn.
+
+This file is on the list `tests/test_documents_match_the_code.py` reads, so
+every path, route and variable it quotes has to exist. A name a finding
+proposes is written in prose, never in backticks.
+
+## Baseline
+
+Recorded at `06396c4`, NextTex 3.18.0, before anything was looked at.
+
+**Everything is green.** `scripts/check.sh --all` passed in 22 minutes and 8
+seconds on 25 September 2026, with nothing skipped that was not meant to be.
+
+| tier | result | wall time |
+|---|---|---|
+| Types (`tsc --noEmit`) | pass | |
+| Frontend (vitest) | 1137 passed, 89 files | |
+| Python (pytest) | 2403 passed, 28 skipped | 3 m 33 s |
+| Frontend build and precompression | pass | |
+| Bundle budget | 861.0 kB against 864 | |
+| Browser (playwright) | 575 passed, none retried | 18 m 0 s |
+
+GitHub Actions was green on all four workflows for `06396c4`, from
+`gh run list`. Against the September baseline: the frontend tests went from
+700 to 1137, the Python tests from 1279 to 2403, the browser tests from 228
+to 575, and the full run from about 12 minutes to 22.
+
+Two warnings in the Python tier: a deprecation inside starlette's test
+client, and one from `pty.forkpty` in a multi-threaded process during a
+sign-in test. The build prints two: harper's bundle names `fs`, and the
+spelling engine's loader is Q-036.
+
+**Nothing was already broken, so every finding below belongs to this review.**
+
+## Findings
+
+Numbered across the whole run, in the order they were found, under the area
+where they were found. They are grouped by mechanism at the end rather than
+here.
+
+### Compile, diagnostics, the preview and the page
+
+### Q-017 · Compile · bug · high · likely
+
+*Found by:* reading, from a lead a reading agent raised, with the mechanism
+followed through three files. Not yet reproduced on a thesis.
+
+*Where:* `server/session.py:1114`, `nexttex/compile.py:632`,
+`server/session.py:1142`.
+
+*What happens:* once a document's full build takes longer than two seconds,
+a fast build compiles only the chapter being edited, through
+`\includeonly`. TeX never opens the other chapters, so the log names no
+problem in them. The session then replaces the document's whole list of
+diagnostics with that build's list. An error that is still in chapter one
+disappears from the gutter and the drawer the moment the writer types in
+chapter two. No settling build follows, because the settling build is only
+started for a fast pass that asks for a rerun or for citations.
+
+*What should happen:* a scoped build replaces only the diagnostics of the
+files it opened, and keeps the rest until a build that opens them says
+otherwise.
+
+*How to reach it again:* a project from `bench.build_project`, an error put
+in one chapter, a full build, then an edit in another chapter.
+
+*Size:* small. *Version:* z.
+
+### Q-018 · Compile · bug · medium · confirmed
+
+*Found by:* reading. *Where:* `nexttex/symbols.py:489`.
+
+*What happens:* the cache of labels, citations, macros and images is
+rescanned only when the newest modification time among the source files
+changes. Deleting a file that is not the newest one leaves that time where
+it was, so everything the deleted file defined stays in completion and in
+the hover cards until some other file is touched. A `git pull` that removes
+a chapter, or a collaborator deleting a figure, is the ordinary way to get
+here.
+
+*What should happen:* the stamp includes the set of files, for example the
+count and the newest time together, so a deletion is a change.
+
+*Size:* small. *Version:* z.
+
+### Q-019 · Compile · bug · medium · likely
+
+*Found by:* reading. *Where:* `nexttex/latexlog.py:56` against
+`nexttex/latexlog.py:32`.
+
+*What happens:* the pattern that tracks which file TeX has open accepts a
+path starting with a slash or a dot, and not one starting with a drive
+letter. The pattern for errors does accept a drive letter, so the two have
+drifted apart. On Windows, where an engine opens `C:/...` paths, the stack
+of open files is kept with an unnamed entry, and a warning TeX does not
+attribute itself goes to whichever file is next on the stack.
+
+*What should happen:* both patterns accept a drive letter. A captured
+MiKTeX log goes into the parser's tests.
+
+*How to reach it again:* a build on the Windows laptop with a warning in an
+`\input` file.
+
+*Size:* small. *Version:* z.
+
+### Q-020 · Compile · comfort · low · likely
+
+*Found by:* reading. *Where:* `nexttex/texpkg.py:60`, the route at
+`server/main.py:3206`.
+
+*What happens:* installing a TeX package takes one lock for the whole
+machine, which is right, since the distribution is shared. A second
+project's Install press waits on that lock for up to five minutes and says
+nothing about why.
+
+*What should happen:* the drawer says another project's install is running.
+
+*Size:* small. *Version:* z.
+
+### Files, history, trash and git
+
+### Q-021 · Files · performance · high · confirmed
+
+*Found by:* reading, from a lead a reading agent raised.
+*Where:* `server/main.py:3545` calling `nexttex/history.py:644`.
+
+*What happens:* the History drawer's timeline reads and parses every file's
+version log in the project, and does it on the event loop. Its neighbours,
+the size and purge routes, do the same class of walk in a worker thread and
+say so in a comment. While the timeline is being built, every other
+request on the install waits: autosave, the other tabs, collaborators.
+Phase 3 measures how long on a thesis with four hundred versions.
+
+*What should happen:* the timeline runs in a worker thread, as its
+neighbours do.
+
+*Size:* small. *Version:* z.
+
+### Q-022 · Files · performance · high · confirmed
+
+*Found by:* reading, from a lead a reading agent raised.
+*Where:* `server/main.py:3097` and `server/main.py:3259`, calling
+`nexttex/trash.py:279` and `nexttex/trash.py:355`.
+
+*What happens:* moving a folder to the trash, or restoring one, walks the
+folder twice, reads every text file under two megabytes and rewrites its
+version log, all on the event loop. Duplicating a folder, the nearest
+comparable route, runs off the loop. A large figures folder stops the
+whole install while it moves.
+
+*What should happen:* both run in a worker thread.
+
+*Size:* small. *Version:* z.
+
+### Q-023 · Files · bug · medium · likely
+
+*Found by:* reading. *Where:* `nexttex/gitrepo.py:262`.
+
+*What happens:* the Git drawer's commit runs `git add -A` and then
+`git commit`. A merge the writer started in a terminal and left with
+conflicts is still in progress, and `git add` marks every conflicted file as
+resolved whatever it holds. The conflict markers are committed into the
+manuscript, and nothing in the drawer said a merge was under way.
+
+*What should happen:* the drawer reads whether a merge is in progress and
+whether any path is unmerged, says so, and refuses to commit until the
+terminal has finished it.
+
+*Size:* small. *Version:* z.
+
+### Q-024 · Files · comfort · low · likely
+
+*Found by:* reading. *Where:* `nexttex/gitrepo.py:189`.
+
+*What happens:* the branch name is read from the status header by
+splitting at three dots. On a detached head the header is `HEAD (no
+branch)`, and the drawer shows that text as the branch.
+
+*What should happen:* a detached head is named as such, with its commit.
+
+*Size:* small. *Version:* z.
+
+### Q-025 · Files · bug · medium · confirmed
+
+*Found by:* reading. *Where:* `server/main.py:2782` and
+`server/main.py:2859`.
+
+*What happens:* replace in every file, and renaming a label everywhere,
+save one file at a time with no transaction. Each save is its own version,
+so there is no single step that undoes the whole replace. If one save fails
+partway, for example because the file was renamed a moment before, the
+files already saved stay changed, the rest are skipped, and the writer sees
+a bare error with no account of which files changed.
+
+*What should happen:* the route reports which files it changed and which it
+did not, and the versions it records share one source stamp, so the
+History drawer folds them into one row that can be undone together.
+
+*Size:* medium. *Version:* z.
+
+### Q-026 · Projects · bug · low · confirmed
+
+*Found by:* reading. *Where:* `nexttex/project.py:676`.
+
+*What happens:* adding a folder writes a fresh entry in place of any entry
+already at that path. A project that is archived or in the trash comes back
+as active, with its dates reset, without the Restore that the projects
+screen offers for exactly this. The move-a-project path, `relocate`, carries
+the state across and so does not have the fault.
+
+*What should happen:* adding a folder that is already registered opens the
+existing entry, and asks before bringing an archived or trashed project
+back.
+
+*Size:* small. *Version:* z.
+
+### Q-027 · Files · bug · medium · likely
+
+*Found by:* reading. *Where:* `server/main.py:3632`, the writes near
+`server/main.py:3733`.
+
+*What happens:* an upload makes the destination folder once, then reads and
+writes each file in turn, awaiting each read. A folder moved to the trash in
+another tab between two files makes the next write fail with an uncaught
+error. The request ends in a 500, and the report of the files already
+written is lost, so the writer does not know which arrived.
+
+*What should happen:* a failed file is reported as failed, with the rest,
+and the files already written are listed.
+
+*Size:* small. *Version:* z.
+
+### Q-028 · Files · performance · medium · likely
+
+*Found by:* reading, from a lead a reading agent raised.
+*Where:* `nexttex/search.py:21`.
+
+*What happens:* the pattern cap of two hundred characters is described as
+short enough that an exponentially backtracking pattern cannot be built.
+That is not so: `(a+)+$` is seven characters. The search runs in a worker
+thread, so the loop is safe, but Python cannot stop a thread, and the
+regular expression has no time limit. A few such searches hold a few of the
+default pool's workers until the server restarts, and the git, history and
+compile routes share that pool.
+
+*What should happen:* a pattern search runs in a process, or with a time
+limit, and the comment stops claiming what the cap cannot do.
+
+*How to reach it again:* Phase 2 runs one such search against a sandbox
+server and watches the pool.
+
+*Size:* medium. *Version:* z.
+
+### Q-029 · References · bug · medium · confirmed
+
+*Found by:* reading. *Where:* `server/main.py:3838`.
+
+*What happens:* the reference library chooses the project's bibliography by
+walking the whole project for `.bib` files and taking the first in
+alphabetical order. A project with `refs.bib` for the paper and an exported
+`library.bib` beside it has references added to `library.bib`, which the
+document never reads. The walk also runs on the event loop, on every open
+of the picker and on every add, scan and verify, and it descends into
+`.git` and any other large folder.
+
+*What should happen:* the library uses the file the document names in
+`\bibliography` or `\addbibresource`, found through the dependency graph
+that already knows it, and the walk, where one is still needed, runs off
+the loop and skips `.git`.
+
+*Size:* small. *Version:* z.
+
+### The editor and the preview in the browser
+
+### Q-030 · Editor · bug · high · likely
+
+*Found by:* reading, from a lead a reading agent raised.
+*Where:* `frontend/src/actions.ts:90`, the chords at `frontend/src/actions.ts:43`.
+
+*What happens:* the app's own chords, Ctrl and Alt with a letter or a
+bracket, answer from anywhere and are matched on the physical key with
+Ctrl and Alt both held. On Windows, the AltGr key that German, French,
+Nordic and Polish layouts use to type `@`, `€`, `[`, `]` and more reaches
+the browser as Ctrl and Alt together. So AltGr and E, the euro sign on a
+German layout, is also the chord for Writing mode, and the brackets typed
+through AltGr on several layouts are chords too. Nothing in the frontend
+reads the AltGraph modifier state.
+
+*What should happen:* a key press with AltGraph set is never a chord.
+
+*How to reach it again:* the Windows laptop with a German layout added.
+
+*Size:* small. *Version:* z.
+
+### Q-031 · Preview · performance · high · likely
+
+*Found by:* reading. *Where:* `frontend/src/panes/Pdf.tsx:546`, drawing at
+`frontend/src/panes/Pdf.tsx:484`.
+
+*What happens:* the preview draws the pages within 400 pixels of the view
+and never frees a page it drew once the page scrolls away. Reading a long
+thesis from start to finish leaves a full-resolution canvas for every page,
+and in the dark page a second canvas of the same size for the figures. A
+single page is capped at sixteen megapixels; the document is not capped at
+all. Phase 3 measures the memory on a long document.
+
+*What should happen:* pages far from the view give their backing store
+back, and are drawn again when they return.
+
+*Size:* medium. *Version:* z.
+
+### Q-032 · Preview · performance · medium · confirmed
+
+*Found by:* reading. *Where:* `frontend/src/panes/Pdf.tsx:1324`.
+
+*What happens:* the first find after a build reads every page's text one
+page after another. The same file's layout code does the equivalent work
+in parallel, with a comment explaining why serial awaits over two hundred
+pages are slow. The first search in a long document pays that cost.
+
+*What should happen:* the find path reads the pages the way the layout
+does.
+
+*Size:* small. *Version:* z.
+
+### Q-033 · Editor · performance · medium · confirmed
+
+*Found by:* reading. *Where:* `frontend/src/panes/spellcheck.ts:238`.
+
+*What happens:* with spelling on, every keystroke rebuilds the list of all
+the document's lines and runs the skipped-lines scan over all of them,
+inside the editor's update. Grammar does the same scan after a 600
+millisecond pause. Spelling is off by default, so this is the cost for
+those who turn it on, and it grows with the file. Phase 3 measures it with
+the typing driver.
+
+*What should happen:* the scan is kept and adjusted for the changed lines
+only, or waits for typing to pause, as grammar does.
+
+*Size:* small. *Version:* z.
+
+### Q-034 · Editor · bug · medium · likely
+
+*Found by:* reading. *Where:* `frontend/src/App.tsx:1631`.
+
+*What happens:* a figure script's running state is corrected from the
+server only when a different script's tab comes to the front. Builds have
+a state frame sent on every reconnection of the event stream, and the
+Claude column has its own reconcile. Scripts have neither. If the stream
+drops during a run and the writer stays on that script's tab, the tab says
+it is running for ever.
+
+*What should happen:* the reconnection's first frame carries the scripts'
+state, as it carries the builds'.
+
+*Size:* small. *Version:* z.
+
+### Q-035 · Projects · performance · low · confirmed
+
+*Found by:* reading. *Where:* `frontend/src/panes/Projects.tsx:314`,
+the keys written in `frontend/src/App.tsx`.
+
+*What happens:* the drawer, folds, widths and open tabs are remembered in
+the browser under keys named by project. Forgetting a project leaves all
+of them behind. A writer who keeps one project per job application makes
+and forgets projects often, and the keys only accumulate.
+
+*What should happen:* forgetting a project forgets its keys.
+
+*Size:* small. *Version:* z.
+
+### The agent
+
+### Q-001 · Agent · bug · medium · likely
+
+*Found by:* reading, from a lead a reading agent raised.
+*Where:* `nexttex/openai_agent.py:660`.
+
+*What happens:* the OpenAI provider announces the turn and builds its first
+message before the `try` that turns every failure into an ending. Building
+the message reads the editor's state and the diagnostics. If either raises,
+the task ends with no `done` event. The Claude provider has a `finally`
+that sends `done` on every exit, so the two differ. The panel would wait
+for an ending that never comes.
+
+*What should happen:* the whole of the turn sits inside the guard, and a
+turn always ends with `done`.
+
+*Size:* small. *Version:* z.
+
+### Q-002 · Agent · bug · medium · confirmed
+
+*Found by:* reading. *Where:* `nexttex/openai_agent.py:733`.
+
+*What happens:* the OpenAI provider's tool loop stops after twelve rounds.
+The comment calls a turn that has not settled by then stuck, but the loop
+simply ends, after running the twelfth round's tools, and the turn is
+reported as a success. The model never sees those tools' results, and the
+writer is not told the turn was cut short.
+
+*What should happen:* the turn ends with a notice saying it reached the
+limit, and a subtype that says so.
+
+*Size:* small. *Version:* z.
+
+### Q-003 · Agent · comfort · low · confirmed
+
+*Found by:* reading. *Where:* `nexttex/openai_agent.py:758`.
+
+*What happens:* a failure on the first response, such as a refused key or a
+quota, is turned into a sentence. A connection that drops while the answer
+is streaming is shown as Python's own exception text.
+
+*What should happen:* both go through the same explanation.
+
+*Size:* small. *Version:* z.
+
+### Q-004 · Agent · docs · low · confirmed
+
+*Found by:* reading. *Where:* `nexttex/agent.py:1273` against
+`nexttex/openai_agent.py:883`.
+
+*What happens:* at the last permission position, the Claude agent asks
+about nothing, including a write outside the project. The OpenAI provider
+refuses a path outside the project in every position. The OpenAI side is
+the safer one. But one control means two things depending on the provider,
+and the settings sheet and the documents do not say so.
+
+*What should happen:* the difference is stated where the positions are
+explained, or the two are made the same.
+
+*Size:* small. *Version:* z.
+
+### Q-005 · Agent · bug · medium · confirmed
+
+*Found by:* reading. *Where:* `nexttex/figure_helper.py:68`,
+`nexttex/plots.py:65`.
+
+*What happens:* the figure helper every agent-drawn script imports loads its
+style sheet at import time. The style sheet is written into the project
+once and handed to the writer as theirs to edit. If they rename or delete
+it, every figure script fails at import with a raw traceback. The plot
+tool's explanation of a failed run recognises only a missing module, so the
+writer is not told what went wrong. The helper has no test at all.
+
+*What should happen:* a missing style sheet falls back to the defaults with
+a warning in the run's output, and the helper gets tests of its own.
+
+*Size:* small. *Version:* z.
+
+### Q-006 · Agent · security · low · confirmed
+
+*Found by:* reading, from leads two reading agents raised.
+*Where:* `nexttex/compile.py:660`, `nexttex/plots.py:112`.
+
+*What happens:* builds and figure scripts are started with the server's
+whole environment. Git is started with an environment built from nothing,
+and the security section of `docs/architecture.md` explains why. A figure
+script or a build with shell escape on can print any variable the server
+was started with. This is defence in depth rather than a hole: such a
+script runs as the writer's own user and can already read what that user
+can. The OpenAI key is kept in the settings file and never put in the
+environment.
+
+*What should happen:* builds and scripts get an allowed list of variables,
+as git does.
+
+*Size:* small. *Version:* z.
+
+### Q-007 · Agent · security · low · likely
+
+*Found by:* reading. *Where:* `nexttex/proctree.py`, called from
+`nexttex/scripts.py`.
+
+*What happens:* a stopped or timed-out script is ended by killing its
+process group. A script that forks and starts a new session of its own
+leaves that group, and keeps running after NextTex reports the run
+stopped. There is also no limit on how many different scripts run at once;
+the limit is one run per script.
+
+*What should happen:* on Linux the run is placed in its own cgroup or
+tracked by descendant, and a small cap limits concurrent runs.
+
+*Size:* medium. *Version:* z.
+
+### Collaboration and comments
+
+### Q-008 · Collaboration · bug · medium · likely
+
+*Found by:* reading, from a lead a reading agent raised.
+*Where:* `server/collab/comments.py:119`, with the peer path at
+`server/collab/peers.py:516`.
+
+*What happens:* comments live on the shared manifest, and a peer's changes
+to it are applied as they arrive. The limits on a comment's length and
+quote are enforced only by this install's own routes, so a peer can write
+comments of any size. The listing reads threads defensively, but it then
+sorts by path, line and creation time, and a peer that writes a line or a
+time of another type makes that sort raise. The comments drawer then fails
+for everyone on the project until the thread is removed. A collaborator is
+someone the writer let in, so the main risk is a buggy or older peer
+rather than a hostile one.
+
+*What should happen:* the listing coerces what it reads to the types it
+sorts on, and the store trims a peer's comment to the same limits a local
+one has.
+
+*How to reach it again:* two loopback peers, one writing a thread with a
+string line; driven in Phase 2.
+
+*Size:* small. *Version:* z.
+
+### Q-009 · Collaboration · bug · high · likely
+
+*Found by:* reading, from a lead a reading agent raised.
+*Where:* `server/collab/store.py:508`, `server/collab/store.py:557`.
+
+*What happens:* two collaborators who each create `chapters/03.tex` while
+apart are given different random ids, on purpose: the store's own comment
+records that a shared id once interleaved two chapters. When they meet,
+the manifest holds two live records with the same path. Nothing reconciles
+them. Lookups by path take whichever came first. Both documents go on being
+written to the same file on disk, so each flush overwrites the other
+collaborator's chapter on disk, and a tab bound to the losing id keeps
+editing a document no new tab will open.
+
+*What should happen:* when a merge leaves two live records on one path,
+one keeps the path and the other is renamed, for example to the kept-both
+name the upload chooser uses, and both people are told.
+
+*How to reach it again:* two loopback peers joined, the link dropped, the
+same new path created on each, the link restored. Driven in Phase 2.
+
+*Size:* medium. *Version:* z.
+
+### Q-010 · Collaboration · test · low · confirmed
+
+*Found by:* reading. *Where:* `tests/collab/test_hostile_peers.py`.
+
+*What happens:* the hostile-peer tests cover paths, control files, forged
+share ids, the provenance of files and frame size. None sends comments or
+file records through the sync path, none removes a peer while a file is in
+flight, and none races a rename on one side with an edit on the other.
+
+*What should happen:* those cases get tests, starting with the two above.
+
+*Size:* medium. *Version:* none.
+
+### The server
+
+### Q-011 · Server · test · low · confirmed
+
+*Found by:* reading, from a lead a reading agent raised.
+*Where:* `tests/api/test_files.py`.
+
+*What happens:* the rename route resolves both of its paths through the
+same fence as every other route, and is safe. It has no path-escape test
+for either path, and `CLAUDE.md` requires one for every route that takes a
+path. The other routes the survey listed were read and are safe, and each
+either has an escape test or takes no path at all.
+
+*What should happen:* the rename route gets escape tests for both fields.
+
+*Size:* small. *Version:* none.
+
+### Install and update
+
+### Q-012 · Install · bug · high · likely
+
+*Found by:* reading, from a lead a reading agent raised.
+*Where:* `server/main.py:6201`, `nexttex/install/service.py:77`.
+
+*What happens:* the update page pulls, installs and fetches the interface,
+then restarts. If the new code then fails to start, the service manager
+restarts the same broken commit every three seconds for ever. No last good
+commit is kept, and nothing goes back to one. The page may update as soon
+as the interface for a commit is published, and the interface workflow
+finishes in about half a minute, while the Python workflow takes nearly
+five. So a commit that breaks start-up can reach an install before any
+test has said so. The footer shows the server as down, then its manual
+card.
+
+*What should happen:* the update records the commit it left. If the new
+server has not answered its health check within a minute, it goes back to
+that commit and says so. The update is offered only once CI is green for
+the commit, not only once its interface exists.
+
+*Size:* medium. *Version:* z.
+
+### Q-013 · Install · bug · low · confirmed
+
+*Found by:* reading. *Where:* `scripts/update.sh:150`.
+
+*What happens:* the update script run by hand does not check that the
+interface for the new commit exists. When it cannot fetch one and there is
+no Node, it keeps the old interface in front of the new server. The footer
+does show that the two commits differ, so the writer is told, but only
+afterwards.
+
+*What should happen:* the script refuses, or waits, when the interface for
+the commit is not published yet, as the page does.
+
+*Size:* small. *Version:* z.
+
+### Q-014 · Settings · bug · low · likely
+
+*Found by:* reading. *Where:* `nexttex/claude_auth.py:70`.
+
+*What happens:* there is one sign-in to Claude at a time for the whole
+server, and starting one cancels any other. Two tabs on the sign-in screen
+cancel each other, and the cancelled one is told the sign-in finished.
+
+*What should happen:* the second tab joins the sign-in already running, or
+is told another is in progress.
+
+*Size:* small. *Version:* z.
+
+### The suites, CI and dependencies
+
+### Q-015 · Suites · test · medium · confirmed
+
+*Found by:* reading the last fifty-three runs of each workflow with
+`gh run list`.
+*Where:* `tests/api/test_history_events.py:76`,
+`tests/collab/test_files_between_peers.py:103`.
+
+*What happens:* the `python` workflow failed three times in fifty-three
+runs. One was a real README assertion, fixed the same day. The other two
+are tests that depend on timing. One expects three saves made in a row to
+fall into one history event, and on the runner of 23 September they fell
+into two. The other sleeps 0.4 seconds and then asserts that a file was
+not asked for again. Neither is on the tracker's list of flaky tests,
+which names only browser tests, and neither has been changed since.
+
+*What should happen:* each waits on the event it means rather than on the
+clock, and the tracker names them until it does.
+
+*Size:* small. *Version:* none.
+
+### Q-016 · Suites · test · low · confirmed
+
+*Found by:* reading. *Where:* the checkout's own virtual environment.
+
+*What happens:* `CLAUDE.md` says CI pins Python 3.10, so nothing newer may
+be used. The checkout's `.venv` on this machine is Python 3.13, so the
+checks run by hand cannot see a 3.11 feature until CI does.
+
+*What should happen:* `scripts/check.sh` warns when the interpreter is
+newer than the floor, or the venv is made with 3.10.
+
+*Size:* small. *Version:* none.
+
+### Q-036 · Suites · security · low · confirmed
+
+*Found by:* `npm audit` and `pip-audit` on 25 September 2026.
+
+*What happens:* the Python environment has no known vulnerabilities. The
+frontend has four advisories. Three are `nanoid`, reached through the
+spelling engine's loader, and are about generator sizes the loader never
+passes. One is `diff`, in `parsePatch` and `applyPatch`, which the app
+does not call. None is reachable. The build also prints a warning that the
+loader's ES build calls a namespace. `frontend/src/panes/hunspell-speller.ts`
+imports the CommonJS build to avoid exactly that, so the warning is noise,
+but it is printed on every build and will hide the next real one. Several
+dependencies are a major version behind: `pdfjs-dist` at 4.10 against 6.3,
+`vite` at 6 against 8, and `diff` at 7 against 9.
+
+*What should happen:* the build is quiet, and the major upgrades are
+weighed, `pdfjs-dist` first, since the preview is built on it.
+
+*Size:* medium. *Version:* z.
+
+### Q-037 · Suites · security · low · confirmed
+
+*Found by:* reading. *Where:* every `uses:` line under `.github/workflows/`.
+
+*What happens:* each action is named by a moving tag such as `@v4` rather
+than by a commit. The release workflow runs with permission to write the
+repository's contents.
+
+*What should happen:* the release workflow's actions at least are pinned
+to commits.
+
+*Size:* small. *Version:* none.
+
+### The look
+
+### Q-038 · Look · consistency · medium · confirmed
+
+*Found by:* grep. *Where:* 32 files under `frontend/src/panes/` and
+`frontend/src/App.tsx`.
+
+*What happens:* `docs/style-guide.md` says every control comes from
+`frontend/src/ui/` and that a literal colour, size or radius in a component
+is a defect. Outside the kit there are 88 raw `button`, `input`, `select`
+and `textarea` elements, in 32 files, led by `frontend/src/panes/Chat.tsx`
+with twelve and `frontend/src/panes/Projects.tsx` with eight. There are 189
+arbitrary pixel sizes or inline literal styles in components, such as
+`text-[12.5px]` in `frontend/src/panes/AgentSheet.tsx:255`. Some predate the
+overhaul and were missed by it. Others are newer: the comment cards'
+textareas came with comments on 24 September. A few are fair, such as the
+three hidden file inputs. Nothing enforces the rule, which is how the
+drift the guide was written to stop has started again.
+
+*What should happen:* the kit gains what these need, the components move
+onto it, and a test fails on a raw control or a literal size outside
+`frontend/src/ui/`, with a short list of allowed exceptions and their
+reasons.
+
+*Size:* large. *Version:* z.
+
+### The documents
+
+### Q-039 · Documents · docs · medium · confirmed
+
+*Found by:* a reading agent, checked here. *Where:* `README.md:109` and
+`README.md:856`, against `frontend/src/App.tsx:164`.
+
+*What happens:* both passages say the bar down the left edge has eleven
+buttons and list them. It has twelve: Comments sits between People and
+Build and is not named. The README describes the Comments drawer
+correctly elsewhere, so only the bar's own account is stale.
+
+*What should happen:* both passages name twelve buttons, Comments among
+them.
+
+*Size:* small. *Version:* none.
+
+### Q-041 · Suites · docs · low · confirmed
+
+*Found by:* the baseline. *Where:* `docs/testing.md`, the first code block,
+and the comment at the top of `scripts/check.sh`.
+
+*What happens:* both say the full run takes about twelve minutes. It took
+22 minutes and 8 seconds, 18 of them in the browser tier, which has grown
+from 228 tests to 575 since the numbers were written.
+
+*What should happen:* the numbers are the ones measured, or the passages
+say what the time depends on.
+
+*Size:* small. *Version:* none.
+
+### Q-042 · Suites · improvement · low · confirmed
+
+*Found by:* the baseline. *Where:* `bench/thresholds.json`.
+
+*What happens:* the initial bundle is 861.0 kB against a budget of 864, so
+three kilobytes of room are left. The budget's own comment names the
+settings card's trigger as the refactor that would win room back, and it
+has not been done.
+
+*What should happen:* the fix plan's frontend work takes some weight out
+before it adds any, starting with what the first paint does not need.
+Phase 3 lists what is in the initial chunk.
+
+*Size:* medium. *Version:* z.
+
+### Q-040 · Documents · docs · low · confirmed
+
+*Found by:* a reading agent, checked here. *Where:* `docs/architecture.md:17`.
+
+*What happens:* the diagram of the server says it has 113 routes.
+`server/main.py` defines about 140 now. The document test checks that a
+named route exists, not a count.
+
+*What should happen:* the diagram gives no number, or the test checks it.
+
+*Size:* small. *Version:* none.

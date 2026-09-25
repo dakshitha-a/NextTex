@@ -81,6 +81,15 @@ def test_a_commit_touching_the_working_state_changes_nothing():
     assert updates.classify(["ROADMAP.md", "TRACKER.md"]) == ("neither", False)
 
 
+def test_a_commit_touching_a_review_changes_nothing():
+    """`REVIEW.md` holds a whole-app review's findings while they wait for
+    the plan that fixes them, and is committed after every area the review
+    reads.  Without it on the list each of those commits would reach the
+    update footer as a change to NextTex and would owe a version."""
+    assert updates.classify(["REVIEW.md"]) == ("neither", False)
+    assert updates.classify(["REVIEW.md", "TRACKER.md"]) == ("neither", False)
+
+
 def test_a_commit_touching_the_server_changes_the_app():
     assert updates.classify(["server/main.py"]) == ("app", False)
     assert updates.classify(["nexttex/compile.py", "docs/x.md"]) == ("app", False)
