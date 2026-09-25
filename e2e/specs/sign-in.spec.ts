@@ -277,3 +277,23 @@ test("a writer who chose ChatGPT is never told they are talking to Claude", asyn
   await page.getByTestId("context-open").click();
   await expect(page.getByRole("heading", { name: "What ChatGPT reads" })).toBeVisible();
 });
+
+test("a second tab signing in is told about the first, and can take over", async ({
+  browser,
+}) => {
+  /* Q-014: one sign-in for the whole server, and a second tab starting one
+     used to cancel the first, which was then told it had finished. */
+  const one = await (await browser.newContext()).newPage();
+  const two = await (await browser.newContext()).newPage();
+  for (const page of [one, two]) await page.goto(`${app.base}/?token=${app.token}`);
+  await sheetOf(one).getByTestId("claude-sign-in").click({ timeout: 20_000 });
+  await expect(sheetOf(one).getByText(/Paste the code/i).or(sheetOf(one).locator("pre"))).toBeVisible();
+  await sheetOf(two).getByTestId("claude-sign-in").click({ timeout: 20_000 });
+  await expect(sheetOf(two).getByText("Another tab is signing in to Claude.", { exact: false })).toBeVisible();
+  await sheetOf(two).getByTestId("login-restart").click();
+  await expect(sheetOf(one).getByText("Another tab started the sign-in again, so this one stopped.")).toBeVisible({ timeout: 10_000 });
+  await fetch(`${app.base}/api/claude/login/cancel`, {
+    method: "POST", headers: { "x-nexttex-token": app.token },
+  });
+  if (process.env.NEXTTEX_SHOT) await sheetOf(two).screenshot({ path: process.env.NEXTTEX_SHOT });
+});

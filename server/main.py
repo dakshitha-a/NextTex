@@ -52,6 +52,7 @@ from server.collab import identity as collab_identity
 from server.collab import transport as collab_transport
 from server.collab.peers import PeerNetwork, WELL_FORMED_SHARE_ID
 from server.collab.store import CollabStore
+from server import comeback
 from server.transcript import TranscriptError
 from nexttex.atomic import (
     SUFFIX as SCRATCH_SUFFIX, NotAFile, read_bytes, read_text, unique_name,
@@ -148,6 +149,7 @@ async def lifespan(app: FastAPI):
     reaper = asyncio.create_task(_reap_idle())
     rejoin = asyncio.create_task(_rejoin_shared_projects())
     warm = asyncio.create_task(_warm_the_agent())
+    settled = asyncio.create_task(_settle_an_update())
     try:
         yield
     finally:
@@ -155,11 +157,20 @@ async def lifespan(app: FastAPI):
         reaper.cancel()
         rejoin.cancel()
         warm.cancel()
+        settled.cancel()
         for pending in list(PENDING_JOINS.values()):
             PENDING_JOINS.pop(pending.token, None)
             await pending.release(keep=False)
         for session in list(SESSIONS.values()):
             await session.close()
+
+
+async def _settle_an_update() -> None:
+    """After an update, a server that has answered for a while is the new
+    version working: `server/comeback.py` stops counting its starts and
+    forgets the interface it kept, and there is nothing to go back to."""
+    await asyncio.sleep(comeback.HEALTHY_AFTER)
+    await asyncio.to_thread(comeback.healthy, state_home())
 
 
 async def _warm_the_agent() -> None:
@@ -6115,12 +6126,31 @@ async def report_problem(body: Optional[ReportRequest] = None):
     return await asyncio.to_thread(build)
 
 
+def _version_at(commit: str) -> str:
+    """The number a commit carries, or "" when it cannot be read."""
+    if not commit:
+        return ""
+    try:
+        text = gitrepo._run(INSTALL_ROOT, "show", f"{commit}:nexttex/version.py")
+    except gitrepo.GitError:
+        return ""
+    return updates.parse_version(text)
+
+
 @app.get("/api/update")
 async def update_check(force: bool = False):
     """What updating would do.  Cached, because the screen that asks is the
     one the writer opens every session."""
+    # The last update that did not start, if one went back: the sheet says
+    # so, and the commit it went back from is not offered again (Q-012).
+    note = await asyncio.to_thread(comeback.rolled_back, state_home())
+    UPDATES.avoid = str((note or {}).get("from") or "")
     report = await asyncio.to_thread(UPDATES.get, force)
     body = report.as_dict()
+    body["rolledBack"] = (
+        {**note, "fromVersion": await asyncio.to_thread(_version_at, note.get("from", "")),
+         "toVersion": VERSION} if note else None
+    )
     job = UPDATE_JOB.get("state")
     body["updating"] = job in ("running", "restarting")
     body["phase"] = job or ""
@@ -6241,6 +6271,10 @@ def _update_say(kind: str, **fields) -> None:
 _STEPS = (
     ("Fetching", "Fetching the new version"),
     ("Dependencies", "Installing Python packages"),
+    # git's own lines while it applies what it fetched, which the heading
+    # used to leave on "Fetching" while the list of files scrolled (Q-072).
+    ("Updating ", "Updating the files"),
+    ("Fast-forward", "Updating the files"),
     ("interface", "Building the interface"),
     ("Restarting", "Finishing"),
     ("Done", "Finishing"),
@@ -6251,6 +6285,10 @@ async def _run_update(report) -> None:
     loop = asyncio.get_running_loop()
 
     def pump() -> int:
+        # The commit this leaves, and the interface it may replace, written
+        # down first: if the new version then will not start, the next
+        # start goes back to them (`server/comeback.py`, Q-012).
+        comeback.leaving(state_home(), INSTALL_ROOT)
         # Windows has its own script, and used to have no route to it at
         # all: this hardcoded bash, so the update button could not work
         # there whatever it said.  The scripts differ because the service
@@ -6297,6 +6335,8 @@ async def _run_update(report) -> None:
         _update_say("output", text=f"{type(error).__name__}: {error}")
 
     if code != 0:
+        # No restart follows, so there is no start to count.
+        comeback.abandoned(state_home())
         UPDATE_JOB["state"] = "failed"
         _update_say("failed", message="The update did not finish.")
         UPDATES.forget()
@@ -6455,8 +6495,10 @@ async def claude_status():
 
 
 @app.post("/api/claude/login/start")
-async def claude_login_start(console: bool = Body(False, embed=True)):
-    return await claude_auth.start_login(console=console)
+async def claude_login_start(
+    console: bool = Body(False, embed=True), restart: bool = Body(False, embed=True),
+):
+    return await claude_auth.start_login(console=console, restart=restart)
 
 
 @app.post("/api/claude/login/input")

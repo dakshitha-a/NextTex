@@ -301,3 +301,64 @@ def test_a_remote_that_is_not_github_has_no_slug(pair):
 
 def test_a_checkout_with_no_remote_has_no_slug(tmp_path):
     assert updates.repository_slug(tmp_path) == ""
+
+
+# -- held back: a version not yet tested, or one that did not start --------
+
+
+def test_a_version_still_being_tested_is_not_offered(pair, monkeypatch):
+    """Q-012: the update was offered once its interface existed, which is
+    half a minute after a push, while the tests take five, so a commit that
+    broke the server's start could reach an install first."""
+    work, clone = pair
+    commit(work, "server/main.py", message="server")
+    for state, offered in (("pending", False), ("failed", False),
+                           ("passed", True), ("unknown", True)):
+        monkeypatch.setattr(updates, "ci_state", lambda root, sha, s=state: s)
+        report = updates.check(clone)
+        assert report.ci == state
+        assert report.can_update is offered, state
+
+
+def test_a_version_this_install_went_back_from_is_not_offered_again(pair, monkeypatch):
+    work, clone = pair
+    commit(work, "server/main.py", message="broken start")
+    monkeypatch.setattr(updates, "ci_state", lambda root, sha: "passed")
+    report = updates.check(clone)
+    target = subprocess.run(["git", "rev-parse", "@{upstream}"], cwd=clone,
+                            capture_output=True, text=True, check=True).stdout.strip()
+    held = updates.check(clone, avoid=target)
+    assert report.can_update is True
+    assert held.avoided is True and held.can_update is False
+    commit(work, "server/main.py", body="fixed\n", message="fixed")
+    assert updates.check(clone, avoid=target).can_update is True
+
+
+def test_the_tests_are_read_from_githubs_check_runs(monkeypatch, tmp_path):
+    import io
+    import json as _json
+
+    answers = {}
+
+    class Answer(io.BytesIO):
+        def __enter__(self):
+            return self
+
+        def __exit__(self, *exc):
+            return False
+
+    def fake_open(request, timeout=10):
+        return Answer(_json.dumps({"check_runs": answers["runs"]}).encode())
+
+    monkeypatch.setattr(updates, "repository_slug", lambda root: "o/r")
+    monkeypatch.setattr(updates.urllib.request, "urlopen", fake_open)
+    cases = [
+        ([{"name": "test", "status": "completed", "conclusion": "success"},
+          {"name": "build", "status": "in_progress", "conclusion": None}], "passed"),
+        ([{"name": "test", "status": "in_progress", "conclusion": None}], "pending"),
+        ([{"name": "test", "status": "completed", "conclusion": "failure"}], "failed"),
+        ([{"name": "build", "status": "completed", "conclusion": "success"}], "unknown"),
+    ]
+    for runs, expected in cases:
+        answers["runs"] = runs
+        assert updates.ci_state(tmp_path, "abc123") == expected

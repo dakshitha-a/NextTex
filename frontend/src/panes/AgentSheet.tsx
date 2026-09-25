@@ -298,6 +298,9 @@ function ClaudeSetup({
   const [output, setOutput] = useState("");
   const [code, setCode] = useState("");
   const [running, setRunning] = useState(false);
+  /** Set when the server said another tab is signing in: which flow this
+   *  one asked for, so Start again here asks for the same one. */
+  const [elsewhere, setElsewhere] = useState<{ console: boolean } | null>(null);
   /** null while the answer is unknown, so the row does not flash the
    *  wrong half of itself before the status arrives. */
   const [installed, setInstalled] = useState<boolean | null>(null);
@@ -399,16 +402,20 @@ function ClaudeSetup({
     if (log.current) log.current.scrollTop = log.current.scrollHeight;
   }, [output]);
 
-  const start = async (console: boolean) => {
+  const start = async (console: boolean, restart = false) => {
     onError(null);
     setOutput("");
     setRunning(true);
+    setElsewhere(null);
     try {
       await api.chooseProvider("claude");
-      const refused = loginRefusal(await api.startLogin(console));
+      const answer = await api.startLogin(console, restart);
+      const refused = loginRefusal(answer);
       if (refused) {
         onError(refused);
         setRunning(false);
+        // Another tab is signing in: this one can take over (Q-014).
+        if (answer?.busy) setElsewhere({ console });
         return;
       }
     } catch (problem: any) {
@@ -427,6 +434,14 @@ function ClaudeSetup({
         return;
       }
       if (payload.type === "output") setOutput((current) => current + payload.text);
+      if (payload.type === "replaced") {
+        // Another tab started the sign-in again; this one's is over, and
+        // it did not finish.
+        stream.close();
+        setRunning(false);
+        onError("Another tab started the sign-in again, so this one stopped.");
+        return;
+      }
       if (payload.type === "done") {
         stream.close();
         setRunning(false);
@@ -468,6 +483,13 @@ function ClaudeSetup({
               Console or SSO instead
             </Button>
           </span>
+        </div>
+      ) : null}
+      {elsewhere && !running ? (
+        <div className="nx-agent-row">
+          <Button variant="ghost" data-testid="login-restart" onClick={() => start(elsewhere.console, true)}>
+            Start again here
+          </Button>
         </div>
       ) : null}
 

@@ -14,6 +14,7 @@
 # brings it down.
 #
 #   scripts/fetch-interface.sh [SHA]
+#   scripts/fetch-interface.sh --check [SHA]   is one published? touches nothing
 #
 # Exits 0 having replaced frontend/dist, or non-zero having touched nothing.
 # The caller decides what to do about a failure; both install.sh and
@@ -28,6 +29,11 @@ ROOT="$(pwd)"
 note() { printf '  %s\n' "$*"; }
 fail() { printf '  %s\n' "$*" >&2; exit 1; }
 
+CHECK=0
+if [ "${1:-}" = "--check" ]; then
+  CHECK=1
+  shift
+fi
 SHA="${1:-}"
 if [ -z "$SHA" ]; then
   SHA="$(git rev-parse HEAD 2>/dev/null || true)"
@@ -52,6 +58,15 @@ printf '%s' "$SLUG" | grep -qE '^[A-Za-z0-9._-]+/[A-Za-z0-9._-]+$' \
 
 NAME="nexttex-frontend-${SHA}.tar.gz"
 BASE="https://github.com/${SLUG}/releases/download/interface"
+
+# Only asking, which update.sh does before it pulls: a commit whose
+# interface is not published yet, on a machine with no Node to build one,
+# is not pulled at all rather than left serving the old interface (Q-013).
+if [ "$CHECK" = 1 ]; then
+  curl -fsSIL "$BASE/$NAME" >/dev/null 2>&1 \
+    || fail "no interface has been published for $SHA yet"
+  exit 0
+fi
 
 WORK="$(mktemp -d)"
 trap 'rm -rf "$WORK"' EXIT

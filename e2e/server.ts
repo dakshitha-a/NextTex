@@ -98,6 +98,7 @@ export async function startServer(
     // the files where the server keeps its copy, and anything else finds
     // nothing listening.
     NEXTTEX_DICTIONARY_BASE: "http://127.0.0.1:9/npm",
+    NEXTTEX_GITHUB_API: "http://127.0.0.1:9",
     NEXTTEX_FAKE_CLAUDE_AUTH: "1",
     // In-process peers rather than real ones. A browser test that shared a
     // project would otherwise open an iroh endpoint and talk to n0's

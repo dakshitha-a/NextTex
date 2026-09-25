@@ -514,3 +514,32 @@ test("a long reason from git does not carry Try again off the sheet", async ({
     await app.stop();
   }
 });
+
+test("an update that did not start says so, and is not offered again", async ({ page }) => {
+  /* Q-012: the new version failed to start, and the next start went back
+     to the one it left. The sheet opens its card with one warning line,
+     and the version it went back from is held back. */
+  buildRepo();
+  commitUpstream("nexttex/version.py", "NextTex is 9.9.9", 'VERSION = "9.9.9"\n');
+  const upstream = execFileSync("git", ["rev-parse", "HEAD"], { cwd: work }).toString().trim();
+  const here = execFileSync("git", ["rev-parse", "HEAD"], { cwd: clone }).toString().trim();
+  const app = await startServer({ NEXTTEX_INSTALL_ROOT: clone });
+  try {
+    const state = join(app.sandbox, "data", "nexttex");
+    mkdirSync(state, { recursive: true });
+    writeFileSync(join(state, "update-rolled-back.json"),
+      JSON.stringify({ from: upstream, to: here, at: Date.now() / 1000 }));
+    await open(app, page);
+    const note = page.getByTestId("update-rolled-back");
+    await expect(note).toContainText("The update to 9.9.9 did not start.", { timeout: 15_000 });
+    await expect(note).toContainText("NextTex went back to");
+    await expect(page.getByTestId("update-held-detail")).toHaveText(
+      "It is not offered again. The next version is, once there is one.");
+    await expect(page.getByTestId("update-now")).toHaveCount(0);
+    if (process.env.NEXTTEX_SHOT) {
+      await page.getByTestId("update-sheet").screenshot({ path: process.env.NEXTTEX_SHOT });
+    }
+  } finally {
+    await app.stop();
+  }
+});

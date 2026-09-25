@@ -352,3 +352,42 @@ def test_windows_counts_as_supervised_when_powershell_is_there(monkeypatch):
     assert updates.supervised() is True
     monkeypatch.setattr(updates.shutil, "which", lambda name: None)
     assert updates.supervised() is False
+
+
+def test_an_update_that_went_back_says_so_and_is_not_offered_again(client, behind):
+    """Q-012: the next page load after a rollback reads what happened, and
+    the commit it went back from is held back until a newer one exists."""
+    import json
+
+    from nexttex.paths import state_home
+    from server import comeback
+
+    git(behind, "fetch")
+    upstream = subprocess.run(["git", "rev-parse", "@{upstream}"], cwd=behind,
+                              capture_output=True, text=True, check=True).stdout.strip()
+    here = subprocess.run(["git", "rev-parse", "HEAD"], cwd=behind,
+                          capture_output=True, text=True, check=True).stdout.strip()
+    note = state_home() / comeback.ROLLED_BACK
+    note.parent.mkdir(parents=True, exist_ok=True)
+    note.write_text(json.dumps({"from": upstream, "to": here, "at": time.time()}))
+    body = client.get("/api/update", params={"force": "true"}).json()
+    assert body["rolledBack"]["from"] == upstream
+    assert body["rolledBack"]["toVersion"] == VERSION
+    assert body["avoided"] is True and body["can_update"] is False
+    note.unlink()
+    assert client.get("/api/update", params={"force": "true"}).json()["rolledBack"] is None
+
+
+def test_an_update_writes_down_the_commit_it_leaves(client, behind, monkeypatch):
+    """Before the script runs, so a new version that will not start can be
+    gone back from."""
+    from nexttex.paths import state_home
+    from server import comeback
+
+    left = []
+    monkeypatch.setattr(comeback, "leaving", lambda state, root: left.append((state, root)))
+    monkeypatch.setattr(server_main.subprocess, "Popen", lambda *a, **k: (_ for _ in ()).throw(OSError("no script here")))
+    import asyncio
+    asyncio.run(server_main._run_update(None))
+    assert left == [(state_home(), behind)]
+    assert server_main.UPDATE_JOB["state"] == "failed"

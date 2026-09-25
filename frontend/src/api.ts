@@ -336,6 +336,15 @@ export type UpdateReport = {
   build_reason: string;
   can_update: boolean;
   reason: string;
+  /** What GitHub's checks said about the commit an update would move to:
+   *  "passed", "pending", "failed", or "unknown" when they could not be
+   *  asked, which does not hold an update back. */
+  ci?: "passed" | "pending" | "failed" | "unknown";
+  /** The commit an update would move to is the one the last update went
+   *  back from, because it did not start here. */
+  avoided?: boolean;
+  /** The last update that did not start, and where NextTex went back to. */
+  rolledBack?: { from: string; to: string; fromVersion?: string; toVersion?: string } | null;
   restart: "auto" | "manual";
   error: string;
   updating: boolean;
@@ -1306,8 +1315,8 @@ const api = {
    *  The name has to be this: the route reads a `console` boolean, and a
    *  `{mode}` body sent instead was simply ignored, so both buttons ran the
    *  same flow. */
-  startLogin: (console: boolean) =>
-    request<any>("/claude/login/start", json({ console })),
+  startLogin: (console: boolean, restart = false) =>
+    request<any>("/claude/login/start", json({ console, restart })),
   loginInput: (text: string) => request<any>("/claude/login/input", json({ text })),
   cancelLogin: () => request<any>("/claude/login/cancel", { method: "POST" }),
   logout: () => request<any>("/claude/logout", { method: "POST" }),

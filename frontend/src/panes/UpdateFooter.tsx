@@ -534,18 +534,30 @@ export default function UpdateFooter({
     }
 
     if (!report.can_update) {
+      // Why an update is not offered, most specific first. The two held
+      // back by the fix run (Q-012): a version that did not start here and
+      // was gone back from, and one whose tests have not passed.
+      const [headline, detail] = report.dirty.length
+        ? ["The NextTex folder has changes that are not committed.",
+           "Updating would overwrite them, so it will not run. Commit or discard them in a terminal, then check again."]
+        : report.avoided
+          ? // The rollback's own lines above say what happened; this says
+            // only what comes next, rather than saying it twice.
+            [report.rolledBack ? "" : "That version did not start here.",
+             "It is not offered again. The next version is, once there is one."]
+          : report.ci === "failed"
+            ? ["That version failed its tests.",
+               "It is not offered. A fixed version will be, once its tests pass."]
+            : report.ci === "pending"
+              ? ["That version is still being tested.",
+                 "It is offered once its tests have passed, usually within ten minutes; check again shortly."]
+              : ["The interface for this update is still being built.",
+                 `${report.build_reason} It usually takes a minute; check again shortly.`];
       return (
         <Card>
-          <div className="t-ui text-ink">
-            {report.dirty.length
-              ? "The NextTex folder has changes that are not committed."
-              : "The interface for this update is still being built."}
-          </div>
-          <p className="t-meta mt-1 text-ink-2">
-            {report.dirty.length
-              ? "Updating would overwrite them, so it will not run. Commit or discard them in a terminal, then check again."
-              : `${report.build_reason} It usually takes a minute; check again shortly.`}
-          </p>
+          {report.rolledBack ? <RolledBack note={report.rolledBack} /> : null}
+          {headline ? <div className="t-ui text-ink" data-testid="update-held">{headline}</div> : null}
+          <p className="t-meta mt-1 text-ink-2" data-testid="update-held-detail">{detail}</p>
           {report.dirty.slice(0, 5).map((path) => (
             <div key={path} className="t-code-sm mt-1 text-ink-3">
               {path}
@@ -565,6 +577,7 @@ export default function UpdateFooter({
 
     return (
       <Card>
+        {report.rolledBack ? <RolledBack note={report.rolledBack} /> : null}
         <div className="t-ui text-ink" data-testid="update-headline">
           {headline(report)}
         </div>
@@ -615,6 +628,8 @@ export function stateOf(phase: Phase, self: Instance | null, wasWaiting = false)
     // said "Check for updates" after one, which told the writer nothing was
     // pending when an update was already known to be waiting.
     if (!report.checked) return wasWaiting ? "waiting" : "unreachable";
+    // An update that went back is news the writer did not ask for.
+    if (report.rolledBack) return "attention";
     if (report.behind > 0 && report.changing > 0 && report.can_update) return "waiting";
   }
   return "resting";
@@ -655,6 +670,23 @@ const cap = (text: string) => text.charAt(0).toUpperCase() + text.slice(1);
 /** Wrapping, because the rail is 280px and a line with a message, a
  *  button and Report a problem on it is wider than that.  Nothing on a
  *  line is carried off it; it drops under. */
+/** The last update did not start and NextTex went back (Q-012). In the
+ *  sheet's own small warning line, as a failed check says it failed. */
+function RolledBack({ note }: { note: NonNullable<UpdateReport["rolledBack"]> }) {
+  const name = (version: string | undefined, sha: string) => version || sha.slice(0, 7);
+  return (
+    <div className="mb-2 flex flex-col gap-1" data-testid="update-rolled-back">
+      <span className="t-micro text-warn">
+        The update to {name(note.fromVersion, note.from)} did not start.
+      </span>
+      <span className="t-meta text-ink-2">
+        NextTex went back to {name(note.toVersion, note.to)}, the version it was running
+        before. Nothing you wrote is affected.
+      </span>
+    </div>
+  );
+}
+
 function Line({ children }: { children: React.ReactNode }) {
   return <div className="flex flex-wrap items-center gap-x-3 gap-y-1">{children}</div>;
 }

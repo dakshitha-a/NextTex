@@ -155,9 +155,28 @@ def status() -> dict:
     return {"installed": True, **data}
 
 
-async def start_login(console: bool = False) -> dict:
-    """Launch `claude auth login` under a pseudo-terminal."""
+#: What a second tab is told while a sign-in is already running.
+ALREADY_SIGNING_IN = (
+    "Another tab is signing in to Claude. Finish there, or start again "
+    "here, which stops that one."
+)
+
+
+async def start_login(console: bool = False, restart: bool = False) -> dict:
+    """Launch `claude auth login` under a pseudo-terminal.
+
+    There is one sign-in for the whole server, and a second tab starting
+    one used to cancel the first without a word, after which the first
+    was told the sign-in had finished (Q-014). A start while one runs is
+    now refused with a sentence saying so, and a start that asks to
+    `restart` tells the first tab it was replaced before it stops it.
+    """
     global _current
+    running = _current
+    if running is not None and not running.finished:
+        if not restart:
+            return {"ok": False, "busy": True, "error": ALREADY_SIGNING_IN}
+        running.publish({"type": "replaced"})
     if not HAVE_PTY:
         return {
             "ok": False,

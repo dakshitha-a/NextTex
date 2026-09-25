@@ -390,6 +390,14 @@ right of the screen turns the pen colour with a small ring; press it for the
 commit subjects and an Update button. It restarts itself afterwards and the
 page comes back on its own.
 
+An update is offered only once its tests have passed on GitHub, so a version
+still being tested waits, usually for ten minutes or less, and one that failed
+its tests is not offered at all. If an update does not start, NextTex goes
+back by itself to the version it was running: after three starts that never
+settle, it returns to the commit it left and the interface that went with it,
+and the update sheet says so the next time you open the list. The version it
+went back from is not offered again; the next one is.
+
 It is deliberately quiet. Commits that change only documentation or tests are
 reported as *"three new commits, none of which change NextTex"*, a grey line
 rather than an alert, and a check that cannot reach GitHub says nothing unless

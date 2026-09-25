@@ -29,6 +29,13 @@ step "Frontend"
 (cd frontend && node_modules/.bin/vitest run)
 
 step "Python"
+# CI pins the floor, 3.10, and a newer interpreter here passes code that
+# needs something 3.10 does not have until CI says otherwise (Q-016). Said
+# rather than refused: a developer's venv is theirs to choose.
+if ! .venv/bin/python -c 'import sys; sys.exit(sys.version_info[:2] > (3, 10))'; then
+  printf '  note: .venv is Python %s, newer than the 3.10 CI checks with\n' \
+    "$(.venv/bin/python -c 'import sys; print("%d.%d" % sys.version_info[:2])')"
+fi
 .venv/bin/python -m pytest tests/ -q
 
 if [ "${1:-}" = "--bench" ]; then

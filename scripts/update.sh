@@ -87,6 +87,21 @@ main() {
       git stash push -u -m "nexttex update $(date '+%Y-%m-%dT%H:%M:%S%z')" >/dev/null
       note "restore them later with: git stash pop"
     fi
+    # The interface for where this is going, asked for before anything
+    # moves. A commit that changes the interface is served by the one CI
+    # publishes for it, or by one built here with Node; with neither, this
+    # used to pull anyway and leave the old interface in front of the new
+    # server, which the footer only said afterwards (Q-013). The update
+    # page already waited for it; this script, run by hand, did not.
+    git fetch --quiet
+    target=$(git rev-parse '@{upstream}' 2>/dev/null || true)
+    if [ -n "$target" ] && ! git diff --quiet HEAD "$target" -- frontend/ 2>/dev/null \
+       && ! scripts/fetch-interface.sh --check "$target" >/dev/null 2>&1 \
+       && ! { command -v node >/dev/null 2>&1 && [ "$(node -v | sed 's/^v//; s/\..*//')" -ge 20 ]; }; then
+      note "the interface for $(printf '%s' "$target" | cut -c1-7) has not been published yet, and there is no Node here to build one"
+      note "nothing was changed; try again in a few minutes"
+      exit 1
+    fi
     before=$(git rev-parse --short HEAD)
     git pull --ff-only
     after=$(git rev-parse --short HEAD)

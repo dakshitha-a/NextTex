@@ -16,7 +16,7 @@ def test_the_console_flow_is_actually_asked_for(client, monkeypatch):
 
     asked = {}
 
-    async def fake_start(*, console: bool = False):
+    async def fake_start(*, console: bool = False, restart: bool = False):
         asked["console"] = console
         return {"started": True}
 
@@ -30,7 +30,7 @@ def test_the_default_flow_is_the_claude_ai_one(client, monkeypatch):
 
     asked = {}
 
-    async def fake_start(*, console: bool = False):
+    async def fake_start(*, console: bool = False, restart: bool = False):
         asked["console"] = console
         return {"started": True}
 
@@ -224,3 +224,42 @@ def test_the_browser_tests_cannot_sign_the_machine_out(monkeypatch, client):
 
     body = client.post("/api/claude/logout").json()
     assert body["ok"] is True
+
+
+def test_a_second_sign_in_is_told_about_the_first_and_can_take_over(monkeypatch, tmp_path):
+    """Q-014: one sign-in for the whole server, and a second tab starting
+    one used to cancel the first, which was then told it had finished. A
+    second start is refused with a sentence now, and one that asks to
+    start again tells the first tab it was replaced."""
+    import asyncio
+    import json
+
+    from nexttex import claude_auth
+
+    monkeypatch.setenv("NEXTTEX_CLAUDE_BINARY", str(FAKE_CLI))
+    monkeypatch.setenv("NEXTTEX_FAKE_CLAUDE_STATE", str(tmp_path / "signed-in"))
+    monkeypatch.delenv("NEXTTEX_FAKE_CLAUDE_AUTH", raising=False)
+
+    async def two_tabs() -> tuple[dict, list[str]]:
+        assert (await claude_auth.start_login())["ok"] is True
+        first = claude_auth.stream()
+        seen: list[str] = []
+
+        async def read() -> None:
+            async for line in first:
+                seen.append(json.loads(line)["type"])
+                if seen[-1] in ("replaced", "done"):
+                    return
+
+        reader = asyncio.create_task(read())
+        await asyncio.sleep(0.3)
+        refused = await claude_auth.start_login()
+        assert (await claude_auth.start_login(restart=True))["ok"] is True
+        await asyncio.wait_for(reader, timeout=10)
+        await claude_auth.cancel_login()
+        return refused, seen
+
+    refused, seen = asyncio.run(two_tabs())
+    assert refused["ok"] is False and refused["busy"] is True
+    assert refused["error"] == claude_auth.ALREADY_SIGNING_IN
+    assert seen[-1] == "replaced", seen

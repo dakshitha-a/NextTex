@@ -10785,3 +10785,19 @@ The Claude column stays at the bottom while the reader is there when
 anything above grows, so opening a folded run of tool calls while a
 permission card waits keeps the card's answers in view; its last row used
 to slide behind the composer.
+
+An update that does not start comes back by itself. After three starts
+that never settle NextTex returns to the version it left, and the update
+sheet opens its card with one line in the warning ink, "The update to
+3.19.0 did not start.", and under it "NextTex went back to 3.18.8, the
+version it was running before. Nothing you wrote is affected." The bar's
+update control asks for attention until an update next starts and settles. An
+update still being tested says so in the same card as the interface
+still being built: "That version is still being tested." or "That
+version failed its tests." While an update runs, the step under the
+sheet's heading reads "Updating the files" while git applies them.
+
+A second tab signing in to Claude is told, in the sheet's own error line,
+"Another tab is signing in to Claude. Finish there, or start again here,
+which stops that one.", with *Start again here* under it; the first tab
+then says "Another tab started the sign-in again, so this one stopped."

@@ -297,3 +297,29 @@ def test_on_a_mac_the_launchd_agent_is_restarted(tmp_path: Path) -> None:
     assert "Restarting" in done.stdout
     recorded = (fake / "launchctl.log").read_text()
     assert "kickstart -k gui/" in recorded and "/com.nexttex.server-nothinglistenshere" in recorded
+
+
+def test_a_commit_whose_interface_is_not_published_is_not_pulled(tmp_path: Path) -> None:
+    """Q-013: run by hand, the script pulled a commit whose interface CI had
+    not published yet and, with no Node to build one, left the old
+    interface in front of the new server. It asks first now, and moves
+    nothing when the answer is no."""
+    origin, work = repositories(tmp_path)
+    fetch = work / "scripts" / "fetch-interface.sh"
+    fetch.write_text('#!/bin/sh\n[ "$1" = "--check" ] && exit 1\nexit 0\n')
+    git(work, "commit", "-qam", "the interface is never published")
+    git(work, "push", "origin", "main")
+
+    other = tmp_path / "release"
+    subprocess.run(["git", "clone", str(origin), str(other)], check=True, capture_output=True)
+    (other / "frontend").mkdir()
+    (other / "frontend" / "App.tsx").write_text("changed\n")
+    git(other, "add", "-A")
+    git(other, "commit", "-m", "an interface change")
+    git(other, "push", "origin", "main")
+
+    before = git(work, "rev-parse", "HEAD").strip()
+    done = run(work)
+    assert done.returncode != 0
+    assert git(work, "rev-parse", "HEAD").strip() == before
+    assert "has not been published yet" in log_of(work).read_text()

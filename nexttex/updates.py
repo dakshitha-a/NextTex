@@ -14,6 +14,7 @@ described as changing anything.
 
 from __future__ import annotations
 
+import json
 import os
 import shutil
 import re
@@ -101,6 +102,16 @@ class Report:
     #: for the commit we would move to".
     build_ok: bool = True
     build_reason: str = ""
+    #: What GitHub's checks said about the commit an update would move to:
+    #: "passed", "pending", "failed", or "unknown" when they could not be
+    #: asked. The update was offered as soon as its interface existed, which
+    #: the interface workflow publishes in half a minute, while the Python
+    #: tests take nearly five, so a commit that broke the server's start
+    #: could reach an install before any test had run (Q-012).
+    ci: str = "unknown"
+    #: The commit an update would move to is one this install went back
+    #: from, because it did not start here.
+    avoided: bool = False
     can_update: bool = False
     reason: str = ""
     restart: str = "manual"
@@ -199,6 +210,44 @@ def interface_published(root: Path, sha: str) -> tuple[bool, str]:
         return True, ""     # some other server mood; not the writer's problem
     except (urllib.error.URLError, OSError, ValueError):
         return True, ""     # offline: the fetch will fall back to a local build
+
+
+#: The checks that have to pass before a commit is offered: the server's
+#: tests, which are the ones a broken start would fail.
+REQUIRED_CHECKS = ("test",)
+
+
+def ci_state(root: Path, sha: str) -> str:
+    """"passed", "pending", "failed", or "unknown", for one commit.
+
+    Read from the check runs GitHub keeps for it, without a token, which
+    allows sixty requests an hour and is asked once per check of an hour
+    or more. Only the required checks count, so a docs workflow that is
+    slow does not hold an update back; "unknown" when GitHub cannot be
+    asked, or has no runs for the commit, which offers the update as
+    before rather than leaving an install stranded offline.
+    """
+    slug = repository_slug(root)
+    if not slug or not sha:
+        return "unknown"
+    # `NEXTTEX_GITHUB_API` replaces the host, which the suites point at a
+    # closed port so a test never asks GitHub anything.
+    base = os.environ.get("NEXTTEX_GITHUB_API", "https://api.github.com").rstrip("/")
+    url = f"{base}/repos/{slug}/commits/{sha}/check-runs?per_page=100"
+    request = urllib.request.Request(url, headers={"Accept": "application/vnd.github+json"})
+    try:
+        with urllib.request.urlopen(request, timeout=10) as answer:
+            runs = json.loads(answer.read().decode("utf-8")).get("check_runs") or []
+    except (urllib.error.URLError, OSError, ValueError):
+        return "unknown"
+    wanted = [run for run in runs if str(run.get("name", "")) in REQUIRED_CHECKS]
+    if not wanted:
+        return "unknown"
+    if any(run.get("status") != "completed" for run in wanted):
+        return "pending"
+    if all(run.get("conclusion") == "success" for run in wanted):
+        return "passed"
+    return "failed"
 
 
 def node_available() -> tuple[bool, str]:
@@ -355,8 +404,12 @@ def _upstream_version(root: Path) -> str:
     return parse_version(text)
 
 
-def check(root: Path) -> Report:
-    """Ask the remote what it has, and work out what it would mean."""
+def check(root: Path, avoid: str = "") -> Report:
+    """Ask the remote what it has, and work out what it would mean.
+
+    `avoid` is a commit this install went back from after it would not
+    start; an upstream still at it is not offered again.
+    """
     report = Report(
         at=time.time(), restart="auto" if supervised() else "manual", version=VERSION,
     )
@@ -398,10 +451,25 @@ def check(root: Path) -> Report:
         interface_published(root, target) if report.rebuild else (True, "")
     )
 
+    upstream = ""
+    if report.behind:
+        try:
+            upstream = gitrepo._run(root, "rev-parse", "@{upstream}").strip()
+        except gitrepo.GitError:
+            upstream = ""
+        report.avoided = bool(avoid) and upstream.startswith(avoid)
+        report.ci = ci_state(root, upstream)
+
     if report.behind == 0:
         report.reason = "already up to date"
     elif report.dirty:
         report.reason = "the install directory has uncommitted changes"
+    elif report.avoided:
+        report.reason = "that version did not start here"
+    elif report.ci == "failed":
+        report.reason = "that version failed its tests"
+    elif report.ci == "pending":
+        report.reason = "that version is still being tested"
     elif not report.build_ok:
         report.reason = "the interface for that commit is still being built"
     else:
@@ -418,6 +486,8 @@ class Cache:
     def __init__(self, root: Path) -> None:
         self.root = root
         self.report: Report | None = None
+        #: A commit not to offer, set by the server from the last rollback.
+        self.avoid = ""
 
     def get(self, force: bool = False) -> Report:
         fresh = (
@@ -426,7 +496,7 @@ class Cache:
             and time.time() - self.report.at < CACHE_SECONDS
         )
         if not fresh:
-            self.report = check(self.root)
+            self.report = check(self.root, self.avoid)
         return self.report
 
     def forget(self) -> None:

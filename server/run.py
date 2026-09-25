@@ -19,6 +19,21 @@ import time
 
 _RAN_AT = time.monotonic()
 
+# Second, before anything of NextTex's is imported: whether this is a new
+# version that keeps failing to start after an update, and if so going back
+# to the one it left. A new version that cannot import its own modules is
+# the case this is for, so it runs ahead of them. See `server/comeback.py`.
+if __name__ == "__main__":
+    import sys as _sys
+
+    try:  # started as `python server/run.py`, the way every launcher does
+        from comeback import at_start as _went_back, serving as _serving
+    except ImportError:  # or as `python -m server.run`
+        from server.comeback import at_start as _went_back, serving as _serving
+
+    if _serving(_sys.argv[1:]) and _went_back(_sys.argv[1:]):
+        raise SystemExit(3)
+
 import argparse
 import asyncio
 import atexit

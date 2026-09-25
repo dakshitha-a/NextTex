@@ -24,6 +24,8 @@ os.environ["NEXTTEX_CLAUDE_BINARY"] = str(
 # host is a port nothing listens on, and a test that wants a list hands
 # `nexttex.dictionaries` its own fetch.
 os.environ["NEXTTEX_DICTIONARY_BASE"] = "http://127.0.0.1:9/npm"
+# And the update check's question to GitHub about a commit's tests.
+os.environ["NEXTTEX_GITHUB_API"] = "http://127.0.0.1:9"
 
 
 def pytest_configure(config):

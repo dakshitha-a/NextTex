@@ -919,6 +919,10 @@ the commit, not only once its interface exists.
 
 *Size:* medium. *Version:* z.
 
+*Fixed in 3.18.8.* The update writes down the commit it leaves; a fourth
+start that never settles goes back to it and says so; an update is
+offered once its tests have passed.
+
 ### Q-013 · Install · bug · low · confirmed
 **The update script skips the interface check.**
 
@@ -935,6 +939,8 @@ the commit is not published yet, as the page does.
 
 *Size:* small. *Version:* z.
 
+*Fixed in 3.18.8.* The script asks for the interface before it pulls.
+
 ### Q-014 · Settings · bug · low · likely
 **Two tabs signing in to Claude cancel each other.**
 
@@ -948,6 +954,9 @@ cancel each other, and the cancelled one is told the sign-in finished.
 is told another is in progress.
 
 *Size:* small. *Version:* z.
+
+*Fixed in 3.18.8.* A second start is refused with a sentence, and one
+that starts again tells the first tab it was replaced.
 
 ### The suites, CI and dependencies
 
@@ -1061,6 +1070,8 @@ checks run by hand cannot see a 3.11 feature until CI does.
 newer than the floor, or the venv is made with 3.10.
 
 *Size:* small. *Version:* none.
+
+*Fixed in 3.18.8.* `scripts/check.sh` says when the venv is newer than 3.10.
 
 ### Q-036 · Suites · security · low · confirmed
 **Audit advisories and a noisy build.**
@@ -1709,6 +1720,8 @@ commits, the dialog's heading still reads "Fetching the new version".
 *What should happen:* the heading names the step the output belongs to.
 
 *Size:* small. *Version:* z.
+
+*Fixed in 3.18.8.* git's own lines move the step to Updating the files.
 
 *Fixed in 3.18.7.* The drawer's chunk is prefetched, and until it has
 arrived the chord holds what is typed for the box.
