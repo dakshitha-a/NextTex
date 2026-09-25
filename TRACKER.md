@@ -24,13 +24,18 @@ things go to be forgotten rather than a list anybody reads.
 
 ## In hand
 
-The probe, a whole-app review, closed on 25 September 2026 at 3.18.1. Its
-findings are `REVIEW.md`, 69 records, and they are the input to the fix
-plan that comes next; nothing in them is fixed yet. Its report page is
-https://claude.ai/artifact/4mdUwu1mLwVYquc7Bm7vkS. Two of its records
-touch the backlog below: Q-055 on the six browser flakes, which did not
-fail in three full tiers with retries off, and Q-015 on two Python tests
-that did fail on CI and are not listed here.
+The fix run: the probe's findings, fixed in the order its report
+proposed, one push per step. Its tracker page is
+https://claude.ai/artifact/1PHFeRFMcKicS3PZFCqCzW. The findings are
+`REVIEW.md`, now 72 records with the three the Windows laptop sent after
+the probe closed, and each is marked there as it is fixed. The file is
+deleted when the run ends. Two of the records touch the backlog below:
+Q-055 on the six browser flakes, which did not fail in three full tiers
+with retries off, and Q-015 on two Python tests that did fail on CI and
+are not listed here.
+
+The probe itself closed on 25 September 2026 at 3.18.1. Its report page
+is https://claude.ai/artifact/4mdUwu1mLwVYquc7Bm7vkS.
 
 Before the probe: the pass after Opus 5.5 closed at 3.18.0 on 24 September 2026;
 its tracker page is https://claude.ai/artifact/SqdkLWZHqSaMBS5nvKCRtF.

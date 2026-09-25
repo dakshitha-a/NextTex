@@ -221,7 +221,7 @@ count and the newest time together, so a deletion is a change.
 
 *Size:* small. *Version:* z.
 
-### Q-019 · Compile · bug · medium · likely
+### Q-019 · Compile · bug · medium · confirmed
 **Windows drive paths confuse the log parser.**
 
 *Found by:* reading. *Where:* `nexttex/latexlog.py:56` against
@@ -239,6 +239,14 @@ MiKTeX log goes into the parser's tests.
 
 *How to reach it again:* a build on the Windows laptop with a warning in an
 `\input` file.
+
+*Confirmed on the laptop,* after the probe closed, on 3.18.1 with MiKTeX
+25.12. A project whose chapter one holds an overfull box on its line 3
+showed the warning against `main.tex`, in the drawer and in the parser
+called directly. The log opens the main file as C:/Users/daksh/test/q019/main.tex
+and the chapter as C:\Users\daksh\test\q019\chapters/one.tex, so the
+separators are mixed within one path, and a long path is wrapped at the
+log's line width. The fix's test uses these lines.
 
 *Size:* small. *Version:* z.
 
@@ -1591,6 +1599,56 @@ paper.
 
 *Size:* small. *Version:* z.
 
+### The Windows leg, after the close
+
+The Windows tester session sent its results on 25 September 2026, after
+the probe had closed. The update from the page, from 3.17.4 to 3.18.1,
+worked: 82 seconds from the press to the page reloading itself on the new
+version. Q-019 above is confirmed by it. Three new records follow.
+
+### Q-070 · Install · bug · medium · confirmed
+**A Windows server that dies stays dead.**
+
+*Found by:* the Windows tester. *Where:* the scheduled task the installer
+registers, in `nexttex/install/`.
+
+*What happens:* on Windows the server runs from a scheduled task with only
+a logon trigger and no restart on failure. The tester ended the listening
+process by its number. The launcher exited with it, the task went back to
+Ready, and nothing started it again in the ninety seconds they watched, or
+would have until the next sign-in. A crash would end the same way. On
+Linux the service manager restarts the server.
+
+*What should happen:* the task restarts the server when it exits with a
+failure, as the Linux service does.
+
+*Size:* small. *Version:* z.
+
+### Q-071 · Files · bug · low · confirmed
+**A tab shows a backslash in a path on Windows.**
+
+*Found by:* the Windows tester. *Where:* the paths the server sends.
+
+*What happens:* on the laptop the editor's tab for the chapter read
+chapters\one.tex. A path reaches the interface with the platform's
+separator, where everywhere else it uses a forward slash.
+
+*What should happen:* every path the server sends uses forward slashes.
+
+*Size:* small. *Version:* z.
+
+### Q-072 · Install · comfort · low · confirmed
+**The update dialog's heading lags behind git's output.**
+
+*Found by:* the Windows tester. *Where:* the update dialog.
+
+*What happens:* while git fast-forwards and prints its list of files and
+commits, the dialog's heading still reads "Fetching the new version".
+
+*What should happen:* the heading names the step the output belongs to.
+
+*Size:* small. *Version:* z.
+
 ### The documents
 
 ### Q-039 · Documents · docs · medium · confirmed
@@ -1684,13 +1742,15 @@ looked at as hard as anything above and held.
 - **The Windows laptop.** It was sent six checks early in the probe: an
   update from the page, the logon launcher and a restart, a MiKTeX build
   log with drive-letter paths for Q-019, AltGr on a real layout for Q-030,
-  and the display at 125 percent. The tester session runs over Remote
-  Control and holds a message from another session until someone approves
-  it on that machine; nothing came back. What stood in for it: Playwright
-  at a device pixel ratio of 1.25 for the display, and synthesized key
-  events of the shape Windows sends for AltGr. Q-019, a real update on
-  Windows, and a figure sent between two machines, which September could
-  not test either, remain unverified.
+  and the display at 125 percent. Nothing came back while the probe ran.
+  The results arrived after it closed and are under "The Windows leg,
+  after the close": the update, the restart and Q-019 were checked there.
+  Two remain open. AltGr, because the laptop has only a US layout; a
+  synthesized key event of the shape Windows sends stood in. The display
+  at 125 percent, because close-up captures failed in a background tab;
+  Playwright at a device pixel ratio of 1.25 stood in. A figure sent
+  between two machines, which September could not test either, remains
+  unverified.
 - **macOS.** Nothing here can run it.
 - **The OpenAI provider against OpenAI itself.** There is no key; a local
   model stood in.
