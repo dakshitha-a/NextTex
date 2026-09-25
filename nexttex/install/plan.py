@@ -337,7 +337,11 @@ class Plan:
         exists to remove.
         """
         total = sum(item.size_mb for item in self.items)
-        if self.choice("tex") in ("tinytex", "miktex") and not self.survey.has_tex:
+        # A distribution chosen is one downloaded, whatever TeX is here
+        # already: `--tex=miktex` on a machine with TinyTeX fetched MiKTeX
+        # after a plan that said "nothing to download". With no choice
+        # made and a TeX present, the item is fixed and says "present".
+        if self.choice("tex") in ("tinytex", "miktex"):
             total += SIZES["tex"][1]
         if self.choice("agent") == "claude" and not self.survey.claude:
             total += SIZES["claude"][1]

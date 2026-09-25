@@ -229,3 +229,20 @@ def test_nobody_there_means_the_default_answer():
 )
 def test_the_clock_reads_the_way_a_person_would_say_it(seconds, expected):
     assert ui._clock(seconds) == expected
+
+
+def test_the_install_log_keeps_the_link_without_its_token(tmp_path):
+    """The installer prints the address with its access token, and the log
+    of everything it printed is the file a bug report attaches."""
+    import io
+
+    from nexttex.install.ui import Console
+
+    screen = io.StringIO()
+    log = tmp_path / "install.log"
+    console = Console(stream=screen, plain=True, log=log)
+    console.write("  http://127.0.0.1:8450/?token=abc123DEF_-x&next=1")
+    assert "token=abc123DEF_-x" in screen.getvalue()
+    written = log.read_text(encoding="utf-8")
+    assert "abc123DEF" not in written
+    assert "http://127.0.0.1:8450/?token=<token>&next=1" in written

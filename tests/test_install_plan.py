@@ -234,3 +234,20 @@ def test_a_fixed_item_the_machine_cannot_do_is_still_not_overridable(tmp_path):
     if shortcut.fixed:
         assert not shortcut.overridable
         assert plan.choice("shortcut") != "yes"
+
+
+@pytest.mark.parametrize("platform", PLATFORMS)
+def test_a_distribution_chosen_over_one_already_here_is_counted(platform, tmp_path):
+    """`--tex=miktex` on the owner's laptop, which had TinyTeX, printed
+    "nothing to download" and then downloaded MiKTeX: a chosen
+    distribution was counted only when no TeX was present."""
+    result = bare(platform, tmp_path)
+    result.tex_dir = str(tmp_path / "tinytex" / "bin")
+    assert result.has_tex
+    kept = build_plan(result, interactive=False)
+    assert kept.choice("tex") == "present"
+    # MiKTeX is offered on Windows only; TinyTeX everywhere.
+    wanted = "miktex" if platform == "windows" else "tinytex"
+    chosen = build_plan(result, interactive=False, answers={"tex": wanted})
+    assert chosen.choice("tex") == wanted
+    assert chosen.megabytes >= kept.megabytes + 100

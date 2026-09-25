@@ -124,6 +124,8 @@ def _enable_vt(stream) -> bool:
         return False
 
 
+#: An access token in a URL, as the installer prints the address.
+_TOKEN = re.compile(r"([?&]token=)[^&\s]+")
 _ESCAPES = re.compile(r"\033\[[0-9;]*[A-Za-z]")
 
 
@@ -232,7 +234,10 @@ class Console:
                 self._log_handle = self.log.open(
                     "a", encoding="utf-8", errors="replace"
                 )
-            self._log_handle.write(text.rstrip("\r\n") + "\n")
+            # The link the installer prints ends in the access token, and
+            # this file is the one a bug report attaches: the screen keeps
+            # the link, the log keeps it with the token blanked.
+            self._log_handle.write(_TOKEN.sub(r"\1<token>", text.rstrip("\r\n")) + "\n")
             self._log_handle.flush()
         except OSError:
             self.log = None
