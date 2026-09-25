@@ -508,6 +508,9 @@ is already installed.
 
 *Size:* small. *Version:* z.
 
+*Fixed in 3.18.6.* A press with AltGraph held, or with Ctrl and Alt
+making a character other than the chord's letter, is never a chord.
+
 ### Q-031 · Preview · performance · high · confirmed
 **The preview never frees a page it drew.**
 

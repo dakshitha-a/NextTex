@@ -81,6 +81,8 @@ export type KeyLike = {
   ctrlKey: boolean;
   altKey: boolean;
   shiftKey: boolean;
+  /** Present on a real event; a literal in a test may leave it out. */
+  getModifierState?: (key: string) => boolean;
 };
 
 /** Whether this keydown is the chord.  `Mod` is Meta or Ctrl, as every
@@ -93,6 +95,12 @@ export function matchesChord(event: KeyLike, spec: string): boolean {
   const wantMod = parts.includes("Mod");
   const wantAlt = parts.includes("Alt");
   const wantShift = parts.includes("Shift");
+  // AltGr is how German, French, Nordic and Polish layouts type @, €, [,
+  // ] and letters such as ą, ę and ó, and on Windows it reaches the
+  // browser as Ctrl and Alt held together, so the Polish ą was the chord
+  // that shows the Claude column (Q-030). A press with AltGraph held is
+  // never a chord.
+  if (event.getModifierState?.("AltGraph")) return false;
   if ((event.metaKey || event.ctrlKey) !== wantMod) return false;
   if (event.altKey !== wantAlt) return false;
   if (event.shiftKey !== wantShift) return false;
@@ -100,6 +108,14 @@ export function matchesChord(event: KeyLike, spec: string): boolean {
     return event.key === key;
   }
   if (key.length === 1 && /[A-Za-z]/.test(key)) {
+    // Ctrl and Alt without Meta, and the key made a character that is not
+    // this letter: that is AltGr typing, whether or not the browser says
+    // AltGraph. On a Mac the app's chords hold Cmd, so Option's own
+    // characters there are left to the chord.
+    if (event.ctrlKey && event.altKey && !event.metaKey
+        && event.key.length === 1 && event.key.toLowerCase() !== key.toLowerCase()) {
+      return false;
+    }
     return event.code === `Key${key.toUpperCase()}`;
   }
   if (key.length === 1 && /[0-9]/.test(key)) {

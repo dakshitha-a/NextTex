@@ -10766,3 +10766,11 @@ warnings up to 500, and the Build drawer ends its list with "And 71,541
 more warnings, not listed here. The raw log has every one." The strip
 counts them all. A draft with thousands of undefined references used to
 send every one to every tab and stop the server while it did.
+
+A letter typed with AltGr is text, never one of the app's chords. On
+Windows AltGr reaches the browser as Ctrl and Alt held together, so the
+Polish ą, ę and ó, and the euro sign on German and French layouts, were
+taken for the chords that show the Claude column, Writing mode and quick
+open. A press with AltGraph held, or with Ctrl and Alt making a character
+other than the chord's own letter, is left to the text; on a Mac the
+chords hold Cmd and are unchanged.

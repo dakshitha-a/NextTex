@@ -87,3 +87,34 @@ describe("the registry", () => {
     }
   });
 });
+
+/** Q-030: on Windows AltGr arrives as Ctrl and Alt together, with the
+ *  character in `key` and the physical key in `code`, so the Polish ą, ę
+ *  and ó were taken for the chords on A, E and O. */
+describe("a character typed with AltGr is never a chord", () => {
+  const altGr = (key: string, code: string, altGraph = false): KeyLike => ({
+    key, code, ctrlKey: true, altKey: true, metaKey: false, shiftKey: false,
+    getModifierState: (name: string) => altGraph && name === "AltGraph",
+  });
+
+  it("leaves ą, ę and ó to the text", () => {
+    expect(actionFor(altGr("ą", "KeyA"))).toBeNull();
+    expect(actionFor(altGr("ę", "KeyE"))).toBeNull();
+    expect(actionFor(altGr("ó", "KeyO"))).toBeNull();
+    expect(actionFor(altGr("€", "KeyE"))).toBeNull();
+  });
+
+  it("leaves anything with AltGraph held to the text", () => {
+    expect(actionFor(altGr("e", "KeyE", true))).toBeNull();
+  });
+
+  it("still takes the chord when Ctrl and Alt make the letter itself", () => {
+    expect(actionFor(altGr("a", "KeyA"))?.id).toBe("agent");
+    expect(actionFor(altGr("e", "KeyE"))?.id).toBe("writing");
+  });
+
+  it("still takes Cmd and Option on a Mac, whose Option makes its own characters", () => {
+    expect(actionFor({ key: "å", code: "KeyA", metaKey: true, ctrlKey: false,
+      altKey: true, shiftKey: false })?.id).toBe("agent");
+  });
+});
