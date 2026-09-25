@@ -1586,6 +1586,9 @@ cursor after it.
 
 *Size:* small. *Version:* z.
 
+*Fixed in 3.18.3.* Accepting a label, a key or a file name inside braces
+closes the brace when it is open and leaves the caret after it.
+
 ### Q-067 · Editor · bug · medium · confirmed
 **The first search typed goes into the document.**
 

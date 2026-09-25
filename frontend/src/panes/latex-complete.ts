@@ -15,6 +15,7 @@ import {
   type CompletionResult,
 } from "@codemirror/autocomplete";
 import type { Extension } from "@codemirror/state";
+import type { EditorView } from "@codemirror/view";
 import type { Symbols } from "../api";
 import { labelSays } from "./latex-links";
 
@@ -224,6 +225,22 @@ function inArgument(before: string): { command: string; typed: string } | null {
   return { command: match[1], typed: match[2] };
 }
 
+/** Put the chosen name in, close the brace if it is open, and leave the
+ *  caret after it.  Accepting a label used to leave `\ref{sec:intro` with
+ *  its brace open, so whatever the writer typed next went into the
+ *  argument, and an unclosed brace in a reference is a fatal error (Q-068).
+ *  A brace already there is stepped over rather than doubled. */
+function closing(text: string) {
+  return (view: EditorView, _completion: Completion, from: number, to: number) => {
+    const shut = view.state.sliceDoc(to, to + 1) === "}";
+    view.dispatch({
+      changes: { from, to, insert: shut ? text : `${text}}` },
+      selection: { anchor: from + text.length + 1 },
+      userEvent: "input.complete",
+    });
+  };
+}
+
 /** While the cursor is still inside the same braces, the list CodeMirror
  *  already has is still the right list -- it filters it itself.  Without
  *  this the source ran again on every keystroke and rebuilt four hundred
@@ -252,6 +269,7 @@ export function latexSource(
       if (/^(no|super|paren|text|auto|foot|full)?cite[a-zA-Z]*$/.test(command)) {
         const options = (found?.citations ?? []).map((entry) => ({
           label: entry.key,
+          apply: closing(entry.key),
           detail: [entry.author, entry.year].filter(Boolean).join(" "),
           info: entry.title || undefined,
           type: "constant",
@@ -266,6 +284,7 @@ export function latexSource(
         // worth more beside the name than the file it is in.
         const options = (found?.labels ?? []).map((entry) => ({
           label: entry.name,
+          apply: closing(entry.name),
           detail: labelSays(entry) ?? entry.file.split("/").pop(),
           type: "variable",
         }));
@@ -276,7 +295,7 @@ export function latexSource(
 
       if (command === "includegraphics") {
         const options = (found?.images ?? []).map((path) => ({
-          label: path, type: "text",
+          label: path, apply: closing(path), type: "text",
         }));
         return options.length
           ? { from, options, validFor: INSIDE_BRACES }
@@ -285,7 +304,8 @@ export function latexSource(
 
       if (command === "input" || command === "include") {
         const options = (found?.texfiles ?? []).map((path) => ({
-          label: path.replace(/\.tex$/, ""), detail: path, type: "text",
+          label: path.replace(/\.tex$/, ""), apply: closing(path.replace(/\.tex$/, "")),
+          detail: path, type: "text",
         }));
         return options.length
           ? { from, options, validFor: INSIDE_BRACES }

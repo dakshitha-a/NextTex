@@ -178,3 +178,46 @@ describe("bibliography styles", () => {
     expect(latexSource(() => SYMBOLS)(new CompletionContext(state, 19, false))).toBeNull();
   });
 });
+
+/** Q-068: accepting a label left `\ref{sec:intro` with its brace open, and
+ *  whatever came next went inside the argument.  An unclosed brace in a
+ *  reference is a fatal error, which until the fix run cost the preview its
+ *  pages.  So accepting closes the brace when it is open, and the caret
+ *  lands after it either way. */
+describe("accepting closes the argument", () => {
+  function accept(doc: string, label: string) {
+    const pos = doc.includes("|") ? doc.indexOf("|") : doc.length;
+    const clean = doc.replace("|", "");
+    const view = {
+      state: EditorState.create({ doc: clean, selection: { anchor: pos } }),
+      dispatch(spec: any) {
+        this.state = this.state.update(spec).state;
+      },
+    } as any;
+    const context = new CompletionContext(view.state, pos, true);
+    const result = latexSource(() => SYMBOLS)(context)!;
+    const option = result.options.find((o) => o.label === label)!;
+    expect(typeof option.apply).toBe("function");
+    (option.apply as any)(view, option, result.from, pos);
+    return { text: view.state.doc.toString(), caret: view.state.selection.main.head };
+  }
+
+  it("closes an open \\ref and puts the caret after it", () => {
+    const done = accept("See \\ref{eq:", "eq:gap");
+    expect(done.text).toBe("See \\ref{eq:gap}");
+    expect(done.caret).toBe(done.text.length);
+  });
+
+  it("does not add a second brace when one is already there", () => {
+    const done = accept("See \\ref{eq:|} now", "eq:gap");
+    expect(done.text).toBe("See \\ref{eq:gap} now");
+    expect(done.caret).toBe("See \\ref{eq:gap}".length);
+  });
+
+  it("closes a citation and a file name the same way", () => {
+    expect(accept("as \\cite{knu", "knuth1984").text).toBe("as \\cite{knuth1984}");
+    expect(accept("\\includegraphics{fig", "figures/plot.pdf").text).toBe(
+      "\\includegraphics{figures/plot.pdf}",
+    );
+  });
+});

@@ -10734,3 +10734,10 @@ A build scoped to the chapter being edited keeps the errors of the
 chapters it did not open, so the gutter, the Build drawer and the strip
 go on showing an error in chapter one while the writer types in chapter
 two. The strip used to say the build was clean.
+
+Accepting a label, a citation key or a file name from the completion
+list inside braces closes the brace when it is open and puts the caret
+after it; a brace already there is stepped over. The probe's writer typed
+`\ref{`, took a label and typed on, and everything after went into the
+argument, a fatal error that until this run also cost the preview its
+pages.
