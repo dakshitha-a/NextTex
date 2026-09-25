@@ -2730,6 +2730,7 @@ export default function App() {
             document={activePreview}
             handleRef={(handle) => (pdf.current = handle)}
             onNavigate={(file, line, hint) => openFile(file, line, hint)}
+            onOpenBuild={() => openDrawer("build")}
             onLoadTemplate={async () => {
               const id = get().projectId;
               if (!id) return;

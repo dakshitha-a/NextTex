@@ -10741,3 +10741,11 @@ after it; a brace already there is stepped over. The probe's writer typed
 `\ref{`, took a label and typed on, and everything after went into the
 argument, a fatal error that until this run also cost the preview its
 pages.
+
+When a build stops on a fatal error, the most ordinary being a brace left
+open that runs into the end of the file, the preview keeps the last page
+that built. One line over it, on the second surface like the find strip,
+says so and where the build stopped, with a red dot and *Show the error*,
+which opens the Build drawer. If no build has ever made a page, the pane
+says "The build stopped before a page was made." with the same button,
+where it used to say the document was empty.

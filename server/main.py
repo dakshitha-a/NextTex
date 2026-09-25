@@ -5304,8 +5304,11 @@ async def editor_state(project_id: str, state: dict = Body(...)):
 async def get_pdf(project_id: str, request: Request, document: str = ""):
     session = session_for(project_id)
     state = _document(session, document)
-    pdf = state.paths.pdf
-    if not pdf.exists():
+    # While a build runs, the last one's PDF waits under another name so a
+    # fatal error cannot delete it (`ProjectPaths.kept_pdf`), and it is
+    # still the page to show.
+    pdf = state.paths.shown_pdf()
+    if pdf is None:
         raise HTTPException(404, "nothing has been built yet")
     # An ETag from the file's own mtime and size means PDF.js re-fetches
     # only when the document actually changed, which matters when a build

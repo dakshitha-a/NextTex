@@ -1,6 +1,10 @@
 /** Why there is no preview to show. */
 export type Absence =
   | "" | "building" | "unbuilt" | "empty" | "unreachable"
+  /** The last build stopped before it wrote a page, and no earlier build
+   *  left one to keep.  Not "empty": the document has something in it,
+   *  and the Build drawer says what went wrong. */
+  | "stopped"
   /** The strip has no document on it.  A folder that never had one, or
    *  one whose only document has just gone to the trash: the route's 404
    *  is the same for both, and the second is not a project that needs a
@@ -9,7 +13,7 @@ export type Absence =
 
 /** What the store knows about this document's builds. Only the two fields
  *  that answer the question below; `DocBuild` in the store has more. */
-export type BuildState = { compiling: boolean; result: unknown | null };
+export type BuildState = { compiling: boolean; result: { outcome?: string } | null };
 
 /**
  * Tell four things apart that arrive as two status codes.
@@ -54,5 +58,9 @@ export function absenceFrom(
   if (!onStrip) return "nodocument";
   if (build?.compiling) return "building";
   if (!build || build.result === null) return "unbuilt";
+  // A build that failed made no pages because it failed, not because the
+  // document is empty; the probe found the pane saying it was (Q-066).
+  const outcome = build.result.outcome;
+  if (outcome && outcome !== "ok") return "stopped";
   return "empty";
 }

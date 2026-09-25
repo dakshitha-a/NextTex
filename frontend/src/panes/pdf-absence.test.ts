@@ -75,3 +75,8 @@ test("a strip with nothing on it is its own answer, whatever the build says", ()
   expect(absenceFrom(missing, NEVER_BUILT, false)).toBe("nodocument");
   expect(absenceFrom(missing, NEVER_BUILT, true)).toBe("unbuilt");
 });
+
+test("a 404 after a failed build is a build that stopped, never an empty document", () => {
+  expect(absenceFrom({ ok: false, status: 404 }, { compiling: false, result: { outcome: "errors" } })).toBe("stopped");
+  expect(absenceFrom({ ok: false, status: 404 }, { compiling: false, result: { outcome: "ok" } })).toBe("empty");
+});

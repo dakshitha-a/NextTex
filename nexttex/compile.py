@@ -245,6 +245,9 @@ class CompileResult:
     #: process.  Beside the log and in the bug report, so a build that
     #: differs between two machines can be explained without asking.
     engine_version: str = ""
+    #: The build wrote no PDF, as pdfTeX does when it stops on a fatal
+    #: error, and the one on disk is the last build's, put back.
+    pdf_kept: bool = False
 
     def as_dict(self) -> dict:
         return {
@@ -255,10 +258,27 @@ class CompileResult:
             "engine": self.engine,
             "shellEscape": self.shell_escape,
             "engineVersion": self.engine_version,
+            "pdfKept": self.pdf_kept,
             "pdf": str(self.pdf) if self.pdf else None,
             **(self.log.as_dict() if self.log else
                {"diagnostics": [], "errorCount": 0, "warningCount": 0, "rawTail": ""}),
         }
+
+
+def _finished_pdf(path: Path) -> bool:
+    """Whether a PDF ends the way every finished one does.
+
+    A build cancelled mid-page leaves a file with no `%%EOF`, which is
+    half a document; the kept one is better than that.
+    """
+    try:
+        with path.open("rb") as handle:
+            handle.seek(0, os.SEEK_END)
+            size = handle.tell()
+            handle.seek(max(0, size - 1024))
+            return b"%%EOF" in handle.read()
+    except OSError:
+        return False
 
 
 @dataclass
@@ -274,6 +294,27 @@ class ProjectPaths:
     @property
     def pdf(self) -> Path:
         return self.build_dir / f"{self.jobname}.pdf"
+
+    @property
+    def kept_pdf(self) -> Path:
+        """Where the last build's PDF waits while the engine runs.
+
+        pdfTeX deletes its output when it stops on a fatal error, which an
+        unclosed brace is, so a build that failed that way used to take the
+        last good pages with it and leave the preview with nothing
+        (Q-066).  The PDF is moved aside before the engine starts, under
+        this name, and moved back if the engine wrote none.  Moved, not
+        linked: the engine rewrites its output in place, so a second name
+        for the same file would be truncated with it.
+        """
+        return self.build_dir / f"{self.jobname}.kept.pdf"
+
+    def shown_pdf(self) -> Path | None:
+        """The PDF to show: the build's, or the kept one while it runs."""
+        for candidate in (self.pdf, self.kept_pdf):
+            if candidate.exists():
+                return candidate
+        return None
 
     @property
     def log(self) -> Path:
@@ -614,7 +655,56 @@ class CompileScheduler:
             if generation != self._generation:
                 # Superseded while waiting for the lock.
                 return CompileResult(Outcome.CANCELLED, None, None, 0.0, "full", "fast")
-            return await self._run(focus, force_full)
+            scope_before = self._set_aside_pdf()
+            try:
+                result = await self._run(focus, force_full)
+            finally:
+                kept = self._settle_pdf(scope_before)
+            if kept:
+                result.pdf = self.paths.pdf
+                result.pdf_kept = True
+            return result
+
+    def _set_aside_pdf(self) -> str | None:
+        """Move the last PDF aside, and say what its scope marker read.
+
+        None when there was nothing to move, or the move failed, which on
+        Windows it can while something holds the file open: the build then
+        goes ahead as it always did.
+        """
+        pdf, kept = self.paths.pdf, self.paths.kept_pdf
+        if not pdf.exists():
+            return None
+        try:
+            scope = self._scope_marker.read_text(encoding="utf-8")
+        except OSError:
+            scope = None
+        try:
+            os.replace(pdf, kept)
+        except OSError:
+            return None
+        return scope if scope is not None else ""
+
+    def _settle_pdf(self, scope_before: str | None) -> bool:
+        """After the engine: drop the kept PDF, or put it back.
+
+        True when it was put back, because the engine wrote none.  Its
+        scope marker goes back with it, so the download route still knows
+        whether that PDF is the whole document.
+        """
+        pdf, kept = self.paths.pdf, self.paths.kept_pdf
+        if pdf.exists() and (not kept.exists() or _finished_pdf(pdf)):
+            kept.unlink(missing_ok=True)
+            return False
+        if not kept.exists():
+            return False
+        try:
+            os.replace(kept, pdf)
+        except OSError:
+            return False
+        if scope_before is not None:
+            self._note_pdf_scope(scope_before)
+        return True
 
     async def _run(self, focus: Path | None, force_full: bool) -> CompileResult:
         started = time.monotonic()

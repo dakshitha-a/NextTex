@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useRef, useState } from "react";
+import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import * as pdfjs from "pdfjs-dist";
 import { headingHint, isBoldFont, tagSpans } from "./pdf-heading";
 import workerUrl from "pdfjs-dist/build/pdf.worker.min.mjs?url";
@@ -212,12 +212,15 @@ function DarkPageFilter() {
 export default function Pdf({
   onNavigate,
   onLoadTemplate,
+  onOpenBuild,
   handleRef,
   document: showing = "",
   source,
 }: {
   onNavigate: (file: string, line: number, hint?: WordHint) => void;
   onLoadTemplate?: () => void;
+  /** Opens the Build drawer, from the line over a kept page. */
+  onOpenBuild?: () => void;
   handleRef: (handle: PdfHandle) => void;
   /** Which document's PDF this pane is showing.  Empty means whichever the
    *  server has in front, which is what a project with a single document
@@ -348,11 +351,19 @@ export default function Pdf({
   // `compile_done` has landed for this document, so it says whether this
   // has ever been built; `compiling` says whether one is running now.
   const compiling = useStore((s) => s.builds[showing]?.compiling ?? false);
-  const everBuilt = useStore((s) => (s.builds[showing]?.result ?? null) !== null);
+  const result = useStore((s) => s.builds[showing]?.result ?? null);
+  const outcome = result?.outcome;
   // A ref as well, because the fetch below reads it inside an async closure
   // that was started before the build state moved.
-  const buildRef = useRef({ compiling, result: everBuilt ? {} : null });
-  buildRef.current = { compiling, result: everBuilt ? {} : null };
+  const buildRef = useRef({ compiling, result: result ? { outcome } : null });
+  buildRef.current = { compiling, result: result ? { outcome } : null };
+  // The build wrote no PDF and the page on screen is the last good one:
+  // where it stopped, for the line over the page.
+  const stoppedAt = useMemo(() => {
+    if (!result?.pdfKept) return null;
+    const first = result.diagnostics.find((d) => d.severity === "error" && d.file);
+    return first ? `${first.file}${first.line ? `:${first.line}` : ""}` : "";
+  }, [result]);
   const projectId = useStore((s) => s.projectId);
 
   const modeRef = useRef(mode);
@@ -1421,6 +1432,25 @@ export default function Pdf({
           </IconButton>
         </div>
       ) : null}
+      {stoppedAt !== null && !source ? (
+        // A fatal build wrote no PDF, and the page below is the last one
+        // that built (Q-066). One line, on the second surface like the
+        // find strip, with the one thing to do about it.
+        <div
+          className="t-meta flex h-[32px] shrink-0 items-center gap-[8px] bg-surface-2 pl-[12px] pr-[8px] text-ink-2"
+          data-testid="pdf-kept"
+        >
+          <span className="h-[6px] w-[6px] shrink-0 rounded-full bg-error" aria-hidden />
+          <span className="min-w-0 truncate">
+            The last page that built. This build stopped
+            {stoppedAt ? <> at <span className="t-code-sm text-ink-3">{stoppedAt}</span></> : null}
+          </span>
+          <span className="flex-1" />
+          {onOpenBuild ? (
+            <Button variant="quiet" onClick={onOpenBuild}>Show the error</Button>
+          ) : null}
+        </div>
+      ) : null}
       <div
         ref={scroller}
         className="min-h-0 flex-1 overflow-auto"
@@ -1479,6 +1509,22 @@ export default function Pdf({
               {onLoadTemplate ? (
                 <Button variant="ghost" className="mt-4" onClick={onLoadTemplate}>
                   Load a basic document
+                </Button>
+              ) : null}
+            </div>
+          </div>
+        ) : null}
+        {absence === "stopped" ? (
+          <div className="flex h-full items-center justify-center px-8 text-center">
+            <div className="max-w-[42ch]">
+              <p className="t-display text-ink-3">The build stopped before a page was made.</p>
+              <p className="t-meta mt-2 text-ink-2">
+                The Build drawer says where and why. The page appears here as
+                soon as the document builds.
+              </p>
+              {onOpenBuild ? (
+                <Button variant="ghost" className="mt-4" onClick={onOpenBuild}>
+                  Show the error
                 </Button>
               ) : null}
             </div>

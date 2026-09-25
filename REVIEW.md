@@ -1568,6 +1568,10 @@ finds the PDF gone, the end of `main.tex` and the log's fatal lines.
 
 *Size:* medium. *Version:* z.
 
+*Fixed in 3.18.3.* The PDF is moved aside while the engine runs and put
+back when the engine wrote none; the pane shows it with one line saying
+where the build stopped, and a failed build is never called empty.
+
 ### Q-068 · Editor · comfort · medium · confirmed
 **A label accepted in a reference leaves its brace open.**
 

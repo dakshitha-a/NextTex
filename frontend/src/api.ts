@@ -86,6 +86,8 @@ export type CompileResult = {
   pdf?: string | null;
   /** How many pages the run wrote, from the log's "Output written" line. */
   pages?: number | null;
+  /** The build wrote no PDF, and the one served is the last good build's. */
+  pdfKept?: boolean;
 };
 
 /** One row of the submission check: the drawer's row shape with a kind
