@@ -24,25 +24,14 @@ things go to be forgotten rather than a list anybody reads.
 
 ## In hand
 
-**The roadmap, the rest of the backlog, and comments**, one run begun on
-24 September 2026. Its tracker page is
-https://claude.ai/artifact/7LzPbY8jvhfg3xSbAMqMwY and every interface
-change in it is drawn first on the direction page. In order: the backlog
-work that needs no drawing, then the Windows laptop, then Stop against the
-real CLI, then the two backlog surfaces, then comments, a feature the
-writer asked for while the run was planned, then the seven roadmap items,
-one push each. The known gaps below are the run's to close or re-file;
-the items deliberately not done are being re-judged, the cheap ones
-built and the rest moved into `docs/design.md` as decisions.
-
-Found on the way: the caret readout flake was a writer's first words in a
-new file being deleted by the watcher's late report of the file's
-creation, fixed in `CollabStore.body` with
-`tests/collab/test_a_new_file_keeps_its_first_keystrokes.py`. A
-submission row whose message holds one long unbroken word, such as
-`\label{sec:introduction}`, ran under its location in a narrow drawer;
-the message now wraps anywhere, and `e2e/specs/submit.spec.ts` measures
-the glyphs against the location.
+Nothing. The run of 24 September 2026, the roadmap, the rest of the
+backlog and comments, closed at 3.17.4; its tracker page is
+https://claude.ai/artifact/7LzPbY8jvhfg3xSbAMqMwY. What it left is below:
+six rare browser flakes, named with the traces read, and the OpenAI
+provider against OpenAI itself. The laptop leg ran in full: a sleep and
+a restart survived and named, a MiKTeX build with a bibliography, the
+Install button on MiKTeX, and comments made, answered, resolved and
+deleted between this host and the laptop over a real share.
 
 ## Backlog
 
@@ -97,13 +86,13 @@ this host could not reproduce; each says which.
       the last heartbeat and names it, and "stopped without saying why"
       now means what it says.
 
-- [ ] **MiKTeX on a real machine: the fixes are in, the rerun is not
-      yet.** The first MiKTeX build on the owner's laptop, 24 September
-      2026, found three faults, fixed in 3.17.3: a MiKTeX dialog a build
-      waited on, a timeout that could not end its build on Windows, and a
-      latexmk with no Perl to run it. What is left is the laptop's build
-      on 3.17.3, a citation that resolves, and the Install button on a
-      package MiKTeX lacks.
+- [x] **MiKTeX on a real machine.** The first MiKTeX build on the
+      owner's laptop, 24 September 2026, found three faults, fixed in
+      3.17.3: a MiKTeX dialog a build waited on, a timeout that could not
+      end its build on Windows, and a latexmk with no Perl to run it. On
+      3.17.3 a full build with a bibliography passed there in 32 s with
+      no window and its citation resolved; a missing package failed in
+      about a second with the Install offer.
 
 ### Never run against the real thing
 
@@ -113,14 +102,11 @@ this host could not reproduce; each says which.
       task to leave Running, and started it, and the new server answered
       within seconds each time.
 
-- [ ] **The drawer's Install button has still not been pressed on a
-      MiKTeX, and it would have installed into the wrong TeX.** On the
-      owner's laptop on 24 September 2026, with MiKTeX chosen and TinyTeX
-      still installed, `nexttex/texpkg.py` took the first `tlmgr` on PATH,
-      TinyTeX's, and ran the outdated `mpm --install=` form for MiKTeX.
-      It now asks the TeX the builds use for its manager, and asks MiKTeX
-      with `miktex packages install <name>`. What is left is to press it
-      there on a package MiKTeX lacks and see the rebuild pass.
+- [x] **The drawer's Install button on a real MiKTeX.** Pressed on the
+      owner's laptop on 24 September 2026 on 3.17.4, after it was found
+      to pick TinyTeX's `tlmgr` from PATH: `manager_here` named MiKTeX's
+      `miktex.exe`, lipsum installed into MiKTeX in 8.1 s with no window,
+      and the rebuild passed on MiKTeX's pdfTeX.
 - [ ] **The OpenAI provider has never spoken to OpenAI itself.**
       Everything above the transport runs for real against a stub, and
       since the backlog close-out against a real local server too:
