@@ -1253,6 +1253,139 @@ marked-up PDF against a chosen version or commit.
 
 *Size:* medium. *Version:* y.
 
+### The screen pass
+
+The fidelity harness rendered 85 of its 98 surfaces in both themes, and
+four reading agents compared each render with its drawing on the direction
+page and with `docs/style-guide.md`. Every lead they raised was opened here
+and checked before it was written down. Where a render matched its drawing
+the reading is not repeated.
+
+### Q-057 · Look · consistency · low · confirmed
+
+*Found by:* the screen pass, checked in the light render of the projects screen and in the code.
+*Where:* `frontend/src/panes/Projects.tsx:728`.
+
+*What happens:* when the projects screen is reached from an open project, a
+quiet Back sits at the end of the top row, after Other ways in, and returns
+to that project. It is deliberate, but the direction page's projects
+screen does not draw it, and the word alone does not say where it goes,
+while the Archived and Trash views say "Back to projects" in full. A
+reading agent took it for a control with no destination, which is what a
+writer may take it for too.
+
+*What should happen:* the control names the project it returns to, and the
+direction page draws it, as the process in `CLAUDE.md` requires for a
+visible change.
+
+*Size:* small. *Version:* z.
+
+### Q-058 · Look · consistency · low · confirmed
+
+*Found by:* the screen pass, checked in the dark render of the New project sheet.
+*Where:* `frontend/src/panes/Projects.tsx:1243`.
+
+*What happens:* the direction page draws the New project and Join sheets'
+Where as one field with Browse as its trailing action inside it. The built
+sheets have a text field and, beside it with a gap, a separate bordered
+Browse button: two controls where the drawing has one.
+
+*What should happen:* the field carries Browse as its own trailing action,
+as drawn, or the page is redrawn to what was built and the difference
+decided.
+
+*Size:* small. *Version:* z.
+
+### Q-059 · Look · consistency · low · confirmed
+
+*Found by:* the screen pass, checked in the light render of the composer's
+menu. *Where:* the menu under the composer's chip,
+`frontend/src/panes/ComposerMenus.tsx`.
+
+*What happens:* the direction page draws the model and permission choices
+as radio rows: every option has a ring, the chosen one is filled in the
+hint colour, and "Never ask about anything" is set in the warning colour.
+The built menu marks only the chosen options, with a dot, leaves the rest
+with nothing, and draws "Never ask about anything" like its neighbours. So
+the menu does not show that the rows are a choice between alternatives,
+and the one dangerous choice does not look it.
+
+*What should happen:* as drawn: a ring on every option and the warning
+colour on the last.
+
+*Size:* small. *Version:* z.
+
+### Q-060 · Look · consistency · low · confirmed
+
+*Found by:* the screen pass, checked in the light render of a file row's
+menu. *Where:* the file menu in `frontend/src/panes/FileTree.tsx`.
+
+*What happens:* the direction page orders the menu's last group New file
+here, New folder here, Upload here. The built menu puts Upload here first.
+The menu is also twelve items in five groups, with a second destructive
+item, "Delete version history", in the middle, where the writer's rule is
+a short menu with the destructive action last.
+
+*What should happen:* the order drawn, and "Delete version history" moved
+down beside Move to trash or into the History drawer, where the menu
+already has a way to reach it.
+
+*Size:* small. *Version:* z.
+
+### Q-061 · Look · comfort · low · confirmed
+
+*Found by:* the screen pass, checked in the light render of the upload
+sheet and in `frontend/src/panes/UploadStaging.tsx:141`.
+
+*What happens:* when files are dropped on a folder, the folder is taken as
+the destination and the sheet shows no destination row, by design. When a
+name collides, the sheet still opens to ask about it, and then nothing on
+it says which folder "replaces" and "1 file is already there" are about.
+The direction page's drawing names it: "Into figures".
+
+*What should happen:* the sheet always names the destination, as a line of
+text when it is not open to question.
+
+*Size:* small. *Version:* z.
+
+### Q-062 · Agent · performance · low · confirmed
+
+*Found by:* the screen pass, whose 1.25 sweep never caught the menu open,
+then `e2e/review/q-model-menu-125.spec.ts`. *Where:* the lazy
+`ComposerMenu` in `frontend/src/panes/Chat.tsx:1028`.
+
+*What happens:* the menu under the composer's chip, which picks the model
+and what Claude asks about, is fetched the first time it is opened. On
+this machine, against a server on the same host, it appeared 870 and 885
+ms after the first click, at 1x and at 1.25 alike, with nothing on screen
+in between; every later open was immediate. On a laptop over a tailnet the
+first open is slower still. The sweep waited 200 ms and photographed a
+closed menu, which is how this was found.
+
+*What should happen:* the chunk is fetched when the column first draws, or
+when the pointer reaches the chip, so the first open is as quick as the
+rest.
+
+*Size:* small. *Version:* z.
+
+### Q-063 · Agent · comfort · low · confirmed
+
+*Found by:* the screen pass, checked in the dark render of the live Claude
+column. *Where:* `frontend/src/panes/Chat.tsx:438`.
+
+*What happens:* the conversation follows the stream while the reader is at
+the bottom, and re-pins only when the conversation changes. Opening a
+folded run of tool calls while a permission card waits makes the content
+above the card taller without changing the conversation, so the card is
+pushed down and its bottom row, Allow always and Deny, goes behind the
+composer. The keys still answer, but the buttons are out of sight.
+
+*What should happen:* while pinned, the column stays at the bottom when its
+content grows for any reason, for example through a resize observer on
+the stream.
+
+*Size:* small. *Version:* z.
+
 ### The documents
 
 ### Q-039 · Documents · docs · medium · confirmed
