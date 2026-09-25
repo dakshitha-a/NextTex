@@ -977,6 +977,84 @@ reasons.
 
 *Size:* large. *Version:* z.
 
+### Accessibility
+
+A reading agent went through the frontend for names, keyboard reach,
+focus, live regions and motion. It found the kit doing its job: the icon
+button cannot be built without a label, sheets trap and return focus, the
+settings sheet is a proper set of tabs, the notices region is a live
+region, and one reduced-motion rule in `frontend/src/styles.css` covers
+every animation. A scan for icon-only controls with no name found none.
+What it found is on the newest surfaces. Each lead was checked here.
+
+### Q-050 · Accessibility · accessibility · high · confirmed
+
+*Found by:* reading. *Where:* `frontend/src/panes/CommentsPanel.tsx:55`.
+
+*What happens:* each thread in the Comments drawer is a `div` with
+`role="button"` that holds real buttons: Resolve or Reopen, Delete, and
+Delete's own Delete and Keep. A screen reader is told the row is one
+button, and the buttons inside are folded into its name or cannot be
+reached, so a thread cannot reliably be resolved or deleted without
+sight. `frontend/src/panes/Diagnostics.tsx:359` and
+`frontend/src/panes/History.tsx:370` carry comments explaining exactly
+why a row must not be done this way, from when the September review found
+it there. The Comments drawer came later and does it again, and neither
+`e2e/specs/a11y.spec.ts` nor the review's axe sweep opens it.
+
+*What should happen:* the row follows the Diagnostics drawer's pattern, and
+the a11y spec opens the Comments drawer.
+
+*Size:* small. *Version:* z.
+
+### Q-051 · Accessibility · accessibility · medium · confirmed
+
+*Found by:* reading. *Where:* `frontend/src/panes/CommentCards.tsx`.
+
+*What happens:* the card for a new comment puts the cursor in its text box
+when it opens. The card for an existing thread, opened from the gutter, a
+hover card or a row in the drawer, does not move focus at all, has no role,
+and is not announced. A keyboard user is left where they were, with
+nothing to say a card appeared or how to reach its Reply and Resolve.
+
+*What should happen:* opening a thread moves focus into its card, Escape
+returns it, and the card is a labelled dialog or region.
+
+*Size:* small. *Version:* z.
+
+### Q-052 · Accessibility · accessibility · medium · confirmed
+
+*Found by:* reading. *Where:* `frontend/src/panes/Status.tsx`, and the
+update control in `frontend/src/panes/Projects.tsx`.
+
+*What happens:* the build strip changes between building, errors and built
+with no live region, and the projects screen's update control changes only
+its label. A screen reader user hears neither a build finishing nor
+failing, nor an update wanting attention, unless they go and look. The
+notices area in `frontend/src/App.tsx` is a live region, with a comment
+saying why, so the pattern is already in the app.
+
+*What should happen:* a build's ending and an update's change of state are
+said through the notices region, or through a polite live region of their
+own.
+
+*Size:* small. *Version:* z.
+
+### Q-053 · Accessibility · accessibility · low · confirmed
+
+*Found by:* a reading agent's comfort list, checked here.
+*Where:* the dividers in `frontend/src/chrome.tsx`.
+
+*What happens:* the dividers between the panes resize only by dragging.
+They have no keyboard handling and no separator role, so a writer who
+works from the keyboard can fold the rail with Ctrl and B but cannot give
+the preview a little more room.
+
+*What should happen:* a divider takes focus, is a separator with its
+value, and moves with the arrow keys.
+
+*Size:* small. *Version:* z.
+
 ### The outside legs
 
 **What was run, and what it showed.** On 25 September 2026.
@@ -1020,6 +1098,80 @@ script, since that is where the tool tells the model figures go.
 
 *Size:* small. *Version:* z.
 
+### What a writer reaches for and does not find
+
+A reading agent assembled the candidates against the README's standard, a
+Jupyter notebook, and against `ROADMAP.md`'s list of what was considered
+and refused. Each was checked here against the code before it was written
+down. Phase 5's use of the app adds to this section.
+
+### Q-045 · Files · comfort · medium · confirmed
+
+*Found by:* a reading agent, checked here. *Where:* `nexttex/rename.py:31`,
+the rename route at `server/main.py:2936`.
+
+*What happens:* renaming or moving a chapter or a figure in the Files
+drawer moves the file and nothing else. Every `\input`, `\include` and
+`\includegraphics` that named it is now broken, and the next build says
+so. F2 already renames a label, a citation key or a macro in every file,
+but a file path is not one of the kinds it knows.
+
+*What should happen:* renaming a file that other files name offers, once,
+to change those names too, the way F2 does, through the same
+rename-everywhere route. It adds no new control: one confirmation where a
+rename already is.
+
+*Size:* medium. *Version:* y.
+
+### Q-046 · Collaboration · comfort · medium · confirmed
+
+*Found by:* a reading agent, checked here.
+*Where:* `frontend/src/panes/CommentCards.tsx`, `server/collab/comments.py`.
+
+*What happens:* co-authors have two ways to disagree about a sentence: edit
+it, which overwrites the other's prose in place, or comment on it, which
+changes nothing. The everyday middle, "here is how I would put it, your
+call", has no form.
+
+*What should happen:* a comment can carry a replacement for the text it is
+on, and the thread's Resolve becomes Accept for such a thread, applying it
+as an ordinary edit with its own version. One control changes its meaning
+rather than a second being added.
+
+*Size:* large. *Version:* y.
+
+### Q-047 · Files · comfort · low · confirmed
+
+*Found by:* a reading agent, checked here.
+*Where:* `frontend/src/panes/Projects.tsx`, and `_copy_tree_skips` in
+`server/main.py`.
+
+*What happens:* a writer who keeps one project per job application, which
+the application template is made for, and who has refined a resume and a
+letter they want to start from, has no Duplicate for a project. They copy
+the folder by hand and open it. The server already copies a folder safely
+for the Files drawer's duplicate.
+
+*What should happen:* a project row's More menu offers Duplicate, placed
+before the destructive items.
+
+*Size:* small. *Version:* y.
+
+### Q-048 · Compile · improvement · low · confirmed
+
+*Found by:* a reading agent, checked here.
+
+*What happens:* a revised paper usually goes back to the journal with a
+PDF that marks what changed since the submitted version. NextTex shows
+patches in the History and Git drawers, never a typeset document with the
+changes marked, and nothing in the program runs `latexdiff`.
+
+*What should happen:* when `latexdiff` is installed, which the installer's
+survey could note as it notes pandoc, the History or Git drawer offers a
+marked-up PDF against a chosen version or commit.
+
+*Size:* medium. *Version:* y.
+
 ### The documents
 
 ### Q-039 · Documents · docs · medium · confirmed
@@ -1034,6 +1186,20 @@ correctly elsewhere, so only the bar's own account is stale.
 
 *What should happen:* both passages name twelve buttons, Comments among
 them.
+
+*Size:* small. *Version:* none.
+
+### Q-049 · Documents · docs · medium · confirmed
+
+*Found by:* a reading agent, checked here. *Where:* `README.md:1250`.
+
+*What happens:* the passage on collaboration says "What there is not:
+comments, suggestions, tracked changes". Comments shipped on 24 September,
+and the same README describes the Comments drawer earlier on. A reader of
+this passage is told a feature the app has does not exist.
+
+*What should happen:* the sentence names what is still absent, suggestions
+and tracked changes, and points at comments.
 
 *Size:* small. *Version:* none.
 
