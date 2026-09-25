@@ -1386,6 +1386,102 @@ the stream.
 
 *Size:* small. *Version:* z.
 
+### Use as a writer
+
+`e2e/review/q-journey.spec.ts` does a week of a paper in one sitting on a
+new article, timing each act and photographing it: a project made from the
+New project sheet in 2.2 seconds to the first page, completion offered at
+`\ref{` in under a second, an error on the strip 5.5 seconds after it was
+typed and gone 1.9 seconds after it was fixed, History and Download each
+open in under a second. What it could not do, or did twice, is below.
+
+### Q-064 · Editor · comfort · medium · confirmed
+
+*Found by:* the writer journey, then `frontend/src/panes/Status.tsx:178`.
+
+*What happens:* the word count sits on the status strip under the source,
+and is dropped, by design, when the source pane is narrower than 640
+pixels. In the default layout at 1440 pixels wide, a common laptop, the
+source pane is about 420 pixels, so the word count is never on screen. It
+is not in the command palette or anywhere else, so a writer on that laptop
+with a word limit has no count at all unless they drag the panes apart or
+fold the Claude column.
+
+*What should happen:* the count stays reachable at every width: the
+palette offers it, and the strip keeps it ahead of segments that matter
+less when it has to drop one.
+
+*Size:* small. *Version:* z.
+
+### Q-065 · Editor · comfort · low · confirmed
+
+*Found by:* the writer journey, whose first run typed three lines after
+`\end{document}`, the same mistake the September review recorded making.
+
+*What happens:* TeX ignores everything after `\end{document}` and says
+nothing, and so does the editor. Three lines typed there, a section and a
+reference, built cleanly and appeared nowhere, and nothing on screen said
+why.
+
+*What should happen:* the editor shows text after `\end{document}` dimmed,
+with a hover that says TeX ignores it.
+
+*Size:* small. *Version:* y.
+
+### Q-066 · Preview · bug · medium · likely
+
+*Found by:* the writer journey, three runs out of three.
+*Where:* `frontend/src/panes/pdf-absence.ts:48`, the empty state at
+`frontend/src/panes/Pdf.tsx:1470`.
+
+*What happens:* after the journey's seventh step the preview replaced the
+article's two typeset pages with "Nothing has been typeset yet. An empty
+document produces no pages", and a button offering a basic document, while
+the strip said "3 errors" and the page counter still said "of 2". The
+Download drawer called the build "build failed", which is its word for a
+build that ended with no PDF. `absenceFrom` reads a missing PDF after a
+finished build as an empty document, which is the false statement its own
+comment says it was written to stop making. The last good pages are gone
+from the pane at the moment the writer most needs them. The button is
+safe, since the server refuses to put a template over a document with
+anything in it, but it is offered.
+
+A cleaner reproduction did not reach it: a build with the same three
+errors, driven through the route and in a browser, kept its PDF. The
+journey differs in its sixth and seventh steps, a stalled click and a
+search word typed into the document by Q-067, so some sequence of builds
+leaves no PDF on disk, and which step removes it is not pinned.
+
+*What should happen:* a build that fails keeps the last good pages on
+screen with the errors beside them, and the pane never says a document is
+empty when its last build failed.
+
+*How to reach it again:* `e2e/review/q-journey.spec.ts`, whose log prints
+the preview's state at each step; `e2e/review/q066-failed-build-preview.spec.ts`
+is the cleaner attempt that did not reach it.
+
+*Size:* medium. *Version:* z.
+
+### Q-067 · Editor · bug · medium · confirmed
+
+*Found by:* the writer journey, then `e2e/review/q067-search-focus.spec.ts`.
+*Where:* the lazily fetched Search drawer, `frontend/src/panes/SearchPanel.tsx`.
+
+*What happens:* the first time in a session a writer presses Ctrl, Shift
+and F and types at once, what they type goes into the document they were
+editing, not into the search box, because the drawer's code is still
+being fetched and focus has not moved. The journey's search word landed as
+a line of `main.tex`. Once the drawer has been opened, typing at once goes
+to the box every time. The window is as long as the first fetch, which for
+the composer's menu was nearly 900 ms on this machine, Q-062.
+
+*What should happen:* the drawer's code is fetched before it is needed, or
+keystrokes after the chord are held for the box until it is ready. Either
+way, a chord that opens a text box never lets its first letters into the
+paper.
+
+*Size:* small. *Version:* z.
+
 ### The documents
 
 ### Q-039 · Documents · docs · medium · confirmed
