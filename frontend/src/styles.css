@@ -703,7 +703,10 @@ button { font: inherit; color: inherit; }
    served. */
 
 .nx-handle { background: transparent; transition: background-color 90ms var(--ease); }
-.nx-handle:hover, .nx-handle[data-dragging] { background: var(--hint); }
+.nx-handle:hover, .nx-handle[data-dragging], .nx-handle:focus-visible { background: var(--hint); }
+/* A focused divider shows the line a drag shows, and no ring of its own:
+   the line is the ring (Q-053). */
+.nx-handle:focus-visible { outline: none; }
 
 /* The transcript's single left edge: the rule column is 3px, then a 12px
    gutter, and everything in the stream starts at 15px. */
@@ -1423,7 +1426,10 @@ input, textarea { font: inherit; color: inherit; background: transparent; }
 .nx-comment-who { display: flex; align-items: baseline; gap: 8px; color: var(--ink-2); }
 .nx-comment-body { color: var(--ink); white-space: pre-wrap; overflow-wrap: anywhere; }
 .nx-comment-row { display: flex; flex-direction: column; gap: 2px; padding: 6px 8px 7px; border-radius: var(--nx-radius-control); cursor: pointer; }
-.nx-comment-row:hover, .nx-comment-row:focus-visible { background: var(--wash); }
+.nx-comment-row:hover, .nx-comment-row:focus-within { background: var(--wash); }
+/* The row's opening button: the quote and the text, laid out as they were
+   when the whole row was the control, with the page's focus ring. */
+.nx-comment-row-open { display: flex; flex-direction: column; gap: 2px; width: 100%; text-align: left; cursor: pointer; border-radius: var(--nx-radius-control); }
 .nx-comment-row-quote {
   color: var(--ink-3); border-left: 2px solid var(--hint); padding-left: 7px;
   overflow: hidden; text-overflow: ellipsis; white-space: nowrap;

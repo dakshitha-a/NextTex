@@ -246,10 +246,21 @@ export function Segmented({
 export function Handle({
   onPointerDown,
   onReset,
+  onNudge,
+  label,
+  value,
   axis = "column",
 }: {
   onPointerDown: (e: React.PointerEvent) => void;
   onReset?: () => void;
+  /** Move the divider by this many pixels, right or down, from the
+   *  keyboard. With it the divider takes focus and is a separator a screen
+   *  reader names (Q-053); it moved only by dragging. */
+  onNudge?: (delta: number) => void;
+  label?: string;
+  /** Where the divider is, for a screen reader: a percentage of the room
+   *  it divides, which a focusable separator must carry. */
+  value?: number;
   /** `column` divides two panes side by side; `row` divides them top and
    *  bottom.  The diagnostics drawer had its own copy of this rather than an
    *  axis, which is how it ended up with a bare three pixel target and none
@@ -259,6 +270,31 @@ export function Handle({
   const row = axis === "row";
   return (
     <div
+      role={onNudge ? "separator" : undefined}
+      aria-orientation={onNudge ? (row ? "horizontal" : "vertical") : undefined}
+      aria-label={onNudge ? label : undefined}
+      aria-valuenow={onNudge && value !== undefined ? Math.round(value) : undefined}
+      aria-valuemin={onNudge && value !== undefined ? 0 : undefined}
+      aria-valuemax={onNudge && value !== undefined ? 100 : undefined}
+      tabIndex={onNudge ? 0 : undefined}
+      onKeyDown={
+        onNudge
+          ? (event) => {
+              // 16 px a press, 64 with Shift; Enter puts it back, as a
+              // double click does.
+              const step = event.shiftKey ? 64 : 16;
+              const back = row ? "ArrowUp" : "ArrowLeft";
+              const on = row ? "ArrowDown" : "ArrowRight";
+              if (event.key === back || event.key === on) {
+                event.preventDefault();
+                onNudge(event.key === on ? step : -step);
+              } else if (event.key === "Enter" && onReset) {
+                event.preventDefault();
+                onReset();
+              }
+            }
+          : undefined
+      }
       className={`nx-handle relative shrink-0 ${
         row ? "h-px w-full cursor-row-resize" : "w-px cursor-col-resize"
       }`}

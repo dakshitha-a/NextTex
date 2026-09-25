@@ -1280,6 +1280,9 @@ the a11y spec opens the Comments drawer.
 
 *Size:* small. *Version:* z.
 
+*Fixed in 3.18.11.* The row is a plain element with a real button for opening
+the thread, and a11y.spec.ts opens the drawer in both themes.
+
 ### Q-051 · Accessibility · accessibility · medium · confirmed
 **A thread's card takes no focus.**
 
@@ -1295,6 +1298,9 @@ nothing to say a card appeared or how to reach its Reply and Resolve.
 returns it, and the card is a labelled dialog or region.
 
 *Size:* small. *Version:* z.
+
+*Fixed in 3.18.11.* A thread's card is a labelled dialog that takes focus and
+gives it back.
 
 ### Q-052 · Accessibility · accessibility · medium · confirmed
 **The build strip changes without being announced.**
@@ -1315,6 +1321,9 @@ own.
 
 *Size:* small. *Version:* z.
 
+*Fixed in 3.18.11.* A build's ending and the update control's state are said
+through a polite live region.
+
 ### Q-053 · Accessibility · accessibility · low · confirmed
 **The pane dividers move only by dragging.**
 
@@ -1330,6 +1339,8 @@ the preview a little more room.
 value, and moves with the arrow keys.
 
 *Size:* small. *Version:* z.
+
+*Fixed in 3.18.11.* A divider is a focusable separator the arrow keys move.
 
 ### The outside legs
 

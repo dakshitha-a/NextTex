@@ -1,8 +1,9 @@
-import { useEffect, useMemo, useState } from "react";
+import { useEffect, useMemo, useRef, useState } from "react";
 import { useStore } from "../store";
 import { referencesPending, statusFor } from "./status-dot";
 import { labelFor } from "../words";
 import { type WordScope } from "../api";
+import { Announce } from "../ui/controls";
 
 /** A spinner shown at 0ms on a one-second task is what tells the user the
  *  task is slow.  The dot only starts breathing once a build crosses this;
@@ -80,6 +81,17 @@ export default function Status({
   // rest of the strip.
   const loud = state === "errors" || state === "failed" || state === "timeout";
 
+  // What a screen reader hears: the strip's words once a build has
+  // ended, and nothing while one runs, so a build every pause in typing
+  // is one sentence at its end rather than two (Q-052).
+  const [said, setSaid] = useState("");
+  const heard = useRef<unknown>(null);
+  useEffect(() => {
+    if (compiling || !result || heard.current === result) return;
+    heard.current = result;
+    setSaid(label);
+  }, [compiling, result, label]);
+
   return (
     // A container query, not a viewport one: this strip is as wide as the
     // editor pane, which the user drags.  Segments drop out in order of how
@@ -138,6 +150,7 @@ export default function Status({
         </span>
       ) : null}
       <span className="min-w-0 flex-1" />
+      <Announce text={said} testid="status-said" />
       {/* Permanent, not hover-only: it is one word, it is the answer when
           the preview looks stale, and a strip that gains a segment on hover
           is a strip that jitters.

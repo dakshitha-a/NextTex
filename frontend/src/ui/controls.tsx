@@ -216,6 +216,19 @@ export function Heading({ level = 2, display = false, className, children, ...re
   );
 }
 
+/** Words a screen reader hears when something changes out of sight: a
+ *  build ending, an update wanting attention. Always mounted and empty
+ *  until there is news, since a region that appears with its content is
+ *  not announced by every reader; polite, since none of it interrupts.
+ *  Nothing is drawn (Q-052). */
+export function Announce({ text, testid }: { text: string; testid?: string }) {
+  return (
+    <span className="sr-only" role="status" aria-live="polite" data-testid={testid}>
+      {text}
+    </span>
+  );
+}
+
 /** What a drawer or a list says when there is nothing in it: one
  *  sentence saying what to do next, and, where there is one, one action.
  *  Never an illustration, never a heading of its own. */

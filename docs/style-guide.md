@@ -144,6 +144,7 @@ kit's `Button` carries those looks as its variants.
 | `Switch` | `controls.tsx` | on or off, and nothing between | a checkbox styled by hand |
 | `Segmented` | `controls.tsx` | two to five exclusive choices, `md` in a sheet and `sm` in a strip; `className="nx-segmented-wrap"` when five may not fit the width, as the templates do not on a phone | a row of toggle buttons |
 | `Heading` | `controls.tsx` | a real `h1`/`h2`/`h3`; `display` for a sheet's or a screen's title | a styled span |
+| `Announce` | `controls.tsx` | words a screen reader hears when something changes out of sight, a build ending or an update wanting attention: a polite live region, always mounted, drawn as nothing | a visible toast for news the eye already has |
 | `Empty` | `controls.tsx` | what a drawer or a list says when it holds nothing: one sentence and at most one action | an illustration, a heading of its own |
 | `Kbd` | `controls.tsx` | a key or a chord, shown always where a key is the way in | text in a box |
 | `Menu`, `MenuItem`, `MenuDivider`, `MenuHeader` | `Menu.tsx` | anything that opens under a button: `role="menu"` on the fixed element, shortcut hints at the right, the destructive item last after a divider, a `note` under an item that needs a line | a positioned div of buttons |
@@ -211,6 +212,14 @@ else.
   button has visible focus, never by the button. The page-wide ring in
   `--pen` is for what has no rule of its own; a control on the band or
   in the kit never shows it, since the pen means Claude.
+- A row that does something and holds buttons is a plain element with
+  a real button for its own act and the others beside it, never a
+  `role="button"` around buttons, which a screen reader cannot get
+  inside. A card that opens on a press takes focus, and gives it back
+  where it came from when it closes.
+- A divider between panes is a separator a keyboard can reach: Tab
+  focuses it, the arrow keys move it 16 px and 64 with Shift, Enter
+  puts it back, and focus shows the hint line a drag shows.
 - A menu is short. Conditional items are present only when they apply,
   never disabled in place; the destructive item is last, after a rule.
 - Motion answers the writer: `.nx-arrive` (120 ms, opacity and a 0.98

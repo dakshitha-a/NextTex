@@ -415,3 +415,76 @@ test("the Download drawer is usable", async ({ tab }) => {
   await expect(tab.getByTestId("download-panel")).toBeVisible();
   expect(describeAll(await violations(tab))).toBe("");
 });
+
+/** A thread on the last word of main.tex, made the way a writer makes one. */
+async function aThread(tab: Page) {
+  await expect(tab.getByTestId("editor-host")).toHaveAttribute("data-shown", "main.tex", {
+    timeout: 30_000,
+  });
+  await tab.locator(".cm-content").click();
+  await tab.keyboard.press("Control+End");
+  await tab.keyboard.press("Enter");
+  await tab.keyboard.type("The fast component is 180 fs in hexane.");
+  await tab.keyboard.press("ArrowLeft");
+  for (let i = 0; i < "hexane".length; i += 1) await tab.keyboard.press("Shift+ArrowLeft");
+  await tab.getByTestId("selection-actions").getByTestId("selection-comment").click();
+  await tab.getByTestId("comment-composer").getByRole("textbox", { name: "Comment" })
+    .fill("Which solvent is the slow one?");
+  await tab.keyboard.press("Control+Enter");
+  await expect(tab.locator(".cm-content .nx-comment")).toHaveText("hexane", { timeout: 10_000 });
+  await tab.getByTestId("bar-comments").click();
+  await expect(tab.getByTestId("comment-row")).toHaveCount(1, { timeout: 10_000 });
+}
+
+for (const theme of ["light", "dark"] as const) {
+  test(`the Comments drawer is usable in the ${theme} theme`, async ({ page, tab }) => {
+    // Q-050: its rows were a role="button" holding Resolve and Delete,
+    // axe's nested-interactive, and no sweep opened the drawer.
+    await page.emulateMedia({ colorScheme: theme });
+    await settle(tab);
+    await aThread(tab);
+    const found = await violations(tab);
+    expect(describeAll(found)).toBe("");
+    const row = tab.getByTestId("comment-row");
+    await expect(row).not.toHaveAttribute("role", "button");
+    await expect(row.getByRole("button", { name: "Resolve" })).toHaveCount(1);
+  });
+}
+
+test("a thread opened from the keyboard takes focus, and Escape gives it back", async ({ tab }) => {
+  // Q-051: the card for an existing thread did not move focus and had no
+  // role, so a keyboard user was not told it had appeared.
+  await aThread(tab);
+  const open = tab.getByTestId("comment-row-open");
+  await open.focus();
+  await tab.keyboard.press("Enter");
+  const card = tab.getByRole("dialog", { name: /Comment thread on hexane/ });
+  await expect(card).toBeFocused({ timeout: 10_000 });
+  await tab.keyboard.press("Tab");
+  await expect(card.getByRole("textbox", { name: "Reply" })).toBeFocused();
+  await tab.keyboard.press("Escape");
+  await expect(card).toHaveCount(0);
+  await expect(open).toBeFocused();
+});
+
+test("a build's ending is said to a screen reader", async ({ tab }) => {
+  // Q-052: the strip changed its words with no live region.
+  const said = tab.getByTestId("status-said");
+  await expect(said).toHaveAttribute("aria-live", "polite");
+  await expect(said).toHaveText(/Built|error|warning/, { timeout: 60_000 });
+});
+
+test("a divider takes focus and moves with the arrow keys", async ({ tab }) => {
+  // Q-053: the dividers moved only by dragging.
+  await expect(tab.locator(".cm-editor")).toBeVisible({ timeout: 30_000 });
+  const handle = tab.getByRole("separator", { name: "Resize the side drawer" });
+  const drawer = tab.getByTestId("drawer");
+  const before = (await drawer.boundingBox())!.width;
+  await handle.focus();
+  await tab.keyboard.press("ArrowRight");
+  await expect.poll(async () => (await drawer.boundingBox())!.width).toBeGreaterThan(before + 10);
+  const moved = (await drawer.boundingBox())!.width;
+  await tab.keyboard.press("ArrowLeft");
+  await expect.poll(async () => (await drawer.boundingBox())!.width).toBeLessThan(moved - 10);
+  await expect(handle).toHaveAttribute("aria-valuenow", /\d+/);
+});

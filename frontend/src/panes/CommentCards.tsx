@@ -159,6 +159,15 @@ export function CommentPreview({
   );
 }
 
+/** The control a thread was opened from, when opening it moved focus on
+ *  the way: the drawer's row jumps the editor to the line before the card
+ *  mounts, so the card's own "where focus was" is the editor, and Escape
+ *  left a keyboard user in the manuscript rather than on the row. */
+let opener: HTMLElement | null = null;
+export function openedFrom(element: HTMLElement | null) {
+  opener = element;
+}
+
 export function CommentThreadCard({
   at, thread, onReply, onResolve, onDelete, onClose, onMeasure,
 }: {
@@ -175,6 +184,30 @@ export function CommentThreadCard({
   const [asking, setAsking] = useState(false);
   const [busy, setBusy] = useState(false);
   const more = useRef<HTMLButtonElement | null>(null);
+  // Focus moves into the card when it opens and goes back where it was
+  // when it closes (Q-051). It used to stay where it was, so a keyboard
+  // user was not told a card had appeared or how to reach Reply. The card
+  // itself takes it rather than the reply field, since a thread opened
+  // from a click in the text is read far more often than answered, and a
+  // keystroke meant for the manuscript must not land in a reply.
+  const card = useRef<HTMLDivElement | null>(null);
+  const cameFrom = useRef<HTMLElement | null>(null);
+  const measured = measure(onMeasure);
+  useEffect(() => {
+    const before = (opener?.isConnected ? opener : document.activeElement) as HTMLElement | null;
+    opener = null;
+    cameFrom.current = before;
+    const node = card.current;
+    node?.focus({ preventScroll: true });
+    return () => {
+      // By the time this runs the card may be gone and focus with it, to
+      // the body; either way it goes back to where the writer was.
+      const now = document.activeElement;
+      if (before?.isConnected && (!now || now === document.body || node?.contains(now))) {
+        before.focus({ preventScroll: true });
+      }
+    };
+  }, [thread.id]);
   const send = async () => {
     if (!reply.trim() || busy) return;
     setBusy(true);
@@ -188,9 +221,15 @@ export function CommentThreadCard({
   const count = thread.messages.length;
   return (
     <FloatingCard
-      ref={measure(onMeasure)}
+      ref={(element) => {
+        card.current = element;
+        measured(element);
+      }}
       testid="comment-thread"
       data-thread={thread.id}
+      role="dialog"
+      aria-label={`Comment thread on ${thread.quote}`}
+      tabIndex={-1}
       className="nx-comment-card nx-comment-thread absolute z-20"
       style={{ left: at.left, top: at.top }}
       onMouseDown={(event) => event.stopPropagation()}
@@ -198,6 +237,11 @@ export function CommentThreadCard({
         if (event.key === "Escape" && !menu) {
           event.preventDefault();
           onClose();
+          // After the close, which puts the caret back in the editor for
+          // a thread opened there; one opened from the drawer goes back to
+          // its row.
+          const back = cameFrom.current;
+          if (back?.isConnected) back.focus({ preventScroll: true });
         }
       }}
     >

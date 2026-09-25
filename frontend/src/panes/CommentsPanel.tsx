@@ -5,7 +5,7 @@ import { Button } from "../ui/Button";
 import { Empty } from "../ui/controls";
 import { ChevronDownIcon, ChevronRightIcon } from "../ui/icons";
 import { colourFor } from "../collab";
-import { repliesSaid, whenSaid } from "./CommentCards";
+import { openedFrom, repliesSaid, whenSaid } from "./CommentCards";
 
 /** The Comments drawer: every thread in the project.
  *
@@ -51,25 +51,38 @@ export default function CommentsPanel({
   const row = (thread: CommentThread) => {
     const first = thread.messages[0];
     const done = Boolean(thread.resolved?.at);
+    const openThread = () => {
+      onOpen(thread.path, thread.line);
+      if (!thread.detached && !done) set({ openThread: thread.id });
+    };
     return (
+      // A plain div holding siblings, as the Build drawer's rows are: a
+      // role="button" row with Resolve and Delete inside it was axe's
+      // `nested-interactive`, and a screen reader could not reach them
+      // (Q-050). The row's own job, opening the thread, is a real button
+      // over the quote and the text; a press anywhere else on the row
+      // still opens it for the pointer.
       <div
         key={thread.id}
-        role="button"
-        tabIndex={0}
         className="nx-comment-row"
         data-testid="comment-row"
         data-thread={thread.id}
         data-detached={thread.detached || undefined}
-        onClick={() => {
-          onOpen(thread.path, thread.line);
-          if (!thread.detached && !done) set({ openThread: thread.id });
-        }}
-        onKeyDown={(event) => {
-          if (event.key === "Enter") (event.currentTarget as HTMLElement).click();
-        }}
+        onClick={openThread}
       >
-        <div className="nx-comment-row-quote t-meta">{thread.quote}</div>
-        {first ? <div className="nx-comment-row-body">{first.body}</div> : null}
+        <button
+          type="button"
+          className="nx-comment-row-open"
+          data-testid="comment-row-open"
+          onClick={(event) => {
+            event.stopPropagation();
+            if (!thread.detached && !done) openedFrom(event.currentTarget);
+            openThread();
+          }}
+        >
+          <span className="nx-comment-row-quote t-meta">{thread.quote}</span>
+          {first ? <span className="nx-comment-row-body">{first.body}</span> : null}
+        </button>
         <div className="nx-comment-row-meta t-meta">
           {first ? (
             <span style={first.mine ? undefined : { color: colourFor(first.name) }}>

@@ -12,7 +12,7 @@ import Settings from "./Settings";
 import PasswordNudge from "./PasswordNudge";
 import InstanceBadge from "./InstanceBadge";
 import { Button, IconButton } from "../ui/Button";
-import { Empty, Field, Heading, Kbd, Segmented } from "../ui/controls";
+import { Announce, Empty, Field, Heading, Kbd, Segmented } from "../ui/controls";
 import { Menu, MenuDivider, MenuItem } from "../ui/Menu";
 import { Sheet } from "../ui/Sheet";
 import {
@@ -164,6 +164,15 @@ export default function Projects({
    *  and the word the bar's update button shows. */
   const [sheet, setSheet] = useState<"update" | "report" | null>(null);
   const [updateState, setUpdateState] = useState<UpdateState>("opening");
+  // The update control changes only its label and its look, which a
+  // screen reader hears only if it goes looking; a change to a state that
+  // wants the writer is said once (Q-052).
+  const updateSaid =
+    updateState === "waiting"
+      ? "An update is waiting."
+      : updateState === "attention"
+        ? "The update needs you."
+        : "";
   const [version, setVersion] = useState("");
   useEffect(() => {
     api.instance().then((self) => setVersion(self.version ?? "")).catch(() => undefined);
@@ -598,6 +607,7 @@ export default function Projects({
         >
           <UpdateIcon size={18} />
         </IconButton>
+        <Announce text={updateSaid} testid="update-said" />
         <IconButton
           label="Report a problem"
           data-testid="report-problem"

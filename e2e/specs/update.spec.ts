@@ -144,7 +144,9 @@ test("a commit that reaches the program is offered properly", async ({ page }) =
     // check: an update put off until a quieter afternoon has to leave
     // something on screen to come back to.
     await page.getByRole("button", { name: "Not now" }).click();
-    await expect(page.getByText("An update is waiting.")).toBeVisible();
+    // In the sheet: the same words are also in the control's hidden
+    // announcement for a screen reader (Q-052).
+    await expect(page.getByTestId("update-sheet").getByText("An update is waiting.")).toBeVisible();
     await expect(page.getByTestId("update-now")).toHaveCount(0);
     // Into the gitignored shots directory, beside the card above it, so the
     // two states this screen has can be looked at together.
@@ -156,7 +158,7 @@ test("a commit that reaches the program is offered properly", async ({ page }) =
     await page.reload();
     await page.getByTestId("update-open").click();
     await expect(page.getByTestId("update-sheet")).toBeVisible();
-    await expect(page.getByText("An update is waiting.")).toBeVisible({
+    await expect(page.getByTestId("update-sheet").getByText("An update is waiting.")).toBeVisible({
       timeout: 15_000,
     });
     await expect(page.getByTestId("update-now")).toHaveCount(0);

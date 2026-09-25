@@ -10846,3 +10846,11 @@ output. A figure script whose `scripts/plotstyle.mplstyle` is gone runs
 with matplotlib's own style, and the first line of its stderr says so.
 A script tab that was running when the connection dropped shows the
 truth when it comes back.
+
+A divider between the panes can be moved from the keyboard. Tab reaches
+it, and while it has focus it shows the hint line it shows while
+dragged. The arrow keys move it 16 px, or 64 with Shift, and Enter puts
+it back. At rest it is invisible, as before. A screen reader hears a
+build end and an update wanting attention. A thread's card takes focus
+when it opens and gives it back when it closes, and the Comments
+drawer's Resolve and Delete can be reached without a pointer.

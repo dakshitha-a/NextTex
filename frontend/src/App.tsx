@@ -1300,6 +1300,32 @@ export default function App() {
   const widthsRef = useRef(widths);
   widthsRef.current = widths;
 
+  /** A divider moved from the keyboard (Q-053): the arrow keys step it,
+   *  within the bounds a drag has, and the width is remembered as the end
+   *  of a drag remembers it. `delta` is in shell pixels, toward the right. */
+  const nudge = (which: "rail" | "split" | "chat") => (delta: number) => {
+    const editorWidth = toShell(editorPane.current?.getBoundingClientRect().width ?? 0);
+    const pdfWidth = toShell(pdfPane.current?.getBoundingClientRect().width ?? 0);
+    const pair = editorWidth + pdfWidth;
+    const anchorWidth =
+      which === "rail" ? widthsRef.current.rail : which === "chat" ? widthsRef.current.chat : editorWidth;
+    const bounds = dragBounds(which, { pair, anchorWidth, minPair: tight ? 0 : minPairFor(folded) });
+    const direction = which === "chat" ? -1 : 1;
+    const settled = Math.min(Math.max(anchorWidth + direction * delta, bounds.min), bounds.max);
+    const next =
+      which === "rail"
+        ? { ...widthsRef.current, rail: settled }
+        : which === "chat"
+          ? { ...widthsRef.current, chat: settled }
+          : pair > 0
+            ? { ...widthsRef.current, editor: settled / pair }
+            : widthsRef.current;
+    widthsRef.current = next;
+    setWidths(next);
+    const id = get().projectId;
+    if (id) keep(`nexttex.widths.${id}`, next);
+  };
+
   /** A double click on a divider puts that pane back to its default
    *  width, and remembers it the way the end of a drag does.  It did not,
    *  so the reset lasted until the next reload, which brought back
@@ -2439,6 +2465,9 @@ export default function App() {
           {drawerOver ? null : (
             <Handle
               onPointerDown={startDrag("rail")}
+            onNudge={nudge("rail")}
+            value={(widths.rail / Math.max(1, window.innerWidth)) * 100}
+            label="Resize the side drawer"
               onReset={() => resetWidth("rail")}
             />
           )}
@@ -2631,6 +2660,9 @@ export default function App() {
         {tight || folded.editor || folded.pdf ? null : (
           <Handle
             onPointerDown={startDrag("split")}
+            onNudge={nudge("split")}
+            value={widths.editor * 100}
+            label="Resize the source and the preview"
             onReset={() => resetWidth("editor")}
           />
         )}
@@ -2807,6 +2839,9 @@ export default function App() {
       {noAgent ? null : !chatOver && !folded.chat ? (
         <Handle
           onPointerDown={startDrag("chat")}
+            onNudge={nudge("chat")}
+            value={(widths.chat / Math.max(1, window.innerWidth)) * 100}
+            label="Resize the Claude column"
           onReset={() => resetWidth("chat")}
         />
       ) : null}
