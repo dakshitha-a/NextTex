@@ -111,3 +111,52 @@ def test_a_server_killed_outright_is_reported_by_the_next_one(tmp_path):
     # And one that is stopped the ordinary way says so, so the third start
     # has nothing to report.
     assert json.loads((state / lifeline.FILE).read_text()).get("stopped")
+
+
+RESTART = """<Events><Event xmlns='http://schemas.microsoft.com/win/2004/08/events/event'><System>
+<Provider Name='User32'/><EventID Qualifiers='32768'>1074</EventID>
+<TimeCreated SystemTime='2026-09-24T19:12:06.8320000Z'/></System><EventData>
+<Data Name='param1'>C:\\Windows\\SystemApps\\StartMenuExperienceHost.exe</Data>
+<Data Name='param5'>restart</Data></EventData></Event>
+<Event xmlns='http://schemas.microsoft.com/win/2004/08/events/event'><System>
+<EventID>13</EventID><TimeCreated SystemTime='2026-09-24T19:12:22.8290000Z'/></System></Event></Events>"""
+
+
+def _at(text):
+    from datetime import datetime, timezone
+    return datetime.fromisoformat(text).replace(tzinfo=timezone.utc).timestamp()
+
+
+def test_a_restart_the_writer_chose_is_named_not_mistaken_for_a_crash(tmp_path):
+    """A server with no console is ended at shutdown without a word, so a
+    restart read "stopped without saying why", like the silent exit. The
+    System log says what happened, and the line names it."""
+    alive = _at("2026-09-24T19:11:36")
+    said = lifeline.windows_said(RESTART, alive, alive + 600)
+    stamp = time.strftime("%H:%M:%S", time.localtime(_at("2026-09-24T19:12:06.832")))
+    assert said == f"Windows was restarted at {stamp}"
+
+    (tmp_path / lifeline.FILE).write_text(json.dumps({"pid": 7, "started": alive - 60, "alive": alive}))
+    line = lifeline.previous(tmp_path, windows=lambda since, until: said)
+    assert "ended when Windows was restarted" in line and "without saying why" not in line
+
+
+def test_nothing_in_the_log_between_is_still_unexplained(tmp_path):
+    alive = _at("2026-09-24T19:13:00")          # after both events
+    assert lifeline.windows_said(RESTART, alive, alive + 600) is None
+    assert lifeline.windows_said("", 0, 1) is None
+    (tmp_path / lifeline.FILE).write_text(json.dumps({"pid": 7, "started": 1, "alive": alive}))
+    assert "stopped without saying why" in lifeline.previous(tmp_path, windows=lambda a, b: None)
+
+
+def test_the_query_asks_the_system_log_from_the_last_heartbeat():
+    seen = []
+    lifeline.windows_ended(_at("2026-09-24T19:11:36"), _at("2026-09-24T19:20:00"),
+                           run=lambda argv: seen.append(argv) or RESTART)
+    argv = seen[0]
+    assert argv[:3] == ["wevtutil", "qe", "System"]
+    assert "EventID=1074" in argv[3] and "@SystemTime>='2026-09-24T19:11:36'" in argv[3]
+    # A wevtutil that cannot run is no answer, not an error.
+    def broken(argv):
+        raise OSError("no wevtutil")
+    assert lifeline.windows_ended(0, 1, run=broken) is None

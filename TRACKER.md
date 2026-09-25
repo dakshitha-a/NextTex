@@ -70,44 +70,40 @@ this host could not reproduce; each says which.
       one more, and reads it once the menu is open now. Two others that
       looked the same were real defects and are fixed: a new file's
       first keystrokes lost, and a Markdown note rebuilding the paper.
-- [ ] **A logon-started server took five minutes to begin serving, where
-      the same build started from the desktop shortcut took under
-      twenty-five seconds.** Measured on the laptop on 23 September, eight
-      minutes apart: the task's process was created 62 seconds after boot,
-      wrote its banner three and a quarter minutes later, and was
-      answering on the port at about five minutes; the shortcut's was
-      serving in 25. A cold disk after boot, an antivirus reading a 400 MB
-      virtual environment and a freshly installed MiKTeX are all plausible
-      and none is measured. It matters twice over: a writer who reboots
-      and looks will think NextTex did not come up, and anybody watching
-      that machine for the overnight disappearance can mistake a slow
-      start for a failure to start, which one session nearly did.
+- [x] **A logon-started server took five minutes to begin serving.**
+      Measured again on 24 September 2026 after a restart, on 3.17.2 with
+      the windowless task: logon at 20:12:55, the task's process at
+      20:13:00, answering at 20:13:58, 63 seconds. The server's own line
+      says where it went, "imports 15.1 s, the app 23.0 s", with about 16
+      s more before its clock starts, the interpreter and the venv
+      launcher: all of it Python loading its modules while the machine is
+      still busy after boot, where a warm start takes about a second. That
+      is the machine's load, not NextTex waiting on something, so it is
+      recorded rather than fixed. The five minutes of 23 September were
+      not seen again.
 
-- [ ] **A Windows server exits silently overnight, and did again on 24
-      September.** Removed from this list on 23 September as not
-      reproduced, since a server there had survived a night of Modern
-      Standby. It came back: the 3.7.0 server the restart helper started
-      through the Startup shortcut at 00:28:49 was gone by 09:10, with its
-      start line the last thing in server.log, nothing new in
-      server.err.log, no crash or Windows Error Reporting record, no
-      reboot or logoff, and Modern Standby from 00:41 to 08:24. The
-      process-exit audit turned on there on 22 September was off again, so
-      the machine recorded nothing about the exit. The server now records
-      it itself: a heartbeat in the state directory every minute, a line
-      from a console-control handler, a line for every exit it sees, and
-      at the next start a line saying when the previous server was last
-      alive. The next death is placed to within a minute by that.
+- [x] **A Windows server exits silently overnight.** Found on 24
+      September 2026 on the owner's laptop, in an afternoon rather than a
+      night. A sleep of an hour did not end the logon task's server, and
+      neither did four standby periods earlier that day; closing the
+      Windows Terminal window it lived in did, at once, and the handler
+      wrote "Windows said: the console window was closed". Windows 11
+      hands a console program to Windows Terminal, so the server lived in
+      a window a person could close. Since 3.17.2 every Windows launcher
+      runs `pythonw.exe` with `--log-to-state` and no console, so there is
+      no window to close; a restart afterwards brought it up by itself in
+      63 seconds. A server with no console is told nothing at shutdown, so
+      the next start reads the System log for a restart or shutdown after
+      the last heartbeat and names it, and "stopped without saying why"
+      now means what it says.
 
 ### Never run against the real thing
 
-- [ ] **The restart helper's scheduled-task branch has not run on a real
-      machine.** The Startup-shortcut branch has, three times on the
-      owner's laptop, and the logon task itself was registered and started
-      a server there after a reboot on 23 September. What has not run is
-      `windows_restart_argv` taking `Start-ScheduledTask` rather than the
-      shortcut, which needs an update pressed while the task is the armed
-      launcher. That laptop is on the task now, so the next update pressed
-      there runs it.
+- [x] **The restart helper's scheduled-task branch on a real machine.**
+      Ran four times on the owner's laptop on 24 September 2026, from
+      3.8.0 to 3.17.2: the helper waited for the old pid, waited for the
+      task to leave Running, and started it, and the new server answered
+      within seconds each time.
 
 - [ ] **The drawer's Install button has still not been pressed on a
       MiKTeX, and now for a better reason.**
