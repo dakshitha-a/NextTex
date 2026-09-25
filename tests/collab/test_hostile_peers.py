@@ -72,20 +72,10 @@ def test_a_blob_request_cannot_be_a_path():
         assert not _IS_SHA.fullmatch(bad), bad
 
 
-def test_two_peers_creating_the_same_path_do_not_collide(tmp_path):
-    """They derived the same id from the same path, the documents merged,
-    and each peer ended up holding both files interleaved."""
-    ids = set()
-    for name in ("alice", "bob"):
-        root = tmp_path / name
-        root.mkdir()
-        (root / "main.tex").write_text("x\n")
-        store = CollabStore(Project.open(root))
-        store.adopt()
-        # A file neither of them has adopted: created independently, now.
-        ids.add(store._new_id("chapters/03.tex"))
-        store.close()
-    assert len(ids) == 2
+# Two peers creating the same path while apart: see
+# tests/collab/test_same_path_apart.py, which drives the path a new file
+# takes in the program.  The test that stood here called `_new_id`
+# directly and passed while every real new file got the path's id (Q-009).
 
 
 # --- the files that are instructions rather than writing --------------------

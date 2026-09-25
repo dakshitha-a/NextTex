@@ -20,6 +20,12 @@ async def main(tmp: Path):
     transport.HUB.clear()
     alice = Peer(tmp / "alice", {"main.tex": "The paper.\n"}).be("a" * 16)
     bob = Peer(tmp / "bob", {"main.tex": "The paper.\n"}).be("b" * 16)
+    # Shared, which is the only case two people can make one path apart:
+    # `CollabStore.shared` reads this file.
+    for peer in (alice, bob):
+        marker = peer.project.state_dir / "collab" / "share.json"
+        marker.parent.mkdir(parents=True, exist_ok=True)
+        marker.write_text("{}")
     # Each writes chapters/03.tex while apart.
     for peer, text in ((alice, "Alice's chapter three.\n"), (bob, "Bob's chapter three.\n")):
         f = peer.project.root / "chapters" / "03.tex"
@@ -30,21 +36,20 @@ async def main(tmp: Path):
     print("ids", a_id, b_id)
     for peer in (alice, bob):
         peer.store.body(peer.store.file_id_for("chapters/03.tex"))
-    a_text = alice.store.body(a_id); b_text = bob.store.body(b_id)
-    a_doc, b_doc = alice.store.texts[a_id], bob.store.texts[b_id]
-    print("before: alice", repr(str(a_text)), "bob", repr(str(b_text)))
-    # The manifests and the two texts meet, the way a sync delivers them.
+    # The manifests meet, then every document, the way a sync delivers them.
     for src, dst in ((alice, bob), (bob, alice)):
         dst.store.manifest.apply_update(src.store.manifest.get_update())
-
-    ua, ub = a_doc.get_update(), b_doc.get_update()
-    b_doc.apply_update(ua); a_doc.apply_update(ub)
-    print("after sync: alice", repr(str(a_text)))
-    print("after sync: bob  ", repr(str(b_text)))
-    bob.store.flush(); alice.store.flush()
-    await asyncio.sleep(0.5)
-    print("bob's disk:  ", repr((bob.project.root / "chapters/03.tex").read_text()))
-    print("alice's disk:", repr((alice.project.root / "chapters/03.tex").read_text()))
+    for src, dst in ((alice, bob), (bob, alice)):
+        for file_id, doc in list(src.store.texts.items()):
+            dst.store.body(file_id)
+            dst.store.texts[file_id].apply_update(doc.get_update())
+    for _ in range(3):
+        bob.store.flush(); alice.store.flush()
+        await asyncio.sleep(0.3)
+    for peer in (alice, bob):
+        for name in ("chapters/03.tex", "chapters/03 (2).tex"):
+            target = peer.project.root / name
+            print(f"{peer.name}'s {name}:", repr(target.read_text() if target.exists() else None))
     await alice.close(); await bob.close()
 
 import tempfile

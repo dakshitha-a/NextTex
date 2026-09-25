@@ -804,6 +804,11 @@ on two peers, rather than calling the private method.
 
 *Size:* medium. *Version:* z.
 
+*Fixed in 3.18.4.* A new file in a shared project gets an id of its own;
+two live records on one path are parted, or merged only when they say
+the same thing, and the notices say so. The driver now marks its two
+projects shared, which it had not, and shows two files on each disk.
+
 ### Q-010 · Collaboration · test · low · confirmed
 **The hostile-peer tests miss comments and races.**
 

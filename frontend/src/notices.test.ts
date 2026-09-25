@@ -1,6 +1,6 @@
 import { beforeEach, describe, expect, it } from "vitest";
 
-import { dismissNotice, get, set } from "./store";
+import { __receive, dismissNotice, get, set } from "./store";
 
 describe("what the writer is told when something goes wrong", () => {
   beforeEach(() => set({ error: null }));
@@ -62,5 +62,22 @@ describe("what the writer is told when something goes wrong", () => {
     set({ error: "b" });
     set({ error: null });
     expect(get().notices).toEqual([]);
+  });
+});
+
+describe("a file event nobody's turn caused", () => {
+  beforeEach(() => set({ error: null }));
+
+  it("says in the notices that two people's new files were kept as two", () => {
+    // Q-009: the server parts two people's new files of one name and
+    // sends this, once, on every machine; it goes where a replace or an
+    // upload says what it did, not into the Claude column.
+    __receive({
+      type: "file_notice",
+      message: "Two people made chapters/03.tex while apart. One of them is now chapters/03 (2).tex; nothing was merged.",
+    });
+    expect(get().notices.map((n) => n.text)).toEqual([
+      "Two people made chapters/03.tex while apart. One of them is now chapters/03 (2).tex; nothing was merged.",
+    ]);
   });
 });

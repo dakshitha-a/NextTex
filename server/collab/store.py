@@ -89,6 +89,22 @@ from nexttex.project import TEXT_SUFFIXES, Project
 from . import persist
 from .merge import merge as merge_three
 
+
+def _kept_both(path: str, taken: set[str]) -> str:
+    """`chapters/03 (2).tex`, `(3)` and so on, the upload chooser's names
+    for a file kept beside another, free among the manifest's paths."""
+    head, _, name = path.rpartition("/")
+    stem, dot, suffix = name.rpartition(".")
+    if not dot or not stem:
+        stem, suffix, dot = name, "", ""
+    number = 2
+    while True:
+        candidate = f"{stem} ({number}){dot}{suffix}"
+        full = f"{head}/{candidate}" if head else candidate
+        if full not in taken:
+            return full
+        number += 1
+
 log = logging.getLogger("nexttex.collab")
 
 # How long a change sits in the document before it is written out.  The
@@ -545,7 +561,9 @@ class CollabStore:
         was never renamed onto a trashed name; a history from before the
         rekey is migrated onto the ids once, when the session binds it.
 
-        Everything else gets random bytes, and the distinction matters.  The
+        `adopt` asks for the slug only while the project is not shared;
+        on a shared one every new path gets random bytes.  Everything else
+        gets random bytes too, and the distinction matters.  The
         first version of this used the slug whenever *this* peer had not seen
         the path -- which is exactly the situation two collaborators are in
         when they both create `chapters/03.tex`.  They derived the same id
@@ -695,7 +713,7 @@ class CollabStore:
         # right, and it is how the person who shares a project puts their own
         # work into it in the first place.
         if not str(text) and (not had_a_log or not self.shared):
-            if self.seed_from_disk:
+            if self.seed_from_disk and not self._held_by_another(file_id, record["path"]):
                 on_disk = self._read(record["path"])
                 if on_disk:
                     with doc.transaction(origin=FROM_DISK):
@@ -972,7 +990,10 @@ class CollabStore:
                 "size": size,
                 "trashed": False,
             })
-            self.files[self._new_id(relative, adopting=True)] = record
+            # The path-derived id only while nobody else holds the project.
+            # On a shared one two people can make the same new path apart,
+            # and one id for both merged their two files into one (Q-009).
+            self.files[self._new_id(relative, adopting=not shared)] = record
             known[relative] = record
 
         # A file listed but no longer on disk was deleted while this peer was
@@ -1514,6 +1535,75 @@ class CollabStore:
         self._timer = None
         self.flush()
 
+    def _part_clashes(self) -> None:
+        """Two live records on one path become two files, or one.
+
+        Two people who each make `chapters/03.tex` while apart hold two
+        records for one path once they meet, since a new file in a shared
+        project has an id of its own.  If the two say the same thing, as
+        when both pulled the same commit, the second is dropped and nobody
+        is told.  If they differ, the record with the larger id takes the
+        name the upload chooser gives a file it keeps beside another,
+        `03 (2).tex`, and the person at the keyboard is told.  Decided from
+        the manifest alone, never the disk, so every peer makes the same
+        change and the writes agree.
+        """
+        by_path: dict[str, list[str]] = {}
+        for file_id, record in self.files.items():
+            path = str(record.get("path") or "")
+            if path and not record.get("trashed"):
+                by_path.setdefault(path, []).append(file_id)
+        taken = set(by_path)
+        for path, ids in sorted(by_path.items()):
+            if len(ids) < 2:
+                continue
+            keeper, *others = sorted(ids)
+            for other in others:
+                if self._same_content(keeper, other):
+                    self.files[other]["trashed"] = True
+                    continue
+                parted = _kept_both(path, taken)
+                taken.add(parted)
+                self.files[other]["path"] = parted
+                # Both written afresh: the disk file at the path may be
+                # either one's, and a document already projected here
+                # would otherwise never be written under its new name.
+                for file_id in (keeper, other):
+                    self.last_projected.pop(file_id, None)
+                    self._dirty.add(file_id)
+                noted = getattr(self.session, "note_clash", None)
+                if noted is not None:
+                    noted(path, parted)
+        self._by_path = None
+
+    def _held_by_another(self, file_id: str, path: str) -> bool:
+        """Whether a different live record names this path.
+
+        Then the file on disk is that record's, and a document opening
+        here for the first time must not be seeded from it: two people's
+        new files of one name met, and seeding the second from the first's
+        file merged the two chapters into one (Q-009).  `_part_clashes`
+        gives the second a name of its own at the next flush.
+        """
+        return any(
+            other != file_id and record.get("path") == path and not record.get("trashed")
+            for other, record in self.files.items()
+        )
+
+    def _same_content(self, one: str, two: str) -> bool:
+        a, b = self.files[one], self.files[two]
+        if a.get("kind") == "text" and b.get("kind") == "text":
+            # Only documents already open. `body` would open the other one
+            # by seeding it from the disk file the two records share, which
+            # is the merge this is here to prevent.
+            first, second = self._body.get(one), self._body.get(two)
+            if first is None or second is None:
+                return False
+            return str(first) == str(second)
+        # A binary record carries a size and no hash, and two figures of one
+        # size are not one figure: they are kept as two.
+        return False
+
     def settle_paths(self) -> None:
         """Follow renames and deletions that were made somewhere else.
 
@@ -1869,6 +1959,7 @@ class CollabStore:
         self._settle_gone()
         if self._paths_moved:
             self._paths_moved = False
+            self._part_clashes()
             self.settle_paths()
         pending, self._dirty = self._dirty, set()
         failed: set[str] = set()

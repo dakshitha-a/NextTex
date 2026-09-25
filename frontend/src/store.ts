@@ -1460,6 +1460,12 @@ function receive(event: any) {
     // minutes without an answer and it has said no on the writer's behalf,
     // which is precisely the moment they need telling: the card is gone,
     // the turn moved on, and nothing said why.
+    // A file event the writer has to hear about but that is nobody's turn:
+    // two people's new files of one name kept as two (Q-009). The notices
+    // region, where a replace or an upload says what it did.
+    case "file_notice":
+      set({ error: event.message ?? "" });
+      break;
     case "notice":
       endText();
       pushChat({

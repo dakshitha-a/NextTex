@@ -64,6 +64,8 @@ class Peer:
             target.write_text(text, encoding="utf-8")
         self.project = Project.open(root)
         self.name = root.name.title()
+        #: What the session would have told the person at the keyboard.
+        self.notices: list[str] = []
         self.history = History(self.project.state_dir / "history")
         self.trash = Trash(
             self.project.state_dir / "trash", self.history, self.project.root,
@@ -77,6 +79,9 @@ class Peer:
         self.store = CollabStore(self.project, self)
         self.network = PeerNetwork(self.store, session=self)
         self.store.adopt()
+
+    def note_clash(self, path: str, parted: str) -> None:
+        self.notices.append(f"{path} {parted}")
 
     def be(self, identity: str) -> "Peer":
         """Take an identity, the way a real install takes one from its key."""

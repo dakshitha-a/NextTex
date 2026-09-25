@@ -811,6 +811,23 @@ class ProjectSession:
         manifest's transaction, so it only enqueues."""
         spawn(self.events.publish({"type": "comments_changed"}), "announcing a comment")
 
+    def note_clash(self, path: str, parted: str) -> None:
+        """Two people made the same new file while apart, and the store has
+        kept them as two (Q-009).  Said once, in the notices, on every
+        machine, since each one's store parts them the same way."""
+        message = (
+            f"Two people made {path} while apart. One of them is now "
+            f"{parted}; nothing was merged."
+        )
+
+        async def announce() -> None:
+            await self.events.publish({"type": "file_notice", "message": message})
+            await self.events.publish(
+                {"type": "files_changed", "paths": [path, parted], "structural": True}
+            )
+
+        spawn(announce(), "announcing a file kept beside another")
+
     def note_trashed(self, was: str) -> None:
         """A file a peer deleted has just been moved into this trash, or
         one the watcher saw go has just been called deleted.

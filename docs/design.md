@@ -10749,3 +10749,9 @@ says so and where the build stopped, with a red dot and *Show the error*,
 which opens the Build drawer. If no build has ever made a page, the pane
 says "The build stopped before a page was made." with the same button,
 where it used to say the document was empty.
+
+Two people who each make a new file of one name while apart keep two
+files. The notices region says once, on each machine, "Two people made
+chapters/03.tex while apart. One of them is now chapters/03 (2).tex;
+nothing was merged." It used to merge the two into one file holding both,
+and say nothing.
