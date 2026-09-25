@@ -773,6 +773,33 @@ flight, and none races a rename on one side with an edit on the other.
 
 *Size:* medium. *Version:* none.
 
+### Q-054 · Collaboration · bug · medium · confirmed
+
+*Found by:* `e2e/review/q054_comment_outside_edit.py`, written for the
+outside-edits area. *Where:* `server/collab/comments.py:79`, with the fold
+of an outside edit at `server/collab/store.py:1446`.
+
+*What happens:* a thread on "converges quickly" survives outside edits
+well when they are small. Text added above moves it down with the
+paragraph, and a rewording to "converges slowly" keeps it on the new
+words. But when another editor or a pull replaces the whole paragraph, the
+fold into the shared text is a character diff, and it keeps the letters
+the old and new paragraphs happen to share. The comment's two positions
+land on those, and the thread stays attached to "ly", from "entirely",
+with its old quote, instead of being shown as detached. Typing the same
+change in the editor deletes the text under the comment and detaches it
+properly, so only outside edits do this, and the writer calls those a
+first-class case.
+
+*What should happen:* a thread whose range now holds text sharing little
+with its quote is shown as detached, with its quote, the way a deleted
+range is.
+
+*How to reach it again:*
+`.venv/bin/python e2e/review/q054_comment_outside_edit.py`.
+
+*Size:* small. *Version:* z.
+
 ### The server
 
 ### Q-011 · Server · test · low · confirmed
