@@ -22,7 +22,7 @@ import re
 import sys
 from pathlib import Path
 
-VERSION = "3.18.9"
+VERSION = "3.18.10"
 
 #: What a version looks like.  Anchored, so a stray character in the file
 #: is a test failure rather than a tag the release workflow refuses later.
