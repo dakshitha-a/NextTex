@@ -28,6 +28,11 @@ def repo(tmp_path: Path) -> Path:
     root = tmp_path / "paper"
     root.mkdir()
     git(root, "init", "-q", "-b", "main")
+    # The drawer's commit runs git with the app's own small environment,
+    # which carries no author; a CI runner has no global identity either,
+    # so the repository names one, as a writer's own would.
+    git(root, "config", "user.name", "t")
+    git(root, "config", "user.email", "t@t")
     (root / "main.tex").write_text("The first line.\n")
     git(root, "add", "-A")
     git(root, "commit", "-qm", "first")
