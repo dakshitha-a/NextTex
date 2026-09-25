@@ -98,17 +98,17 @@ RULES: list[tuple[re.Pattern, str, str, str]] = [
         re.compile(r"File [`'\"]?([^'\"]+\.sty)", re.I),
         "A package that is not installed",
         "The preamble asks for a package this TeX installation does not have.",
-        "Install it with your TeX package manager. For TinyTeX that is "
-        "`tlmgr install <name>`, and the Install button here does it for "
-        "you. Then build again.",
+        "The Install button here installs it into the TeX your builds use. "
+        "By hand that is `tlmgr install <name>` on TeX Live or TinyTeX, "
+        "and `miktex packages install <name>` on MiKTeX. Then build again.",
     ),
     (
         re.compile(r"File [`'\"]?([^'\"]+\.cls)", re.I),
         "A document class that is not installed",
         "\\documentclass names a class this TeX installation does not have.",
-        "Install it with your TeX package manager. For TinyTeX that is "
-        "`tlmgr install <name>`, and the Install button here does it for "
-        "you. Then build again.",
+        "The Install button here installs it into the TeX your builds use. "
+        "By hand that is `tlmgr install <name>` on TeX Live or TinyTeX, "
+        "and `miktex packages install <name>` on MiKTeX. Then build again.",
     ),
     (
         re.compile(r"File [`'\"]?([^'\"]+)['\"]? not found", re.I),

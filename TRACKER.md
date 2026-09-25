@@ -114,21 +114,13 @@ this host could not reproduce; each says which.
       within seconds each time.
 
 - [ ] **The drawer's Install button has still not been pressed on a
-      MiKTeX, and now for a better reason.**
-      `nexttex/texpkg.py` runs `mpm --install=<stem>` when `tlmgr` is
-      absent and `mpm` is present, with the missing file's stem as the
-      package name, because MiKTeX names nearly every package after its
-      main file and installs on the fly by default anyway; nothing here
-      has a MiKTeX to check either claim against. The tlmgr path is run
-      for real on this machine's TinyTeX and against the stand-in in the
-      browser tier. A real MiKTeX finally existed on 23 September 2026, on
-      the laptop, installed by NextTex's own installer. The button was
-      still not pressed, deliberately: that machine had MiKTeX's engine
-      running against TinyTeX's package tree, so a package `mpm` installed
-      might land somewhere the running engine never looks, and neither a
-      pass nor a failure would have meant anything. What this needs is a
-      machine with one TeX on it, or the item above about the installer
-      recording its choice.
+      MiKTeX, and it would have installed into the wrong TeX.** On the
+      owner's laptop on 24 September 2026, with MiKTeX chosen and TinyTeX
+      still installed, `nexttex/texpkg.py` took the first `tlmgr` on PATH,
+      TinyTeX's, and ran the outdated `mpm --install=` form for MiKTeX.
+      It now asks the TeX the builds use for its manager, and asks MiKTeX
+      with `miktex packages install <name>`. What is left is to press it
+      there on a package MiKTeX lacks and see the rebuild pass.
 - [ ] **The OpenAI provider has never spoken to OpenAI itself.**
       Everything above the transport runs for real against a stub, and
       since the backlog close-out against a real local server too:

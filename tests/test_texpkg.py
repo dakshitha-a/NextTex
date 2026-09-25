@@ -116,7 +116,7 @@ def test_a_search_that_hangs_is_given_up_on(monkeypatch):
 
 def test_no_manager_means_no_button(monkeypatch):
     monkeypatch.delenv("NEXTTEX_TLMGR", raising=False)
-    monkeypatch.setattr(texpkg.shutil, "which", lambda name: None)
+    monkeypatch.setattr(texpkg.shutil, "which", lambda name, path=None: None)
     monkeypatch.setattr(texpkg, "_KNOWN", {})
     assert asyncio.run(texpkg.package_for_file("x.sty")) == {"file": "x.sty", "package": "", "manager": ""}
 
@@ -193,3 +193,99 @@ def test_the_row_carries_the_missing_file_beside_its_explanation():
     assert rows[0]["missingFile"] == "mhchem.sty"
     assert rows[0]["explain"]["title"] == "A package that is not installed"
     assert "missingFile" not in rows[1]
+
+
+# -- which TeX's manager ---------------------------------------------------------
+
+def _bin(tmp_path, name: str, *tools: str):
+    directory = tmp_path / name
+    directory.mkdir()
+    for tool in tools:
+        path = directory / tool
+        path.write_text("#!/bin/sh\n")
+        path.chmod(0o755)
+    return directory
+
+
+def test_the_manager_is_the_one_beside_the_recorded_tex_not_the_first_on_path(tmp_path, monkeypatch):
+    """The owner's laptop on 24 September 2026: MiKTeX chosen and
+    recorded, TinyTeX still installed and first on PATH. The button must
+    install into MiKTeX, with its current console, not into TinyTeX."""
+    tinytex = _bin(tmp_path, "tinytex", "tlmgr", "pdflatex")
+    miktex = _bin(tmp_path, "miktex", "miktex", "pdflatex")
+    monkeypatch.delenv("NEXTTEX_TLMGR", raising=False)
+    monkeypatch.delenv("NEXTTEX_TEX", raising=False)
+    monkeypatch.setenv("PATH", f"{tinytex}:{miktex}")
+    monkeypatch.setattr(texpkg.tools, "recorded_tex_dir", lambda: miktex)
+    assert texpkg.manager_here() == ("miktex", str(miktex / "miktex"))
+
+
+def test_with_nothing_recorded_the_manager_follows_the_engine(tmp_path, monkeypatch):
+    miktex = _bin(tmp_path, "miktex", "mpm", "pdflatex")
+    elsewhere = _bin(tmp_path, "elsewhere", "tlmgr")
+    monkeypatch.delenv("NEXTTEX_TLMGR", raising=False)
+    monkeypatch.delenv("NEXTTEX_TEX", raising=False)
+    monkeypatch.setenv("PATH", f"{elsewhere}:{miktex}")
+    monkeypatch.setattr(texpkg.tools, "recorded_tex_dir", lambda: None)
+    assert texpkg.manager_here() == ("mpm", str(miktex / "mpm"))
+
+
+def test_a_tex_with_no_manager_of_its_own_falls_back_to_path(tmp_path, monkeypatch):
+    bare = _bin(tmp_path, "bare", "pdflatex")
+    other = _bin(tmp_path, "other", "tlmgr")
+    monkeypatch.delenv("NEXTTEX_TLMGR", raising=False)
+    monkeypatch.delenv("NEXTTEX_TEX", raising=False)
+    monkeypatch.setenv("PATH", f"{bare}:{other}")
+    monkeypatch.setattr(texpkg.tools, "recorded_tex_dir", lambda: None)
+    assert texpkg.manager_here() == ("tlmgr", str(other / "tlmgr"))
+
+
+@pytest.mark.parametrize("kind,argv", [
+    ("tlmgr", ["/t/tlmgr", "install", "lipsum"]),
+    ("miktex", ["/t/tlmgr", "packages", "install", "lipsum"]),
+    ("mpm", ["/t/tlmgr", "--install=lipsum"]),
+])
+def test_each_manager_is_asked_in_its_own_words(kind, argv):
+    assert texpkg.install_argv(kind, "/t/tlmgr", "lipsum") == argv
+
+
+def test_miktex_is_given_the_files_stem_without_a_search(monkeypatch):
+    seen = fake_tlmgr(monkeypatch, {})
+    monkeypatch.setattr(texpkg, "manager_here", lambda: ("miktex", "/m/miktex"))
+    assert asyncio.run(texpkg.package_for_file("lipsum.sty")) == {
+        "file": "lipsum.sty", "package": "lipsum", "manager": "miktex",
+    }
+    assert seen == []
+
+
+def test_an_install_that_hangs_ends_its_whole_tree(monkeypatch):
+    """`tlmgr.bat` is a shell running Perl; killing the shell alone left
+    the Perl holding tlmgr's lock."""
+    ended = []
+
+    class Never:
+        returncode = None
+        pid = 4242
+
+        async def communicate(self):
+            await asyncio.sleep(60)
+
+        def kill(self):
+            pass
+
+    async def fake_exec(*argv, **_):
+        return Never()
+
+    monkeypatch.setattr(asyncio, "create_subprocess_exec", fake_exec)
+    monkeypatch.setattr(texpkg, "end_tree", lambda pid, hard=False: ended.append((pid, hard)))
+    monkeypatch.setenv("NEXTTEX_TLMGR", "/fake/tlmgr")
+    monkeypatch.setattr(texpkg, "INSTALL_TIMEOUT", 0.05)
+    assert asyncio.run(texpkg.install("minted"))["ok"] is False
+    assert ended == [(4242, True)]
+
+
+def test_the_advice_names_both_distributions_managers():
+    rows = annotate([{"severity": "error", "message": "! LaTeX Error: File `lipsum.sty' not found."}])
+    fix = rows[0]["explain"]["fix"]
+    assert "tlmgr install" in fix and "miktex packages install" in fix
+    assert "For TinyTeX that is" not in fix

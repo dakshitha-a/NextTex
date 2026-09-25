@@ -26,6 +26,9 @@ import re
 import shutil
 from pathlib import Path
 
+from . import tools
+from .proctree import end_tree
+
 #: A package name, and nothing else: no option, no URL, no path.
 PACKAGE = re.compile(r"^[A-Za-z0-9][A-Za-z0-9._-]{0,63}$")
 
@@ -57,29 +60,72 @@ _KNOWN: dict[str, str] = {}
 _INSTALLING = asyncio.Lock()
 
 
-def manager_here() -> tuple[str, str]:
-    """Which package manager this TeX has, and where.
+#: The managers a TeX's own bin directory can hold, in the order asked:
+#: TeX Live and TinyTeX's `tlmgr`, MiKTeX's `miktex` console, and the
+#: `mpm` older MiKTeX installs carry instead of it.
+KINDS = ("tlmgr", "miktex", "mpm")
 
-    `("tlmgr", path)` for TeX Live and TinyTeX, `("mpm", path)` for MiKTeX,
-    `("", "")` for neither.  The path is resolved rather than the bare
-    name, for the reason `install_tex_extras` in the installer records:
-    `shutil.which("tlmgr")` finds `tlmgr.bat` on Windows and `CreateProcess`
-    will not run a bare name that is not an `.exe`.
+
+def _manager_in(directory: Path | None) -> tuple[str, str]:
+    if directory is None:
+        return "", ""
+    for kind in KINDS:
+        found = shutil.which(kind, path=str(directory))
+        if found:
+            return kind, str(Path(found))
+    return "", ""
+
+
+def manager_here() -> tuple[str, str]:
+    """Which package manager the TeX the builds run has, and where.
+
+    `("tlmgr", path)` for TeX Live and TinyTeX, `("miktex", path)` or
+    `("mpm", path)` for MiKTeX, `("", "")` for none.  Asked of the TeX
+    the builds use first: the directory somebody named, then the one the
+    installer recorded, then wherever `pdflatex` resolves, and only then
+    of PATH at large.  Taking the first `tlmgr` on PATH was wrong on the
+    owner's laptop on 24 September 2026, where MiKTeX was the chosen TeX
+    and TinyTeX was still installed: the button would have put the package
+    into TinyTeX, answered that it had, and the MiKTeX build would have
+    failed as before.  The path is resolved rather than the bare name, for
+    the reason `install_tex_extras` in the installer records:
+    `shutil.which("tlmgr")` finds `tlmgr.bat` on Windows and
+    `CreateProcess` will not run a bare name that is not an `.exe`.
     """
     named = os.environ.get("NEXTTEX_TLMGR", "").strip()
     if named:
         return "tlmgr", named
-    for kind in ("tlmgr", "mpm"):
+    engine = shutil.which("pdflatex")
+    for directory in (
+        tools.named_tex_dir(),
+        tools.recorded_tex_dir(),
+        Path(engine).parent if engine else None,
+    ):
+        kind, path = _manager_in(directory)
+        if kind:
+            return kind, path
+    for kind in KINDS:
         found = shutil.which(kind)
         if found:
             return kind, str(Path(found))
     return "", ""
 
 
+def install_argv(kind: str, path: str, package: str) -> list[str]:
+    """The command that installs one package with this kind of manager."""
+    if kind == "miktex":
+        return [path, "packages", "install", package]
+    if kind == "mpm":
+        return [path, f"--install={package}"]
+    return [path, "install", package]
+
+
 async def _run(argv: list[str], timeout: float) -> tuple[int | None, str]:
     """Run one command off the loop and return its exit code and output,
     stdout and stderr together, since tlmgr says the useful thing on
-    either depending on the failure."""
+    either depending on the failure.  A timeout ends the whole tree:
+    `tlmgr.bat` on Windows is a shell running Perl, and killing the shell
+    alone left the Perl holding tlmgr's lock."""
     process = await asyncio.create_subprocess_exec(
         *argv,
         stdin=asyncio.subprocess.DEVNULL,
@@ -90,7 +136,13 @@ async def _run(argv: list[str], timeout: float) -> tuple[int | None, str]:
     try:
         out, _ = await asyncio.wait_for(process.communicate(), timeout)
     except asyncio.TimeoutError:
-        process.kill()
+        pid = getattr(process, "pid", None)
+        if pid:
+            end_tree(pid, hard=True)
+        try:
+            process.kill()
+        except ProcessLookupError:
+            pass
         raise
     return process.returncode, (out or b"").decode("utf-8", errors="replace")
 
@@ -133,11 +185,10 @@ async def package_for_file(file: str) -> dict:
         return {"file": file, "package": "", "manager": ""}
     if file in _KNOWN:
         return {"file": file, "package": _KNOWN[file], "manager": kind}
-    if kind == "mpm":
-        # MiKTeX names nearly every package after its main file, and its
-        # own console installs on the fly by default, so a guess is what
-        # the writer would type; it has not been run against a MiKTeX
-        # here, and the tracker says so.
+    if kind in ("miktex", "mpm"):
+        # MiKTeX names nearly every package after its main file, and has
+        # no search from a file to its package that answers offline, so
+        # the stem is what the writer would type.
         package = Path(file).stem
     else:
         try:
@@ -166,7 +217,7 @@ async def install(package: str) -> dict:
     kind, path = manager_here()
     if not kind:
         return {"ok": False, "err": "No TeX package manager was found on this computer."}
-    argv = [path, "install", package] if kind == "tlmgr" else [path, f"--install={package}"]
+    argv = install_argv(kind, path, package)
     async with _INSTALLING:
         try:
             code, output = await _run(argv, INSTALL_TIMEOUT)
