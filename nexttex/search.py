@@ -39,9 +39,9 @@ MAX_PATTERN = 200
 TIME_LIMIT = 2.0
 
 _TOO_LONG = (
-    "That pattern took too long to match, so the search stopped. A repeat "
-    "inside a repeat, such as (a+)+, can take ages on a long line; try a "
-    "simpler pattern."
+    "That pattern took too long, so the search stopped. A repeat inside a "
+    "repeat, such as (a+)+, can run for minutes on one line; try a simpler "
+    "pattern."
 )
 
 #: A search that matches thousands of lines is not an answer anybody reads,

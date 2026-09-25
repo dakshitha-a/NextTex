@@ -10715,3 +10715,22 @@ Opus 5.5 as the most careful now, with a saved Opus 5 choice carried to
 it so the menu still shows the writer's row chosen; and on a phone the
 settings pane's heading no longer shares a line with its note, which
 drops under it.
+
+## 76. The fix run: what the probe's fixes change on screen
+
+The probe of September 2026 recorded 72 faults, and the run that fixes
+them changes little a writer sees. What it does change is drawn on the
+direction page under "The fix run's small changes", as the preview of
+what is built, since the writer handed the run's design over; this
+section says what was built, step by step.
+
+A search with the pattern switch on stops after two seconds of matching
+and says so under the field, in the error ink, where a malformed pattern
+already says it is not one: "That pattern took too long, so the search
+stopped." A pattern with a repeat inside a repeat could run for minutes
+on one line and stopped the whole install while it did.
+
+A build scoped to the chapter being edited keeps the errors of the
+chapters it did not open, so the gutter, the Build drawer and the strip
+go on showing an error in chapter one while the writer types in chapter
+two. The strip used to say the build was clean.

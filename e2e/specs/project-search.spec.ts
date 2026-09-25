@@ -41,6 +41,32 @@ test("a bad pattern says so where it was typed", async ({ tab }) => {
   });
 });
 
+test("a pattern that runs too long says so, and the app keeps answering", async ({
+  app, project, tab,
+}) => {
+  // Q-028: this pattern over this line once held the interpreter lock for
+  // minutes and stopped every request on the install.
+  const { writeFileSync } = await import("node:fs");
+  const { join } = await import("node:path");
+  writeFileSync(join(project.root, "evil.tex"), "a".repeat(34) + "!\n");
+  await expect(tab.locator(".cm-editor")).toBeVisible({ timeout: 30_000 });
+  await tab.keyboard.press("Control+Shift+F");
+  await tab.getByTestId("search-regex").click();
+  await tab.getByTestId("project-search").fill("(a|aa)+$");
+  await expect(tab.getByTestId("search-problem")).toHaveText(
+    "That pattern took too long, so the search stopped. A repeat inside a " +
+      "repeat, such as (a+)+, can run for minutes on one line; try a simpler pattern.",
+    { timeout: 10_000 },
+  );
+  const answer = await fetch(`${app.base}/api/instance`, {
+    headers: { "x-nexttex-token": app.token },
+  });
+  expect(answer.ok).toBe(true);
+  if (process.env.NEXTTEX_SHOT) {
+    await tab.getByTestId("search-problem").locator("xpath=../..").screenshot({ path: process.env.NEXTTEX_SHOT });
+  }
+});
+
 test("replacing everywhere is asked about first, and says what the undo is", async ({
   tab,
 }) => {
