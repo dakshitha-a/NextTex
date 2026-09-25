@@ -290,7 +290,7 @@ whole install while it moves.
 
 *Size:* small. *Version:* z.
 
-### Q-023 · Files · bug · medium · likely
+### Q-023 · Files · bug · medium · confirmed
 
 *Found by:* reading. *Where:* `nexttex/gitrepo.py:262`.
 
@@ -300,19 +300,27 @@ conflicts is still in progress, and `git add` marks every conflicted file as
 resolved whatever it holds. The conflict markers are committed into the
 manuscript, and nothing in the drawer said a merge was under way.
 
+*Reproduced* by `e2e/review/q023_git_and_projects.py`: a merge left with a
+conflict in a terminal, then the drawer's commit through
+`/api/projects/{project_id}/git/{action}`. The commit succeeded, and `HEAD`
+held the markers. The status the drawer reads does list the file as `UU`,
+so the server already knows; `frontend/src/panes/GitPanel.tsx` has no case
+for that state.
+
 *What should happen:* the drawer reads whether a merge is in progress and
 whether any path is unmerged, says so, and refuses to commit until the
 terminal has finished it.
 
 *Size:* small. *Version:* z.
 
-### Q-024 · Files · comfort · low · likely
+### Q-024 · Files · comfort · low · confirmed
 
 *Found by:* reading. *Where:* `nexttex/gitrepo.py:189`.
 
 *What happens:* the branch name is read from the status header by
 splitting at three dots. On a detached head the header is `HEAD (no
-branch)`, and the drawer shows that text as the branch.
+branch)`, and the drawer shows that text as the branch. Reproduced by the
+same driver.
 
 *What should happen:* a detached head is named as such, with its commit.
 
@@ -344,7 +352,9 @@ History drawer folds them into one row that can be undone together.
 already at that path. A project that is archived or in the trash comes back
 as active, with its dates reset, without the Restore that the projects
 screen offers for exactly this. The move-a-project path, `relocate`, carries
-the state across and so does not have the fault.
+the state across and so does not have the fault. Reproduced by
+`e2e/review/q023_git_and_projects.py`: archived, then added again, then
+listed as active.
 
 *What should happen:* adding a folder that is already registered opens the
 existing entry, and asks before bringing an archived or trashed project
@@ -428,7 +438,7 @@ the loop and skips `.git`.
 
 ### The editor and the preview in the browser
 
-### Q-030 · Editor · bug · high · likely
+### Q-030 · Editor · bug · high · confirmed
 
 *Found by:* reading, from a lead a reading agent raised.
 *Where:* `frontend/src/actions.ts:90`, the chords at `frontend/src/actions.ts:43`.
@@ -444,7 +454,17 @@ reads the AltGraph modifier state.
 
 *What should happen:* a key press with AltGraph set is never a chord.
 
-*How to reach it again:* the Windows laptop with a German layout added.
+*Reproduced by simulation.* `e2e/review/q030-altgr.spec.ts` dispatches at
+the editor exactly what a browser on Windows sends for AltGr: the
+character in `key`, the physical key in `code`, and Ctrl and Alt both set.
+Polish is worse than German. The app swallowed ą as the chord that shows
+the Claude column, ę, which is also the euro sign on German and French
+layouts, as Writing mode, and ó as quick open. A Polish writer on Windows
+cannot type three of their letters in NextTex. ś, which has no chord, was
+left alone. The Windows laptop has been asked to try a real layout if one
+is already installed.
+
+*How to reach it again:* `e2e/review/q030-altgr.spec.ts`.
 
 *Size:* small. *Version:* z.
 
