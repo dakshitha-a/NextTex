@@ -25,7 +25,7 @@ things go to be forgotten rather than a list anybody reads.
 ## In hand
 
 The probe, a whole-app review, closed on 25 September 2026 at 3.18.1. Its
-findings are `REVIEW.md`, 68 records, and they are the input to the fix
+findings are `REVIEW.md`, 69 records, and they are the input to the fix
 plan that comes next; nothing in them is fixed yet. Its report page is
 https://claude.ai/artifact/4mdUwu1mLwVYquc7Bm7vkS. Two of its records
 touch the backlog below: Q-055 on the six browser flakes, which did not

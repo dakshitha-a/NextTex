@@ -978,6 +978,29 @@ kept: a skip is a failure.
 
 *Size:* medium. *Version:* none.
 
+### Q-069 · Suites · test · low · confirmed
+**The suites leave their temporary folders behind.**
+
+*Found by:* the probe's close-out, counting what it had left in `/tmp`.
+*Where:* `tests/collab/conftest.py:29`, `e2e/specs/papers.spec.ts:28`, and
+the browser harness in `e2e/server.ts`.
+
+*What happens:* `/tmp` on this machine holds 1927 folders named for
+NextTex's tests, 154 MB, the oldest from 5 September: 591 from the browser
+harness, 378 from the API tests, 371 and 274 from the papers spec's
+folders, and 304 from the collaboration tests. The collaboration conftest
+makes its state folder at import and never removes it, so every Python run
+leaves one; the papers spec names its folders by the time and does not
+remove them. The browser harness removes its sandbox in `stop()`, so its
+leftovers are likely the runs that ended without reaching it, the review
+drivers among them. The probe removed the eight its own drivers made.
+
+*What should happen:* each suite removes what it makes, through pytest's
+`tmp_path` or a session finaliser, and the papers spec through its own
+cleanup, so a developer's machine does not fill with them.
+
+*Size:* small. *Version:* none.
+
 ### Q-016 · Suites · test · low · confirmed
 **The local venv is newer than the Python floor.**
 
@@ -1675,9 +1698,9 @@ looked at as hard as anything above and held.
 
 ## What the findings have in common
 
-Sixty-eight records: 9 high, 27 medium, 32 low, no blocker. Of them 21 are
-bugs, 11 comfort, 8 performance, 6 test, 5 security, 5 docs, 5
-consistency, 4 accessibility and 3 improvements. Sixty are confirmed, most
+Sixty-nine records: 9 high, 27 medium, 33 low, no blocker. Of them 21 are
+bugs, 11 comfort, 8 performance, 7 test, 5 security, 5 docs, 5
+consistency, 4 accessibility and 3 improvements. Sixty-one are confirmed, most
 by reproduction, and eight are likely. Grouped by the mechanism that
 produced them, so that one change closes several:
 
