@@ -891,6 +891,54 @@ clock, and the tracker names them until it does.
 
 *Size:* small. *Version:* none.
 
+### Q-055 · Suites · test · low · confirmed
+
+*Found by:* the capped flake hunt the tracker's backlog asked for.
+
+*What happens:* the backlog names six browser tests that fail about once
+in a full run under load and asks for a full tier with retries off, run
+until one fails. The probe ran three, one after another, on 25 September
+2026, each while other work loaded the machine: 575 passed three times,
+1725 runs with no failure, 17.7 to 17.9 minutes each. Nothing failed, so
+there is no trace to read. What did fail in the same week is on CI, and it
+is two Python tests, Q-015, which the backlog does not name.
+
+*What should happen:* the backlog item says what these runs showed, and
+the next step moves to CI, where the retries' own reports are kept: read
+which of the six the retries rescued there, if any.
+
+*Size:* small. *Version:* none.
+
+### Q-056 · Suites · test · medium · confirmed
+
+*Found by:* the screen pass. *Where:* `e2e/shots/fidelity.spec.ts`.
+
+*What happens:* `docs/style-guide.md` asks every interface change to be
+rendered with this harness in both themes and set beside the direction
+page. Run in full on 25 September 2026 it took 10.9 minutes, reported
+`1 passed`, and wrote failure notes instead of images for 13 of its 98
+surfaces, most in both themes: the Sections, Search, References and
+Deleted drawers, the submit drawer's second view, the Git drawer's history
+in the dark, the narrow frame, the notices, the share sheet, the equation
+card's Copied state in the light, the spelling language's suggestion and
+the spelling menu in the dark. The one screenshot looked at shows why: all
+the surfaces share one project, earlier surfaces edit it, and by the time
+the Sections drawer was reached `main.tex` held no section to list. So the
+harness is correct only for whoever renders a surface or two, and its
+green result says nothing about the rest.
+
+The review's own axe sweep, `e2e/review/a-axe-sweep.spec.ts`, has drifted
+the same way: it skipped five of its eight surfaces, because the controls
+it clicks were renamed in the visual overhaul, and passed. A tool that
+passes while doing less than it says is how a gap stays hidden.
+
+*What should happen:* each surface starts from a project of its own, or
+the harness restores the fixture between surfaces, and a surface that
+cannot be reached fails the run. The same for the review drivers that are
+kept: a skip is a failure.
+
+*Size:* medium. *Version:* none.
+
 ### Q-016 · Suites · test · low · confirmed
 
 *Found by:* reading. *Where:* the checkout's own virtual environment.
@@ -1028,6 +1076,12 @@ sight. `frontend/src/panes/Diagnostics.tsx:359` and
 why a row must not be done this way, from when the September review found
 it there. The Comments drawer came later and does it again, and neither
 `e2e/specs/a11y.spec.ts` nor the review's axe sweep opens it.
+
+*Confirmed by axe.* `e2e/review/q050-axe-drawers.spec.ts`, written for
+this record, opens all twelve drawers from the rail with a thread in the
+Comments drawer, in both themes. Axe reports `nested-interactive`, of
+serious impact, on `.nx-comment-row` in both, and nothing of serious or
+critical impact on the other eleven drawers.
 
 *What should happen:* the row follows the Diagnostics drawer's pattern, and
 the a11y spec opens the Comments drawer.
