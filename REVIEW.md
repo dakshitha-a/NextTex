@@ -1097,6 +1097,9 @@ to commits.
 
 *Size:* small. *Version:* none.
 
+*Fixed in 3.18.8.* Every workflow's actions are pinned to a commit, with
+the version in a comment, and `tests/test_workflows_pinned.py` holds it.
+
 ### Q-041 · Suites · docs · low · confirmed
 **The documented check times are half the real ones.**
 

@@ -85,7 +85,7 @@ jobs:
     runs-on: ${{ matrix.os }}
     timeout-minutes: 60
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262  # v4.4.0
 
       # Kept outside the checkout, because the last thing this job does is
       # remove an install, and the verifier has to outlive that.
@@ -231,7 +231,7 @@ jobs:
       # wants `.venv` and `frontend/dist` at the checkout, which the first
       # install of this job has just put there.
 
-      - uses: actions/setup-node@v4
+      - uses: actions/setup-node@49933ea5288caeca8642d1e84afbd3f7d6820020  # v4.4.0
         if: runner.os == 'Linux'
         with:
           node-version: "22"
@@ -268,7 +268,7 @@ jobs:
           done
           ls -la "$RUNNER_TEMP/logs" || true
 
-      - uses: actions/upload-artifact@v4
+      - uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02  # v4.6.2
         if: always()
         with:
           name: logs-${{ matrix.os }}
@@ -305,7 +305,7 @@ jobs:
     runs-on: ${{ matrix.os }}
     timeout-minutes: 60
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262  # v4.4.0
         with:
           fetch-depth: 3
 
@@ -414,7 +414,7 @@ jobs:
           cp ~/.local/share/nexttex/*.log "$RUNNER_TEMP/logs/" 2>/dev/null || true
           ls -la "$RUNNER_TEMP/logs" || true
 
-      - uses: actions/upload-artifact@v4
+      - uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02  # v4.6.2
         if: always()
         with:
           name: update-logs-${{ matrix.os }}
@@ -448,7 +448,7 @@ jobs:
           - image: ubuntu:24.04
             setup: apt-get update -qq && apt-get install -y -qq git curl ca-certificates >/dev/null
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262  # v4.4.0
 
       # The containers clone master from GitHub, so what they install is
       # the tip of master as GitHub has it, which is this commit on the
