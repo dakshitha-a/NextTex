@@ -157,6 +157,40 @@ in one chapter, a full build, then an edit in another chapter.
 
 *Size:* small. *Version:* z.
 
+### Q-043 · Compile · performance · high · confirmed
+
+*Found by:* measurement, then a profile. Phase 3 pinged `/api/instance`
+every ten milliseconds while the thesis built, and the longest wait was
+17.6 seconds, at the end of every full build, three runs out of three.
+`py-spy` sampled the server through a fourth.
+
+*Where:* `server/session.py:1035` and `server/session.py:1046`, calling
+`nexttex/project.py:468`; and `nexttex/compile.py:913`.
+
+*What happens:* after a build, the result is turned into what the browser
+receives on the event loop. Each diagnostic's file is made relative with
+`Project.relative`, which resolves the diagnostic's path and resolves the
+project root again, for every diagnostic, and the compile route does this
+twice for the same build. Before that, `_remap_shadow` resolves every
+diagnostic's path once more to find the stand-in main file. The thesis
+build produced 72,000 warnings, because the bench's thesis cites and refers
+to things it never defines, and turning them into the payload held the loop
+for about 15 seconds: no tab, no autosave and no collaborator was answered
+in that time. That count is extreme, but the cost is about a quarter of a
+millisecond per warning with nothing capping the count, so a draft with a
+few thousand undefined references stalls the install for a second or more
+on every build. All 72,000 are then sent to every tab in the event.
+
+*What should happen:* the root is resolved once per build, the paths are
+made relative once and cached by file, the work runs off the loop, and the
+diagnostics sent to the browser are capped, with the count of what was left
+out.
+
+*How to reach it again:* `compile_probe.py` in the probe's scratch
+directory, against a project `bench.build_project` made.
+
+*Size:* small. *Version:* z.
+
 ### Q-018 · Compile · bug · medium · confirmed
 
 *Found by:* reading. *Where:* `nexttex/symbols.py:489`.
@@ -210,7 +244,7 @@ nothing about why.
 
 ### Files, history, trash and git
 
-### Q-021 · Files · performance · high · confirmed
+### Q-021 · Files · performance · low · confirmed
 
 *Found by:* reading, from a lead a reading agent raised.
 *Where:* `server/main.py:3545` calling `nexttex/history.py:644`.
@@ -220,14 +254,17 @@ version log in the project, and does it on the event loop. Its neighbours,
 the size and purge routes, do the same class of walk in a worker thread and
 say so in a comment. While the timeline is being built, every other
 request on the install waits: autosave, the other tabs, collaborators.
-Phase 3 measures how long on a thesis with four hundred versions.
+Measured in Phase 3 on the thesis after four hundred saves across forty
+chapters: 9 ms, and the loop was held no longer than that. So the reading
+overstated it. It is recorded as low because the cost grows with the number
+of logs and the rule it breaks is the codebase's own.
 
 *What should happen:* the timeline runs in a worker thread, as its
 neighbours do.
 
 *Size:* small. *Version:* z.
 
-### Q-022 · Files · performance · high · confirmed
+### Q-022 · Files · performance · medium · confirmed
 
 *Found by:* reading, from a lead a reading agent raised.
 *Where:* `server/main.py:3097` and `server/main.py:3259`, calling
@@ -321,7 +358,7 @@ and the files already written are listed.
 
 *Size:* small. *Version:* z.
 
-### Q-028 · Files · performance · medium · likely
+### Q-028 · Files · bug · high · confirmed
 
 *Found by:* reading, from a lead a reading agent raised.
 *Where:* `nexttex/search.py:21`.
@@ -334,11 +371,23 @@ regular expression has no time limit. A few such searches hold a few of the
 default pool's workers until the server restarts, and the git, history and
 compile routes share that pool.
 
-*What should happen:* a pattern search runs in a process, or with a time
-limit, and the comment stops claiming what the cap cannot do.
+*What should happen:* a pattern search runs in a child process with a time
+limit, or through a matcher that cannot backtrack, and the comment stops
+claiming what the cap cannot do.
 
-*How to reach it again:* Phase 2 runs one such search against a sandbox
-server and watches the pool.
+*Measured, and worse than the reading said.* Phase 3 put one line of 34
+letters and an exclamation mark in a chapter and searched it for `(a+)+$`
+with the regular-expression switch on. The whole server stopped answering,
+not just one worker: a request for `/api/instance`, which touches nothing,
+waited out its full two-minute timeout, and so did the Git drawer's log
+after it. Python's `re` holds the interpreter lock while it matches, so a
+thread does not protect the event loop at all. One search typed into the
+Search drawer hangs the install for every tab and every collaborator until
+the server is restarted.
+
+*How to reach it again:* `measure.py` in the probe's scratch directory, or
+by hand: a chapter holding that line, and that pattern in the Search drawer
+with the regular-expression switch on.
 
 *Size:* medium. *Version:* z.
 
@@ -383,7 +432,7 @@ reads the AltGraph modifier state.
 
 *Size:* small. *Version:* z.
 
-### Q-031 · Preview · performance · high · likely
+### Q-031 · Preview · performance · high · confirmed
 
 *Found by:* reading. *Where:* `frontend/src/panes/Pdf.tsx:546`, drawing at
 `frontend/src/panes/Pdf.tsx:484`.
@@ -393,7 +442,16 @@ and never frees a page it drew once the page scrolls away. Reading a long
 thesis from start to finish leaves a full-resolution canvas for every page,
 and in the dark page a second canvas of the same size for the figures. A
 single page is capped at sixteen megapixels; the document is not capped at
-all. Phase 3 measures the memory on a long document.
+all.
+
+*Measured.* `e2e/review/q031-pdf-memory.spec.ts`, written for this record,
+builds the bench's thesis, 600 pages, scrolls the preview from the first
+page to the last at 1600 by 1000, and adds up the canvases that hold
+pixels. At the top: 27.6 megapixels. A quarter of the way: 57.7. Half:
+87.8. Three quarters: 118.1. At the end: 147.4 megapixels, about 590 MB of
+canvas at four bytes a pixel, and it climbs in a straight line with what
+has been read. On a laptop with a browser full of other tabs, reading a
+thesis through once is enough to make the tab the largest thing running.
 
 *What should happen:* pages far from the view give their backing store
 back, and are drawn again when they return.
@@ -414,7 +472,7 @@ does.
 
 *Size:* small. *Version:* z.
 
-### Q-033 · Editor · performance · medium · confirmed
+### Q-033 · Editor · performance · low · confirmed
 
 *Found by:* reading. *Where:* `frontend/src/panes/spellcheck.ts:238`.
 
@@ -422,8 +480,21 @@ does.
 the document's lines and runs the skipped-lines scan over all of them,
 inside the editor's update. Grammar does the same scan after a 600
 millisecond pause. Spelling is off by default, so this is the cost for
-those who turn it on, and it grows with the file. Phase 3 measures it with
-the typing driver.
+those who turn it on, and it grows with the file.
+
+*Measured.* `e2e/review/q033-typing-spelling.spec.ts`, written for this
+record, switches spelling on and confirms the checker is marking before it
+measures. In the seventy kilobyte chapter, keystroke to screen went from a
+median of 3.7 to 4.5 ms with spelling off to 5.0 to 5.2 with it on, and the
+p90 from about 5 to about 7, over two runs each. So it costs about a
+millisecond a key on this machine, which is small, and more on a longer file
+or a slower one.
+
+A second thing turned up. `e2e/review/a12-typing.spec.ts` says in its header
+that it measures with spelling and syntax colouring both on. It never turns
+spelling on, and spelling has been off by default since the setting moved,
+so the September number and every comparison with it measured without the
+checker.
 
 *What should happen:* the scan is kept and adjusted for the changed lines
 only, or waits for typing to pause, as grammar does.
