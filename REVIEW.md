@@ -826,6 +826,11 @@ flight, and none races a rename on one side with an edit on the other.
 
 *Size:* medium. *Version:* none.
 
+*Fixed in 3.18.4.* `tests/collab/test_hostile_peers_sync.py` sends a
+malformed thread and a fenced file record through a real sync, races a
+rename with an edit, and removes a peer while a figure is on its way;
+`tests/collab/test_same_path_apart.py` holds the two new files.
+
 ### Q-054 · Collaboration · bug · medium · confirmed
 **A comment stays on stray letters after an outside edit.**
 
