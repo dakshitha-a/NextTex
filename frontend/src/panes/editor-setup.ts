@@ -60,6 +60,7 @@ import { isBib, isScript } from "./file-kinds";
 import { inputTarget, labelTarget, linkAt } from "./latex-links";
 import { mac } from "./math-hover";
 import { mathHover, type FigureFacts, type OnEquation, type OnSymbol } from "./math-hover";
+import { afterEndOfDocument } from "./after-end";
 import {
   braceAfter,
   commentStart,
@@ -770,6 +771,7 @@ export function languageFor(
     // gutter, and the read-only version view folds like the live one.
     latexFolding(),
     mathHover(symbols, options.figure, options.onSymbol, options.onEquation),
+    afterEndOfDocument(),
     ...(options.onSymbol ? [renameKey(options.onSymbol)] : []),
     ...(options.follow ? [followLinks(symbols, options.follow)] : []),
     ...(options.complete ? [latexCompletions(symbols)] : []),

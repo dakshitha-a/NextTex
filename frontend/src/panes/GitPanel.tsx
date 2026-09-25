@@ -354,7 +354,7 @@ export default function GitPanel({
             <p className="nx-group">Nothing to commit</p>
           )}
           <LineYouAreOn projectId={id} moved={moved + dirty} />
-          <History projectId={id} moved={moved} />
+          <History projectId={id} moved={moved} latexdiff={Boolean(status.latexdiff)} />
         </div>
 
         {(dirty > 0 || status.ahead > 0) && !(status.merging && status.conflicts?.length) ? (
@@ -519,7 +519,7 @@ function LineYouAreOn({ projectId, moved }: { projectId: string; moved: number }
 }
 
 /** The newest commits, each a row that opens to its patch. */
-function History({ projectId, moved }: { projectId: string; moved: number }) {
+function History({ projectId, moved, latexdiff }: { projectId: string; moved: number; latexdiff: boolean }) {
   const [commits, setCommits] = useState<GitCommit[] | null>(null);
   useEffect(() => {
     let cancelled = false;
@@ -537,15 +537,34 @@ function History({ projectId, moved }: { projectId: string; moved: number }) {
       <p className="nx-group">History</p>
       <div data-testid="git-history">
         {commits.map((commit) => (
-          <CommitRow key={commit.sha} commit={commit} projectId={projectId} />
+          <CommitRow key={commit.sha} commit={commit} projectId={projectId} latexdiff={latexdiff} />
         ))}
       </div>
     </>
   );
 }
 
-function CommitRow({ commit, projectId }: { commit: GitCommit; projectId: string }) {
+function CommitRow({ commit, projectId, latexdiff }: { commit: GitCommit; projectId: string; latexdiff: boolean }) {
   const [showing, setShowing] = useState(false);
+  const [building, setBuilding] = useState(false);
+  /** The document as it is against the one at this commit, marked up by
+   *  latexdiff the way a journal wants a revision, in a tab of its own
+   *  (Q-048). The tab is opened at the press, so a browser that refuses a
+   *  window opened later by a script still gives this one. */
+  const changesAsPdf = async () => {
+    const tab = window.open("", "_blank");
+    setBuilding(true);
+    try {
+      const answer = await api.gitChangesPdf(projectId, commit.sha);
+      if (tab) tab.location.href = answer.url;
+      else window.location.assign(answer.url);
+    } catch (problem: any) {
+      tab?.close();
+      set({ error: problem?.message ?? String(problem) });
+    } finally {
+      setBuilding(false);
+    }
+  };
   const [patch, setPatch] = useState<string | null>(null);
   useEffect(() => {
     if (!showing || patch !== null) return;
@@ -559,7 +578,14 @@ function CommitRow({ commit, projectId }: { commit: GitCommit; projectId: string
     };
   }, [showing, projectId, commit.sha, patch]);
   return (
-    <div data-testid="git-commit" data-sha={commit.short}>
+    <div data-testid="git-commit" data-sha={commit.short} className="nx-git-row">
+      {latexdiff ? (
+        <span className="nx-row-actions nx-git-row-actions" data-always={building || undefined}>
+          <Button size="inline" data-testid="git-changes-pdf" disabled={building} onClick={() => void changesAsPdf()}>
+            {building ? "Building the PDF" : "Changes as PDF"}
+          </Button>
+        </span>
+      ) : null}
       <button
         className="nx-git-commit"
         aria-expanded={showing}

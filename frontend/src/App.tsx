@@ -1957,6 +1957,28 @@ export default function App() {
       case "palette":
         setPaletteOpen(true);
         break;
+      case "word-count": {
+        // Said in a notice, for the whole document and for the file in
+        // front, so it is there at any width (Q-064).
+        const id = get().projectId;
+        const path = get().activePath ?? "";
+        if (!id) break;
+        void Promise.all([
+          api.words(id, path, "document"),
+          api.words(id, path, "file"),
+        ]).then(
+          ([whole, file]) => {
+            const name = path.split("/").pop() || "this file";
+            set({
+              error:
+                `${(whole.words ?? 0).toLocaleString()} words in the document, ` +
+                `${(file.words ?? 0).toLocaleString()} of them in ${name}.`,
+            });
+          },
+          (problem: any) => set({ error: problem.message }),
+        );
+        break;
+      }
       case "settings":
         setSettingsNonce((count) => count + 1);
         break;

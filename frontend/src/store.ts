@@ -320,6 +320,8 @@ export type State = {
     conflicts?: string[];
     /** The commit a detached head is at, or "" on a branch. */
     detached?: string;
+    /** Whether latexdiff is here (Q-048). */
+    latexdiff?: boolean;
     gh: boolean;
     ghReason: string;
   } | null;

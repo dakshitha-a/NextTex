@@ -49,6 +49,15 @@ OpenAI provider against OpenAI itself.
 
 ### Known gaps, with a cost somebody will eventually pay
 
+- [ ] **Raw controls and literal sizes outside the kit.** 89 raw
+      controls and 331 literal sizes in 52 files when the rule began to
+      be enforced (Q-038). `frontend/src/kit-rule.test.ts` stops any file
+      from adding one and makes each move onto the kit lower its number
+      in `kit-rule.allowed.json`; moving them all at once would churn
+      every pane for no change a writer sees, so they move as the files
+      are touched, the largest first: `frontend/src/panes/Chat.tsx` and
+      `frontend/src/panes/Projects.tsx`.
+
 - [ ] **Three dependencies are a major version behind.** `pdfjs-dist`
       is at 4.10 against 6.3, `vite` at 6 against 8 and `diff` at 7
       against 9 (Q-036). Each is a migration with its own risk: pdf.js

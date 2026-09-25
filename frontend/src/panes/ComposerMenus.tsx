@@ -89,7 +89,7 @@ export const ComposerMenu = forwardRef<
               aria-checked={mode === option}
               data-testid={`mode-${option}`}
               note={MODE_NOTES[option]}
-              className={option === "all" ? "text-warn" : undefined}
+              data-warn={option === "all" || undefined}
               onClick={() => onChooseMode(option)}
             >
               {MODE_TITLES[option]}

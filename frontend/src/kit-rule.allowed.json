@@ -1,0 +1,210 @@
+{
+  "App.tsx": {
+    "raw": 2,
+    "literal": 17
+  },
+  "Boundary.tsx": {
+    "raw": 0,
+    "literal": 1
+  },
+  "chrome.tsx": {
+    "raw": 0,
+    "literal": 6
+  },
+  "panes/AccessCard.tsx": {
+    "raw": 0,
+    "literal": 14
+  },
+  "panes/AgentButton.tsx": {
+    "raw": 1,
+    "literal": 6
+  },
+  "panes/AgentSheet.tsx": {
+    "raw": 1,
+    "literal": 4
+  },
+  "panes/Chat.tsx": {
+    "raw": 11,
+    "literal": 28
+  },
+  "panes/Collaborators.tsx": {
+    "raw": 1,
+    "literal": 8
+  },
+  "panes/Collapsed.tsx": {
+    "raw": 1,
+    "literal": 2
+  },
+  "panes/CommentCards.tsx": {
+    "raw": 2,
+    "literal": 0
+  },
+  "panes/CommentsPanel.tsx": {
+    "raw": 2,
+    "literal": 1
+  },
+  "panes/ComposerMenus.tsx": {
+    "raw": 0,
+    "literal": 3
+  },
+  "panes/ContextPanel.tsx": {
+    "raw": 3,
+    "literal": 2
+  },
+  "panes/Diagnostics.tsx": {
+    "raw": 6,
+    "literal": 26
+  },
+  "panes/Editor.tsx": {
+    "raw": 1,
+    "literal": 4
+  },
+  "panes/FileCard.tsx": {
+    "raw": 0,
+    "literal": 2
+  },
+  "panes/FileTree.tsx": {
+    "raw": 3,
+    "literal": 19
+  },
+  "panes/FileView.tsx": {
+    "raw": 4,
+    "literal": 2
+  },
+  "panes/FolderBrowser.tsx": {
+    "raw": 2,
+    "literal": 2
+  },
+  "panes/FolderChooser.tsx": {
+    "raw": 3,
+    "literal": 9
+  },
+  "panes/FolderPicker.tsx": {
+    "raw": 0,
+    "literal": 1
+  },
+  "panes/GitPanel.tsx": {
+    "raw": 4,
+    "literal": 5
+  },
+  "panes/History.tsx": {
+    "raw": 4,
+    "literal": 25
+  },
+  "panes/InstanceBadge.tsx": {
+    "raw": 0,
+    "literal": 2
+  },
+  "panes/Markdown.tsx": {
+    "raw": 0,
+    "literal": 8
+  },
+  "panes/PageWindow.tsx": {
+    "raw": 0,
+    "literal": 1
+  },
+  "panes/PaneHeader.tsx": {
+    "raw": 0,
+    "literal": 5
+  },
+  "panes/PapersChooser.tsx": {
+    "raw": 0,
+    "literal": 1
+  },
+  "panes/PapersPanel.tsx": {
+    "raw": 1,
+    "literal": 16
+  },
+  "panes/PastConversation.tsx": {
+    "raw": 1,
+    "literal": 1
+  },
+  "panes/Pdf.tsx": {
+    "raw": 7,
+    "literal": 18
+  },
+  "panes/PreviewHeader.tsx": {
+    "raw": 0,
+    "literal": 12
+  },
+  "panes/Projects.tsx": {
+    "raw": 7,
+    "literal": 7
+  },
+  "panes/ReportSheet.tsx": {
+    "raw": 0,
+    "literal": 3
+  },
+  "panes/Script.tsx": {
+    "raw": 3,
+    "literal": 5
+  },
+  "panes/SearchPanel.tsx": {
+    "raw": 4,
+    "literal": 11
+  },
+  "panes/SectionsPanel.tsx": {
+    "raw": 2,
+    "literal": 7
+  },
+  "panes/SelectionActions.tsx": {
+    "raw": 0,
+    "literal": 3
+  },
+  "panes/SettingsSheet.tsx": {
+    "raw": 1,
+    "literal": 2
+  },
+  "panes/SharePanel.tsx": {
+    "raw": 1,
+    "literal": 3
+  },
+  "panes/Status.tsx": {
+    "raw": 4,
+    "literal": 4
+  },
+  "panes/SubmitPanel.tsx": {
+    "raw": 1,
+    "literal": 2
+  },
+  "panes/TabStrip.tsx": {
+    "raw": 2,
+    "literal": 8
+  },
+  "panes/TrashPanel.tsx": {
+    "raw": 0,
+    "literal": 1
+  },
+  "panes/UpdateFooter.tsx": {
+    "raw": 0,
+    "literal": 3
+  },
+  "panes/UploadStaging.tsx": {
+    "raw": 0,
+    "literal": 3
+  },
+  "panes/column-header.tsx": {
+    "raw": 1,
+    "literal": 0
+  },
+  "panes/prose.tsx": {
+    "raw": 0,
+    "literal": 2
+  },
+  "panes/tab-overflow.tsx": {
+    "raw": 1,
+    "literal": 0
+  },
+  "panes/tutorial/ScreenGuide.tsx": {
+    "raw": 0,
+    "literal": 1
+  },
+  "panes/tutorial/Tutorial.tsx": {
+    "raw": 0,
+    "literal": 1
+  },
+  "panes/tutorial/parts.tsx": {
+    "raw": 2,
+    "literal": 14
+  }
+}

@@ -122,11 +122,15 @@ export default function Status({
         ) : null}
       </button>
       {showDuration ? (
-        <span className="tnum hidden shrink-0 @[380px]:inline">
+        <span className="tnum hidden shrink-0 @[480px]:inline">
           {((result?.durationMs ?? 0) / 1000).toFixed(2)} s
         </span>
       ) : null}
-      <span className="tnum hidden shrink-0 @[300px]:inline" data-testid="caret">
+      {/* The caret's place goes before the word count does: the editor's
+          gutter already numbers the lines, and a writer with a word limit
+          has nowhere else to read the count. On a 1440 pixel laptop the
+          source pane is about 420 px and the count was never shown (Q-064). */}
+      <span className="tnum hidden shrink-0 @[560px]:inline" data-testid="caret">
         Ln {cursor.line}, Col {cursor.column}
       </span>
       {spellingNote ? (
@@ -190,7 +194,7 @@ export default function Status({
       {/* Dropped like every other segment when the pane is narrow, rather
           than clipped: the strip never reflows; it drops. */}
       <button
-        className="tnum hidden shrink-0 hover:text-ink @[640px]:inline"
+        className="tnum hidden shrink-0 hover:text-ink @[300px]:inline"
         data-testid="word-count"
         title={`Counting ${wordScope}. Click for the next of ${wordScopes.join(", ")}.`}
         onClick={onToggleWordScope}

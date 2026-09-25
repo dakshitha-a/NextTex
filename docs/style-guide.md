@@ -144,6 +144,7 @@ kit's `Button` carries those looks as its variants.
 | `Switch` | `controls.tsx` | on or off, and nothing between | a checkbox styled by hand |
 | `Segmented` | `controls.tsx` | two to five exclusive choices, `md` in a sheet and `sm` in a strip; `className="nx-segmented-wrap"` when five may not fit the width, as the templates do not on a phone | a row of toggle buttons |
 | `Heading` | `controls.tsx` | a real `h1`/`h2`/`h3`; `display` for a sheet's or a screen's title | a styled span |
+| `TextArea` | `controls.tsx` | a text box of several lines, taking its look from its place's class | a raw `<textarea>` |
 | `Announce` | `controls.tsx` | words a screen reader hears when something changes out of sight, a build ending or an update wanting attention: a polite live region, always mounted, drawn as nothing | a visible toast for news the eye already has |
 | `Empty` | `controls.tsx` | what a drawer or a list says when it holds nothing: one sentence and at most one action | an illustration, a heading of its own |
 | `Kbd` | `controls.tsx` | a key or a chord, shown always where a key is the way in | text in a box |
@@ -220,6 +221,10 @@ else.
 - A divider between panes is a separator a keyboard can reach: Tab
   focuses it, the arrow keys move it 16 px and 64 with Shift, Enter
   puts it back, and focus shows the hint line a drag shows.
+- `frontend/src/kit-rule.test.ts` holds this section to the code: no
+  component file may hold more raw controls or literal sizes than
+  `kit-rule.allowed.json` lists for it, a file not listed may hold none,
+  and a number is lowered when a file moves onto the kit.
 - A menu is short. Conditional items are present only when they apply,
   never disabled in place; the destructive item is last, after a rule.
 - Motion answers the writer: `.nx-arrive` (120 ms, opacity and a 0.98

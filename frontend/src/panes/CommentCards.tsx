@@ -13,6 +13,7 @@ import { useEffect, useRef, useState } from "react";
 import type { CommentThread } from "../api";
 import { colourFor } from "../collab";
 import { Button, IconButton } from "../ui/Button";
+import { TextArea } from "../ui/controls";
 import { FloatingCard } from "../ui/FloatingCard";
 import { MoreIcon } from "../ui/icons";
 import { Menu, MenuItem } from "../ui/Menu";
@@ -61,11 +62,14 @@ export function CommentComposer({
 }: {
   at: At;
   quote: string;
-  onPost: (body: string) => Promise<void>;
+  onPost: (body: string, suggestion?: string) => Promise<void>;
   onCancel: () => void;
   onMeasure?: (size: { width: number; height: number }) => void;
 }) {
   const [body, setBody] = useState("");
+  /** The words proposed in place of the quote, while "Suggest a change"
+   *  is on; null while it is off (Q-046). */
+  const [suggestion, setSuggestion] = useState<string | null>(null);
   const [busy, setBusy] = useState(false);
   const [failed, setFailed] = useState("");
   const field = useRef<HTMLTextAreaElement | null>(null);
@@ -75,7 +79,7 @@ export function CommentComposer({
     setBusy(true);
     setFailed("");
     try {
-      await onPost(body);
+      await onPost(body, suggestion !== null && suggestion !== quote ? suggestion : "");
     } catch (error) {
       setFailed(error instanceof Error ? error.message : "The comment could not be posted.");
       setBusy(false);
@@ -108,6 +112,39 @@ export function CommentComposer({
           }
         }}
       />
+      {/* The middle way between editing a co-author's sentence and only
+          remarking on it: the words proposed, which the other person takes
+          with one press or not (Q-046). */}
+      <div>
+        <Button
+          size="inline"
+          aria-pressed={suggestion !== null}
+          data-testid="comment-suggest"
+          className={suggestion !== null ? "bg-wash text-ink" : undefined}
+          onClick={() => setSuggestion((now) => (now === null ? quote : null))}
+        >
+          Suggest a change
+        </Button>
+      </div>
+      {suggestion !== null ? (
+        <TextArea
+          className="nx-comment-field t-code-sm"
+          aria-label="Suggested text"
+          data-testid="comment-suggestion"
+          rows={2}
+          value={suggestion}
+          onChange={(event) => setSuggestion(event.target.value)}
+          onKeyDown={(event) => {
+            if (event.key === "Enter" && (event.ctrlKey || event.metaKey)) {
+              event.preventDefault();
+              void post();
+            } else if (event.key === "Escape") {
+              event.preventDefault();
+              onCancel();
+            }
+          }}
+        />
+      ) : null}
       {failed ? <div className="t-meta text-error">{failed}</div> : null}
       <div className="nx-comment-foot">
         <span className="t-meta text-ink-3">Ctrl Enter posts</span>
@@ -169,12 +206,15 @@ export function openedFrom(element: HTMLElement | null) {
 }
 
 export function CommentThreadCard({
-  at, thread, onReply, onResolve, onDelete, onClose, onMeasure,
+  at, thread, onReply, onResolve, onAccept, onDelete, onClose, onMeasure,
 }: {
   at: At;
   thread: CommentThread;
   onReply: (body: string) => Promise<void>;
   onResolve: () => void;
+  /** Take the thread's suggestion; Resolve's place on a thread that has
+   *  one, since accepting it resolves it (Q-046). */
+  onAccept?: () => void;
   onDelete: () => void;
   onClose: () => void;
   onMeasure?: (size: { width: number; height: number }) => void;
@@ -257,6 +297,11 @@ export function CommentThreadCard({
           </div>
         ))}
       </div>
+      {thread.suggestion ? (
+        <div className="nx-comment-suggestion" data-testid="comment-suggestion-shown">
+          <del>{thread.quote}</del> <ins>{thread.suggestion}</ins>
+        </div>
+      ) : null}
       {asking ? (
         <div className="nx-comment-ask" data-testid="comment-delete-ask">
           <div className="text-ink">Delete this thread?</div>
@@ -293,9 +338,15 @@ export function CommentThreadCard({
                 Reply
               </Button>
             ) : (
-              <Button size="inline" variant="ghost" onClick={onResolve} data-testid="comment-resolve">
-                Resolve
-              </Button>
+              thread.suggestion && onAccept ? (
+                <Button size="inline" variant="ghost" onClick={onAccept} data-testid="comment-accept">
+                  Accept
+                </Button>
+              ) : (
+                <Button size="inline" variant="ghost" onClick={onResolve} data-testid="comment-resolve">
+                  Resolve
+                </Button>
+              )
             )}
             <span className="flex-1" />
             <IconButton

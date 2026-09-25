@@ -129,7 +129,7 @@ class Comments:
     # --- writing ------------------------------------------------------------
 
     def create(self, relative: str, start: str, end: str, quote: str,
-               line: int, body: str) -> str:
+               line: int, body: str, suggestion: str = "") -> str:
         file_id = self.store.file_id_for(relative)
         if file_id is None:
             raise CommentError(f"{relative} is not a file this project shares")
@@ -148,6 +148,10 @@ class Comments:
                 "created": message["at"],
                 "resolved": {},
                 "messages": Array([message]),
+                # The words the comment proposes in place of the quote, ""
+                # for a plain comment (Q-046). A co-author could overwrite
+                # the sentence or comment on it; this is the middle.
+                "suggestion": suggestion[:MAX_BODY] if suggestion else "",
             })
         return thread_id
 
@@ -167,6 +171,46 @@ class Comments:
                 {"name": who.get("name") or "", "peer": who.get("peer") or "",
                  "at": _now()} if resolved else {}
             )
+
+    def suggested_change(self, thread_id: str) -> tuple[str, int, int, str]:
+        """What accepting a suggestion changes: the file, the range as
+        UTF-8 byte offsets in its text as it is now, and the words.
+
+        Refused when the thread suggests nothing, and when its text is no
+        longer the text it was written about: accepting then would put a
+        co-author's words over a sentence they never saw."""
+        thread = _plain(self._thread(thread_id))
+        words = thread.get("suggestion") or ""
+        if not words:
+            raise CommentError("that thread suggests no change")
+        file_id = thread.get("file_id") or ""
+        record = self.store.files.get(file_id)
+        text = self.store.body(file_id) if record else None
+        start = _decode(thread.get("start") or "")
+        end = _decode(thread.get("end") or "")
+        if text is None or not start or not end:
+            raise CommentError("the text it suggests a change to is gone")
+        try:
+            at = StickyIndex.decode(start, text).get_index()
+            to = StickyIndex.decode(end, text).get_index()
+        except BaseException as error:
+            if isinstance(error, (KeyboardInterrupt, SystemExit)):
+                raise
+            raise CommentError("the text it suggests a change to is gone")
+        whole = str(text)
+        if not (to > at and whole.encode("utf-8")[at:to].decode("utf-8", "replace") == thread.get("quote")):
+            raise CommentError(
+                "the text it suggests a change to has changed since; read both and edit by hand"
+            )
+        return record.get("path") or "", at, to, words
+
+    def accepted(self, thread_id: str) -> None:
+        """Resolved, and marked as the suggestion taken."""
+        thread = self._thread(thread_id)
+        who = self.who()
+        with self.store.manifest.transaction():
+            thread["resolved"] = {"name": who.get("name") or "", "peer": who.get("peer") or "",
+                                  "at": _now(), "accepted": True}
 
     def delete(self, thread_id: str) -> None:
         self._thread(thread_id)
@@ -281,6 +325,7 @@ def _plain(value) -> dict:
         data["resolved"] = {}
     data["line"] = _whole(data.get("line"), 1)
     data["quote"] = _words(data.get("quote"), MAX_QUOTE)
+    data["suggestion"] = _words(data.get("suggestion"), MAX_BODY)
     created = data.get("created")
     data["created"] = created if isinstance(created, (int, float)) else 0
     data["file_id"] = _words(data.get("file_id"), 64)

@@ -123,6 +123,10 @@ export default function FileTree({
    *  wonder whether anything happened. */
   const [purged, setPurged] = useState<string>("");
   const [renaming, setRenaming] = useState<string | null>(null);
+  /** A file just renamed or moved that other files name: the question
+   *  whether to change those names too, asked once under its new row
+   *  (Q-045). `files` is how many files name it. */
+  const [following, setFollowing] = useState<{ from: string; to: string; files: number } | null>(null);
   const [menu, setMenu] = useState<string | null>(null);
   // The file a card is showing for, once a hover or a focus has rested on
   // its row for long enough; only for a file the editor cannot edit.
@@ -449,6 +453,35 @@ export default function FileTree({
       await api.renameFile(projectId, node.path, to);
       onRename?.(node.path, to);
       onRefresh();
+      if (node.type !== "dir") void askToFollow(node.path, to);
+    } catch (error: any) {
+      set({ error: error.message });
+    }
+  };
+
+  /** Whether any file names the one that moved, in an `\input`, an
+   *  `\include`, an `\includegraphics` or a bibliography; if so, the row
+   *  asks whether to change them. Renaming a chapter or a figure used to
+   *  move the file and break every one of them (Q-045). */
+  const askToFollow = async (from: string, to: string) => {
+    const projectId = get().projectId;
+    if (!projectId) return;
+    try {
+      const found = await api.references(projectId, "file", from);
+      const files = new Set(found.hits.filter((hit) => !hit.commented).map((hit) => hit.path)).size;
+      setFollowing(files ? { from, to, files } : null);
+    } catch {
+      setFollowing(null);
+    }
+  };
+
+  const follow = async () => {
+    const projectId = get().projectId;
+    const asked = following;
+    setFollowing(null);
+    if (!projectId || !asked) return;
+    try {
+      await api.renameSymbol(projectId, "file", asked.from, asked.to, false);
     } catch (error: any) {
       set({ error: error.message });
     }
@@ -472,6 +505,7 @@ export default function FileTree({
       onRename?.(from, to);
       onRefresh();
       reveal([to]);
+      if (findNode(tree, from)?.type !== "dir") void askToFollow(from, to);
     } catch (error: any) {
       set({
         error:
@@ -950,17 +984,20 @@ export default function FileTree({
               // Everything about this file's past, kept together: looking
               // at it and throwing it away are the same subject, and the
               // second is the reason somebody opens the first.
-              ...(!isDirectory
-                ? [["rule:past", ""], ["history", "History"],
-                   ["purge", "Delete version history…"]]
-                : []),
+              ...(!isDirectory ? [["rule:past", ""], ["history", "History"]] : []),
               ["rule:out", ""],
               ["download", isDirectory ? "Download as zip" : "Download"],
+              // In the order the direction page draws: making comes before
+              // bringing in (Q-060).
               ["rule:new", ""],
-              ["upload", "Upload here"],
               ["newfile", "New file here"],
               ["newfolder", "New folder here"],
+              ["upload", "Upload here"],
+              // The two that throw something away, last and together, as
+              // the writer's rule for a menu asks: deleting a file's past
+              // sat in the middle beside History (Q-060).
               ["rule:gone", ""],
+              ...(!isDirectory ? [["purge", "Delete version history…"]] : []),
               ["delete", isDirectory ? "Move folder to trash" : "Move to trash"],
             ].map(([key, label]) =>
               // Twelve items in one undivided column was a list you had to
@@ -973,7 +1010,7 @@ export default function FileTree({
               <MenuItem
                 key={key}
                 role="none"
-                danger={key === "delete"}
+                danger={key === "delete" || key === "purge"}
                 hint={key === "rename" ? "F2" : key === "delete" ? "Del" : undefined}
                 onClick={() => act(key, node)}
               >
@@ -984,6 +1021,30 @@ export default function FileTree({
         ) : null}
       </div>,
     );
+
+    // The question after a rename, under the row it is about, in the
+    // tree's own confirmation block (Q-045).
+    if (following && following.to === node.path) {
+      rows.push(
+        <div key={`${node.path}-follow`} className="nx-confirm" data-testid="rename-follow"
+          style={{ marginLeft: 8 + depth * 16 }}>
+          <p>
+            {following.files === 1 ? "1 file names" : `${following.files} files name`}{" "}
+            <span className="t-code-sm">{following.from}</span>. Change{" "}
+            {following.files === 1 ? "it" : "them"} to{" "}
+            <span className="t-code-sm">{following.to}</span>?
+          </p>
+          <div className="nx-confirm-actions">
+            <Button variant="ghost" size="inline" data-testid="rename-follow-yes" onClick={() => void follow()}>
+              {following.files === 1 ? "Change it" : "Change them"}
+            </Button>
+            <Button size="inline" onClick={() => setFollowing(null)}>
+              {following.files === 1 ? "Leave it" : "Leave them"}
+            </Button>
+          </div>
+        </div>,
+      );
+    }
 
     // Only a folder hosts the row for what is being created inside it.
     // This compared a file row's parent to "", so creating anything at the
@@ -1446,6 +1507,17 @@ function NewName({
       {problem ? <p className="t-micro truncate text-error">{problem}</p> : null}
     </div>
   );
+}
+
+/** The node at a path in the tree, or undefined. */
+function findNode(node: TreeNode | null | undefined, path: string): TreeNode | undefined {
+  if (!node) return undefined;
+  if (node.path === path) return node;
+  for (const child of node.children ?? []) {
+    const found = findNode(child, path);
+    if (found) return found;
+  }
+  return undefined;
 }
 
 function isDir(node: TreeNode): boolean {

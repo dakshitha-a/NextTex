@@ -120,3 +120,43 @@ def test_a_thread_made_is_announced(client, opened, project_dir):
         assert any(event.get("type") == "comments_changed" for event in seen)
     finally:
         session.events.publish = original
+
+
+def test_a_suggestion_is_accepted_as_an_edit_with_its_own_version(client, opened, project_dir):
+    """Q-046: a comment carries the words it proposes, and Accept puts them
+    in place of the quote through the ordinary save and resolves the
+    thread as accepted."""
+    pid = opened["id"]
+    words = first_words(project_dir)
+    start, end = anchors(client, pid, "main.tex", words)
+    made = client.post(f"/api/projects/{pid}/comments", json={
+        "path": "main.tex", "start": start, "end": end, "quote": words,
+        "line": 1, "body": "Plainer?", "suggestion": "Some plainer words",
+    })
+    assert made.status_code == 200, made.text
+    thread_id = made.json()["id"]
+    [thread] = client.get(f"/api/projects/{pid}/comments").json()["threads"]
+    assert thread["suggestion"] == "Some plainer words"
+
+    taken = client.post(f"/api/projects/{pid}/comments/{thread_id}/accept")
+    assert taken.status_code == 200, taken.text
+    client.post(f"/api/projects/{pid}/flush")
+    text = (project_dir / "main.tex").read_text(encoding="utf-8")
+    assert "Some plainer words" in text and words not in text
+    [thread] = client.get(f"/api/projects/{pid}/comments").json()["threads"]
+    assert thread["resolved"]["accepted"] is True
+    versions = client.get(f"/api/projects/{pid}/history", params={"path": "main.tex"}).json()
+    assert any(v.get("why") == "Accepted a suggested change" for v in versions.get("versions", []))
+
+
+def test_a_plain_comment_has_nothing_to_accept(client, opened, project_dir):
+    pid = opened["id"]
+    words = first_words(project_dir)
+    start, end = anchors(client, pid, "main.tex", words)
+    thread_id = client.post(f"/api/projects/{pid}/comments", json={
+        "path": "main.tex", "start": start, "end": end, "quote": words,
+        "line": 1, "body": "Only a remark.",
+    }).json()["id"]
+    answer = client.post(f"/api/projects/{pid}/comments/{thread_id}/accept")
+    assert answer.status_code == 400
+    assert "suggests no change" in answer.json()["detail"]

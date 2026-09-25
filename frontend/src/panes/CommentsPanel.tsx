@@ -91,12 +91,14 @@ export default function CommentsPanel({
           ) : null}
           {done ? (
             <span>
-              Resolved by {thread.resolved.mine ? "you" : thread.resolved.name || "a collaborator"}, {whenSaid(thread.resolved.at ?? 0)}
+              {thread.resolved.accepted ? "Accepted" : "Resolved"} by{" "}
+              {thread.resolved.mine ? "you" : thread.resolved.name || "a collaborator"}, {whenSaid(thread.resolved.at ?? 0)}
             </span>
           ) : thread.detached ? (
             <span className="text-ink-2">Its text was deleted, last at line {thread.line}</span>
           ) : (
             <>
+              {thread.suggestion ? <span data-testid="comment-row-suggested">Suggested</span> : null}
               {repliesSaid(thread) ? <span>{repliesSaid(thread)}</span> : null}
               <span className="tabular-nums">{whenSaid(thread.created)}</span>
             </>

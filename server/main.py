@@ -53,6 +53,7 @@ from server.collab import transport as collab_transport
 from server.collab.peers import PeerNetwork, WELL_FORMED_SHARE_ID
 from server.collab.store import CollabStore
 from nexttex.history import REPLACE as history_replace
+from nexttex import changes
 from server import comeback
 from server.transcript import TranscriptError
 from nexttex.atomic import (
@@ -2436,6 +2437,43 @@ async def forget_project(project_id: str):
     return {"ok": True}
 
 
+@app.post("/api/projects/{project_id}/duplicate")
+async def duplicate_project(project_id: str):
+    """A copy of the project's folder beside it, registered, to start the
+    next one from: a writer who keeps a project per job application copied
+    the folder by hand to begin the next letter from the last (Q-047).
+
+    The copy is named "<name> copy", or "<name> copy (2)" when that is
+    taken, by the rule the tree's duplicate uses. It is the writer's work
+    and nothing else: the build folder, `.git`, `.nexttex` with its history
+    and comments, links and NextTex's own files stay behind, as the Files
+    drawer's folder copy leaves them, and `nexttex.toml` goes with it."""
+    root = REGISTRY.path_for(project_id)
+    if root is None:
+        raise HTTPException(404, "unknown project")
+    if not root.is_dir():
+        raise HTTPException(400, "the project's folder is not there to copy")
+    session = SESSIONS.get(project_id)
+    if session:
+        # What is typed trails the disk by the debounce.
+        session.collab.flush()
+    target = unique_name(root.parent / f"{root.name} copy", directory=True)
+    inner = _copy_tree_skips()
+
+    def skip(directory: str, names: list[str]) -> set[str]:
+        left = inner(directory, names)
+        if Path(directory) == root:
+            left |= {name for name in names if name == "build"}
+        return left
+
+    try:
+        await asyncio.to_thread(shutil.copytree, root, target, ignore=skip, symlinks=False)
+    except OSError as error:
+        shutil.rmtree(target, ignore_errors=True)
+        raise HTTPException(400, f"could not copy the project: {error}")
+    return REGISTRY.add(str(target)).as_dict()
+
+
 @app.post("/api/projects/{project_id}/state")
 async def set_project_state(project_id: str, state: str = Body(..., embed=True)):
     """Archive a project, put it in the trash, or make it active again.
@@ -2891,7 +2929,7 @@ async def references_to(project_id: str, kind: str, name: str):
     """
     session = session_for(project_id)
     if not rename.valid(kind, name):
-        raise HTTPException(400, "not a label, a citation key or a macro name")
+        raise HTTPException(400, "not a label, a citation key, a macro name or a file")
     live = session.collab.open_texts()
     texts = await asyncio.to_thread(_project_texts, session)
     texts.update({path: body for path, body in live.items() if path in texts})
@@ -2918,7 +2956,7 @@ async def rename_everywhere(
     in a comment is rewritten only when `comments` is set."""
     session = session_for(project_id)
     if not rename.valid(kind, name) or not rename.valid(kind, to):
-        raise HTTPException(400, "not a label, a citation key or a macro name")
+        raise HTTPException(400, "not a label, a citation key, a macro name or a file")
     if name == to:
         return {"files": 0, "paths": []}
     live = session.collab.open_texts()
@@ -3446,15 +3484,42 @@ async def comments_create(
     quote: str = Body(""),
     line: int = Body(1),
     body: str = Body(...),
+    suggestion: str = Body(""),
 ):
     """A new thread on a range of one file, anchored by the browser that made
-    it. The path goes through the same fence as every other route's."""
+    it. The path goes through the same fence as every other route's.
+    `suggestion` is the words it proposes in place of the quote (Q-046)."""
     session = session_for(project_id)
     _target, relative = _safe_rel(session, path)
     made = _comment_call(
-        lambda: _comments(session).create(relative, start, end, quote, line, body)
+        lambda: _comments(session).create(relative, start, end, quote, line, body, suggestion)
     )
     return {"id": made}
+
+
+@app.post("/api/projects/{project_id}/comments/{thread_id}/accept")
+async def comments_accept(project_id: str, thread_id: str):
+    """Take a thread's suggestion: its words go in place of the text it was
+    written on, through the ordinary save, so the change is a version like
+    any edit and reaches everybody, and the thread is resolved as accepted.
+    Refused when the text has changed since the suggestion was made."""
+    session = session_for(project_id)
+    comments = _comments(session)
+    relative, at, to, words = _comment_call(
+        lambda: comments.suggested_change(_thread_id(thread_id))
+    )
+    target = _safe(session, relative)
+    live = session.collab.open_texts().get(relative)
+    current = live if live is not None else read_text(target)
+    raw = current.encode("utf-8")
+    after = (raw[:at] + words.encode("utf-8") + raw[to:]).decode("utf-8")
+    await _save_text(session, target, after, why="Accepted a suggested change")
+    _comment_call(lambda: comments.accepted(thread_id))
+    session.schedule_compile()
+    await session.events.publish({
+        "type": "files_changed", "paths": [relative], "origin": "", "structural": False,
+    })
+    return {"ok": True, "path": relative}
 
 
 @app.post("/api/projects/{project_id}/comments/{thread_id}/reply")
@@ -4967,7 +5032,9 @@ async def git_status(project_id: str):
     # this route is called after every build.
     ready, reason = await asyncio.to_thread(gitrepo.gh_available)
     state = await asyncio.to_thread(gitrepo.status, project.root)
-    return {**state.as_dict(), "gh": ready, "ghReason": reason}
+    # Whether a commit can offer "Changes as PDF" (Q-048).
+    latexdiff = bool(await asyncio.to_thread(changes.binary))
+    return {**state.as_dict(), "gh": ready, "ghReason": reason, "latexdiff": latexdiff}
 
 
 @app.get("/api/projects/{project_id}/git/diff")
@@ -4993,6 +5060,46 @@ async def git_log(project_id: str):
     session = session_for(project_id)
     commits = await asyncio.to_thread(gitrepo.log, session.project.root)
     return {"commits": commits}
+
+
+@app.post("/api/projects/{project_id}/git/changes/{sha}")
+async def git_changes_pdf(project_id: str, sha: str, document: str = Body("", embed=True)):
+    """A typeset PDF of what changed in a document since a commit, by
+    latexdiff, built with the document's own engine (Q-048). Answers the
+    address the PDF is served at; a sentence when latexdiff is missing,
+    the commit is not one, or the marked-up document does not build."""
+    session = session_for(project_id)
+    if not gitrepo.SHA.fullmatch(sha):
+        raise HTTPException(400, "that is not a commit")
+    try:
+        state = session.document_for(document or None)
+    except LookupError as error:
+        raise HTTPException(404, str(error))
+    relative = session.project.relative(state.paths.main)
+    session.collab.flush()
+    try:
+        pdf = await asyncio.to_thread(
+            changes.marked_up, session.project.root, relative, sha,
+            state.paths.build_dir, session.project.config.engine or "pdflatex",
+            state.paths.search_env(),
+        )
+    except changes.ChangesError as error:
+        raise HTTPException(400, str(error))
+    return {"name": pdf.name, "url": f"/api/projects/{project_id}/git/changes/{pdf.name}"}
+
+
+@app.get("/api/projects/{project_id}/git/changes/{name}")
+async def git_changes_file(project_id: str, name: str):
+    """A marked-up PDF built above, by its name and nothing else."""
+    session = session_for(project_id)
+    if not re.fullmatch(r"[A-Za-z0-9._-]{1,120}-since-[0-9a-f]{7}\.pdf", name):
+        raise HTTPException(404, "no such file")
+    for state in session.documents.values():
+        path = state.paths.build_dir / "changes" / name
+        if path.is_file():
+            return FileResponse(path, media_type="application/pdf",
+                                headers={"Cache-Control": "no-store"})
+    raise HTTPException(404, "no such file")
 
 
 @app.get("/api/projects/{project_id}/git/log/{sha}")

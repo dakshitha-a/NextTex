@@ -745,6 +745,15 @@ each and when, and a commit opens to its patch. *The line you are on*
 follows the caret and says which commit last touched that line and who
 made it, or that nobody has committed it yet.
 
+A revision usually goes back to a journal with a PDF that marks what
+changed since the submitted version. If `latexdiff` is installed, which
+TeX Live and MiKTeX both carry, each commit in *History* offers *Changes
+as PDF*: the document as it was at that commit against the one now,
+typeset with added text underlined in blue and removed text struck
+through in red, in a browser tab of its own to save or send. A small TeX
+such as TinyTeX may lack the `ulem` package latexdiff's marks need; you
+are told so by name, and installing it once fixes it.
+
 A project with no repository is offered one, *Keep versions here*, with a
 first commit and a `.gitignore` that already knows about `build/` and
 `.nexttex/`. Sending a copy to GitHub is a separate step, *Back up to
@@ -1198,6 +1207,14 @@ stays in the list and says so. Comments work in a project you have not
 shared, too, as notes to yourself, and they never go into your `.tex`
 files.
 
+A comment can also carry the words you would use instead: press *Suggest
+a change* while writing it, and a second box holds the text you selected,
+ready to edit. The other person sees the old words struck through and
+yours beside them, and where the thread would say *Resolve* it says
+*Accept*, which makes the change as an ordinary edit, with a version of
+its own in History, and closes the thread. It is the way to say "here is
+how I would put it, your call" without writing over their sentence.
+
 ### A collaborator is a public key
 
 There are no accounts, no server in the middle, and nothing to sign up
@@ -1532,6 +1549,18 @@ the way out. A quiet line under the list counts both and opens their
 views, where **Restore** brings a project back, opening one makes it
 active again, and **Delete** in the trash, or **Empty the trash**, forgets
 the entry and leaves the files exactly where they are.
+
+A row's **Duplicate** copies a project's folder beside it, as "Thesis
+copy", and opens the copy: the way to start the next job application from
+the last. The copy is your writing and settings; the build, the version
+history, the comments and `.git` stay with the original.
+
+Renaming or moving a chapter or a figure in the Files drawer asks, once,
+under the row, whether to change the `\input`, `\include`,
+`\includegraphics` or bibliography lines that name it, and changes them the
+way F2 renames a label, with a version for each file. Anything typed after
+`\end{document}` is drawn faintly, since TeX never reads it, and resting
+the pointer on it says so.
 
 Everything NextTex adds lives in one directory beside your files, and none of
 it is needed to compile:

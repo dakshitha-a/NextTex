@@ -1196,7 +1196,13 @@ input, textarea { font: inherit; color: inherit; background: transparent; }
 .nx-project-row:focus-within .nx-row-actions,
 .nx-row:hover .nx-row-actions,
 .nx-row:focus-within .nx-row-actions,
-.nx-row-actions[data-always] { opacity: 1; }
+.nx-row-actions[data-always],
+.nx-git-row:hover .nx-row-actions,
+.nx-git-row:focus-within .nx-row-actions { opacity: 1; }
+/* A commit's action, Changes as PDF (Q-048), at the row's right on its
+   first line, over the subject's end, shown under the pointer and focus. */
+.nx-git-row { position: relative; }
+.nx-git-row-actions { position: absolute; right: 8px; top: 3px; }
 .nx-project-row:hover .nx-row-when,
 .nx-project-row:focus-within .nx-row-when,
 .nx-row:hover .nx-row-when,
@@ -1430,6 +1436,11 @@ input, textarea { font: inherit; color: inherit; background: transparent; }
 /* The row's opening button: the quote and the text, laid out as they were
    when the whole row was the control, with the page's focus ring. */
 .nx-comment-row-open { display: flex; flex-direction: column; gap: 2px; width: 100%; text-align: left; cursor: pointer; border-radius: var(--nx-radius-control); }
+/* A suggestion, in the thread's card: the words it replaces struck in the
+   third ink, and the words proposed on the hint's wash (Q-046). */
+.nx-comment-suggestion { padding: 6px 8px; border-radius: var(--nx-radius-control); background: var(--surface-2); font-size: 13px; line-height: 18px; overflow-wrap: anywhere; }
+.nx-comment-suggestion del { color: var(--ink-3); }
+.nx-comment-suggestion ins { text-decoration: none; background: var(--hint-wash); color: var(--ink); border-radius: 2px; padding: 0 2px; }
 .nx-comment-row-quote {
   color: var(--ink-3); border-left: 2px solid var(--hint); padding-left: 7px;
   overflow: hidden; text-overflow: ellipsis; white-space: nowrap;
@@ -1573,6 +1584,9 @@ button.nx-row { width: 100%; text-align: left; }
 .nx-menu-hint { margin-left: auto; padding-left: 12px; color: var(--ink-3); font-size: 12px; }
 .nx-menu-item:hover:not(:disabled), .nx-menu-item:focus { background: var(--wash); outline: none; }
 .nx-menu-item[data-danger] { color: var(--error); }
+/* The one position that ends the fence, in the warning ink as the
+   direction page draws it; its note keeps the third ink (Q-059). */
+.nx-menu-item[data-warn] { color: var(--warn); }
 .nx-menu-item:disabled { color: var(--ink-3); cursor: default; }
 .nx-menu-item[aria-checked="true"]::before { content: ""; width: 5px; height: 5px; border-radius: 50%; background: var(--hint); margin-right: 3px; }
 .nx-menu-divider { height: 1px; margin: 6px 4px; background: var(--line); }
@@ -1586,6 +1600,17 @@ button.nx-row { width: 100%; text-align: left; }
 .nx-menu-item[aria-selected="true"] { background: var(--wash); }
 .nx-menu-item[data-note][aria-checked="true"]::before { margin-top: 7px; }
 .nx-menu-item[data-note]:not([aria-checked="true"])::before { content: ""; width: 5px; height: 5px; margin-right: 3px; margin-top: 7px; }
+/* A choice between alternatives is drawn as one: every option of a
+   radio menu has a ring, and the chosen one is filled in the hint, as the
+   direction page draws the composer's menu; it marked only the chosen one
+   with a dot and left the rest with nothing (Q-059). */
+.nx-menu-item[role="menuitemradio"]::before,
+.nx-menu-item[role="menuitemradio"][data-note]::before {
+  content: ""; flex: none; width: 14px; height: 14px; border-radius: 50%; margin: 0 4px 0 0;
+  background: transparent; box-shadow: inset 0 0 0 1.5px var(--ink-3);
+}
+.nx-menu-item[role="menuitemradio"][data-note]::before { margin-top: 3px; }
+.nx-menu-item[role="menuitemradio"][aria-checked="true"]::before { box-shadow: inset 0 0 0 4px var(--hint); }
 
 .nx-card {
   border-radius: var(--nx-radius-card);
@@ -2093,6 +2118,11 @@ button.nx-reads-x[data-always]:hover { color: var(--pen); }
 .nx-hover-card[data-side="below"] .nx-link-verbs { order: -1; padding-top: 0; padding-bottom: 6px; }
 /* The kit's card, in the shell's palette (math-hover.ts adds both classes),
    so a card over a white page under a dark shell is the shell's. */
+/* What TeX never reads, after \end{document}: the text at half strength,
+   and a card that says why when the pointer rests on it (Q-065). */
+.nx-after-end { opacity: 0.5; }
+.nx-after-end-card { max-width: 320px; padding: 10px 12px; font-size: 13px; line-height: 18px; color: var(--ink); }
+.nx-after-end-card code { font-family: var(--font-mono); font-size: 12.5px; }
 .nx-math-tooltip {
   max-width: 480px;
   color: var(--ink);

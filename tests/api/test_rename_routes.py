@@ -94,3 +94,46 @@ def test_a_rename_to_the_same_name_changes_nothing(client, project_dir, opened):
         json={"kind": "label", "name": "sec:a", "to": "sec:a"},
     ).json()
     assert body == {"files": 0, "paths": []}
+
+
+def test_a_renamed_file_is_found_by_the_commands_that_name_it_and_renamed_with_them(
+    client, project_dir, opened,
+):
+    """Q-045: renaming chapters/two.tex moved the file and broke the
+    \\input that named it. A file's path is a kind the rename knows: named
+    with or without its extension, by \\input, \\include, \\includegraphics
+    and the bibliography, and a use in a comment is left alone."""
+    seed(project_dir)
+    (project_dir / "main.tex").write_text(
+        "\\documentclass{article}\n\\begin{document}\n"
+        "\\input{chapters/two}\n\\include{./chapters/two}\n"
+        "% \\input{chapters/two}\n\\includegraphics{chapters/twofold}\n\\end{document}\n",
+        encoding="utf-8",
+    )
+    pid = opened["id"]
+    found = client.get(f"/api/projects/{pid}/references",
+                       params={"kind": "file", "name": "chapters/two.tex"}).json()
+    assert sorted((h["line"], h["commented"]) for h in found["hits"]) == [
+        (3, False), (4, False), (5, True),
+    ]
+    renamed = client.post(f"/api/projects/{pid}/rename", json={
+        "kind": "file", "name": "chapters/two.tex", "to": "chapters/intro.tex",
+    })
+    assert renamed.status_code == 200, renamed.text
+    text = (project_dir / "main.tex").read_text(encoding="utf-8")
+    assert "\\input{chapters/intro}" in text
+    assert "\\include{./chapters/intro}" in text
+    assert "% \\input{chapters/two}" in text
+    assert "\\includegraphics{chapters/twofold}" in text
+
+
+@pytest.mark.parametrize("name", ["../outside.tex", "/etc/passwd", "a{b}.tex", "a b.tex"])
+def test_a_file_rename_refuses_what_is_not_a_project_path(client, opened, name):
+    answer = client.post(f"/api/projects/{opened['id']}/rename", json={
+        "kind": "file", "name": name, "to": "fine.tex",
+    })
+    assert answer.status_code == 400
+    answer = client.post(f"/api/projects/{opened['id']}/rename", json={
+        "kind": "file", "name": "fine.tex", "to": name,
+    })
+    assert answer.status_code == 400

@@ -10854,3 +10854,37 @@ it back. At rest it is invisible, as before. A screen reader hears a
 build end and an update wanting attention. A thread's card takes focus
 when it opens and gives it back when it closes, and the Comments
 drawer's Resolve and Delete can be reached without a pointer.
+
+## 77. The fix run's looks and comfort features
+
+Drawn on the direction page under "The fix run: the looks and the comfort
+features" and built as drawn, with the differences said there.
+
+The projects screen's way back names its project, "Back to Thesis", with
+a chevron. A project row's More menu is the two downloads, Duplicate, a
+rule, Archive and Move to the trash; Duplicate copies the folder as
+"Thesis copy" and opens it. The New project and Join sheets' Where is one
+field with Browse inside it at its end. The composer's menu draws every
+choice with a ring and the chosen one filled in the hint, and "Never ask
+about anything" in the warning ink. A file's menu ends New file here, New
+folder here, Upload here, then after a rule Delete version history and
+Move to trash, both in the error ink. The upload sheet says "Into
+figures" under its title when a drop chose the folder.
+
+On a narrow source pane the strip drops the caret's line and column
+before the word count, and the palette's "Word count" answers in a notice,
+"4,210 words in the document, 1,204 of them in main.tex." Text after
+`\end{document}` is drawn at half strength, and resting on it opens a
+card: "TeX ignores everything after \end{document}. Move these lines
+above it to have them typeset."
+
+After a rename or a move in the Files drawer, a block under the row asks
+"1 file names chapters/one.tex. Change it to chapters/intro.tex?" with
+Change it and Leave it, in the tree's own confirmation style with its
+warning rule. The comment card has a quiet "Suggest a change" that opens a
+second box holding the quoted words; the thread's card shows the old
+words struck through in the third ink and the new on the hint's wash, and
+Accept stands where Resolve would. The drawer's row says "Suggested", and
+once taken "Accepted by you". A commit in the Git drawer shows "Changes
+as PDF" under the pointer when latexdiff is here, and the result opens in
+a browser tab of its own.

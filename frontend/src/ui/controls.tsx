@@ -5,6 +5,7 @@ import {
   type HTMLAttributes,
   type InputHTMLAttributes,
   type ReactNode,
+  type TextareaHTMLAttributes,
 } from "react";
 
 /** A text field.
@@ -32,6 +33,15 @@ export const Field = forwardRef<HTMLInputElement, FieldProps>(function Field(
     </span>
   );
 });
+
+/** A text box of several lines. It takes the look its place gives it
+ *  through `className` (the comment cards' field, the sheets' box), and is
+ *  here so a component never writes a raw `<textarea>` (Q-038). */
+export const TextArea = forwardRef<HTMLTextAreaElement, TextareaHTMLAttributes<HTMLTextAreaElement>>(
+  function TextArea(props, ref) {
+    return <textarea ref={ref} {...props} />;
+  },
+);
 
 /** A small labelled thing: a file name, an added word, a format.
  *

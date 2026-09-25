@@ -28,7 +28,24 @@ from dataclasses import dataclass
 NAME = re.compile(r"^[^{}\s,%\\]{1,120}$")
 MACRO = re.compile(r"^[A-Za-z]{1,80}$")
 
-KINDS = ("label", "cite", "macro")
+KINDS = ("label", "cite", "macro", "file")
+
+#: What a project path may be when it is renamed: no braces, whitespace,
+#: comment or command characters, which cannot sit inside the argument.
+PATH = re.compile(r"^[^{}\s%\\,]{1,240}$")
+
+#: The commands whose braced argument names a file, a comma list for the
+#: bibliography's. Renaming or moving a chapter or a figure moved the file
+#: and broke every one of these that named it (Q-045).
+FILE_COMMANDS = (
+    "input", "include", "includeonly", "subfile", "includegraphics",
+    "includepdf", "includesvg", "bibliography", "addbibresource",
+    "lstinputlisting", "verbatiminput", "inputminted",
+)
+
+#: The extensions a command may leave off: TeX adds `.tex` to an `\input`,
+#: graphicx tries the graphics extensions, BibTeX adds `.bib`.
+IMPLIED = (".tex", ".pdf", ".png", ".jpg", ".jpeg", ".eps", ".svg", ".bib")
 
 #: The commands whose braced argument is a comma list of labels, and of
 #: citation keys.  Starred forms are taken by the pattern.
@@ -83,13 +100,45 @@ def _list_command(commands: tuple[str, ...]) -> re.Pattern:
 
 
 REF_CALL = _list_command(REF_COMMANDS)
+FILE_CALL = _list_command(FILE_COMMANDS)
 CITE_CALL = _list_command(CITE_COMMANDS)
 BIB_ENTRY = re.compile(r"@[A-Za-z]+\s*\{\s*([^,\s}]+)\s*,")
+
+
+def _stem(name: str) -> str:
+    """The name without an extension a command may leave off."""
+    for ending in IMPLIED:
+        if name.lower().endswith(ending):
+            return name[: -len(ending)]
+    return name
+
+
+def _file_spans(line: str, name: str) -> list[tuple[int, int, bool]]:
+    """Every `(start, end, bare)` where a command names the file, `bare`
+    when it named it without its extension. `./` in front is the same
+    file, and stays."""
+    out: list[tuple[int, int, bool]] = []
+    stem = _stem(name)
+    for found in FILE_CALL.finditer(line):
+        inside = found.group(1)
+        at = found.start(1)
+        cursor = 0
+        for piece in inside.split(","):
+            stripped = piece.strip()
+            lead = 2 if stripped.startswith("./") else 0
+            written = stripped[lead:]
+            if written == name or (stem != name and written == stem):
+                start = at + cursor + piece.index(stripped) + lead
+                out.append((start, start + len(written), written != name))
+            cursor += len(piece) + 1
+    return out
 
 
 def _spans(kind: str, line: str, name: str, path: str) -> list[tuple[int, int]]:
     """Every `(start, end)` of the name on this line, by the syntax."""
     out: list[tuple[int, int]] = []
+    if kind == "file":
+        return [(start, end) for start, end, _bare in _file_spans(line, name)]
     if kind in ("label", "cite"):
         if kind == "cite" and path.lower().endswith(".bib"):
             for found in BIB_ENTRY.finditer(line):
@@ -119,7 +168,7 @@ def references_to(texts: dict[str, str], kind: str, name: str) -> list[Hit]:
     """Every use of the name, in the order the paths were given."""
     hits: list[Hit] = []
     for path, text in texts.items():
-        if kind in ("label", "macro") and path.lower().endswith(".bib"):
+        if kind in ("label", "macro", "file") and path.lower().endswith(".bib"):
             continue
         for number, line in enumerate(text.split("\n"), start=1):
             spans = _spans(kind, line, name, path)
@@ -141,20 +190,26 @@ def rename(
     left alone unless `comments` is set."""
     changed: dict[str, str] = {}
     for path, text in texts.items():
-        if kind in ("label", "macro") and path.lower().endswith(".bib"):
+        if kind in ("label", "macro", "file") and path.lower().endswith(".bib"):
             continue
         lines = text.split("\n")
         touched = False
         for index, line in enumerate(lines):
-            spans = _spans(kind, line, name, path)
+            # A file named without its extension is renamed without it.
+            spans = (
+                [(start, end, _stem(to) if bare else to)
+                 for start, end, bare in _file_spans(line, name)]
+                if kind == "file"
+                else [(start, end, to) for start, end in _spans(kind, line, name, path)]
+            )
             if not spans:
                 continue
             comment = comment_starts(line)
             edited = line
-            for start, end in reversed(spans):
+            for start, end, replacement in reversed(spans):
                 if not comments and comment is not None and start > comment:
                     continue
-                edited = edited[:start] + to + edited[end:]
+                edited = edited[:start] + replacement + edited[end:]
             if edited != line:
                 lines[index] = edited
                 touched = True
@@ -166,4 +221,9 @@ def rename(
 def valid(kind: str, name: str) -> bool:
     if kind not in KINDS:
         return False
+    if kind == "file":
+        # Relative to the project and inside it: no leading slash, no drive
+        # letter, no step up.
+        return (bool(PATH.match(name or "")) and ".." not in (name or "").split("/")
+                and not name.startswith("/") and not re.match(r"^[A-Za-z]:", name))
     return bool((MACRO if kind == "macro" else NAME).match(name or ""))

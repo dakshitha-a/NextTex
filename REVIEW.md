@@ -1268,6 +1268,10 @@ reasons.
 
 *Size:* large. *Version:* z.
 
+*Fixed in 3.19.0.* Partly: frontend/src/kit-rule.test.ts fails on a new raw
+control or literal size outside the kit and holds each file to what it had,
+with TextArea added to the kit; moving the rest is in TRACKER.md's backlog.
+
 ### Accessibility
 
 A reading agent went through the frontend for names, keyboard reach,
@@ -1439,6 +1443,9 @@ rename already is.
 
 *Size:* medium. *Version:* y.
 
+*Fixed in 3.19.0.* A rename or a move asks once to change the commands that
+name the file.
+
 ### Q-046 · Collaboration · comfort · medium · confirmed
 **A comment cannot suggest a replacement.**
 
@@ -1456,6 +1463,9 @@ as an ordinary edit with its own version. One control changes its meaning
 rather than a second being added.
 
 *Size:* large. *Version:* y.
+
+*Fixed in 3.19.0.* A comment can carry the words it suggests, and Accept makes
+the change.
 
 ### Q-047 · Files · comfort · low · confirmed
 **A project cannot be duplicated.**
@@ -1475,6 +1485,8 @@ before the destructive items.
 
 *Size:* small. *Version:* y.
 
+*Fixed in 3.19.0.* A row's More menu offers Duplicate.
+
 ### Q-048 · Compile · improvement · low · confirmed
 **No marked-up PDF of what changed.**
 
@@ -1490,6 +1502,8 @@ survey could note as it notes pandoc, the History or Git drawer offers a
 marked-up PDF against a chosen version or commit.
 
 *Size:* medium. *Version:* y.
+
+*Fixed in 3.19.0.* A commit offers Changes as PDF when latexdiff is installed.
 
 ### The screen pass
 
@@ -1519,6 +1533,8 @@ visible change.
 
 *Size:* small. *Version:* z.
 
+*Fixed in 3.19.0.* Back reads "Back to" and the project's name.
+
 ### Q-058 · Look · consistency · low · confirmed
 **Browse sits outside its field.**
 
@@ -1535,6 +1551,8 @@ as drawn, or the page is redrawn to what was built and the difference
 decided.
 
 *Size:* small. *Version:* z.
+
+*Fixed in 3.19.0.* Browse is the field's trailing action.
 
 ### Q-059 · Look · consistency · low · confirmed
 **The composer menu hides its unchosen options.**
@@ -1556,6 +1574,8 @@ colour on the last.
 
 *Size:* small. *Version:* z.
 
+*Fixed in 3.19.0.* Every choice has a ring and the last is in the warning ink.
+
 ### Q-060 · Look · consistency · low · confirmed
 **The file menu's order and length.**
 
@@ -1574,6 +1594,9 @@ already has a way to reach it.
 
 *Size:* small. *Version:* z.
 
+*Fixed in 3.19.0.* The order drawn, and Delete version history in the last
+group beside Move to trash.
+
 ### Q-061 · Look · comfort · low · confirmed
 **The upload sheet does not name its folder.**
 
@@ -1590,6 +1613,8 @@ The direction page's drawing names it: "Into figures".
 text when it is not open to question.
 
 *Size:* small. *Version:* z.
+
+*Fixed in 3.19.0.* The sheet says "Into" and the folder when a drop chose it.
 
 ### Q-062 · Agent · performance · low · confirmed
 **The composer's menu takes 870 ms to open first.**
@@ -1664,6 +1689,9 @@ less when it has to drop one.
 
 *Size:* small. *Version:* z.
 
+*Fixed in 3.19.0.* The strip drops the caret before the count, and the palette
+offers Word count.
+
 ### Q-065 · Editor · comfort · low · confirmed
 **Text after end-document is ignored unmarked.**
 
@@ -1679,6 +1707,8 @@ why.
 with a hover that says TeX ignores it.
 
 *Size:* small. *Version:* y.
+
+*Fixed in 3.19.0.* The text is drawn faintly, and a card says why.
 
 ### Q-066 · Preview · bug · high · confirmed
 **An unclosed brace wipes the preview, which then says the document is empty.**

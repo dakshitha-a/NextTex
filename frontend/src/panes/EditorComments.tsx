@@ -220,7 +220,7 @@ export default function EditorComments({
     return () => window.removeEventListener("keydown", away);
   }, [card]);
 
-  const post = async (body: string) => {
+  const post = async (body: string, suggestion = "") => {
     const projectId = get().projectId;
     const path = current.current;
     const shared = path ? sharedOf(path) : undefined;
@@ -228,13 +228,13 @@ export default function EditorComments({
       throw new Error("The file is not connected to the project's shared documents.");
     }
     const anchors = collab.current.commentAnchors(shared, card.from, card.to);
-    await api.comment(projectId, { path, ...anchors, quote: card.quote, line: card.line, body });
+    await api.comment(projectId, { path, ...anchors, quote: card.quote, line: card.line, body, suggestion });
     setCard(null);
     await refreshComments(projectId);
     view.current?.focus();
   };
 
-  const act = async (what: "reply" | "resolve" | "delete", id: string, body = "") => {
+  const act = async (what: "reply" | "resolve" | "accept" | "delete", id: string, body = "") => {
     const projectId = get().projectId;
     if (!projectId) return;
     if (what !== "reply") {
@@ -243,6 +243,13 @@ export default function EditorComments({
     }
     if (what === "reply") await api.replyComment(projectId, id, body);
     else if (what === "resolve") await api.resolveComment(projectId, id, true);
+    else if (what === "accept") {
+      try {
+        await api.acceptComment(projectId, id);
+      } catch (error: any) {
+        set({ error: error.message });
+      }
+    }
     else await api.deleteComment(projectId, id);
     await refreshComments(projectId);
   };
@@ -299,6 +306,7 @@ export default function EditorComments({
           onMeasure={remember}
           onReply={(body) => act("reply", card.id, body)}
           onResolve={() => void act("resolve", card.id)}
+          onAccept={() => void act("accept", card.id)}
           onDelete={() => void act("delete", card.id)}
           onClose={() => {
             setCard(null);

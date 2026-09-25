@@ -16,7 +16,7 @@ import { Announce, Empty, Field, Heading, Kbd, Segmented } from "../ui/controls"
 import { Menu, MenuDivider, MenuItem } from "../ui/Menu";
 import { Sheet } from "../ui/Sheet";
 import {
-  ChevronDownIcon, HelpIcon, MoreIcon, PlusIcon, ReportIcon, SearchIcon, ShareIcon, SparkIcon, UpdateIcon,
+  ChevronDownIcon, ChevronLeftIcon, HelpIcon, MoreIcon, PlusIcon, ReportIcon, SearchIcon, ShareIcon, SparkIcon, UpdateIcon,
 } from "../ui/icons";
 import { under, type Wanted } from "../place-menu";
 import { toShell } from "../viewport";
@@ -95,6 +95,7 @@ export default function Projects({
   onChangeAgent?: () => void;
 }) {
   const [projects, setProjects] = useState<ProjectSummary[]>([]);
+  const backName = projects.find((project) => project.id === current)?.name ?? "";
   /** Where home is on the machine running NextTex, for the rows' paths. */
   const [home, setHome] = useState("");
   /** Ids a browser is holding open, as of the last fetch of the list. */
@@ -312,6 +313,17 @@ export default function Projects({
   // Filtered and then sorted, in `project-filter.ts`: the one list the
   // screen draws and the arrow keys walk.
   const shown = visibleProjects(projects, query, sort, view);
+  /** Copy a project beside itself and open the copy, which is what the
+   *  writer copying a folder by hand was doing it for. */
+  const duplicate = async (project: ProjectSummary) => {
+    try {
+      const copy = await api.duplicateProject(project.id);
+      onOpen(copy.id);
+    } catch (problem: any) {
+      set({ error: problem?.message ?? String(problem) });
+    }
+  };
+
   const setState = async (project: ProjectSummary, state: ProjectView) => {
     setListError(null);
     try {
@@ -739,8 +751,12 @@ export default function Projects({
             </div>
             ) : null}
             {canClose ? (
-              <Button variant="quiet" size="md" onClick={onClose}>
-                Back
+              // Named for where it goes: "Back" alone read as a control with
+              // no destination, while the archive's views say "Back to
+              // projects" in full (Q-057).
+              <Button variant="quiet" size="md" onClick={onClose} data-testid="back-to-project">
+                <ChevronLeftIcon size={12} />
+                {backName ? `Back to ${backName}` : "Back"}
               </Button>
             ) : null}
           </div>
@@ -1258,11 +1274,14 @@ export default function Projects({
               files and not a path on the server; what it fills in depends
               on the way in (`FolderPicker`). */}
           <div className="nx-sheet-label">{way === "add" ? "Folder" : "Where"}</div>
-          <div className="relative flex gap-2">
+          {/* Browse is the field's own trailing action, one control as the
+              direction page draws it, where it was a bordered button
+              beside the field (Q-058). */}
+          <div className="relative">
             <Field
               ref={pathBox}
               autoFocus={way === "add"}
-              frameClassName="min-w-0 flex-1"
+              frameClassName="min-w-0 w-full"
               value={path}
               placeholder={
                 way === "create"
@@ -1276,18 +1295,20 @@ export default function Projects({
               className="font-mono text-[12.5px]"
               onChange={(event) => setPath(event.target.value)}
               onKeyDown={(event) => event.key === "Enter" && add()}
+              trailing={
+                <Button
+                  ref={browseButton}
+                  variant="quiet"
+                  size="inline"
+                  aria-haspopup="dialog"
+                  aria-expanded={picking}
+                  data-testid="browse-folder"
+                  onClick={() => setPicking((open) => !open)}
+                >
+                  Browse…
+                </Button>
+              }
             />
-            <Button
-              ref={browseButton}
-              variant="ghost"
-              size="md"
-              aria-haspopup="dialog"
-              aria-expanded={picking}
-              data-testid="browse-folder"
-              onClick={() => setPicking((open) => !open)}
-            >
-              Browse…
-            </Button>
           </div>
           {picking ? (
             <Suspense fallback={null}>
@@ -1393,12 +1414,17 @@ export default function Projects({
                 >
                   Download the PDF
                 </MenuItem>
+                {/* To start the next one from this one: a project per job
+                    application is what the template is made for (Q-047). */}
+                <MenuItem data-testid="row-duplicate" onClick={act(() => void duplicate(project))}>
+                  Duplicate
+                </MenuItem>
               </>
             ) : null}
+            <MenuDivider />
             <MenuItem data-testid="row-archive" onClick={act(() => void setState(project, "archived"))}>
               Archive
             </MenuItem>
-            <MenuDivider />
             <MenuItem danger data-testid="row-trash" onClick={act(() => void setState(project, "trashed"))}>
               Move to the trash
             </MenuItem>

@@ -56,6 +56,9 @@ export const ACTIONS: readonly Action[] = [
     does: "This list, every setting and every file, found by typing" },
   { id: "settings", label: "Open the settings sheet", group: "Settings" },
   { id: "tutorial", label: "Open the tutorial", group: "View" },
+  // The count at any width: the strip drops it on a narrow pane, and a
+  // writer with a word limit had no other way to read it (Q-064).
+  { id: "word-count", label: "Word count", group: "View" },
   { id: "history", label: "Show or hide the version history", group: "View" },
   { id: "share", label: "Share this project", group: "Project" },
   { id: "download-zip", label: "Download the whole project as a zip", group: "Project" },

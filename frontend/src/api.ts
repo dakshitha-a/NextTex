@@ -233,8 +233,10 @@ export type CommentThread = {
   line: number;
   detached: boolean;
   created: number;
-  resolved: { name?: string; peer?: string; at?: number; mine?: boolean };
+  resolved: { name?: string; peer?: string; at?: number; mine?: boolean; accepted?: boolean };
   messages: CommentMessage[];
+  /** The words the thread proposes in place of its quote, "" for none. */
+  suggestion?: string;
 };
 
 export type SyncPosition = {
@@ -286,7 +288,9 @@ export type SearchHit = {
 };
 
 /** What a rename can be about. */
-export type SymbolKind = "label" | "cite" | "macro";
+/** What F2 renames everywhere; `file` is a project path, named by
+ *  `\\input`, `\\include`, `\\includegraphics` and the bibliography. */
+export type SymbolKind = "label" | "cite" | "macro" | "file";
 
 /** The bug report and where to take it.  `text` is already redacted;
  *  `newIssue` is the form on GitHub with the short facts filled in. */
@@ -676,6 +680,9 @@ const api = {
    *  Nothing on disk moves. */
   setProjectState: (id: string, state: ProjectState) =>
     request<{ ok: boolean; state: ProjectState }>(`/projects/${id}/state`, json({ state })),
+  /** A copy of the project's folder beside it, registered: "Thesis copy". */
+  duplicateProject: (id: string) =>
+    request<{ id: string; name: string; root: string }>(`/projects/${id}/duplicate`, { method: "POST" }),
   open: (id: string) =>
     request<any>(`/projects/${id}/open`, { method: "POST" }),
   tree: (id: string) => request<TreeNode>(`/projects/${id}/tree`),
@@ -880,13 +887,21 @@ const api = {
     request<{ threads: CommentThread[] }>(`/projects/${id}/comments`),
   comment: (
     id: string,
-    body: { path: string; start: string; end: string; quote: string; line: number; body: string },
+    body: {
+      path: string; start: string; end: string; quote: string; line: number; body: string;
+      /** Words proposed in place of the quote (Q-046). */
+      suggestion?: string;
+    },
   ) =>
     request<{ id: string }>(`/projects/${id}/comments`, json(body)),
   replyComment: (id: string, thread: string, body: string) =>
     request<{ ok: boolean }>(`/projects/${id}/comments/${thread}/reply`, json({ body })),
   resolveComment: (id: string, thread: string, resolved: boolean) =>
     request<{ ok: boolean }>(`/projects/${id}/comments/${thread}/resolve`, json({ resolved })),
+  /** Take a thread's suggestion: its words replace the quote, as an edit
+   *  with its own version, and the thread is resolved as accepted. */
+  acceptComment: (id: string, thread: string) =>
+    request<{ ok: boolean; path: string }>(`/projects/${id}/comments/${thread}/accept`, { method: "POST" }),
   deleteComment: (id: string, thread: string) =>
     request<{ ok: boolean }>(`/projects/${id}/comments/${thread}`, { method: "DELETE" }),
   purgeTrash: (id: string, entryId: string) =>
@@ -1280,9 +1295,14 @@ const api = {
       conflicts?: string[];
       /** The commit a detached head is at, or "". */
       detached?: string;
+      /** Whether latexdiff is here, so a commit offers Changes as PDF. */
+      latexdiff?: boolean;
       gh: boolean;
       ghReason: string;
     }>(`/projects/${id}/git`),
+  /** A marked-up PDF of what changed since a commit; answers where it is. */
+  gitChangesPdf: (id: string, sha: string, document = "") =>
+    request<{ name: string; url: string }>(`/projects/${id}/git/changes/${sha}`, json({ document })),
   gitAction: (id: string, action: string, message = "") =>
     request<{ ok: boolean; output?: string }>(
       `/projects/${id}/git/${action}`,
