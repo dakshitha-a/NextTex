@@ -1110,6 +1110,8 @@ class ProjectSession:
         # would clear the editor's error marks every time the user typed
         # during a compile, which is exactly when they are looking at them.
         if result.outcome is not Outcome.CANCELLED:
+            if result.scope != "full":
+                self._keep_unopened(state, result, payload)
             state.last_result = result
             state.diagnostics = payload.get("diagnostics", [])
         # Only if this is still the build in flight: a superseded one
@@ -1126,6 +1128,35 @@ class ProjectSession:
                 "the settling build",
             )
         return result
+
+    def _keep_unopened(
+        self, state: DocumentState, result: CompileResult, payload: dict,
+    ) -> None:
+        """Keep what a scoped build could not see.
+
+        A build scoped to one chapter through `\\includeonly` never opens
+        the other chapters, so its log says nothing about them, and taking
+        its list as the document's whole list made an error still in
+        chapter one vanish from the gutter, the drawer and the strip the
+        moment the writer typed in chapter two (Q-017).  So the diagnostics
+        of every file this build did not open are carried over from the
+        last list, until a build that opens them says otherwise.
+        """
+        opened = {
+            self.relative_or_none(str(path))
+            for path in (result.log.opened if result.log else ())
+        }
+        kept = [
+            item for item in state.diagnostics
+            if item.get("file") and item["file"] not in opened
+        ]
+        if not kept:
+            return
+        merged = kept + payload.get("diagnostics", [])
+        payload["diagnostics"] = merged
+        payload["errorCount"] = sum(1 for d in merged if d.get("severity") == "error")
+        payload["warningCount"] = sum(1 for d in merged if d.get("severity") == "warning")
+        payload["summary"] = summarise(merged)
 
     @staticmethod
     def _unsettled_by(

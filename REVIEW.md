@@ -168,6 +168,10 @@ full build.
 
 *Size:* small. *Version:* z.
 
+*Fixed in 3.18.3.* A scoped build keeps the diagnostics of every file it
+did not open, and `e2e/specs/scoped-diagnostics.spec.ts` drives the
+driver's scenario on two short chapters.
+
 ### Q-043 · Compile · performance · high · confirmed
 **A build with many warnings freezes the server.**
 

@@ -147,6 +147,11 @@ class ParsedLog:
     # The engine asked to be run again: what it typeset is one pass behind
     # what it now knows about labels, pages and outlines.
     rerun_needed: bool = False
+    # Every file the engine opened, as the log names it.  A build scoped to
+    # one chapter never opens the others, so its silence about them is not
+    # news, and the session keeps their diagnostics rather than dropping
+    # them.  Not sent to the browser.
+    opened: set[Path] = field(default_factory=set)
 
     @property
     def errors(self) -> list[Diagnostic]:
@@ -218,6 +223,7 @@ class _FileStack:
         # fallback for a log written before that was so.
         self.base = base or root
         self.stack: list[Path | None] = []
+        self.opened: set[Path] = set()
 
     def resolve(self, path: Path) -> Path:
         if path.is_absolute():
@@ -234,7 +240,9 @@ class _FileStack:
             if char == "(":
                 match = FILE_OPEN_PATH.match(line, i + 1)
                 if match:
-                    self.stack.append(self.resolve(Path(match.group(0))))
+                    path = self.resolve(Path(match.group(0)))
+                    self.stack.append(path)
+                    self.opened.add(path)
                     i = match.end()
                     continue
                 # A parenthesis that opens no file still has to be
@@ -368,6 +376,7 @@ def parse(
     if pending is not None:
         emit(pending)
 
+    result.opened = stack.opened
     if not result.errors:
         result.raw_tail = "\n".join(lines[-25:])
     else:
