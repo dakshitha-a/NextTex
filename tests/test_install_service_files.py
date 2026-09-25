@@ -98,6 +98,20 @@ def test_the_helper_falls_back_to_the_startup_folder():
     assert "pythonw.exe" in text, "logging in would leave a console window open"
 
 
+def test_a_windows_server_that_dies_is_started_again():
+    """Q-070: the task had one trigger, logon, so a server that crashed or
+    was ended stayed down until the next sign-in; Linux's unit restarts it.
+    Windows' restart-on-failure counts a task that failed to launch, so a
+    repeating trigger, ignored while the server runs, is what brings it
+    back."""
+    text = (Path(__file__).resolve().parents[1] / "scripts"
+            / "register-task.ps1").read_text(encoding="utf-8")
+    assert "-RepetitionInterval (New-TimeSpan -Minutes 5)" in text
+    assert "-MultipleInstances IgnoreNew" in text
+    assert "-RestartCount 3" in text
+    assert "$trigger = @($logon, $again)" in text
+
+
 def test_nothing_is_written_by_importing_any_of_this(tmp_path):
     """The plist and the unit used to be written before the question that
     decided whether they were wanted, so answering no left a file behind."""

@@ -1681,6 +1681,10 @@ failure, as the Linux service does.
 
 *Size:* small. *Version:* z.
 
+*Fixed in 3.18.7, unverified on Windows.* The task repeats every five
+minutes, ignored while the server runs, and asks for Windows' restart on
+failure as well.
+
 ### Q-071 · Files · bug · low · confirmed
 **A tab shows a backslash in a path on Windows.**
 

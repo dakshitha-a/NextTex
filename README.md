@@ -341,6 +341,13 @@ window of its own. An install set up before 3.17.2 has a task that still
 runs `python.exe`; run `scripts\register-task.ps1` once more, as the
 installer does, to move it over.
 
+If NextTex stops on its own, the task starts it again within five minutes,
+as a Linux or Mac service does straight away. `Stop-ScheduledTask` stops it
+for good until the next sign-in or the next five minutes, so to keep it
+stopped, disable the task: `Disable-ScheduledTask -TaskName NextTex`. An
+install set up before 3.18.7 has a task that only starts at sign-in; run
+`scripts\register-task.ps1` once more to give it the second trigger.
+
 **Any platform.** To print the URL and token again, which is the way back in
 if you have forgotten the password. A server started as a service prints
 its address to its log and never the token, which is what this is for:

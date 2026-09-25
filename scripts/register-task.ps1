@@ -71,9 +71,21 @@ $running = @(Get-CimInstance Win32_Process -ErrorAction SilentlyContinue |
 $registered = $false
 try {
   $action = New-ScheduledTaskAction -Execute $venv -Argument "-u $entryArgs" -WorkingDirectory $Root
-  $trigger = New-ScheduledTaskTrigger -AtLogOn
+  # At logon, and every five minutes after it. A server that dies stayed
+  # dead until the next sign-in (Q-070): the task had no other trigger, and
+  # Windows' own restart-on-failure below is counted from a task that
+  # failed to launch, which a server that ran and then exited is not.
+  # While the server runs the repeat does nothing, since a running task
+  # ignores a new instance; once it has gone, it is back within five
+  # minutes, the way systemd's Restart=on-failure brings it back on Linux.
+  $logon = New-ScheduledTaskTrigger -AtLogOn
+  $again = New-ScheduledTaskTrigger -Once -At (Get-Date).AddMinutes(5) `
+    -RepetitionInterval (New-TimeSpan -Minutes 5)
+  $trigger = @($logon, $again)
   $settings = New-ScheduledTaskSettingsSet -AllowStartIfOnBatteries `
-    -DontStopIfGoingOnBatteries -StartWhenAvailable
+    -DontStopIfGoingOnBatteries -StartWhenAvailable `
+    -MultipleInstances IgnoreNew `
+    -RestartCount 3 -RestartInterval (New-TimeSpan -Minutes 1)
   Unregister-ScheduledTask -TaskName $Name -Confirm:$false -ErrorAction SilentlyContinue
   Register-ScheduledTask -TaskName $Name -Action $action -Trigger $trigger `
     -Settings $settings -Description 'NextTex LaTeX editor' -ErrorAction Stop | Out-Null
