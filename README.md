@@ -1399,9 +1399,10 @@ Eight things go out, all of them things you asked for:
    opens a two-second connection to each of those before it asks you
    anything, so that being offline is something you are told rather than
    something you wait for.
-4. GitHub, to check whether this install is behind and to download the
-   interface for the commit it is on. Nothing about you or your documents
-   goes with either request. Reporting a bug (below) opens a GitHub page in
+4. GitHub, to check whether this install is behind, to ask
+   `api.github.com` whether the commit it would move to has passed its
+   tests, and to download the interface for the commit it is on. Nothing
+   about you or your documents goes with any of these requests. Reporting a bug (below) opens a GitHub page in
    your own browser with a report you have read first; NextTex's own code
    sends nothing.
 5. **Only if you agree to it**, and never on its own: `pypi.org`, when a

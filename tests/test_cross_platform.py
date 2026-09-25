@@ -138,9 +138,14 @@ def test_the_words_the_update_footer_matches_on_survive():
     """
     from server.main import _STEPS
 
+    # git's own lines while it applies a pull, which no script prints
+    # itself but every pull does (Q-072).
+    from_git = {"Updating ", "Fast-forward"}
     for script in ("update.sh", "update.ps1"):
         text = (ROOT / "scripts" / script).read_text(encoding="utf-8")
         for needle, _label in _STEPS:
+            if needle in from_git:
+                continue
             if needle == "Done" and script.endswith(".ps1"):
                 continue
             assert needle in text, f"{script} no longer prints {needle!r}"
@@ -402,6 +407,7 @@ OUTBOUND = {
     "dx.doi.org",
     "claude.ai",                # the sign-in screen links to the download page
     "github.com",               # the prebuilt interface, and the update check
+    "api.github.com",           # whether a commit's tests passed, before offering it
     "cdn.jsdelivr.net",         # a spelling list, once per machine, when a project asks
     # The installer, and only what the plan it printed said it would fetch.
     "yihui.org",                # TinyTeX on Unix
