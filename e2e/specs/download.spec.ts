@@ -83,7 +83,8 @@ test("the whole project downloads from the project list", async ({ app, project,
   void project;
   await row.hover();
   const waiting = page.waitForEvent("download");
-  await row.getByTestId("row-actions").getByRole("button", { name: "Zip" }).click();
+  await row.getByTestId("row-more").click();
+  await page.getByRole("menuitem", { name: "Download as a zip" }).click();
   const download = await waiting;
   expect(namesIn(await zipOf(download))).toContain("main.tex");
 });

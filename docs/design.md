@@ -10665,3 +10665,53 @@ spelled in another language, and the note says so there.
 The rules that read LaTeX's masked prose wrongly are off, and so are the
 ones that are a matter of the writer's style: the serial comma either
 way, and long sentences, which academic prose has by choice.
+
+## 75. A quieter pass, and a width for the list
+
+After the model the app is written with moved to Opus 5.5, the writer
+asked for a pass over the whole interface. Every pane was rendered at
+four widths and a phone in both themes, and every drawer, menu and card
+through the fidelity harness, and read against the direction page and
+the style guide. Most of it matched. Four proposals were drawn; the
+writer took three and turned down the first, a hanging indent for a
+wrapped source line, because writers keep a paragraph on one long line
+and an indent under each would read as structure that is not there.
+
+A reply in the Claude column carries no name over it. The pen rule says
+whose it is, as the column's header does and as the pen does everywhere
+else, and in an exchange of short turns the name was a third of the
+column's lines. The time a reply was written floats at the end of its
+first line, laid out at rest and shown under the pointer or with focus,
+so the prose never moves when it appears; on a touch screen it shows.
+The name is still there for a screen reader.
+
+Two notes wait for their moment. The Files drawer's "Drop files here to
+add them to the project." no longer sits at its foot for good: while
+files from outside the window are dragged over it, the tree lights in the
+hint's wash with its edge in the hint, since there the edge says where
+the files will land, and the sentence says the tree or a folder will take
+them. A drop target is the hint's wash throughout, where it was the
+pen's; the pen means the agent. The Claude column's foot says nothing
+about cost until the first turn, rather than "0 turns, $0.00".
+
+A project row shows two things under the pointer, Share and More, where
+it showed six. Open went, since a press anywhere on the row opens the
+project and the screen guide says so; More holds *Download as a zip*,
+*Download the PDF*, *Archive* and, last after a rule, *Move to the
+trash*. A project whose folder is missing is offered only the last two,
+since there is nothing to download. A PDF being typeset says so in the
+row. The archived and trash views keep their rows as they were.
+
+Raised by the writer while this was built: on a full-screen ultrawide
+window the rows ran the whole width, the name at one end and its time
+two thousand pixels away at the other. The head and the rows keep to one
+centred column of at most 1040 px (`--nx-list-width`), so New project
+stays over the rows it adds to; the app bar is the frame and stays full
+width, and the list still scrolls at the window's edge. Below 1120 px
+nothing changes.
+
+Two fixes the pass turned up: the model menu offered Opus 5, and offers
+Opus 5.5 as the most careful now, with a saved Opus 5 choice carried to
+it so the menu still shows the writer's row chosen; and on a phone the
+settings pane's heading no longer shares a line with its note, which
+drops under it.

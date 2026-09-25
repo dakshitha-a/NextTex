@@ -675,8 +675,8 @@ export default function Chat({
         {chat.length === 0 ? (
           <div className="nx-arrive flex">
             <div className="nx-turn min-w-0 flex-1">
-              <div className="nx-turn-who"><span>{name}</span></div>
-              <div className="t-prose mt-[2px] text-ink">
+              <span className="sr-only">{name}</span>
+              <div className="t-prose text-ink">
                 <Prose text={welcome(name, provider !== "openai")} />
               </div>
               {/* The three things that most improve the help, as cards on
@@ -1100,9 +1100,11 @@ export default function Chat({
 }
 
 /** The foot's sum: "12 turns, $0.42".  Two decimals, since the foot is a
- *  glance and the past conversations' line has the third. */
+ *  glance and the past conversations' line has the third.  Nothing before
+ *  the first turn: "0 turns, $0.00" said nothing a writer needed, in every
+ *  project that had not yet had a conversation. */
 export function tally(usage: { turns: number; costUsd: number } | undefined): string {
-  if (!usage) return "";
+  if (!usage || usage.turns === 0) return "";
   const turns = `${usage.turns} ${usage.turns === 1 ? "turn" : "turns"}`;
   return `${turns}, $${usage.costUsd.toFixed(2)}`;
 }
@@ -1361,31 +1363,23 @@ function AgentMessage({ item }: { item: Extract<ChatItem, { kind: "claude" }> })
     return () => window.clearTimeout(timer);
   }, [item.text, item.streaming]);
 
-  const [hover, setHover] = useState(false);
-
   return (
-    <div
-      className="flex"
-      tabIndex={0}
-      data-testid="agent-turn"
-      onMouseEnter={() => setHover(true)}
-      onMouseLeave={() => setHover(false)}
-      onFocus={() => setHover(true)}
-      onBlur={() => setHover(false)}
-    >
+    <div className="nx-turn-wrap flex" tabIndex={0} data-testid="agent-turn">
       <div className="nx-turn min-w-0 flex-1">
-        <div className="nx-turn-who">
-          <span>{name}</span>
-          {hover ? (
-            <span className="ml-auto tnum text-ink-3">
-              {new Date(item.at).toLocaleTimeString([], {
-                hour: "2-digit",
-                minute: "2-digit",
-              })}
-            </span>
-          ) : null}
-        </div>
-        <div className="t-prose mt-[2px] text-ink">
+        {/* No name over the reply: the pen rule says whose it is, as the
+            column's header and the pen everywhere else already do, and a
+            name on every turn was a third of a short exchange's lines.
+            A screen reader still hears it. The time floats at the first
+            line's end, kept in the layout and shown only under the
+            pointer or focus, so the prose never reflows as it appears. */}
+        <span className="sr-only">{name}</span>
+        <span className="nx-turn-time t-meta tnum" data-testid="turn-time">
+          {new Date(item.at).toLocaleTimeString([], {
+            hour: "2-digit",
+            minute: "2-digit",
+          })}
+        </span>
+        <div className="t-prose text-ink">
           <Prose text={item.text} />
           {item.streaming ? (
             <span

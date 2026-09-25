@@ -24,14 +24,13 @@ things go to be forgotten rather than a list anybody reads.
 
 ## In hand
 
-Nothing. The run of 24 September 2026, the roadmap, the rest of the
-backlog and comments, closed at 3.17.4; its tracker page is
-https://claude.ai/artifact/7LzPbY8jvhfg3xSbAMqMwY. What it left is below:
-six rare browser flakes, named with the traces read, and the OpenAI
-provider against OpenAI itself. The laptop leg ran in full: a sleep and
-a restart survived and named, a MiKTeX build with a bibliography, the
-Install button on MiKTeX, and comments made, answered, resolved and
-deleted between this host and the laptop over a real share.
+Nothing. The pass after Opus 5.5 closed at 3.18.0 on 24 September 2026;
+its tracker page is https://claude.ai/artifact/SqdkLWZHqSaMBS5nvKCRtF.
+It left nothing new in the backlog. The run before it, the roadmap, the
+rest of the backlog and comments, closed at 3.17.4; its tracker page is
+https://claude.ai/artifact/7LzPbY8jvhfg3xSbAMqMwY. What that one left is
+below: six rare browser flakes, named with the traces read, and the
+OpenAI provider against OpenAI itself.
 
 ## Backlog
 

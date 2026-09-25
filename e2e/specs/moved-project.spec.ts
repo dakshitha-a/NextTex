@@ -20,8 +20,13 @@ test("a folder that is gone is reported, and the entry can be put in the trash a
     timeout: 20_000,
   });
 
-  // A missing folder's row keeps its actions shown; Trash needs no
+  // A missing folder's row keeps its actions shown; its More menu has
+  // nothing to download, only Archive and the trash; the trash needs no
   // confirm, and Delete in the trash is what Remove was.
+  await page.getByTestId("row-more").click();
+  await expect(page.getByTestId("row-menu").getByRole("menuitem")).toHaveText([
+    "Archive", "Move to the trash",
+  ]);
   await page.getByTestId("row-trash").click();
   await expect(page.getByText("This folder is no longer there.")).toHaveCount(0);
   await page.getByTestId("view-trash").click();

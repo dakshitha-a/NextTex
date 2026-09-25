@@ -518,6 +518,24 @@ const SURFACES: Record<string, Surface> = {
       await tab.locator(".cm-editor").waitFor({ timeout: 30_000 });
     },
   },
+  "projects-row-more": {
+    // A row under the pointer with its two actions, Share and More, and
+    // More's menu open: the downloads, Archive, and the trash last.
+    open: async (tab) => {
+      await tab.getByTestId("switch-project").click();
+      await tab.getByText("Projects", { exact: true }).waitFor();
+      const row = tab.getByTestId("project-row").first();
+      await row.hover();
+      await row.getByTestId("row-more").click();
+      await tab.getByTestId("row-menu").waitFor();
+      return tab.locator(".nx-projects");
+    },
+    close: async (tab) => {
+      await escape(tab);
+      await tab.getByTestId("project-row").first().click();
+      await tab.locator(".cm-editor").waitFor({ timeout: 30_000 });
+    },
+  },
   "projects-new": {
     open: async (tab) => {
       await tab.getByTestId("switch-project").click();

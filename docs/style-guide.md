@@ -50,7 +50,7 @@ surface moves the inks with it, so that `--ink-3` keeps 4.5:1 on
 | `--surface-3` | the deepest step, a segmented control's track |
 | `--ink`, `--ink-2`, `--ink-3` | text and glyphs, in three weights of attention; on `--surround` only the first two, since the third does not clear 4.5:1 on the light theme's frame |
 | `--pen`, `--on-pen`, `--pen-wash` | the agent, and only the agent: its turns, its diff chips, the tab it is editing, the one filled button that sends or confirms |
-| `--hint`, `--hint-wash` | focus rings, the chosen radio, a completion's match, "safe and interactive" |
+| `--hint`, `--hint-wash` | focus rings, the chosen radio, a completion's match, where a drop will land, "safe and interactive" |
 | `--warn`, `--error`, `--ok` | states: a missing folder, a failed build, a connected peer |
 | `--line` | the one hairline, where an edge is information |
 | `--wash` | what a row, a menu item or a bar button takes under the pointer or when chosen |
@@ -92,6 +92,7 @@ Size, one scale:
 | `--nx-radius-sheet` | 12 px | sheets |
 | `--nx-control` | 28 px | a button |
 | `--nx-row` | 32 px | a row, a field, a member line |
+| `--nx-list-width` | 1040 px | the widest a list read across may run, centred on a wide window: the projects screen's head and rows |
 
 Spacing is a 4 px grid: 12 px gutters inside a drawer, 16 px inside a
 pane, 8 px between a row's parts, 6 px between a foot's buttons.
@@ -189,6 +190,13 @@ else.
   its top edge, nearest the text.
 - A second press on the active bar icon folds the drawer; the drawer
   swap is a cut.
+- A reply in the Claude column is marked by its pen rule alone, with no
+  name over it; its time sits at the end of its first line, in the
+  layout at rest, and shows under the pointer or with focus, so nothing
+  reflows when it appears. The name is in the DOM for a screen reader.
+- A sentence that teaches a gesture waits for the gesture: the Files
+  drawer's drop sentence shows while files are dragged over the window,
+  not at rest. A count or a cost that is zero is not written.
 - The pen marks what the agent touched and nothing else. A 2 px pen rule
   along the top of a tab's block means Claude is editing that file now.
 - A tab strip is on the band, and the open tab is the pane's block: the

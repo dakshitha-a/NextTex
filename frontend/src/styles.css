@@ -242,6 +242,9 @@
   --nx-radius-sheet: 12px;
   --nx-control: 28px;
   --nx-row: 32px;
+  /* The widest a list of things to read across may run: the projects
+     screen's head and rows keep to it, centred, on a wide window. */
+  --nx-list-width: 1040px;
 }
 
 /* The dark palette is declared once.  There used to be a second copy under
@@ -1170,11 +1173,12 @@ input, textarea { font: inherit; color: inherit; background: transparent; }
 
 /* The end of a project row: one slot, two things in it.  At rest it says
    when the project was last opened; pointed at, or holding focus, it is
-   Zip, PDF and Remove instead.  The two share a grid cell so the slot is
+   Share and More instead, the rest being in More's menu.  The two share a grid cell so the slot is
    as wide as the buttons and nothing moves when they swap.  Twelve rows
    of three bordered buttons were the loudest thing on the screen.  The
    buttons stay in the DOM and the tab order; a row says `data-always`
-   when they are its whole point (a missing folder, a PDF typesetting), and
+   when they are its whole point (a missing folder, a PDF typesetting, its
+   More menu open), and
    a screen with nothing to point with lays both out side by side. */
 .nx-row-tail { display: grid; align-items: center; }
 .nx-row-tail > * { grid-area: 1 / 1; justify-self: end; }
@@ -1249,8 +1253,13 @@ input, textarea { font: inherit; color: inherit; background: transparent; }
 .nx-projects-find { width: 300px; max-width: 100%; height: var(--nx-row); background: var(--surface); }
 /* The rows run the width the head runs, so the actions on a hovered row
    sit under New project rather than stopping short of it: the 880 px cap
-   the rail-and-list screen had on its rows outlived the rail by a push. */
+   the rail-and-list screen had on its rows outlived the rail by a push.
+   Both keep to one centred column of `--nx-list-width` on a wide window,
+   so a row on an ultrawide screen is not read across two thousand pixels;
+   the list itself stays full width, so it scrolls at the window's edge. */
 .nx-projects-list { overflow-y: auto; padding: 0 40px 24px; }
+.nx-projects-head { width: 100%; max-width: calc(var(--nx-list-width) + 80px); margin-inline: auto; }
+.nx-projects-list > * { max-width: var(--nx-list-width); margin-inline: auto; }
 .nx-projects-line { display: flex; align-items: center; gap: 14px; padding: 8px 12px 6px; color: var(--ink-3); font-size: 13px; }
 .nx-project-card {
   display: grid; grid-template-columns: minmax(0, 1fr) auto; grid-template-areas: "name tail" "where tail" "form form";
@@ -1527,7 +1536,12 @@ button.nx-row { width: 100%; text-align: left; }
 .nx-row:hover, .nx-row:focus-within { background: var(--wash); }
 .nx-row[data-selected] { background: var(--wash); color: var(--ink); }
 /* A row something is being dragged over: the pen wash, over the hover's. */
-.nx-row[data-drop] { background: var(--pen-wash); }
+/* Where a drop lands: the hint, which the guide gives what is safe and
+   interactive; the pen means the agent and nothing else. While files from
+   outside are over the window the whole tree lights, its edge in the hint
+   since there the edge says where they will go. */
+.nx-row[data-drop] { background: var(--hint-wash); }
+.nx-tree-dropping { background: var(--hint-wash); box-shadow: inset 0 0 0 1.5px var(--hint); border-radius: var(--nx-radius-card); }
 .nx-row[data-selected] > svg { color: var(--ink); }
 .nx-row-trailing { display: none; align-items: center; gap: 2px; margin-left: auto; color: var(--ink-3); font-size: 12px; }
 .nx-row:hover .nx-row-trailing, .nx-row:focus-within .nx-row-trailing, .nx-row-trailing-always { display: inline-flex; }
@@ -1678,7 +1692,11 @@ button.nx-reads-x[data-always]:hover { color: var(--pen); }
 .nx-tool-run > button:hover { color: var(--ink-2); }
 .nx-tool-run .nx-tool-line .t-code-sm { color: var(--ink-2); font-size: 12px; }
 .nx-turn { border-left: 2px solid var(--pen); padding-left: 12px; }
-.nx-turn-who { display: flex; color: var(--pen); font-size: 12px; line-height: 16px; }
+/* A reply's time: at the end of its first line, in the layout at rest so
+   nothing moves when it shows, visible under the pointer or with focus. */
+.nx-turn-time { float: right; margin-left: 8px; line-height: 24px; color: var(--ink-3); visibility: hidden; }
+.nx-turn-wrap:hover .nx-turn-time, .nx-turn-wrap:focus-within .nx-turn-time { visibility: visible; }
+@media (hover: none) { .nx-turn-time { visibility: visible; } }
 .nx-diff {
   display: inline-flex; align-items: center; gap: 8px; height: 28px; max-width: 100%;
   margin-top: 4px; padding: 0 10px; border-radius: var(--nx-radius-control);

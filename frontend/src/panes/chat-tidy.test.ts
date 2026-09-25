@@ -1,5 +1,5 @@
-import { describe, expect, test } from "vitest";
-import { tidy } from "./Chat";
+import { describe, expect, it, test } from "vitest";
+import { tally, tidy } from "./Chat";
 import type { ChatItem } from "../store";
 
 /** What the conversation shows, out of what the agent actually did.
@@ -198,5 +198,16 @@ describe("a card and the call it is about", () => {
   test("a card from before the pairing existed is left alone", () => {
     const out = tidy([call, card({ toolId: "", decision: "allow" })] as never);
     expect(out).toHaveLength(2);
+  });
+});
+
+describe("the Claude column's foot", () => {
+  it("says nothing about cost before the first turn", () => {
+    expect(tally(undefined)).toBe("");
+    expect(tally({ turns: 0, costUsd: 0 })).toBe("");
+  });
+  it("counts turns and money once there are some", () => {
+    expect(tally({ turns: 1, costUsd: 0.081 })).toBe("1 turn, $0.08");
+    expect(tally({ turns: 12, costUsd: 0.42 })).toBe("12 turns, $0.42");
   });
 });

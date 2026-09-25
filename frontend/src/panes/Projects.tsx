@@ -12,12 +12,12 @@ import PasswordNudge from "./PasswordNudge";
 import InstanceBadge from "./InstanceBadge";
 import { Button, IconButton } from "../ui/Button";
 import { Empty, Field, Heading, Kbd, Segmented } from "../ui/controls";
-import { Menu, MenuItem } from "../ui/Menu";
+import { Menu, MenuDivider, MenuItem } from "../ui/Menu";
 import { Sheet } from "../ui/Sheet";
 import {
-  ChevronDownIcon, HelpIcon, PlusIcon, ReportIcon, SearchIcon, ShareIcon, SparkIcon, UpdateIcon,
+  ChevronDownIcon, HelpIcon, MoreIcon, PlusIcon, ReportIcon, SearchIcon, ShareIcon, SparkIcon, UpdateIcon,
 } from "../ui/icons";
-import type { Wanted } from "../place-menu";
+import { under, type Wanted } from "../place-menu";
 import { toShell } from "../viewport";
 import type { UpdateState } from "./UpdateFooter";
 import { agentName } from "../agent-name";
@@ -140,6 +140,11 @@ export default function Projects({
     const box = waysButton.current?.getBoundingClientRect();
     if (box) setWaysAt({ left: toShell(box.right) - 280, top: toShell(box.bottom) + 4, flip: toShell(box.top) - 4 });
   }, [waysOpen]);
+  /** The row whose More menu is open, and where the menu goes.  The row
+   *  shows Share and More under the pointer; the downloads and the ways of
+   *  putting a project away, used rarely, are in the menu. */
+  const [more, setMore] = useState<{ id: string; at: Wanted | null } | null>(null);
+  const moreButton = useRef<HTMLElement | null>(null);
   /** Which way in the sheet is open for, or none. */
   const [way, setWay] = useState<Way | null>(null);
   const mode: Way = way ?? "create";
@@ -1003,9 +1008,15 @@ export default function Projects({
                 <div
                   className="nx-row-actions flex items-center gap-[2px]"
                   data-testid="row-actions"
-                  data-always={project.missing || busy === project.id ? "" : undefined}
+                  data-always={
+                    project.missing || busy === project.id || more?.id === project.id ? "" : undefined
+                  }
                 >
-                  {view !== "trashed" ? (
+                  {/* Open only where a click on the row does not open it
+                      already: the archived view, whose rows open too but
+                      say so beside Restore. On the list the row is the
+                      way in, as the screen guide says. */}
+                  {view === "archived" ? (
                     <Button
                       size="inline"
                       disabled={locked || project.missing}
@@ -1015,31 +1026,20 @@ export default function Projects({
                       Open
                     </Button>
                   ) : null}
+                  {view === "active" && busy === project.id ? (
+                    <span className="t-meta px-[6px] text-ink-3" data-testid="row-typesetting">
+                      Typesetting
+                    </span>
+                  ) : null}
                   {view === "active" ? (
-                    <>
-                      <Button
-                        size="inline"
-                        disabled={locked || project.missing}
-                        data-testid="row-share"
-                        onClick={() => setSharing(project)}
-                      >
-                        Share
-                      </Button>
-                      <Button
-                        size="inline"
-                        disabled={locked || project.missing}
-                        onClick={() => void downloadZip(project.id, `${project.name}.zip`)}
-                      >
-                        Zip
-                      </Button>
-                      <Button
-                        size="inline"
-                        disabled={locked || project.missing || busy === project.id}
-                        onClick={() => takePdf(project)}
-                      >
-                        {busy === project.id ? "Typesetting" : "PDF"}
-                      </Button>
-                    </>
+                    <Button
+                      size="inline"
+                      disabled={locked || project.missing}
+                      data-testid="row-share"
+                      onClick={() => setSharing(project)}
+                    >
+                      Share
+                    </Button>
                   ) : null}
                   {/* The other way back for a shared project: the folder is
                       really gone, and the collaborators still have theirs. */}
@@ -1059,13 +1059,25 @@ export default function Projects({
                     </Button>
                   ) : null}
                   {view === "active" ? (
-                    <Button
-                      size="inline"
-                      data-testid="row-archive"
-                      onClick={() => setState(project, "archived")}
+                    <IconButton
+                      label="More"
+                      title="Download, archive or put in the trash"
+                      data-testid="row-more"
+                      aria-haspopup="menu"
+                      aria-expanded={more?.id === project.id}
+                      on={more?.id === project.id}
+                      disabled={locked}
+                      onClick={(event) => {
+                        if (more?.id === project.id) {
+                          setMore(null);
+                          return;
+                        }
+                        moreButton.current = event.currentTarget;
+                        setMore({ id: project.id, at: under(event.currentTarget, 220, "right") });
+                      }}
                     >
-                      Archive
-                    </Button>
+                      <MoreIcon size={16} />
+                    </IconButton>
                   ) : (
                     <Button
                       size="inline"
@@ -1075,7 +1087,7 @@ export default function Projects({
                       Restore
                     </Button>
                   )}
-                  {view !== "trashed" ? (
+                  {view === "archived" ? (
                     <Button
                       size="inline"
                       data-testid="row-trash"
@@ -1083,7 +1095,7 @@ export default function Projects({
                     >
                       Trash
                     </Button>
-                  ) : (
+                  ) : view === "trashed" ? (
                     <Button
                       size="inline"
                       className="!text-error"
@@ -1092,7 +1104,7 @@ export default function Projects({
                     >
                       Delete
                     </Button>
-                  )}
+                  ) : null}
                 </div>
               </div>
               )}
@@ -1332,6 +1344,54 @@ export default function Projects({
           )}
         </Sheet>
       ) : null}
+      {/* A row's More menu: the downloads, then Archive, then the trash
+          last after a rule, as every menu puts the destructive item.  A
+          project whose folder is missing has nothing to download, so the
+          downloads are not offered rather than offered and refused. */}
+      {(() => {
+        const project = more ? projects.find((entry) => entry.id === more.id) : undefined;
+        if (!more || !project) return null;
+        const act = (fn: () => void) => () => {
+          setMore(null);
+          fn();
+        };
+        return (
+          <Menu
+            open
+            wanted={more.at}
+            anchor={moreButton}
+            label={`More for ${project.name}`}
+            testid="row-menu"
+            width={220}
+            onClose={() => setMore(null)}
+          >
+            {!project.missing ? (
+              <>
+                <MenuItem
+                  data-testid="row-zip"
+                  onClick={act(() => void downloadZip(project.id, `${project.name}.zip`))}
+                >
+                  Download as a zip
+                </MenuItem>
+                <MenuItem
+                  data-testid="row-pdf"
+                  disabled={busy === project.id}
+                  onClick={act(() => void takePdf(project))}
+                >
+                  Download the PDF
+                </MenuItem>
+              </>
+            ) : null}
+            <MenuItem data-testid="row-archive" onClick={act(() => void setState(project, "archived"))}>
+              Archive
+            </MenuItem>
+            <MenuDivider />
+            <MenuItem danger data-testid="row-trash" onClick={act(() => void setState(project, "trashed"))}>
+              Move to the trash
+            </MenuItem>
+          </Menu>
+        );
+      })()}
       {/* Share from a row: the same sheet the workspace uses, over the list.
           The list is read again when it closes, so the row's mark says
           "shared" the moment it is. */}

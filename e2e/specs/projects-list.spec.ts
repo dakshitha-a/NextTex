@@ -104,10 +104,22 @@ test("a row says when it was opened, and its actions are there without a hover",
   const actions = row.getByTestId("row-actions");
   await expect(actions).toHaveCSS("opacity", "0");
   await page.mouse.move(0, 0);
-  await expect(actions.getByRole("button")).toHaveText([
-    "Open", "Share", "Zip", "PDF", "Archive", "Trash",
+  // Two things: Share, and More for the rest. Open is not among them,
+  // since a press anywhere on the row opens the project.
+  await expect(actions.getByRole("button")).toHaveText(["Share", ""]);
+  await expect(actions.getByRole("button", { name: "More" })).toBeVisible();
+  await actions.getByRole("button", { name: "More" }).click();
+  const menu = page.getByTestId("row-menu");
+  await expect(menu.getByRole("menuitem")).toHaveText([
+    "Download as a zip", "Download the PDF", "Archive", "Move to the trash",
   ]);
-  await actions.getByRole("button", { name: "Archive" }).click();
+  // The trash is last, after a rule, in the error ink.
+  await expect(menu.getByRole("separator")).toHaveCount(1);
+  await expect(menu.getByRole("menuitem", { name: "Move to the trash" })).toHaveAttribute("data-danger", "true");
+  // While the menu is open the row keeps its actions drawn.
+  await page.mouse.move(0, 0);
+  await expect(actions).toHaveCSS("opacity", "1");
+  await menu.getByRole("menuitem", { name: "Archive" }).click();
   // Archiving asks nothing: it is reversible.  The row leaves the list
   // and the quiet line under it says where it went.
   await expect(page.getByTestId("project-row")).toHaveCount(0);

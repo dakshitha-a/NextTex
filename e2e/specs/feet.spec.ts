@@ -93,9 +93,11 @@ test("every control in a foot sits on its strip's centre line", async ({ tab }) 
 });
 
 test("the Claude column's foot reads what the project has cost, and opens the breakdown", async ({ tab }) => {
-  // Nothing has been asked yet: no turns, nothing spent.
+  // Nothing has been asked yet, so the foot says nothing about cost: a
+  // "0 turns, $0.00" said nothing a writer needed. Usage is still there.
   const tally = tab.getByTestId("agent-tally");
-  await expect(tally).toHaveText(/^0 turns, \$0\.00$/, { timeout: 10_000 });
+  await expect(tab.getByTestId("usage-open")).toBeVisible({ timeout: 10_000 });
+  await expect(tally).toHaveText("");
   await ask(tab, "reply", "What does a label do?");
   await expect(tab.getByText(/A label attaches a name/)).toBeVisible({ timeout: 20_000 });
   // The sum follows the end of the turn.

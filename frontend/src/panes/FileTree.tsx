@@ -158,6 +158,43 @@ export default function FileTree({
     { parent: string; directory: boolean; fromBar?: boolean } | null
   >(null);
   const [dropTarget, setDropTarget] = useState<string | null>(null);
+  /** Whether files from outside the window are being dragged over it.
+   *  The sentence that says the tree takes a drop waits for this, rather
+   *  than sitting at the drawer's foot in every project for good, and the
+   *  tree lights as the place they will land.  Counted per enter and leave
+   *  on the window, since each child the pointer crosses fires its own
+   *  pair, and cleared by a drop or a drag's end anywhere. */
+  const [filesOver, setFilesOver] = useState(false);
+  useEffect(() => {
+    let depth = 0;
+    const external = (event: DragEvent) =>
+      !!event.dataTransfer && Array.from(event.dataTransfer.types).includes("Files")
+      && !Array.from(event.dataTransfer.types).includes(NX_PATH);
+    const onEnter = (event: DragEvent) => {
+      if (!external(event)) return;
+      depth += 1;
+      setFilesOver(true);
+    };
+    const onLeave = (event: DragEvent) => {
+      if (!external(event)) return;
+      depth = Math.max(0, depth - 1);
+      if (depth === 0) setFilesOver(false);
+    };
+    const onEnd = () => {
+      depth = 0;
+      setFilesOver(false);
+    };
+    window.addEventListener("dragenter", onEnter);
+    window.addEventListener("dragleave", onLeave);
+    window.addEventListener("drop", onEnd, true);
+    window.addEventListener("dragend", onEnd);
+    return () => {
+      window.removeEventListener("dragenter", onEnter);
+      window.removeEventListener("dragleave", onLeave);
+      window.removeEventListener("drop", onEnd, true);
+      window.removeEventListener("dragend", onEnd);
+    };
+  }, []);
   // The filter box is opened rather than always present: the rail is 240px
   // and the bar has three buttons in it already.
   const [searching, setSearching] = useState(false);
@@ -1071,7 +1108,7 @@ export default function FileTree({
           of files before them. A drag over the row lands at the root. */}
       <div
         className={`@container flex shrink-0 items-center gap-[2px] pb-[6px] pl-[14px] pr-2 pt-[10px] ${
-          dropTarget === ROOT_DROP ? "bg-pen-wash" : ""
+          dropTarget === ROOT_DROP ? "bg-hint-wash" : ""
         }`}
         onDragEnter={(event) => overDrag(event, null)}
         onDragOver={(event) => overDrag(event, null)}
@@ -1172,8 +1209,9 @@ export default function FileTree({
         </div>
       ) : null}
       <div
-        className="min-h-0 flex-1 overflow-auto px-2 py-[2px]"
+        className={`min-h-0 flex-1 overflow-auto px-2 py-[2px] ${filesOver ? "nx-tree-dropping" : ""}`}
         role="tree"
+        data-dropping={filesOver || undefined}
         onDragEnter={(event) => overDrag(event, null)}
         onDragOver={(event) => overDrag(event, null)}
         onDragLeave={(event) => leaveDrag(event, null)}
@@ -1219,7 +1257,11 @@ export default function FileTree({
       >
         {rows}
       </div>
-      <p className="nx-note shrink-0">Drop files here to add them to the project.</p>
+      {filesOver ? (
+        <p className="nx-note shrink-0" data-testid="drop-note">
+          Drop to add them to the project, or onto a folder to put them there.
+        </p>
+      ) : null}
       {/* Named, because it is no longer the only file input in the app: the
           agent panel has one for attaching an image, and a spec reaching
           for "the file input" was relying on there being exactly one, which

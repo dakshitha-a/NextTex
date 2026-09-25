@@ -30,9 +30,12 @@ test("Archive and Trash move a row to its view, Restore brings it back, and the 
   const rowNamed = (name: string) =>
     page.getByTestId("project-row").filter({ hasText: name });
   await rowNamed("aims").hover();
-  await rowNamed("aims").getByTestId("row-archive").click();
+  // Archive and the trash are in the row's More menu.
+  await rowNamed("aims").getByTestId("row-more").click();
+  await page.getByTestId("row-archive").click();
   await rowNamed("scratch").hover();
-  await rowNamed("scratch").getByTestId("row-trash").click();
+  await rowNamed("scratch").getByTestId("row-more").click();
+  await page.getByTestId("row-trash").click();
   await expect(page.getByTestId("project-row")).toHaveCount(1);
   await expect(page.getByTestId("project-count")).toHaveText("1 project");
   const under = page.getByTestId("projects-under");
@@ -93,7 +96,8 @@ test("Delete in the trash forgets the entry after asking, and Empty the trash fo
   for (const name of ["one", "two"]) {
     const row = page.getByTestId("project-row").filter({ hasText: name });
     await row.hover();
-    await row.getByTestId("row-trash").click();
+    await row.getByTestId("row-more").click();
+    await page.getByTestId("row-trash").click();
   }
   await page.getByTestId("view-trash").click();
   await expect(page.getByTestId("project-row")).toHaveCount(2);
@@ -132,7 +136,8 @@ test("opening an archived project makes it active again", async ({ app, page }) 
   await land(app, page);
   const row = page.getByTestId("project-row").first();
   await row.hover();
-  await row.getByTestId("row-archive").click();
+  await row.getByTestId("row-more").click();
+  await page.getByTestId("row-archive").click();
   await page.getByTestId("view-archived").click();
   await page.getByTestId("project-row").first().hover();
   await page.getByTestId("row-open").click();

@@ -30,6 +30,9 @@ async function clipped(page: Page): Promise<Fault[]> {
       if (!own) continue;
       const style = getComputedStyle(el);
       if (style.visibility === "hidden" || style.display === "none") continue;
+      // Text for a screen reader alone, the agent's name on a reply, is a
+      // 1 px box clipped to nothing on purpose: nobody is meant to see it.
+      if (style.position === "absolute" && el.clientWidth <= 1 && el.clientHeight <= 1) continue;
       const over = el.scrollWidth - el.clientWidth;
       if (over <= 1) continue;
       // Every honest way of being wider than your box.

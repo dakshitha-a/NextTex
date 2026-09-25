@@ -71,7 +71,7 @@ test("the screen guide names the list as it is and closes with Escape", async ({
   await expect(guide.getByText("This screen")).toBeVisible();
   const text = (await guide.innerText()) ?? "";
   for (const stale of STALE) expect(text, `the guide still says ${stale}`).not.toMatch(stale);
-  for (const fresh of [/New project/, /Other ways in/, /Archive/, /Trash/, /What writes with you/, /Settings/]) {
+  for (const fresh of [/New project/, /Other ways in/, /Archive/, /trash/i, /What writes with you/, /Settings/]) {
     expect(text, `the guide does not mention ${fresh}`).toMatch(fresh);
   }
   await page.keyboard.press("Escape");
