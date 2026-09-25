@@ -86,18 +86,16 @@ test("the word count stays on a 1440 pixel laptop, and the palette answers it", 
   });
 });
 
-test("what follows \\end{document} is dimmed, and resting on it says why", async ({ tab }) => {
+test("what follows \\end{document} is in the third ink, and a line says why", async ({ tab }) => {
   // Q-065.
   await readyMain(tab);
   await tab.locator(".cm-content").click();
   await tab.keyboard.press("Control+End");
   await tab.keyboard.type("\n\\section{Outlook}");
-  const ignored = tab.locator(".cm-content .nx-after-end").first();
-  await expect(ignored).toBeVisible({ timeout: 10_000 });
-  await ignored.hover();
-  await expect(tab.getByTestId("after-end-card")).toContainText("TeX ignores everything after \\end{document}", {
-    timeout: 5_000,
-  });
+  await expect(tab.locator(".cm-content .nx-after-end").first()).toBeVisible({ timeout: 10_000 });
+  await expect(tab.getByTestId("after-end-note")).toHaveText(
+    "TeX ignores everything below \\end{document}. Move these lines above it to have them typeset.",
+  );
 });
 
 test("renaming a chapter offers to change what names it, once, in the row", async ({ tab, project }) => {

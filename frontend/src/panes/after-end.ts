@@ -3,20 +3,14 @@
  *  TeX stops at `\end{document}` and ignores the rest without a word, so
  *  a section typed below it builds cleanly and appears nowhere. The probe
  *  of September 2026 made exactly that slip on its first writer journey,
- *  as the review before it had (Q-065). The rest of the file is drawn
- *  dimmed, and resting on it says why, in the editor's hover card.
+ *  as the review before it had (Q-065). The rest of the file is drawn in
+ *  the third ink, and one quiet line under `\end{document}` says why. It
+ *  was a hover card first, as the direction page drew it; a card there
+ *  opened beside the reference and formula cards over the same text, so
+ *  the sentence is a line of its own that nothing can cover.
  */
-import { RangeSetBuilder, type Extension } from "@codemirror/state";
-import {
-  Decoration,
-  type DecorationSet,
-  EditorView,
-  ViewPlugin,
-  type ViewUpdate,
-  type Tooltip,
-} from "@codemirror/view";
-import { hoverCard } from "./hover-card";
-import { shellTheme } from "../ui/FloatingCard";
+import { RangeSetBuilder, StateField, type Extension } from "@codemirror/state";
+import { Decoration, type DecorationSet, EditorView, WidgetType } from "@codemirror/view";
 
 /** Where the ignored text begins: just after the first `\end{document}`
  *  that is not in a comment, or -1 when there is none or nothing after
@@ -35,53 +29,49 @@ export function ignoredFrom(text: string): number {
   return -1;
 }
 
-const dim = Decoration.mark({ class: "nx-after-end" });
+class Note extends WidgetType {
+  eq() {
+    return true;
+  }
+  toDOM() {
+    const line = document.createElement("div");
+    line.className = "nx-after-end-note";
+    line.dataset.testid = "after-end-note";
+    line.textContent = "TeX ignores everything below \\end{document}. Move these lines above it to have them typeset.";
+    return line;
+  }
+  ignoreEvent() {
+    return true;
+  }
+}
 
-const marks = ViewPlugin.fromClass(
-  class {
-    decorations: DecorationSet;
-    constructor(view: EditorView) {
-      this.decorations = this.build(view);
-    }
-    update(update: ViewUpdate) {
-      if (update.docChanged) this.decorations = this.build(update.view);
-    }
-    build(view: EditorView): DecorationSet {
-      const builder = new RangeSetBuilder<Decoration>();
-      const text = view.state.doc.toString();
-      const from = ignoredFrom(text);
-      if (from >= 0) builder.add(from, text.length, dim);
-      return builder.finish();
-    }
-  },
-  { decorations: (plugin) => plugin.decorations },
-);
+const faint = Decoration.mark({ class: "nx-after-end" });
 
-const explain = hoverCard((view, pos): Tooltip | null => {
-  const text = view.state.doc.toString();
+function build(text: string, lineEnd: (at: number) => number): DecorationSet {
+  const builder = new RangeSetBuilder<Decoration>();
   const from = ignoredFrom(text);
-  if (from < 0 || pos < from) return null;
-  return {
-    pos: from,
-    end: text.length,
-    create() {
-      const dom = document.createElement("div");
-      dom.className = `nx-card nx-after-end-card ${shellTheme()}`;
-      dom.dataset.testid = "after-end-card";
-      // One paragraph, so the words and the command flow as a sentence;
-      // the card stacks its children.
-      const said = document.createElement("p");
-      said.style.margin = "0";
-      said.append("TeX ignores everything after ");
-      const code = document.createElement("code");
-      code.textContent = "\\end{document}";
-      said.append(code, ". Move these lines above it to have them typeset.");
-      dom.append(said);
-      return { dom };
-    },
-  };
+  if (from >= 0) {
+    // The note under the line that ends the document, then the rest in
+    // the third ink.
+    const end = lineEnd(from);
+    builder.add(end, end, Decoration.widget({ widget: new Note(), side: 1, block: true }));
+    if (end < text.length) builder.add(end, text.length, faint);
+  }
+  return builder.finish();
+}
+
+/** A state field rather than a view plugin, since CodeMirror takes a block
+ *  widget, the note's own line, only from state. */
+const marks = StateField.define<DecorationSet>({
+  create: (state) => build(state.doc.toString(), (at) => state.doc.lineAt(at).to),
+  update(value, tr) {
+    if (!tr.docChanged) return value;
+    const doc = tr.state.doc;
+    return build(doc.toString(), (at) => doc.lineAt(at).to);
+  },
+  provide: (field) => EditorView.decorations.from(field),
 });
 
 export function afterEndOfDocument(): Extension {
-  return [marks, explain];
+  return marks;
 }

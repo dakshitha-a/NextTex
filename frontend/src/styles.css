@@ -2118,11 +2118,12 @@ button.nx-reads-x[data-always]:hover { color: var(--pen); }
 .nx-hover-card[data-side="below"] .nx-link-verbs { order: -1; padding-top: 0; padding-bottom: 6px; }
 /* The kit's card, in the shell's palette (math-hover.ts adds both classes),
    so a card over a white page under a dark shell is the shell's. */
-/* What TeX never reads, after \end{document}: the text at half strength,
-   and a card that says why when the pointer rests on it (Q-065). */
-.nx-after-end { opacity: 0.5; }
-.nx-after-end-card { max-width: 320px; padding: 10px 12px; font-size: 13px; line-height: 18px; color: var(--ink); }
-.nx-after-end-card code { font-family: var(--font-mono); font-size: 12.5px; }
+/* What TeX never reads, after \end{document}: the text in the third ink,
+   whatever its syntax colour, and a line under \end{document} that says
+   why (Q-065). The third ink keeps it readable, which half strength did
+   not: the contrast sweep measured it under 4.5:1. */
+.nx-after-end, .nx-after-end * { color: var(--ink-3) !important; }
+.nx-after-end-note { padding: 2px 0 6px; font-family: var(--font-sans); font-size: 12.5px; line-height: 17px; color: var(--ink-3); }
 .nx-math-tooltip {
   max-width: 480px;
   color: var(--ink);

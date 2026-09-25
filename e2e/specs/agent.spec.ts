@@ -925,24 +925,26 @@ test("the permission menu marks its position the way the model menu does", async
   await tab.getByTestId("model-open").click();
   await expect(tab.getByTestId("mode-menu")).toBeVisible();
 
-  // The dot is the kit's: a ::before on the item, filled when the item is
-  // aria-checked, so it is read from the pseudo-element rather than a span.
-  const filled = async (option: string) => {
+  // The mark is the kit's: a ring on every choice, drawn by a ::before,
+  // and filled in the hint on the chosen one (Q-059, as the direction page
+  // draws it), so it is read from the pseudo-element's inset shadow.
+  const ring = async (option: string) => {
     const item = tab.getByTestId(`mode-${option}`);
-    return item.evaluate((node) => getComputedStyle(node, "::before").backgroundColor);
+    return item.evaluate((node) => getComputedStyle(node, "::before").boxShadow);
   };
 
-  // "ask" is where a project starts.
-  const chosen = await filled("ask");
-  expect(chosen).not.toBe("rgba(0, 0, 0, 0)");
-  expect(await filled("project")).toBe("rgba(0, 0, 0, 0)");
-  expect(await filled("all")).toBe("rgba(0, 0, 0, 0)");
+  // "ask" is where a project starts: filled, and the others rings alike.
+  const chosen = await ring("ask");
+  const open = await ring("project");
+  expect(open).toContain("inset");
+  expect(chosen).not.toBe(open);
+  expect(await ring("all")).toBe(open);
 
   // And it follows the choice.
   await tab.getByTestId("mode-project").click();
   await tab.getByTestId("model-open").click();
-  expect(await filled("project")).toBe(chosen);
-  expect(await filled("ask")).toBe("rgba(0, 0, 0, 0)");
+  expect(await ring("project")).toBe(chosen);
+  expect(await ring("ask")).toBe(open);
 });
 
 test("a code block in an answer can be copied", async ({ tab, context }) => {

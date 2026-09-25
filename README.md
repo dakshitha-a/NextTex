@@ -1560,8 +1560,8 @@ Renaming or moving a chapter or a figure in the Files drawer asks, once,
 under the row, whether to change the `\input`, `\include`,
 `\includegraphics` or bibliography lines that name it, and changes them the
 way F2 renames a label, with a version for each file. Anything typed after
-`\end{document}` is drawn faintly, since TeX never reads it, and resting
-the pointer on it says so.
+`\end{document}` is drawn in grey, since TeX never reads it, with a line
+under `\end{document}` saying so.
 
 Everything NextTex adds lives in one directory beside your files, and none of
 it is needed to compile:

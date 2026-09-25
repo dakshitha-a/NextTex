@@ -111,10 +111,11 @@ test("the invite box and the folder beneath it are one pair", async ({
     const field = [...root.querySelectorAll<HTMLInputElement>("input")].find(
       (el) => (el.placeholder ?? "").includes("A folder to put it in"),
     )!.closest(".nx-field")!;
-    const browse = root.querySelector<HTMLElement>('[data-testid="browse-folder"]')!;
     const a = area.getBoundingClientRect();
     const b = field.getBoundingClientRect();
-    const c = browse.getBoundingClientRect();
+    // Browse is inside the field since Q-058, so the row ends where the
+    // field does.
+    const c = b;
     return {
       sameLeft: Math.round(a.x) === Math.round(b.x),
       sameRight: Math.round(a.right) === Math.round(c.right),
@@ -125,7 +126,7 @@ test("the invite box and the folder beneath it are one pair", async ({
 
   // One left edge and one right edge: they are two halves of one answer,
   // not two controls that happen to be near each other.  The folder's row
-  // ends in Browse, so the right edge is the button's.
+  // is one field with Browse inside it, so the right edge is the field's.
   expect(measured.sameLeft, "the two boxes do not share a left edge").toBe(true);
   expect(measured.sameRight, "the folder's row does not end where the invite does").toBe(true);
   // The path is one line and the invite is a paste target, so they are not

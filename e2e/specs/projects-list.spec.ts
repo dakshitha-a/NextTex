@@ -111,7 +111,7 @@ test("a row says when it was opened, and its actions are there without a hover",
   await actions.getByRole("button", { name: "More" }).click();
   const menu = page.getByTestId("row-menu");
   await expect(menu.getByRole("menuitem")).toHaveText([
-    "Download as a zip", "Download the PDF", "Archive", "Move to the trash",
+    "Download as a zip", "Download the PDF", "Duplicate", "Archive", "Move to the trash",
   ]);
   // The trash is last, after a rule, in the error ink.
   await expect(menu.getByRole("separator")).toHaveCount(1);

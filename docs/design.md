@@ -10874,9 +10874,13 @@ figures" under its title when a drop chose the folder.
 On a narrow source pane the strip drops the caret's line and column
 before the word count, and the palette's "Word count" answers in a notice,
 "4,210 words in the document, 1,204 of them in main.tex." Text after
-`\end{document}` is drawn at half strength, and resting on it opens a
-card: "TeX ignores everything after \end{document}. Move these lines
-above it to have them typeset."
+`\end{document}` is drawn in the third ink whatever its syntax colour,
+and a line under `\end{document}`, in the interface face and the third
+ink, says "TeX ignores everything below \end{document}. Move these lines
+above it to have them typeset." It was drawn as a hover card and built as
+one first; the card opened beside the reference and formula cards over
+the same text, and half strength measured under 4.5:1, so the full check
+sent it back.
 
 After a rename or a move in the Files drawer, a block under the row asks
 "1 file names chapters/one.tex. Change it to chapters/intro.tex?" with
