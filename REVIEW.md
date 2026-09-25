@@ -883,7 +883,9 @@ runs. One was a real README assertion, fixed the same day. The other two
 are tests that depend on timing. One expects three saves made in a row to
 fall into one history event, and on the runner of 23 September they fell
 into two. The other sleeps 0.4 seconds and then asserts that a file was
-not asked for again. Neither is on the tracker's list of flaky tests,
+not asked for again. The first failed once more during this probe, on 25
+September, in run 36100772138, on a commit that changed only `REVIEW.md`
+and a review driver. Neither is on the tracker's list of flaky tests,
 which names only browser tests, and neither has been changed since.
 
 *What should happen:* each waits on the event it means rather than on the
@@ -1428,39 +1430,58 @@ with a hover that says TeX ignores it.
 
 *Size:* small. *Version:* y.
 
-### Q-066 · Preview · bug · medium · likely
+### Q-066 · Preview · bug · high · confirmed
 
-*Found by:* the writer journey, three runs out of three.
-*Where:* `frontend/src/panes/pdf-absence.ts:48`, the empty state at
-`frontend/src/panes/Pdf.tsx:1470`.
+*Found by:* the writer journey, three runs out of three, then the same
+journey with the file on disk, the PDF route and the last build logged at
+every step. *Where:* the build writing straight into `build/main.pdf` in
+`nexttex/compile.py`, and the empty state at
+`frontend/src/panes/pdf-absence.ts:48` and `frontend/src/panes/Pdf.tsx:1470`.
 
-*What happens:* after the journey's seventh step the preview replaced the
-article's two typeset pages with "Nothing has been typeset yet. An empty
-document produces no pages", and a button offering a basic document, while
-the strip said "3 errors" and the page counter still said "of 2". The
-Download drawer called the build "build failed", which is its word for a
-build that ended with no PDF. `absenceFrom` reads a missing PDF after a
-finished build as an empty document, which is the false statement its own
-comment says it was written to stop making. The last good pages are gone
-from the pane at the moment the writer most needs them. The button is
-safe, since the server refuses to put a template over a document with
-anything in it, but it is offered.
+*What happens:* the journey left a `\ref{` without its closing brace, the
+most ordinary of typing slips, which Q-068 makes easy. pdfTeX stopped with
+"File ended while scanning use of \T@ref", "Emergency stop" and "Fatal
+error occurred, no output PDF file produced!", and in doing so it removed
+`main.pdf`. The logged state goes from `main.pdf 230839 bytes, the route
+200` at one step to `main.pdf absent, the route 404` at the next. NextTex
+builds into the one file the preview serves and keeps no copy of the last
+good one, so the preview lost the article's two typeset pages. With the
+PDF gone after a finished build, `absenceFrom` answers "empty", and the
+pane told the writer "Nothing has been typeset yet. An empty document
+produces no pages" and offered a basic document, beside a strip saying "3
+errors" and a page counter still saying "of 2". The offer is safe, since
+the server refuses to put a template over a document with anything in
+it, but the statement is false, and the pages are gone until the brace is
+found. A build with errors that are not fatal keeps its PDF, which is why
+a cleaner reproduction first missed it.
 
-A cleaner reproduction did not reach it: a build with the same three
-errors, driven through the route and in a browser, kept its PDF. The
-journey differs in its sixth and seventh steps, a stalled click and a
-search word typed into the document by Q-067, so some sequence of builds
-leaves no PDF on disk, and which step removes it is not pinned.
-
-*What should happen:* a build that fails keeps the last good pages on
-screen with the errors beside them, and the pane never says a document is
-empty when its last build failed.
+*What should happen:* the last good PDF is kept, for example by building
+to a scratch name and moving it over only when a PDF was written, and the
+preview shows it, marked as out of date, with the errors beside it. The
+pane never calls a document empty after a build that failed.
 
 *How to reach it again:* `e2e/review/q-journey.spec.ts`, whose log prints
-the preview's state at each step; `e2e/review/q066-failed-build-preview.spec.ts`
-is the cleaner attempt that did not reach it.
+the file, the route and the build at each step, and on the first step that
+finds the PDF gone, the end of `main.tex` and the log's fatal lines.
 
 *Size:* medium. *Version:* z.
+
+### Q-068 · Editor · comfort · medium · confirmed
+
+*Found by:* the writer journey, then `e2e/review/q068-ref-completion-brace.spec.ts`.
+*Where:* the editor's completion, `frontend/src/panes/latex-complete.ts`.
+
+*What happens:* typing `\ref{` leaves no closing brace, and accepting a
+label from the completion list inserts the label and nothing after it, so
+`See Section~\ref{sec:introduction` is what the writer has, and whatever
+they type next goes inside the argument. An unclosed brace in a reference
+is a fatal error, and by Q-066 it costs the preview its pages.
+
+*What should happen:* accepting a label, a citation key or a file name
+inside braces closes the brace when it is not already closed, and puts the
+cursor after it.
+
+*Size:* small. *Version:* z.
 
 ### Q-067 · Editor · bug · medium · confirmed
 

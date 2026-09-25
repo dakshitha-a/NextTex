@@ -1,6 +1,7 @@
 import { test } from "../fixtures";
 import type { Page } from "@playwright/test";
-import { mkdirSync } from "node:fs";
+import { existsSync, mkdirSync, readFileSync, statSync } from "node:fs";
+import { watchEvents, type Watch } from "../events";
 import { join } from "node:path";
 
 /** Phase 5 of the September 2026 probe: a stretch of ordinary writing.
@@ -13,6 +14,29 @@ import { join } from "node:path";
 const OUT = process.env.NEXTTEX_JOURNEY_DIR ?? join(process.cwd(), "shots", "journey");
 mkdirSync(OUT, { recursive: true });
 
+let watch: Watch | null = null;
+let where: { base: string; token: string; id: string; root: string } | null = null;
+
+async function probe(name: string) {
+  if (!where) return;
+  const pdf = join(where.root, "build", "main.pdf");
+  const onDisk = existsSync(pdf) ? `${statSync(pdf).size} bytes` : "absent";
+  const route = (await fetch(`${where.base}/api/projects/${where.id}/pdf`, {
+    headers: { "x-nexttex-token": where.token } })).status;
+  const done = (watch?.payloads ?? []).filter((e) => e.type === "compile_done").pop() as
+    Record<string, unknown> | undefined;
+  if (onDisk === "absent" && !process.env.Q_SAID) {
+    process.env.Q_SAID = "1";
+    const tex = readFileSync(join(where.root, "main.tex"), "utf8").split("\n").slice(-10).join("\n");
+    const logPath = join(where.root, "build", "main.log");
+    const log = existsSync(logPath) ? readFileSync(logPath, "latin1").split("\n")
+      .filter((l) => l.startsWith("!") || /no pages|No pages|Emergency|Fatal/.test(l)).slice(0, 8).join("\n") : "no log";
+    console.log(`MAIN.TEX ENDS:\n${tex}\nTHE LOG:\n${log}`);
+  }
+  console.log(`     ${name}: main.pdf ${onDisk}, the route ${route}, last build ` +
+    `${done ? `${done.outcome} ${done.engine_pass ?? ""} pdf=${done.pdf ?? "none"} scope=${done.scope}` : "none"}`);
+}
+
 async function step(page: Page, name: string, act: () => Promise<unknown>) {
   const t = Date.now();
   try {
@@ -23,6 +47,7 @@ async function step(page: Page, name: string, act: () => Promise<unknown>) {
   }
   const empty = await page.getByText("Nothing has been typeset yet.").isVisible().catch(() => false);
   if (empty) console.log(`     ${name}: the preview says nothing has been typeset`);
+  await probe(name);
   await page.screenshot({ path: join(OUT, `${name}.png`) });
 }
 
@@ -41,6 +66,12 @@ test("a week of a paper, in one sitting", async ({ app, page }) => {
     await page.locator(".nx-page").first().waitFor({ timeout: 60_000 });
   });
 
+  {
+    const list = await (await fetch(`${app.base}/api/projects`, { headers: { "x-nexttex-token": app.token } })).json();
+    const entry = (list.projects ?? list).find((p: { path: string }) => p.path.endsWith("solvent-paper"));
+    where = { base: app.base, token: app.token, id: entry.id, root: entry.path };
+    watch = await watchEvents(app, entry.id);
+  }
   const editor = page.locator(".cm-content").first();
   await step(page, "02-write-a-section", async () => {
     await editor.click();
@@ -92,6 +123,8 @@ test("a week of a paper, in one sitting", async ({ app, page }) => {
     await page.waitForTimeout(800);
   });
 
+  watch?.stop();
+  if (process.env.Q_JOURNEY_FULL !== "1") return;
   await step(page, "10-new-application", async () => {
     await page.goto(`${app.base}/?token=${app.token}`);
     await page.getByText("Projects", { exact: false }).first().waitFor();
