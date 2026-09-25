@@ -993,7 +993,8 @@ makes its state folder at import and never removes it, so every Python run
 leaves one; the papers spec names its folders by the time and does not
 remove them. The browser harness removes its sandbox in `stop()`, so its
 leftovers are likely the runs that ended without reaching it, the review
-drivers among them. The probe removed the eight its own drivers made.
+drivers among them. The probe removed every folder made during its own
+run, 41 of them, and left the older ones.
 
 *What should happen:* each suite removes what it makes, through pytest's
 `tmp_path` or a session finaliser, and the papers spec through its own
@@ -1672,6 +1673,11 @@ looked at as hard as anything above and held.
   file changed on disk is sound.
 - **The install workflow** passed against master when dispatched, on
   every platform it covers.
+- **The benchmarks,** run at the close on an idle machine, are all within
+  budget, and near the README's measured column: a chapter build 359 ms
+  against 343, a full build 19.2 s against 17.9, the symbol scan 22.5 ms
+  against 17.9, opening a project 32 ms against 20, the bundle 861.0 kB
+  exactly.
 
 ## Unverifiable here
 
