@@ -168,7 +168,7 @@ full build.
 
 *Size:* small. *Version:* z.
 
-*Fixed in 3.18.3.* A scoped build keeps the diagnostics of every file it
+*Fixed in 3.18.2.* A scoped build keeps the diagnostics of every file it
 did not open, and `e2e/specs/scoped-diagnostics.spec.ts` drives the
 driver's scenario on two short chapters.
 
