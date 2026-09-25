@@ -207,8 +207,8 @@ export default function Diagnostics({
       if (item.severity === "error") bad += 1;
       else if (item.severity === "warning") iffy += 1;
     }
-    return [bad, iffy];
-  }, [compile]);
+    return [bad, iffy + (result?.omittedWarnings ?? 0)];
+  }, [compile, result]);
   const status = statusFor({
     compiling, slow: compiling, stale, result, errors, warnings, autocompile,
   });
@@ -447,6 +447,13 @@ export default function Diagnostics({
           );
         })}
       </div>
+      {result?.omittedWarnings ? (
+        <p className="nx-note" data-testid="build-omitted">
+          And {result.omittedWarnings.toLocaleString("en")} more{" "}
+          {result.omittedWarnings === 1 ? "warning" : "warnings"}, not listed here. The raw
+          log has every one.
+        </p>
+      ) : null}
       {/* The raw log, one quiet line above the foot, as the page draws it.
           Section 7 of the design document rejects a bottom console with
           Problems, Output and Terminal tabs; this is what keeping the log

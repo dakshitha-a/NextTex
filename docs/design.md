@@ -10760,3 +10760,9 @@ A comment whose paragraph another editor or a pull replaced is shown as
 detached, in the drawer and in the editor, with its quote, the way one
 whose text was deleted is. It used to stay underlined on the two letters
 the old and new paragraphs happened to share.
+
+A build with more than 500 diagnostics lists every error and the first
+warnings up to 500, and the Build drawer ends its list with "And 71,541
+more warnings, not listed here. The raw log has every one." The strip
+counts them all. A draft with thousands of undefined references used to
+send every one to every tab and stop the server while it did.

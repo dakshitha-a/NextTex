@@ -58,8 +58,9 @@ export default function Status({
       if (item.severity === "error") bad += 1;
       else if (item.severity === "warning") iffy += 1;
     }
-    return [bad, iffy];
-  }, [diagnostics]);
+    // The server sends at most a few hundred rows and counts the rest.
+    return [bad, iffy + (result?.omittedWarnings ?? 0)];
+  }, [diagnostics, result]);
 
   // `state` says the same thing as the dot's colour, in a form a test can
   // read.  Asserting on the colour class would pass on a dot that is the

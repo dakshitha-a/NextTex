@@ -3107,7 +3107,10 @@ async def delete_file(project_id: str, path: str):
         raise HTTPException(400, "refusing to delete the project root")
     if not target.exists():
         raise HTTPException(404, "no such file")
-    entry = session.trash.delete(target)
+    # A folder is walked twice and every text file's log rewritten, which
+    # on the loop stopped the whole install while a figures folder moved
+    # (Q-022); duplicating a folder already ran in a thread.
+    entry = await asyncio.to_thread(session.trash.delete, target)
     # The shared manifest hears it now rather than from the watcher, so a
     # file made under the same name in the next moment is a new file with
     # a new id rather than the old record and the old past.
@@ -3269,7 +3272,7 @@ async def list_trash(project_id: str):
 async def restore_trash(project_id: str, entry_id: str):
     session = session_for(project_id)
     try:
-        result = session.trash.restore(entry_id)
+        result = await asyncio.to_thread(session.trash.restore, entry_id)
     except FileNotFoundError as error:
         raise HTTPException(404, str(error))
     await session.events.publish({"type": "trash_changed"})
@@ -3558,7 +3561,10 @@ async def label_version(
 @app.get("/api/projects/{project_id}/history/timeline")
 async def history_timeline(project_id: str, limit: int = 80):
     session = session_for(project_id)
-    return {"versions": session.history.timeline(max(1, min(limit, 500)))}
+    # Every file's log read and parsed, which grows with the project; in a
+    # thread, as the size and purge routes beside it are (Q-021).
+    versions = await asyncio.to_thread(session.history.timeline, max(1, min(limit, 500)))
+    return {"versions": versions}
 
 
 @app.get("/api/projects/{project_id}/history/size")
@@ -3851,12 +3857,33 @@ def _library(session: ProjectSession) -> Library:
 
 
 def _bib_for(session: ProjectSession) -> Path | None:
-    """The project's bibliography, or None when it has none."""
-    found = sorted(
-        path for path in session.project.root.rglob("*.bib")
-        if ".nexttex" not in path.parts and "build" not in path.parts
-    )
-    return found[0] if found else None
+    """The bibliography the library adds to, or None when there is none.
+
+    The one the document names in `\\bibliography` or `\\addbibresource`,
+    found through the dependency graph that already knows it, the document
+    on the strip first. It used to be whichever `.bib` sorted first in a
+    walk of the whole project, so a project with `refs.bib` for the paper
+    and an exported `library.bib` beside it had references added to the
+    file the document never reads (Q-029). A project whose documents name
+    none falls back to that walk, which skips `.git` and the other folders
+    that are not the writer's. Called off the loop: both read files.
+    """
+    root = session.project.root
+    order = [session.visible, *(name for name in session.documents if name != session.visible)]
+    for document in filter(None, order):
+        named = sorted(
+            name for name in session.deps.reachable([document])
+            if name.lower().endswith(".bib")
+        )
+        for name in named:
+            if (root / name).is_file():
+                return root / name
+    skip = {".git", ".nexttex", "build", "node_modules", ".venv", "__pycache__"}
+    found: list[Path] = []
+    for folder, dirs, files in os.walk(root):
+        dirs[:] = [d for d in dirs if d not in skip]
+        found.extend(Path(folder) / f for f in files if f.lower().endswith(".bib"))
+    return min(found) if found else None
 
 
 @app.get("/api/projects/{project_id}/library")
@@ -3868,7 +3895,7 @@ async def library_state(project_id: str):
     # How many entries the bibliography holds, however they got there, so
     # the drawer says "nothing yet" only when that is true of the file
     # and not only of what NextTex added to it.
-    bib = _bib_for(session)
+    bib = await asyncio.to_thread(_bib_for, session)
     entries = 0
     if bib is not None:
         try:
@@ -3909,7 +3936,7 @@ async def library_scan(project_id: str, path: str = Body(..., embed=True)):
             503,
             "NextTex needs pdftotext to read a PDF. It comes with poppler-utils.",
         )
-    bib = _bib_for(session)
+    bib = await asyncio.to_thread(_bib_for, session)
     if bib is None:
         raise HTTPException(
             400,
@@ -4013,7 +4040,7 @@ async def library_resolve(
     """
     session = session_for(project_id)
     shelf = _library(session)
-    bib = _bib_for(session)
+    bib = await asyncio.to_thread(_bib_for, session)
     if bib is None:
         raise HTTPException(400, "There is no .bib file in this project.")
 
@@ -4309,7 +4336,7 @@ async def library_add(project_id: str, doi: str = Body(..., embed=True)):
     promises when it calls working without an agent a real option.
     """
     session = session_for(project_id)
-    bib = _bib_for(session)
+    bib = await asyncio.to_thread(_bib_for, session)
     if bib is None:
         raise HTTPException(400, "There is no .bib file in this project.")
 
@@ -4352,7 +4379,7 @@ async def library_verify(project_id: str):
     written: this reports.
     """
     session = session_for(project_id)
-    bib = _bib_for(session)
+    bib = await asyncio.to_thread(_bib_for, session)
     if bib is None:
         raise HTTPException(400, "There is no .bib file in this project.")
     return await asyncio.to_thread(references.verify, bib)
@@ -5242,7 +5269,13 @@ async def compile_now(
     """
     session = session_for(project_id)
     result = await session.compile(force_full=full, document=document or None)
-    return session.as_client_dict(result, session.document_for(document).path)
+    state = session.document_for(document)
+    # The payload the build already made and published, unless a newer
+    # build has replaced it, in which case this one's is made again, off
+    # the loop.
+    if state.last_payload is not None and state.last_result is result:
+        return state.last_payload
+    return await session.client_payload(result, state.path)
 
 
 @app.get("/api/projects/{project_id}/documents")

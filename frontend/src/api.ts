@@ -88,6 +88,8 @@ export type CompileResult = {
   pages?: number | null;
   /** The build wrote no PDF, and the one served is the last good build's. */
   pdfKept?: boolean;
+  /** Warnings the server left out of `diagnostics` past its cap. */
+  omittedWarnings?: number;
 };
 
 /** One row of the submission check: the drawer's row shape with a kind

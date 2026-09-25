@@ -838,7 +838,6 @@ class CompileScheduler:
         # held the loop for as long as it took after every single build.
         log = await asyncio.to_thread(self._read_log)
         if log is not None:
-            self._remap_shadow(log)
             self._note_unresolved(log, full_pass)
 
         # A PDF from a previous good build is better than none: the preview
@@ -889,9 +888,9 @@ class CompileScheduler:
             text = self.paths.log.read_text(encoding="utf-8", errors="replace")
         except OSError:
             return None
-        return parse_log(
+        return self._remap_shadow(parse_log(
             text, self.paths.root, self.paths.main, base=self.paths.workdir
-        )
+        ))
 
     def full_argv(
         self, source_file: Path, engine: str = DEFAULT_ENGINE,
@@ -996,12 +995,26 @@ class CompileScheduler:
             parent = (self.paths.build_dir / target).parent
             parent.mkdir(parents=True, exist_ok=True)
 
-    def _remap_shadow(self, log: ParsedLog) -> None:
-        """Point diagnostics at the real main file, not the stand-in."""
+    def _remap_shadow(self, log: ParsedLog) -> ParsedLog:
+        """Point diagnostics at the real main file, not the stand-in.
+
+        Each file resolved once rather than once per diagnostic, and run in
+        the worker thread that parses the log, not on the loop (Q-043).
+        """
         shadow = self.paths.shadow.resolve()
+        is_shadow: dict[Path, bool] = {}
         for diagnostic in log.diagnostics:
-            if diagnostic.file is not None and diagnostic.file.resolve() == shadow:
+            path = diagnostic.file
+            if path is None:
+                continue
+            if path not in is_shadow:
+                try:
+                    is_shadow[path] = path.resolve() == shadow
+                except OSError:
+                    is_shadow[path] = False
+            if is_shadow[path]:
                 diagnostic.file = self.paths.main
+        return log
 
     def cleanup(self) -> None:
         self.paths.shadow.unlink(missing_ok=True)

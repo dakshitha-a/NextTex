@@ -207,6 +207,9 @@ out.
 
 *Size:* small. *Version:* z.
 
+*Fixed in 3.18.5.* The payload is made off the loop with each file
+related once, and at most 500 rows are sent with the rest counted.
+
 ### Q-018 · Compile · bug · medium · confirmed
 **A deleted file's labels stay in completion.**
 
@@ -292,6 +295,8 @@ neighbours do.
 
 *Size:* small. *Version:* z.
 
+*Fixed in 3.18.5.* The timeline runs in a worker thread.
+
 ### Q-022 · Files · performance · medium · confirmed
 **Trashing a folder holds the event loop.**
 
@@ -308,6 +313,8 @@ whole install while it moves.
 *What should happen:* both run in a worker thread.
 
 *Size:* small. *Version:* z.
+
+*Fixed in 3.18.5.* Trash and restore run in a worker thread.
 
 ### Q-023 · Files · bug · medium · confirmed
 **The Git drawer commits conflict markers.**
@@ -464,6 +471,9 @@ that already knows it, and the walk, where one is still needed, runs off
 the loop and skips `.git`.
 
 *Size:* small. *Version:* z.
+
+*Fixed in 3.18.5.* The library uses the `.bib` the document names, and
+any fallback walk skips `.git` and runs off the loop.
 
 ### The editor and the preview in the browser
 

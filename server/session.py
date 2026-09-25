@@ -89,12 +89,52 @@ class DocumentState:
     #: browser that connected after `compile_start` went out has to be told.
     in_flight: int = 0
     last_result: CompileResult | None = None
+    #: What the last build sent the browser, so the compile route answers
+    #: with it rather than working it all out a second time.
+    last_payload: dict | None = None
     diagnostics: list[dict] = field(default_factory=list)
     debounce: asyncio.Task | None = None
     unsettled: bool = False
 
 
 MATH_DELIMITER = re.compile(r"(?<!\\)\$")
+
+#: The most diagnostics one build sends to the browser. Every error is
+#: kept; warnings fill what is left in log order, and the payload counts
+#: the rest. A draft that cites and refers to things it never defines
+#: produced 72,000, sent to every tab (Q-043); nobody reads past a few
+#: hundred, and the raw log has them all.
+DIAGNOSTICS_SENT = 500
+
+
+def _capped(diagnostics: list[dict]) -> tuple[list[dict], int]:
+    """At most `DIAGNOSTICS_SENT`, every error first in the choosing, and
+    how many warnings were left out; the order is the log's."""
+    if len(diagnostics) <= DIAGNOSTICS_SENT:
+        return diagnostics, 0
+    errors = sum(1 for d in diagnostics if d.get("severity") == "error")
+    room = max(0, DIAGNOSTICS_SENT - errors)
+    kept: list[dict] = []
+    omitted = 0
+    for item in diagnostics:
+        if item.get("severity") == "error":
+            kept.append(item)
+        elif room:
+            kept.append(item)
+            room -= 1
+        elif item.get("severity") == "warning":
+            omitted += 1
+    return kept, omitted
+
+
+def _relative_to(root: Path, path: str | None) -> str | None:
+    """`relative_or_none` against a root resolved once by the caller."""
+    if not path:
+        return None
+    try:
+        return str(Path(path).resolve().relative_to(root))
+    except (ValueError, OSError):
+        return Path(path).name
 BEGIN = re.compile(r"\\begin\s*\{([^}]+)\}")
 END = re.compile(r"\\end\s*\{([^}]+)\}")
 
@@ -1045,13 +1085,25 @@ class ProjectSession:
         """
         payload = result.as_dict()
         payload["document"] = document or self.visible
+        kept, omitted = _capped(payload.get("diagnostics", []))
+        payload["omittedWarnings"] = omitted
+        # Each file made relative once. It was once per diagnostic, each
+        # resolving the file and the project root again, which on a draft
+        # with 72,000 warnings held the loop for fifteen seconds (Q-043).
+        root = self.project.root.resolve()
+        relative: dict[str, str | None] = {}
+
+        def rel(path: str | None) -> str | None:
+            if path not in relative:
+                relative[path] = _relative_to(root, path)
+            return relative[path]
+
         # Stamped on each diagnostic as well as on the payload: the client
         # merges the documents' diagnostics into one list, and without this
         # it could not tell whose a given error was when replacing them.
         payload["diagnostics"] = annotate([
-            {**item, "file": self.relative_or_none(item.get("file")),
-             "document": payload["document"]}
-            for item in payload.get("diagnostics", [])
+            {**item, "file": rel(item.get("file")), "document": payload["document"]}
+            for item in kept
         ])
         # Where to start, in words, with no model involved.  A writer using
         # NextTex without an agent still gets told which error is the cause
@@ -1059,6 +1111,12 @@ class ProjectSession:
         payload["summary"] = summarise(payload["diagnostics"])
         payload.pop("pdf", None)   # a server path the browser cannot use
         return payload
+
+    async def client_payload(self, result: CompileResult, document: str = "") -> dict:
+        """`as_client_dict` in a worker thread: annotating and relating a
+        big build's diagnostics is regex work per row, and on the loop it
+        stopped every tab, autosave and collaborator until it was done."""
+        return await asyncio.to_thread(self.as_client_dict, result, document)
 
     def relative_or_none(self, path: str | None) -> str | None:
         if not path:
@@ -1122,7 +1180,8 @@ class ProjectSession:
         focus = self._focus if self._owns(state, self._focus) else None
         async with self.queue.slot(priority=state.path == self.visible):
             result = await state.compiler.build(focus=focus, force_full=force_full)
-        payload = self.as_client_dict(result, state.path)
+        payload = await self.client_payload(result, state.path)
+        state.last_payload = payload
         # A superseded build carries no log.  Keeping its empty diagnostics
         # would clear the editor's error marks every time the user typed
         # during a compile, which is exactly when they are looking at them.
