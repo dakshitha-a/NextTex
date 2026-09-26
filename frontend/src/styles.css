@@ -817,8 +817,12 @@ input, textarea { font: inherit; color: inherit; background: transparent; }
 /* Selectable text over the rendered page.
    A canvas is a picture: it cannot be selected, searched or copied out of,
    which for a document somebody is quoting from is most of what a PDF is
-   for.  pdf.js positions these spans in unscaled units and divides by
-   --scale-factor, which the pane sets per page as it renders.
+   for.  pdf.js 6 writes each span's unscaled height as --font-height and
+   leaves the size to these rules, which multiply it by
+   --total-scale-factor, set by the pane per page as it renders.  With the
+   rules of pdf.js 4 in their place the spans took the inherited size, ran
+   taller than their lines and overlapped the next one, so a double-click
+   on a heading landed on the line below it.
 
    The spans are transparent and sit exactly over their glyphs, so what the
    reader sees is the canvas and what they select is this.  Pointer events
@@ -835,6 +839,11 @@ input, textarea { font: inherit; color: inherit; background: transparent; }
   transform-origin: 0 0;
   pointer-events: none;
   forced-color-adjust: none;
+  --min-font-size: 1;
+  --text-scale-factor: calc(var(--total-scale-factor) * var(--min-font-size));
+  --min-font-size-inv: calc(1 / var(--min-font-size));
+  --scale-round-x: 1px;
+  --scale-round-y: 1px;
 }
 /* A page turned from the View menu: pdf.js lays the text out upright and
    marks the layer with the turn, and these are its own viewer's rules for
@@ -850,10 +859,20 @@ input, textarea { font: inherit; color: inherit; background: transparent; }
   color: transparent;
   pointer-events: auto;
 }
-/* pdf.js measures a span, then corrects it with a horizontal scale it
-   writes into this property.  Without honouring it the selection drifts
-   from the glyphs by a word or more across a long line. */
-.nx-text-layer span[style*="scaleX"] { transform-origin: 0 0; }
+/* pdf.js 6's own sizing: the height it measured, times the scale, and the
+   horizontal correction it measured after, as --scale-x.  Without that
+   correction the selection drifts from the glyphs by a word or more
+   across a long line. */
+.nx-text-layer > :not(.markedContent),
+.nx-text-layer .markedContent span:not(.markedContent) {
+  --font-height: 0;
+  font-size: calc(var(--text-scale-factor) * var(--font-height));
+  --scale-x: 1;
+  --rotate: 0deg;
+  transform: rotate(var(--rotate)) scaleX(var(--scale-x)) scale(var(--min-font-size-inv));
+}
+/* A tagged PDF's structure, which wraps spans and must not become a box. */
+.nx-text-layer .markedContent { display: contents; }
 /* The colour matters as much as the background.  Without it the browser
    paints its own selection foreground over these spans -- which are
    transparent precisely so they cannot be seen -- and every selected word

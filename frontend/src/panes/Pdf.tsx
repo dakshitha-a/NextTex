@@ -434,8 +434,9 @@ export default function Pdf({
       view.text.replaceChildren();
       // Built at the committed scale, so any gesture transform is spent.
       view.text.style.transform = "";
-      // pdf.js positions its spans in unscaled units and divides by this.
-      view.text.style.setProperty("--scale-factor", String(view.scale));
+      // pdf.js 6 sizes its spans and the layer by this; see the text
+      // layer's rules in styles.css.
+      view.text.style.setProperty("--total-scale-factor", String(view.scale));
       const content = await page.getTextContent();
       if (mine !== generation.current) return;
       const layer = new pdfjs.TextLayer({

@@ -18,10 +18,14 @@ export function headingHint(
 ): WordHint {
   if (!span) return { word };
   const context = span.textContent ?? "";
-  // pdf.js writes the size as `calc(var(--scale-factor) * 9.96px)`, so the
-  // number is fished out rather than parsed off the front.
+  // pdf.js 6 writes the measured height as `--font-height: 9.96px` and
+  // leaves the size to the stylesheet; pdf.js 4 wrote the size itself as
+  // `calc(var(--scale-factor) * 9.96px)`. Read only that, every span was
+  // size 0 on pdf.js 6 and no heading was ever larger than the text.
   const size = (el: HTMLElement) =>
-    Number(/([\d.]+)px/.exec(el.style.fontSize)?.[1] ?? 0);
+    Number(
+      /([\d.]+)px/.exec(el.style.getPropertyValue("--font-height") || el.style.fontSize)?.[1] ?? 0,
+    );
   const counts = new Map<number, number>();
   for (const other of page.querySelectorAll<HTMLElement>(".nx-text-layer span")) {
     const px = Math.round(size(other) * 10) / 10;

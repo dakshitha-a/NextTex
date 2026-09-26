@@ -93,6 +93,11 @@ OpenAI provider against OpenAI itself.
       `canvas: null` to keep the preview's own opaque context. A 34-page
       document read through before and after, five pages in light and two
       on the dark page, drew identical pixels and identical text layers.
+      What that read-through could not see, the full check did: pdf.js 6
+      sizes text spans in its stylesheet from a `--font-height` it writes,
+      and the app's copy of the rules was 4's, so spans ran a line tall
+      and a double-click on a heading landed on the line below. The rules
+      and the heading's size reading follow 6 now.
 
 - [x] **A script that starts a session of its own outlives its stop.**
       A stopped or timed-out script was ended by killing its process

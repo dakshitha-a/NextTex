@@ -2,7 +2,10 @@ import { describe, expect, it } from "vitest";
 
 import { headingHint, isBoldFont, tagSpans } from "./pdf-heading";
 
-/** A page's text layer, as pdf.js leaves it: spans with a font size. */
+/** A page's text layer, as pdf.js 6 leaves it: spans with their measured
+ *  height in `--font-height`, the size left to the stylesheet. pdf.js 4
+ *  wrote a font size instead, and reading only that found no sizes at all
+ *  on pdf.js 6, so no heading was ever larger than the text. */
 function page(lines: Array<Array<[string, number]>>): { root: HTMLElement; spans: HTMLElement[] } {
   const root = document.createElement("div");
   const layer = document.createElement("div");
@@ -13,7 +16,7 @@ function page(lines: Array<Array<[string, number]>>): { root: HTMLElement; spans
     for (const [text, size] of line) {
       const span = document.createElement("span");
       span.textContent = text;
-      span.style.fontSize = `calc(var(--scale-factor) * ${size}px)`;
+      span.style.setProperty("--font-height", `${size.toFixed(2)}px`);
       layer.append(span);
       spans.push(span);
     }
@@ -79,5 +82,26 @@ describe("an unnumbered heading at body size", () => {
     expect(spans[0].dataset.bol).toBe("1");
     expect(spans[1].dataset.bol).toBeUndefined();
     expect(spans[2].dataset.bol).toBe("1");
+  });
+});
+
+describe("a heading set larger than the text", () => {
+  // `\section*{Results}`: no number and not run in, so its size is the
+  // only thing that says heading.
+  const lines: Array<Array<[string, number]>> = [
+    [["Results", 14.35]],
+    [["The fast component decays in 180 fs.", 9.96]],
+    [["The slow one decays in 2.4 ps.", 9.96]],
+    [["Both are fitted together.", 9.96]],
+  ];
+
+  it("is read as a heading from its size", () => {
+    const { root, spans } = page(lines);
+    expect(headingHint(root, spans[0], "Results").heading).toBe(true);
+  });
+
+  it("and a line of the running text is not", () => {
+    const { root, spans } = page(lines);
+    expect(headingHint(root, spans[1], "decays").heading).toBe(false);
   });
 });
