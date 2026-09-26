@@ -85,7 +85,7 @@ export default function CommentsPanel({
         </Pressable>
         <div className="nx-comment-row-meta t-meta">
           {first ? (
-            <span style={first.mine ? undefined : { color: colourFor(first.name) }}>
+            <span className="min-w-0 truncate" style={first.mine ? undefined : { color: colourFor(first.name) }}>
               {first.mine ? "You" : first.name}
             </span>
           ) : null}
@@ -98,9 +98,13 @@ export default function CommentsPanel({
             <span className="text-ink-2">Its text was deleted, last at line {thread.line}</span>
           ) : (
             <>
-              {thread.suggestion ? <span data-testid="comment-row-suggested">Suggested</span> : null}
-              {repliesSaid(thread) ? <span>{repliesSaid(thread)}</span> : null}
-              <span className="tabular-nums">{whenSaid(thread.created)}</span>
+              {/* Each short fact whole: the row's actions keep their width
+                  while unseen, and a reply count beside the name and the
+                  time wrapped every word in its own column, "1 / reply",
+                  "04:11 / AM". The long sentences above may wrap. */}
+              {thread.suggestion ? <span className="whitespace-nowrap" data-testid="comment-row-suggested">Suggested</span> : null}
+              {repliesSaid(thread) ? <span className="whitespace-nowrap">{repliesSaid(thread)}</span> : null}
+              <span className="whitespace-nowrap tabular-nums">{whenSaid(thread.created)}</span>
             </>
           )}
           <span className="flex-1" />
