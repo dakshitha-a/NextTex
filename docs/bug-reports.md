@@ -123,7 +123,7 @@ scripts/check.sh --all      # adds the build, the bundle budget and the
                             # a route the browser exercises did
 ```
 
-`--all` needs `NEXTTEX_NODE_BIN` pointing at a Node 20 or newer when the
+`--all` needs `NEXTTEX_NODE_BIN` pointing at a Node 22.13 or newer when the
 system Node is older, a real LaTeX and a Chromium; `docs/testing.md` has the
 details. Never set `NEXTTEX_LIVE=1`, never run `e2e/review/` or
 `e2e/shots/`, and never touch the `NEXTTEX_CLAUDE_BINARY` line in

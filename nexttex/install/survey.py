@@ -123,6 +123,8 @@ class Survey:
     missing_tex_extras: list = field(default_factory=list)
     claude: str = ""
     node_major: int = 0
+    #: Whether that Node can build the interface, `NODE_FLOOR` or newer.
+    node_ok: bool = False
     tailscale: bool = False
     # Whether there is a desktop to put a shortcut on.  Only ever
     # false on Linux, where NextTex runs on headless boxes reached
@@ -252,6 +254,23 @@ def _unreachable_hosts(hosts) -> list:
     for thread in threads:
         thread.join(timeout=4)
     return sorted(out)
+
+
+#: The oldest Node that can build the interface: Vite 8 wants 20.19 and
+#: pdf.js 6 wants 22.13, so 22.13 is the floor for both. Read to the minor
+#: version, because 22.12 is not enough either. Only a fallback build needs
+#: Node at all; the interface is downloaded.
+NODE_FLOOR = (22, 13)
+
+
+def node_new_enough(raw: str) -> bool:
+    """Whether `node -v`'s answer, such as "v22.13.1", meets `NODE_FLOOR`."""
+    parts = raw.strip().lstrip("v").split(".")
+    try:
+        found = (int(parts[0]), int(parts[1]) if len(parts) > 1 else 0)
+    except (ValueError, IndexError):
+        return False
+    return found >= NODE_FLOOR
 
 
 def _version_of(argv, which) -> str:
@@ -443,10 +462,12 @@ def survey(
             result.node_major = int(raw.split(".")[0])
         except (ValueError, IndexError):
             result.node_major = 0
-    if result.node_major >= 20:
+        result.node_ok = node_new_enough(raw)
+    floor = ".".join(str(part) for part in NODE_FLOOR)
+    if result.node_ok:
         add(Finding("node", "Node", PRESENT, where=node, version=f"v{result.node_major}"))
     else:
-        add(Finding("node", "Node 20+", NOT_NEEDED,
+        add(Finding("node", f"Node {floor}+", NOT_NEEDED,
                     why="only if the interface download fails",
                     command=command_for("node")))
 

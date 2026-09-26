@@ -22,12 +22,15 @@ export default defineConfig({
     outDir: "dist",
     sourcemap: false,
     chunkSizeWarningLimit: 1200,
-    rollupOptions: {
+    // Rolldown's options since Vite 8, which bundles with Rolldown where it
+    // used Rollup; `rollupOptions` is kept by a shim that may go.
+    rolldownOptions: {
       // The spelling engine's loader calls `nanoid` as a function on a
       // namespace import, in `mountBuffer`, only when it is given no file
       // name; `hunspell-speller.ts` always gives one. Printed on every
       // build, the warning would hide the next real one (Q-036). Only that
-      // warning, from that module, is dropped.
+      // warning, from that module, is dropped. Rolldown names it with the
+      // code Rollup did.
       onwarn(warning, warn) {
         if (warning.code === "CANNOT_CALL_NAMESPACE" && warning.id?.includes("emscripten-wasm-loader")) return;
         warn(warning);

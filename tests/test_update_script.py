@@ -323,3 +323,17 @@ def test_a_commit_whose_interface_is_not_published_is_not_pulled(tmp_path: Path)
     assert done.returncode != 0
     assert git(work, "rev-parse", "HEAD").strip() == before
     assert "has not been published yet" in log_of(work).read_text()
+
+
+def test_the_update_scripts_build_only_on_a_node_that_can():
+    """Vite 8 and pdf.js 6 need Node 22.13, so a rebuild on Node 20, which
+    the scripts used to accept, fails partway through an update. Both ask
+    Node for its own version against the installer's floor."""
+    root = Path(__file__).resolve().parents[1]
+    sh = (root / "scripts" / "update.sh").read_text(encoding="utf-8")
+    ps = (root / "scripts" / "update.ps1").read_text(encoding="utf-8")
+    assert "-ge 20" not in sh
+    assert sh.count("node_new_enough") >= 3
+    assert "b >= 13" in sh
+    assert "Test-NodeNewEnough" in ps and "$b -ge 13" in ps
+    assert "} elseif (Get-Command node -ErrorAction SilentlyContinue) {" not in ps

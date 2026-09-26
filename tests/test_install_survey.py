@@ -169,6 +169,25 @@ def test_the_extras_a_first_build_needs_are_noticed(tmp_path):
     assert "biber" in result.missing_tex_extras
 
 
+@pytest.mark.parametrize("raw, ok", [
+    ("v22.13.0", True), ("v22.13.1", True), ("v24.1.0", True), ("v23.0.0", True),
+    ("v22.12.9", False), ("v20.19.0", False), ("v18.20.4", False), ("", False), ("nonsense", False),
+])
+def test_node_new_enough_to_build_the_interface_is_22_13(raw, ok):
+    """Vite 8 needs Node 20.19 and pdf.js 6 needs 22.13, so a fallback
+    build on Node 20 would fail after the download already had. The floor
+    is read to the minor version, since 22.12 is not enough either."""
+    from nexttex.install.survey import NODE_FLOOR, node_new_enough
+
+    assert NODE_FLOOR == (22, 13)
+    assert node_new_enough(raw) is ok
+
+
+def test_a_missing_node_names_the_floor(tmp_path):
+    node = bare("linux", tmp_path).get("node")
+    assert node.name == "Node 22.13+"
+
+
 def test_node_is_absent_without_being_alarming(tmp_path):
     node = bare("linux", tmp_path).get("node")
     assert node.kind == NOT_NEEDED

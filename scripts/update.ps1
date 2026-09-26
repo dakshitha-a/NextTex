@@ -54,6 +54,19 @@ try { Start-Transcript -Path $logFile -Append | Out-Null } catch { }
 function Say  { param($m) Write-Host ''; Write-Host $m -ForegroundColor White }
 function Note { param($m) Write-Host "  $m" }
 
+# Whether the Node here can build the interface: 22.13 or newer, the floor
+# nexttex/install/survey.py names, since Vite 8 and pdf.js 6 need it.
+function Test-NodeNewEnough {
+  if (-not (Get-Command node -ErrorAction SilentlyContinue)) { return $false }
+  # Read and compared here: Windows PowerShell mangles double quotes in an
+  # argument to a program, so `node -e` with a script in it is not safe.
+  try {
+    $raw = ((& node -v) | Select-Object -First 1).Trim().TrimStart('v')
+    $a, $b = $raw.Split('.')[0..1] | ForEach-Object { [int]$_ }
+    return ($a -gt 22 -or ($a -eq 22 -and $b -ge 13))
+  } catch { return $false }
+}
+
 function Run {
   <# Run a program, keep what it said, and notice when it failed.
 
@@ -330,7 +343,7 @@ try {
 
   if ($fetched) {
     Note 'interface downloaded'
-  } elseif (Get-Command node -ErrorAction SilentlyContinue) {
+  } elseif (Test-NodeNewEnough) {
     Push-Location frontend
     try {
       Run npm @('ci', '--no-audit', '--no-fund', '--silent') | Out-Null
@@ -338,7 +351,7 @@ try {
     } finally { Pop-Location }
     Note 'interface rebuilt here'
   } else {
-    Note 'could not fetch the interface and there is no Node to build one; keeping the one in place'
+    Note 'could not fetch the interface and there is no Node 22.13 or newer to build one; keeping the one in place'
   }
 
   if ($NoRestart) {

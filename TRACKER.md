@@ -84,6 +84,10 @@ OpenAI provider against OpenAI itself.
       no file name, which `hunspell-speller.ts` always gives, and nanoid
       3, the first fixed line, has no such export, so forcing it would
       break spelling to silence advisories nothing reaches.
+      Vite is at 8 since 4.0.0, with its React plugin at 6; its Rolldown
+      reports the spelling loader's namespace call under Rollup's code, so
+      the one filter moved to `rolldownOptions` unchanged. The floor for
+      building the interface rose to Node 22.13 with it, which is the x.
 
 - [x] **A script that starts a session of its own outlives its stop.**
       A stopped or timed-out script was ended by killing its process

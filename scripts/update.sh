@@ -47,6 +47,13 @@ UNIT="nexttex${INSTANCE:+-$INSTANCE}"
 
 say()  { printf '\n\033[1m%s\033[0m\n' "$*"; }
 note() { printf '  %s\n' "$*"; }
+# Whether the Node here can build the interface: 22.13 or newer, the floor
+# `nexttex/install/survey.py` names, since Vite 8 and pdf.js 6 need it.
+node_new_enough() {
+  command -v node >/dev/null 2>&1 && node -e '
+    const [a, b] = process.versions.node.split(".").map(Number);
+    process.exit(a > 22 || (a === 22 && b >= 13) ? 0 : 1);' >/dev/null 2>&1
+}
 
 # An update is the operation most likely to leave a machine in a state its
 # owner cannot explain, and it was the one operation that wrote nothing
@@ -97,7 +104,7 @@ main() {
     target=$(git rev-parse '@{upstream}' 2>/dev/null || true)
     if [ -n "$target" ] && ! git diff --quiet HEAD "$target" -- frontend/ 2>/dev/null \
        && ! scripts/fetch-interface.sh --check "$target" >/dev/null 2>&1 \
-       && ! { command -v node >/dev/null 2>&1 && [ "$(node -v | sed 's/^v//; s/\..*//')" -ge 20 ]; }; then
+       && ! node_new_enough; then
       note "the interface for $(printf '%s' "$target" | cut -c1-7) has not been published yet, and there is no Node here to build one"
       note "nothing was changed; try again in a few minutes"
       exit 1
@@ -164,11 +171,11 @@ main() {
   # footer matches on it to name the step the user is watching.
   if scripts/fetch-interface.sh >/dev/null 2>&1; then
     note "interface downloaded"
-  elif command -v node >/dev/null 2>&1 && [ "$(node -v | sed 's/^v//; s/\..*//')" -ge 20 ]; then
+  elif node_new_enough; then
     (cd frontend && npm ci --no-audit --no-fund --silent && npm run build >/dev/null)
     note "interface rebuilt here"
   else
-    note "could not fetch the interface and there is no Node to build one; keeping the one in place"
+    note "could not fetch the interface and there is no Node 22.13 or newer to build one; keeping the one in place"
   fi
 
   if [ -n "$RUNNING" ] && [ "$RESTART" = 1 ]; then

@@ -404,7 +404,7 @@ def execute(console: Console, plan, root: Path, platform: str,
     console.note(console.bold(f"{counter(4)} Interface"))
     fetched = steps.fetch_interface(console, root, platform)
     if not fetched.ok:
-        if result.node_major >= 20:
+        if result.node_ok:
             console.note("building it here instead")
             built = steps.build_interface(console, root)
             if not built.ok:
@@ -418,7 +418,7 @@ def execute(console: Console, plan, root: Path, platform: str,
             console.failed(fetched,
                            "Could not download the interface, and there is no "
                            "Node here to build one. Check your connection, or "
-                           "install Node 20+ from https://nodejs.org and run "
+                           "install Node 22.13 or newer from https://nodejs.org and run "
                            "this again.")
             return 1
 

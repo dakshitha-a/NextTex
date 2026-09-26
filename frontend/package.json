@@ -2,6 +2,9 @@
   "name": "nexttex-frontend",
   "private": true,
   "type": "module",
+  "engines": {
+    "node": ">=22.13"
+  },
   "scripts": {
     "dev": "vite",
     "build": "vite build && node precompress.mjs",
@@ -33,15 +36,15 @@
     "yjs": "^13.6.32"
   },
   "devDependencies": {
-    "@tailwindcss/vite": "^4.0.0",
+    "@tailwindcss/vite": "^4.3.3",
     "@types/node": "^26.4.1",
     "@types/react": "^19.0.0",
     "@types/react-dom": "^19.0.0",
-    "@vitejs/plugin-react": "^4.3.4",
+    "@vitejs/plugin-react": "^6.1.1",
     "jsdom": "^29.1.1",
     "tailwindcss": "^4.0.0",
     "typescript": "^5.7.3",
-    "vite": "^6.1.0",
+    "vite": "^8.3.1",
     "vitest": "^4.1.11"
   }
 }

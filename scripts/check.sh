@@ -11,7 +11,7 @@
 set -euo pipefail
 
 cd "$(dirname "$0")/.."
-# Node 20+ is needed for the frontend tiers.  If the one on PATH is older
+# Node 22.13+ is needed for the frontend tiers.  If the one on PATH is older
 # -- which it is on plenty of distributions -- point NEXTTEX_NODE_BIN at a
 # newer one rather than changing the system's.
 if [ -n "${NEXTTEX_NODE_BIN:-}" ] && [ -d "$NEXTTEX_NODE_BIN" ]; then

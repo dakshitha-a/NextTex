@@ -272,7 +272,7 @@ another: the installer writes it down in the install's `config.json` as
 `tex`, and `NEXTTEX_TEX`, a directory, overrides both. A writing agent, if any.
 Nothing is installed unless you say Claude, the default is none, and the app
 asks again, in a sheet over its projects list, the first time it opens. The interface built for this commit,
-downloaded rather than built, with Node 20+ used only if that download
+downloaded rather than built, with Node 22.13+ used only if that download
 fails. Whether the server answers on localhost only or also on your tailnet.
 And a `systemd --user` unit on Linux, a launchd agent on macOS, or a logon
 task on Windows, written only if you asked for one.
@@ -1358,7 +1358,7 @@ install it and run the installer again.
 |---|---|---|
 | `git` | NextTex is a checkout, and stays one so it can update itself | **named** |
 | Python 3.10+ | The server | yes, and `uv` brings one if this machine has none |
-| Node 20+ | Only to build the interface locally, if the prebuilt one cannot be downloaded | **named** |
+| Node 22.13+ | Only to build the interface locally, if the prebuilt one cannot be downloaded | **named** |
 | `pdflatex`, `latexmk`, `synctex` | Typesetting and the two-way jump | yes: TinyTeX, or MiKTeX on Windows, if you let it |
 | `biber` | biblatex bibliographies | yes, via `tlmgr` |
 | `chktex`, `texcount` | Linting and word counts | yes, via `tlmgr` |

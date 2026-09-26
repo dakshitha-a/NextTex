@@ -255,11 +255,23 @@ def test_a_failed_interface_download_with_no_node_is_fatal(sandbox):
 
 def test_a_failed_interface_download_builds_it_instead_when_node_is_here(sandbox):
     console = Recorder(fails=("fetch-interface",))
-    plan = build_plan(a_survey(sandbox, node_major=22), interactive=True,
+    plan = build_plan(a_survey(sandbox, node_major=22, node_ok=True), interactive=True,
                       answers={"tex": "none", "service": "no"})
     code = installer.execute(console, plan, sandbox, "linux", "")
     assert code == 0
     assert "npm ci" in console.ran or "ci --no-audit" in console.ran
+
+
+def test_a_node_below_the_floor_does_not_try_a_build_that_would_fail(sandbox):
+    """Node 20 was enough to build the interface until Vite 8 and pdf.js 6;
+    a fallback build on it now fails partway, after the download already
+    had, so the installer says what to install instead."""
+    console = Recorder(fails=("fetch-interface",))
+    plan = build_plan(a_survey(sandbox, node_major=20, node_ok=False), interactive=True,
+                      answers={"tex": "none", "service": "no"})
+    code = installer.execute(console, plan, sandbox, "linux", "")
+    assert code == 1
+    assert "ci --no-audit" not in console.ran and "npm ci" not in console.ran
 
 
 # ---------------------------------------------------------------------------

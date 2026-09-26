@@ -89,7 +89,7 @@ gets its own commit so it stays legible in the log.
 `scripts/check.sh` runs `tsc`, `vitest` and `pytest`, always.
 `scripts/check.sh --all` adds the build, the bundle budget and the Playwright
 tier, and is required whenever `frontend/` or a route the browser exercises
-changed; export `NEXTTEX_NODE_BIN` to a Node 20 or newer first if the system
+changed; export `NEXTTEX_NODE_BIN` to a Node 22.13 or newer first if the system
 Node is older. Facts about the machine, such as where that Node lives, go
 in `CLAUDE.local.md`, which Claude Code reads beside this file and git
 ignores; this file holds only what is true of the project. CI pins Python
