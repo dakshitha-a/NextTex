@@ -549,7 +549,9 @@ export default function Pdf({
       const context = canvas.getContext("2d", { alpha: false });
       if (!context) return;
       view.drawnAt = rasterKey(width / boxWidth);
-      view.task = page.render({ canvasContext: context, viewport } as any);
+      // `canvas: null` keeps the context above, which is opaque; pdf.js 6
+      // would otherwise make its own from the canvas.
+      view.task = page.render({ canvas: null, canvasContext: context, viewport });
       await view.task.promise;
       if (mine !== generation.current) return;
       if (darkRef.current) await darken(page, view, viewport, context);
@@ -854,14 +856,16 @@ export default function Pdf({
         if (cancelled) return;
         const loaded = await pdfjs.getDocument({ data }).promise;
         if (cancelled) {
-          loaded.destroy();
+          // Destroyed through its loading task: pdf.js 6 took `destroy`
+          // off the document itself.
+          void loaded.loadingTask.destroy();
           return;
         }
         const previous = doc.current;
         doc.current = loaded;
         setAbsence("");
         await layoutRef.current(loaded, previous !== null);
-        previous?.destroy();
+        void previous?.loadingTask.destroy();
       } catch {
         // Never got an answer at all, which is not the same as being told
         // there is nothing to show.

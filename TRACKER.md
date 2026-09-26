@@ -68,7 +68,7 @@ OpenAI provider against OpenAI itself.
       are touched, the largest first: `frontend/src/panes/Chat.tsx` and
       `frontend/src/panes/Projects.tsx`.
 
-- [ ] **Three dependencies are a major version behind.** `pdfjs-dist`
+- [x] **Three dependencies are a major version behind.** `pdfjs-dist`
       is at 4.10 against 6.3, `vite` at 6 against 8 and `diff` at 7
       against 9 (Q-036). Each is a migration with its own risk: pdf.js
       carries the whole preview, the dark page's operator walk and
@@ -88,6 +88,11 @@ OpenAI provider against OpenAI itself.
       reports the spelling loader's namespace call under Rollup's code, so
       the one filter moved to `rolldownOptions` unchanged. The floor for
       building the interface rose to Node 22.13 with it, which is the x.
+      pdf.js is at 6 since 4.0.1. It took `destroy` off the document, so a
+      document is destroyed through its `loadingTask`, and a render names
+      `canvas: null` to keep the preview's own opaque context. A 34-page
+      document read through before and after, five pages in light and two
+      on the dark page, drew identical pixels and identical text layers.
 
 - [x] **A script that starts a session of its own outlives its stop.**
       A stopped or timed-out script was ended by killing its process

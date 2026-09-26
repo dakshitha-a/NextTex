@@ -138,7 +138,7 @@ async function firstPage(url: string): Promise<Thumbnail> {
     canvas.height = Math.ceil(viewport.height);
     const context = canvas.getContext("2d");
     if (!context) throw new Error("no canvas");
-    await page.render({ canvasContext: context, viewport }).promise;
+    await page.render({ canvas: null, canvasContext: context, viewport }).promise;
     return {
       url: canvas.toDataURL("image/png"),
       width: Math.round(natural.width),
@@ -146,6 +146,7 @@ async function firstPage(url: string): Promise<Thumbnail> {
       unit: "pt",
     };
   } finally {
-    void doc.destroy();
+    // Through its loading task: pdf.js 6 took `destroy` off the document.
+    void doc.loadingTask.destroy();
   }
 }
