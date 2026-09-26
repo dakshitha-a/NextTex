@@ -1575,6 +1575,15 @@ export function summariseTool(name: string, input: any): string {
   // The note is the whole point of this one; a path lookup finds nothing
   // and the row would read as a verb with no object.
   if (name === "mcp__nexttex__remember") return String(input.note ?? "");
+  // What a comment tool was done to: the file whose threads were read, and
+  // the words the answered thread was left on, found in the threads the
+  // drawer already holds, since the call names the thread only by its id.
+  const bare = name.replace(/^mcp__nexttex__/, "");
+  if (bare === "list_comments") return input.path ? `on ${input.path}` : "";
+  if (bare === "reply_to_comment") {
+    const thread = state.comments.find((one) => one.id === input.thread);
+    return thread?.quote ? `on ${thread.quote}` : "";
+  }
   const path = String(input.file_path ?? input.path ?? input.pattern ?? "");
   // The verb for this one is "Rewrote lines", so the object has to be the
   // lines. Without them the row read `Rewrote lines  chapters/one.tex`,

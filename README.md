@@ -1208,6 +1208,12 @@ stays in the list and says so. Comments work in a project you have not
 shared, too, as notes to yourself, and they never go into your `.tex`
 files.
 
+Claude can answer them too. Ask it to "answer the comments in
+results.tex" and it reads the open threads on that file and replies in
+each one, under its own name in Claude's colour, so your co-authors see
+who answered. A reply is only words: it changes no text and closes no
+thread, so you still decide what to do about each one.
+
 A comment can also carry the words you would use instead: press *Suggest
 a change* while writing it, and a second box holds the text you selected,
 ready to edit. The other person sees the old words struck through and

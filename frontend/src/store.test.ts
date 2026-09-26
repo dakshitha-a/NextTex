@@ -7,6 +7,7 @@ import {
   markStale,
   replayTranscript,
   set,
+  summariseTool,
   __receive,
 } from "./store";
 
@@ -632,3 +633,13 @@ describe("a reconnection says which scripts are running", () => {
   });
 });
 
+
+describe("what a comment tool's row says it was done to", () => {
+  test("the file its comments were read on, and the words a reply answered", () => {
+    set({ comments: [{ id: "c1", quote: "hexane", path: "results.tex" } as any] });
+    expect(summariseTool("mcp__nexttex__list_comments", { path: "results.tex" })).toBe("on results.tex");
+    expect(summariseTool("mcp__nexttex__list_comments", {})).toBe("");
+    expect(summariseTool("mcp__nexttex__reply_to_comment", { thread: "c1", text: "Yes." })).toBe("on hexane");
+    expect(summariseTool("reply_to_comment", { thread: "gone", text: "Yes." })).toBe("");
+  });
+});

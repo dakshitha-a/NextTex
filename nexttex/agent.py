@@ -49,6 +49,7 @@ from typing import Any, AsyncIterator, Awaitable, Callable
 from .claude_auth import claude_binary
 from .lines import document_ends_at, first_changed_line
 from .modes import DEFAULT_MODE, MODES
+from . import comment_tools
 from . import permission_gate as gate
 from .project import is_control_path
 from .explain import compile_report
@@ -422,6 +423,8 @@ class ProjectAgent:
         on_edit: Callable[[Path, str | None, str | None], Any] | None = None,
         reveal: Callable[[str, int], Any] | None = None,
         show_page: Callable[[str, int], Any] | None = None,
+        comments: Callable[[str], list[dict]] | None = None,
+        reply_comment: Callable[[str, str], str] | None = None,
         model: str | None = None,
     ):
         self.root = project_root.resolve()
@@ -458,6 +461,10 @@ class ProjectAgent:
         self.on_edit = on_edit
         self.reveal = reveal
         self.show_page = show_page
+        # The project's comment threads, read and answered through the
+        # session, which writes a reply under the agent's own name.
+        self.comments = comments
+        self.reply_comment = reply_comment
         # What the current turn was asked for, used to label the versions
         # this turn produces.
         self._why = ""
@@ -1726,6 +1733,14 @@ class ProjectAgent:
         async def show_page(args: dict) -> dict:
             return self.show_page_tool(args)
 
+        @tool("list_comments", comment_tools.LIST_DESCRIPTION, {"path": str})
+        async def list_comments(args: dict) -> dict:
+            return self.list_comments_tool(args)
+
+        @tool("reply_to_comment", comment_tools.REPLY_DESCRIPTION, {"thread": str, "text": str})
+        async def reply_to_comment(args: dict) -> dict:
+            return self.reply_comment_tool(args)
+
         @tool(
             "search_library",
             "Search the papers the writer has already collected for this "
@@ -1900,7 +1915,7 @@ class ProjectAgent:
                 editor_state, compile_diagnostics, compile_document,
                 insert_at_cursor, insert_figure, insert_table,
                 replace_range, run_plot_script, run_script, install_package, goto,
-                show_page,
+                show_page, list_comments, reply_to_comment,
                 search_library, find_papers, add_reference, check_references,
                 remember,
             ],
@@ -1939,6 +1954,30 @@ class ProjectAgent:
                 for d in found
             )
         return self._text("\n".join(lines))
+
+    def list_comments_tool(self, args: dict) -> dict:
+        """A file's open threads, in the words `comment_tools` gives both
+        providers."""
+        if self.comments is None:
+            return self._text(comment_tools.NOT_CONNECTED)
+        path = str(args.get("path") or "").strip()
+        return self._text(comment_tools.listing(self.comments(path), path))
+
+    def reply_comment_tool(self, args: dict) -> dict:
+        """One reply, at the end of one thread, under the agent's name."""
+        if self.reply_comment is None:
+            return self._text(comment_tools.NOT_CONNECTED)
+        thread = str(args.get("thread") or "").strip()
+        text = str(args.get("text") or "").strip()
+        if not thread:
+            return self._text(comment_tools.WHICH_THREAD)
+        if not text:
+            return self._text(comment_tools.NOTHING_TO_SAY)
+        try:
+            quote = self.reply_comment(thread, text)
+        except LookupError as error:
+            return self._text(str(error))
+        return self._text(comment_tools.replied(quote))
 
     def show_page_tool(self, args: dict) -> dict:
         """Move the preview to a page, the way `goto` moves the editor."""

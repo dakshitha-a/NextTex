@@ -241,13 +241,12 @@ this host could not reproduce; each says which.
 
 ### Deliberately not done, and worth revisiting only if something changes
 
-- [ ] **The agent does not read comments.** A thread is on the manifest,
-      where the agent's tools do not look, so "answer the open comments in
-      chapter 2" means nothing to it yet. Left out of the run that built
-      comments to keep that run to what the writer asked for; the natural
-      shape is a tool that lists a file's open threads with their quotes,
-      and a reply the agent writes goes through the same route as a
-      person's, under the agent's name.
+- [x] **The agent does not read comments.** A thread was on the
+      manifest, where the agent's tools did not look, so "answer the open
+      comments in chapter 2" meant nothing to it. Built by the backlog
+      close-out as 4.1.0, in the shape this entry named: `list_comments`
+      and `reply_to_comment` in both providers, a reply written under the
+      agent's own name and drawn in the pen's ink, resolving nothing.
 - [x] **`password.spec.ts` "setting a password says so and closes itself"
       timed out once in four full runs**, and the entry here called it a
       whole-machine stall, to be left alone unless it recurred. It

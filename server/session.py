@@ -283,6 +283,9 @@ class ProjectSession:
         settings: Callable[[], Settings] | None = None,
     ):
         self.project = project
+        #: Which agent this is, for the name its replies in a comment
+        #: thread go under.
+        self.provider = provider
         #: The install's settings, asked for when a build needs them: the
         #: server hands in its live object, and a session built without
         #: one, as the tests do, reads the file.  Two builds read it, the
@@ -423,6 +426,8 @@ class ProjectSession:
             on_edit=self.note_agent_edit,
             reveal=self.reveal_in_editor,
             show_page=self.show_page,
+            comments=self.agent_comments,
+            reply_comment=self.agent_reply,
             model=model or None,
             api_key=api_key,
             base_url=base_url,
@@ -1584,6 +1589,38 @@ class ProjectSession:
             "showing a page of the preview",
         )
         return state.path
+
+    def _agent_threads(self):
+        """The project's threads, as the agent reads and writes them: its
+        replies under its own name and a peer of its own, so no window
+        takes one for the writer's."""
+        from server.collab.comments import Comments
+        from server.collab.identity import peer_id
+
+        name = "ChatGPT" if self.provider == "openai" else "Claude"
+        return Comments(self.collab, lambda: {"name": name, "peer": f"{peer_id()}:agent"})
+
+    def agent_comments(self, path: str) -> list[dict]:
+        """The open threads on `path`, or on every file when it is empty,
+        for the agent's `list_comments`."""
+        return self._agent_threads().open_threads(path.strip().lstrip("/"))
+
+    def agent_reply(self, thread_id: str, text: str) -> str:
+        """A reply from the agent at the end of a thread, and the words the
+        thread was left on. A thread that is gone raises `LookupError`, in
+        a sentence the tool hands back."""
+        from server.collab.comments import CommentError
+
+        threads = self._agent_threads()
+        try:
+            threads.reply(thread_id, text, agent=True)
+        except CommentError as error:
+            said = str(error)
+            raise LookupError(said[:1].upper() + said[1:] + ("" if said.endswith(".") else ".")) from None
+        for thread in threads.listing():
+            if thread["id"] == thread_id:
+                return thread.get("quote") or ""
+        return ""
 
     def reveal_in_editor(self, path: str, line: int) -> None:
         """Ask the open editor to show a line."""

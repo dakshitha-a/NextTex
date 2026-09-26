@@ -81,3 +81,20 @@ describe("ChatGPT's calls", () => {
     expect(verbFor("list_files")).toBe("list files");
   });
 });
+
+describe("the agent's comment tools", () => {
+  test("read as the direction page draws them, folded with what they were done to", () => {
+    expect(verbFor("mcp__nexttex__list_comments")).toBe("Read the comments");
+    expect(verbFor("mcp__nexttex__reply_to_comment")).toBe("Replied to a comment");
+    // The reply writes into a thread everybody sees, so it is not in the
+    // past tense while it is still being asked about.
+    expect(verbFor("mcp__nexttex__reply_to_comment", "asking")).toBe("Replying to a comment");
+  });
+
+  test("and ChatGPT's calls, which arrive without the prefix, read the same", () => {
+    // The OpenAI provider names its tools bare, so every one of its rows
+    // read as the tool's own name with the underscores taken out.
+    expect(verbFor("list_comments")).toBe("Read the comments");
+    expect(verbFor("reply_to_comment", "asking")).toBe("Replying to a comment");
+  });
+});

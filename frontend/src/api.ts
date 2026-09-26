@@ -218,6 +218,8 @@ export type CommentMessage = {
   body: string;
   /** Written from this install, so the card says "You". */
   mine?: boolean;
+  /** Written by the writing agent, so its name is in the pen's ink. */
+  agent?: boolean;
 };
 
 /** A comment thread, where it is now as the server reads it. The anchors

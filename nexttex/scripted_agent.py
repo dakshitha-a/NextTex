@@ -80,6 +80,8 @@ class ScriptedAgent:
         on_edit: Callable[[Path, str | None, str | None], Any] | None = None,
         reveal: Callable[[str, int], Any] | None = None,
         show_page: Callable[[str, int], Any] | None = None,
+        comments: Callable[[str], list[dict]] | None = None,
+        reply_comment: Callable[[str, str], str] | None = None,
         model: str | None = None,
         script: str | None = None,
     ):
@@ -98,6 +100,11 @@ class ScriptedAgent:
         self.on_edit = on_edit
         self.reveal = reveal
         self.show_page = show_page
+        self.comments = comments
+        self.reply_comment = reply_comment
+        #: What the last `list_comments` step found, so a reply step may
+        #: answer "the first open thread" without knowing its id.
+        self._threads: list[dict] = []
         self.run_script = run_script
         self.model = model
         self.script_name = script or scripted_name()
@@ -334,6 +341,22 @@ class ScriptedAgent:
             )
             if self.show_page is not None:
                 self.show_page(document, page)
+
+        elif kind == "list_comments":
+            # Through the session's own reading, as the real tool goes.
+            path = str(step.get("path", ""))
+            await self._tool("mcp__nexttex__list_comments", {"path": path}, 12, True)
+            self._threads = self.comments(path) if self.comments is not None else []
+
+        elif kind == "reply_to_comment":
+            # Answers the thread named, or the first one the last listing
+            # found, through the session's writer, so the reply lands in
+            # the thread under the agent's name as a real one does.
+            thread = str(step.get("thread", "")) or (self._threads[0]["id"] if self._threads else "")
+            text = str(step.get("text", ""))
+            await self._tool("mcp__nexttex__reply_to_comment", {"thread": thread, "text": text}, 12, True)
+            if self.reply_comment is not None and thread:
+                self.reply_comment(thread, text)
 
         elif kind == "remember":
             # Writes for real, through the same callback the model's tool

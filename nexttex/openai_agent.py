@@ -53,6 +53,7 @@ from typing import Any, AsyncIterator, Callable, Iterator
 
 import requests
 
+from . import comment_tools
 from . import permission_gate as gate
 from .atomic import read_text
 from .explain import compile_report
@@ -299,6 +300,35 @@ TOOLS: list[dict] = [
     {
         "type": "function",
         "function": {
+            "name": "list_comments",
+            "description": comment_tools.LIST_DESCRIPTION,
+            "parameters": {
+                "type": "object",
+                "properties": {
+                    "path": {"type": "string", "description": "A file, relative to the project; left out, every file."},
+                },
+                "required": [],
+            },
+        },
+    },
+    {
+        "type": "function",
+        "function": {
+            "name": "reply_to_comment",
+            "description": comment_tools.REPLY_DESCRIPTION,
+            "parameters": {
+                "type": "object",
+                "properties": {
+                    "thread": {"type": "string", "description": "The thread's id, from list_comments."},
+                    "text": {"type": "string", "description": "What the reply says."},
+                },
+                "required": ["thread", "text"],
+            },
+        },
+    },
+    {
+        "type": "function",
+        "function": {
             "name": "compile_document",
             "description": (
                 "Typeset a document and report what the build said: pages, "
@@ -428,6 +458,8 @@ class OpenAIAgent:
         on_edit: Callable[[Path, str | None, str | None], Any] | None = None,
         reveal: Callable[[str, int], Any] | None = None,
         show_page: Callable[[str, int], Any] | None = None,
+        comments: Callable[[str], list[dict]] | None = None,
+        reply_comment: Callable[[str, str], str] | None = None,
         run_script: Callable[[Path], Any] | None = None,
         model: str | None = None,
         api_key: str = "",
@@ -448,6 +480,8 @@ class OpenAIAgent:
         self.on_edit = on_edit
         self.reveal = reveal
         self.show_page = show_page
+        self.comments = comments
+        self.reply_comment = reply_comment
         #: How the session runs a script, so the run lands in the writer's
         #: pane with its figures; `plots.run` on its own when nobody gave
         #: one, which is a test.
@@ -1019,6 +1053,26 @@ class OpenAIAgent:
                 if hit.get("snippet"):
                     lines.append(f'  "{hit["snippet"]}"')
             return "\n".join(lines)
+
+        if name == "list_comments":
+            if self.comments is None:
+                return comment_tools.NOT_CONNECTED
+            path = str(args.get("path") or "").strip()
+            return comment_tools.listing(self.comments(path), path)
+
+        if name == "reply_to_comment":
+            if self.reply_comment is None:
+                return comment_tools.NOT_CONNECTED
+            thread = str(args.get("thread") or "").strip()
+            text = str(args.get("text") or "").strip()
+            if not thread:
+                return comment_tools.WHICH_THREAD
+            if not text:
+                return comment_tools.NOTHING_TO_SAY
+            try:
+                return comment_tools.replied(self.reply_comment(thread, text))
+            except LookupError as error:
+                return str(error)
 
         if name == "show_page":
             if self.show_page is None:

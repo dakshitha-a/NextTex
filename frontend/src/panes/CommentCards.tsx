@@ -40,7 +40,12 @@ export function repliesSaid(thread: CommentThread): string {
   return replies <= 0 ? "" : replies === 1 ? "1 reply" : `${replies} replies`;
 }
 
-function Who({ name, mine }: { name: string; mine?: boolean }) {
+function Who({ name, mine, agent }: { name: string; mine?: boolean; agent?: boolean }) {
+  // The agent's reply is under its own name in the pen's ink, the colour
+  // the chat already gives it, rather than a collaborator's colour.
+  if (agent) {
+    return <b className="font-semibold text-pen" data-agent="true">{name}</b>;
+  }
   return (
     <b
       className="font-semibold"
@@ -181,7 +186,7 @@ export function CommentPreview({
             {first ? (
               <>
                 <div className="nx-comment-who t-meta">
-                  <Who name={first.name} mine={first.mine} />
+                  <Who name={first.name} mine={first.mine} agent={first.agent} />
                   <span className="flex-1" />
                   <span className="tabular-nums text-ink-3">{whenSaid(first.at)}</span>
                 </div>
@@ -289,7 +294,7 @@ export function CommentThreadCard({
         {thread.messages.map((message) => (
           <div key={message.id} className="nx-comment-message" data-testid="comment-message">
             <div className="nx-comment-who t-meta">
-              <Who name={message.name} mine={message.mine} />
+              <Who name={message.name} mine={message.mine} agent={message.agent} />
               <span className="flex-1" />
               <span className="tabular-nums text-ink-3">{whenSaid(message.at)}</span>
             </div>

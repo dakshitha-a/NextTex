@@ -10892,3 +10892,33 @@ Accept stands where Resolve would. The drawer's row says "Suggested", and
 once taken "Accepted by you". A commit in the Git drawer shows "Changes
 as PDF" under the pointer when latexdiff is here, and the result opens in
 a browser tab of its own.
+
+## 78. The agent answers comments
+
+A co-author's comments sat beside the text where only the writer could
+answer them, and the agent, which could read and edit every file, could
+not see a thread. Drawn on the direction page, "The backlog close-out",
+section 1, on 26 September 2026, delegated, and built as drawn.
+
+The agent has two tools, the same in both providers: `list_comments`
+reads a file's open threads, or the project's, with each thread's id,
+line, quoted words and every message with who wrote it; and
+`reply_to_comment` puts one message at the end of one thread. In the
+chat the two fold like any tool calls, and a turn that reads and answers
+one thread reads "Read the comments on results.tex, replied to a comment
+on hexane", the second object found in the threads the drawer already
+holds. The reply is a message in the thread like anyone's, under
+"Claude", or "ChatGPT" for the OpenAI provider, and that name is drawn in
+the pen's ink, the colour the chat gives the agent, rather than a
+collaborator's colour. A reply resolves nothing and accepts nothing: the
+thread stays open, with Resolve or Accept where they were, for a person
+to close. It writes inside the project, as an edit does, so it asks
+nothing at the default position.
+
+Rendered for the page, the Comments drawer's row broke its meta word by
+word once a thread had a reply count, "1 / reply", "04:11 / AM", since
+the row's hover actions keep their width unseen; the short facts no
+longer wrap. The drawing had shown the quoted words at the head of the
+thread card, which the built card has never carried, and was redrawn to
+match it.
+

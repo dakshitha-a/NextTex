@@ -155,13 +155,24 @@ class Comments:
             })
         return thread_id
 
-    def reply(self, thread_id: str, body: str) -> None:
+    def reply(self, thread_id: str, body: str, *, agent: bool = False) -> None:
+        """A message at the end of a thread. `agent` marks one the writing
+        agent wrote, so the thread can say so; the name and peer are
+        whatever `who` answers, which for the agent is its own."""
         thread = self._thread(thread_id)
         messages = thread.get("messages")
         if not isinstance(messages, Array):
             raise CommentError("that thread cannot take a reply")
         with self.store.manifest.transaction():
-            messages.append(self._message(_clean(body)))
+            messages.append(self._message(_clean(body), agent=agent))
+
+    def open_threads(self, relative: str = "") -> list[dict]:
+        """The unresolved threads, on one file or on all of them, for the
+        agent's `list_comments`."""
+        return [
+            thread for thread in self.listing()
+            if not thread.get("resolved") and (not relative or thread.get("path") == relative)
+        ]
 
     def resolve(self, thread_id: str, resolved: bool) -> None:
         thread = self._thread(thread_id)
@@ -232,15 +243,18 @@ class Comments:
             raise CommentError("there is no such thread; somebody may have deleted it")
         return thread
 
-    def _message(self, body: str) -> dict:
+    def _message(self, body: str, *, agent: bool = False) -> dict:
         who = self.who()
-        return {
+        message = {
             "id": "m" + secrets.token_hex(6),
             "name": who.get("name") or "",
             "peer": who.get("peer") or "",
             "at": _now(),
             "body": body,
         }
+        if agent:
+            message["agent"] = True
+        return message
 
 
 def _clean(body: str) -> str:
@@ -317,7 +331,10 @@ def _plain(value) -> dict:
     messages = data.get("messages")
     data["messages"] = [
         {**m, "body": _words(m.get("body"), MAX_BODY),
-         "name": _words(m.get("name"), 200), "peer": _words(m.get("peer"), 200)}
+         "name": _words(m.get("name"), 200), "peer": _words(m.get("peer"), 200),
+         # Only a real true: it draws the name in the pen's ink, and a peer
+         # could send anything.
+         "agent": m.get("agent") is True}
         for m in (messages if isinstance(messages, list) else [])
         if isinstance(m, dict)
     ]
