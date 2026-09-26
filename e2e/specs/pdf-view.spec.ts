@@ -51,9 +51,15 @@ async function choose(tab: Page, item: string) {
  *  read as the reader sees them: the figures' canvas where it has paint. */
 async function shade(tab: Page, fx: number, fy: number): Promise<number> {
   return tab.evaluate(({ fx, fy }) => {
-    const page = document.querySelector(".nx-page")!;
+    // No page for a moment while the preview lays its pages out again, as
+    // it does when the dark page is chosen: NaN, which no comparison
+    // accepts, so a poll asks again rather than failing on a page that is
+    // about to be there.
+    const page = document.querySelector(".nx-page");
+    if (!page) return NaN;
     const [canvas, figures] = [page.querySelector("canvas:not(.nx-figures)"), page.querySelector(".nx-figures")] as
       (HTMLCanvasElement | null)[];
+    if (!canvas || !canvas.width) return NaN;
     const read = (c: HTMLCanvasElement) => {
       const data = c.getContext("2d")!.getImageData(Math.floor(c.width * fx), Math.floor(c.height * fy), 1, 1).data;
       return data;
@@ -71,7 +77,8 @@ async function shade(tab: Page, fx: number, fy: number): Promise<number> {
  *  found from the light block in the drawn page. */
 async function figureAt(tab: Page): Promise<{ fx: number; fy: number }> {
   return tab.evaluate(() => {
-    const canvas = document.querySelector(".nx-page canvas") as HTMLCanvasElement;
+    const canvas = document.querySelector(".nx-page canvas") as HTMLCanvasElement | null;
+    if (!canvas || !canvas.width) return { fx: NaN, fy: NaN };
     const context = canvas.getContext("2d")!;
     const { width, height } = canvas;
     const data = context.getImageData(0, 0, width, height).data;
@@ -102,7 +109,7 @@ test("the dark page is dark, and its figure keeps its own colours", async ({ app
   await expect(tab.getByTestId("pdf-sheet")).toHaveAttribute("data-dark-page", "true");
   // The paper is the dark surface, not black, and the figure is still light.
   await expect.poll(() => shade(tab, 0.05, 0.05), { timeout: 15_000 }).toBeLessThan(70);
-  expect(await shade(tab, 0.05, 0.05)).toBeGreaterThan(15);
+  await expect.poll(() => shade(tab, 0.05, 0.05)).toBeGreaterThan(15);
   // The paper is the dark theme's surface exactly, not a tinted grey.
   const paper = await tab.evaluate(() => {
     const canvas = document.querySelector(".nx-page canvas") as HTMLCanvasElement;
@@ -119,7 +126,7 @@ test("the dark page is dark, and its figure keeps its own colours", async ({ app
   for (let channel = 0; channel < 3; channel += 1) {
     expect(Math.abs(paper[channel] - surface[channel])).toBeLessThanOrEqual(3);
   }
-  expect(await shade(tab, figure.fx, figure.fy)).toBeGreaterThan(190);
+  await expect.poll(() => shade(tab, figure.fx, figure.fy)).toBeGreaterThan(190);
 
   // Remembered, and undone from the same menu.
   await tab.reload();
