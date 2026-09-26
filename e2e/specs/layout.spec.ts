@@ -1043,20 +1043,28 @@ test("the rail's handle resizes the rail rather than selecting the editor", asyn
   // A move per frame, because the handler is throttled with
   // `requestAnimationFrame`: ten steps dispatched in one tick are nine
   // moves the app never sees, and the last one can land after the release.
+  // Two frames after each move, rather than a fixed 40 ms, which a loaded
+  // machine could spend before the first frame came (Q-055).
+  const frames = () =>
+    tab.evaluate(
+      () => new Promise<void>((done) => requestAnimationFrame(() => requestAnimationFrame(() => done()))),
+    );
   for (const step of [25, 50, 75, 100]) {
     await tab.mouse.move(box.x + step, middle);
-    await tab.waitForTimeout(40);
+    await frames();
   }
   await tab.mouse.up();
-  await tab.waitForTimeout(100);
 
-  const after = await tab.evaluate(() =>
-    Math.round(
-      document.querySelector('[role="tree"]')?.closest(".nx-pane")
-        ?.getBoundingClientRect().width ?? 0,
-    ),
-  );
-  expect(after).toBeGreaterThan(before + 40);
+  await expect
+    .poll(() =>
+      tab.evaluate(() =>
+        Math.round(
+          document.querySelector('[role="tree"]')?.closest(".nx-pane")
+            ?.getBoundingClientRect().width ?? 0,
+        ),
+      ),
+    )
+    .toBeGreaterThan(before + 40);
 
   // And nothing was selected on the way past, which is the other half of
   // what those two shots showed.

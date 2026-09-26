@@ -90,9 +90,13 @@ async function figureAt(tab: Page): Promise<{ fx: number; fy: number }> {
 test("the dark page is dark, and its figure keeps its own colours", async ({ app, project, tab }) => {
   await build(app, project);
   await expect(tab.locator(".nx-page canvas").first()).toBeVisible({ timeout: 45_000 });
-  await tab.waitForTimeout(1500);
+  // Drawn, which a visible canvas is not yet: the figure's grey is found on
+  // it and the paper is white. A fixed 1500 ms stood in for this (Q-055).
+  await expect
+    .poll(async () => Number.isFinite((await figureAt(tab)).fx), { timeout: 20_000 })
+    .toBe(true);
+  await expect.poll(() => shade(tab, 0.05, 0.05)).toBeGreaterThan(230);   // white paper
   const figure = await figureAt(tab);
-  expect(await shade(tab, 0.05, 0.05)).toBeGreaterThan(230);   // white paper
 
   await choose(tab, "pdf-dark");
   await expect(tab.getByTestId("pdf-sheet")).toHaveAttribute("data-dark-page", "true");

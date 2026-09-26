@@ -237,29 +237,12 @@ test("a Markdown file's versions reach the open panel without a build", async ({
   const rows = tab.getByTestId("version");
   const before = await rows.count();
 
-  // The build the reload started may still be landing, and a fast pass
-  // that left the layout behind is followed by a settling build of its
-  // own; neither is the keystroke's doing.  So wait for the builds to be
-  // over, every start answered by a done, and count from there.
-  const settled = async () => {
-    if (events.count("compile_start") !== events.count("compile_done")) return false;
-    // A settling build is spawned after the result it follows has gone
-    // out, so "every start has its done" is true for a moment before the
-    // settling build starts. This waited 400 ms for that, which held
-    // until it met two workers and a real LaTeX build: the settling
-    // build then started later than the grace and its compile_start
-    // landed after the count was taken, so the keystroke below was
-    // blamed for a build it did not cause. Quiet twice over is what is
-    // asked for now, which is cheap here because the poll around this
-    // has forty-five seconds to spend and stops at the first quiet pair.
-    for (let quiet = 0; quiet < 2; quiet += 1) {
-      await tab.waitForTimeout(750);
-      if (events.count("compile_start") !== events.count("compile_done")) return false;
-    }
-    return true;
-  };
-  await expect.poll(settled, { timeout: 45_000 }).toBe(true);
-  const started = events.count("compile_start");
+  // Whether a build ran meanwhile is not the question, and counting them
+  // was the flake: the reload's build and its settling build land when
+  // they like, so two quiet windows were a guess (Q-055). What shows the
+  // keystroke reached the panel without a build is the event the server
+  // sends for it, after the keystroke, and no build of this file.
+  const mark = events.types.length;
 
   // Two edits from this one window inside the coalescing window are one
   // version, so one edit is what this asks for: a row that was not there.
@@ -268,7 +251,11 @@ test("a Markdown file's versions reach the open panel without a build", async ({
   await tab.keyboard.type("\nA second line.\n");
   await landed(app, project, "A second line.", "notes.md");
   await expect.poll(() => rows.count(), { timeout: 10_000 }).toBeGreaterThan(before);
-  expect(events.count("compile_start")).toBe(started);
+  expect(events.types.slice(mark)).toContain("history_changed");
+  const builtThis = events.payloads
+    .slice(mark)
+    .filter((event) => event.type === "compile_start" && event.document === "notes.md");
+  expect(builtThis).toHaveLength(0);
   events.stop();
 });
 

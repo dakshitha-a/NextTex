@@ -91,7 +91,7 @@ The backlog close-out worked every line here that this host could work.
 What stays needs a Windows machine, GitHub, or a report that names what
 this host could not reproduce; each says which.
 
-- [ ] **Six browser tests fail about once in a full run and pass on
+- [x] **Six browser tests fail about once in a full run and pass on
       the retry.** Each has been seen in the full tier with retries on,
       under four workers, during the run of 24 September 2026: the layout
       frame test (`layout.spec.ts`, "the window is a frame"), the hover
@@ -117,6 +117,16 @@ this host could not reproduce; each says which.
       writing find and replace once each. The next step moves to CI, whose
       retry reports are kept: read which of these the retries rescue
       there before spending another local hour.
+      Closed by the backlog close-out, by cause rather than by trace: the
+      four the fix run's retries rescued each waited a fixed time or read
+      a value still changing. The rail's handle slept 40 ms between moves
+      and 100 ms after, and now waits two frames and polls the width; the
+      dark page slept 1500 ms, and now polls until the figure is drawn;
+      the Markdown history test guessed when builds were over, and now
+      asks for the `history_changed` the keystroke caused and no build of
+      the note; find typed its query and read a count from a keystroke
+      before the last, and now fills it once. Three full tiers in a row
+      with retries off then passed, 1,830 runs, none failed.
 - [x] **A logon-started server took five minutes to begin serving.**
       Measured again on 24 September 2026 after a restart, on 3.17.2 with
       the windowless task: logon at 20:12:55, the task's process at

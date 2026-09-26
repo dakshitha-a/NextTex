@@ -120,7 +120,10 @@ test("find counts its matches, steps through them, and replaces behind its own c
   const panel = tab.locator(".cm-panel.cm-search");
   await expect(panel).toBeVisible();
   await expect(panel.locator("input[name=replace]")).toHaveCount(0);
-  await tab.keyboard.type("section");
+  // Filled at once rather than typed: typed, the count went through "s",
+  // "se" and on, and the total below could be read from one of those
+  // before the last keystroke's count arrived (Q-055).
+  await panel.locator("input[name=search]").fill("section");
   const count = panel.locator(".nx-find-count");
   await expect(count).toContainText(/of \d+/);
   const said = (await count.textContent()) ?? "";
