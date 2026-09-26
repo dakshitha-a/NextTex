@@ -33,8 +33,8 @@ from the kit, and the agent answering comments. It turned up and fixed a
 reload that lost the answer being streamed, a name save that took the
 caret from a password, and a pdf.js text layer sized by the old rules.
 Its tracker page is https://claude.ai/artifact/BRABBddBZDD4j9iF1yHAkc.
-Two items stay open below: the laptop's task, until the owner clicks
-Allow there, and OpenAI against OpenAI, by the owner's choice.
+One item stays open below, OpenAI against OpenAI, by the owner's choice;
+the laptop's task was checked there the same day.
 
 The fix run closed on 25 September 2026 at 3.19.0,
 having fixed the probe's findings in the order its report proposed, one
@@ -61,15 +61,16 @@ OpenAI provider against OpenAI itself.
 
 ### Known gaps, with a cost somebody will eventually pay
 
-- [ ] **The owner's Windows task has no restart until it is run again
+- [x] **The owner's Windows task has no restart until it is run again
       as administrator.** A new install's logon task repeats every five
       minutes, so a server that dies comes back (Q-070). The laptop's task
       was registered from an administrator shell and gives its owner read
       access only, so the script could not change it without
-      administrator; it now says so, writes no shortcut beside it, and
-      asks Windows for administrator itself where someone is at the
-      desktop. What is left is on the laptop: run the installer, click
-      Yes, end the server, and see it back within five minutes.
+      administrator; since 3.19.1 it asks Windows for administrator itself.
+      Checked on the laptop on 26 September 2026: the ordinary run was
+      refused, the prompt was answered Yes, the task came back with its
+      `PT5M` repetition, and the server, ended by its process numbers, was
+      running again under new ones at the next five-minute mark.
 
 - [x] **Raw controls and literal sizes outside the kit.** 89 raw
       controls and 331 literal sizes in 52 files when the rule began to
