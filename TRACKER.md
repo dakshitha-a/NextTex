@@ -154,6 +154,12 @@ this host could not reproduce; each says which.
       the note; find typed its query and read a count from a keystroke
       before the last, and now fills it once. Three full tiers in a row
       with retries off then passed, 1,830 runs, none failed.
+      The frame test failed once more in a later full check, the same
+      race as the rail's handle: six drag moves in one burst to a handler
+      that takes one a frame, and the width read once. It moves a step
+      per two frames and polls now, and passed eight times in a row. The
+      other four named above, the hover card, the section bar, the kit's
+      controls and the second caret, have not failed in any run since.
 - [x] **A logon-started server took five minutes to begin serving.**
       Measured again on 24 September 2026 after a restart, on 3.17.2 with
       the windowless task: logon at 20:12:55, the task's process at

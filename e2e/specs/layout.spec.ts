@@ -447,12 +447,20 @@ test("the window is a frame: four heads on one band, the bar and the feet on the
   const h = (await handle.boundingBox())!;
   await tab.mouse.move(h.x, h.y + 300);
   await tab.mouse.down();
-  await tab.mouse.move(h.x - 60, h.y + 300, { steps: 6 });
-  // The move is applied on the next frame; a release in the same frame
-  // cancels it, which a hand never manages and a test always does.
-  await tab.waitForTimeout(120);
+  // A move per two frames, since the handler applies one move a frame:
+  // six sent in one burst were partly dropped, and a width read once
+  // right after the release caught the drawer 24 px along a 60 px drag
+  // (Q-055, as the rail's handle below was).
+  const frames = () =>
+    tab.evaluate(
+      () => new Promise<void>((done) => requestAnimationFrame(() => requestAnimationFrame(() => done()))),
+    );
+  for (let step = 1; step <= 6; step += 1) {
+    await tab.mouse.move(h.x - step * 10, h.y + 300);
+    await frames();
+  }
   await tab.mouse.up();
-  expect((await box("drawer")).width).toBeLessThan(before - 30);
+  await expect.poll(async () => (await box("drawer")).width).toBeLessThan(before - 30);
 });
 
 test("the bar holds its eleven buttons and Settings on a short window", async ({ tab }) => {
