@@ -19,15 +19,39 @@
   privileges at all.
 
   Prints what it did and exits non-zero only if neither way worked.
+
+  A task that is already there and cannot be changed was registered from
+  an administrator shell. Where someone is at the desktop, the script then
+  asks Windows for administrator itself, the "Allow changes?" prompt, by
+  running itself again elevated with -Elevated, -ForUser and -Report; the
+  elevated run's output goes to the -Report file, since its own window
+  closes, and the run that asked prints it.
 #>
 [CmdletBinding()]
 param(
   [Parameter(Mandatory = $true)][string]$Root,
   [string]$Name = 'nexttex',
-  [string]$Instance = ''
+  [string]$Instance = '',
+  [switch]$Elevated,
+  [string]$ForUser = '',
+  [string]$Report = ''
 )
 
 $ErrorActionPreference = 'Stop'
+
+if ($Report) {
+  # The elevated run, with every stream into the file the asking run reads.
+  & $PSCommandPath -Root $Root -Name $Name -Instance $Instance -Elevated -ForUser $ForUser *> $Report
+  exit $LASTEXITCODE
+}
+
+$me = [Security.Principal.WindowsIdentity]::GetCurrent().Name
+if ($Elevated -and $ForUser -and $ForUser -ne $me) {
+  # Answered with another account's password, the elevated run is that
+  # account, and a task it registered would start at that account's logon.
+  Write-Output "the administrator prompt was answered as $me, not $ForUser, so the task was left as it was"
+  exit 3
+}
 
 # pythonw.exe, the interpreter with no console. The task's server used to
 # be a console program, and Windows 11 hands a console program to Windows
@@ -113,10 +137,45 @@ try {
   if (Get-ScheduledTask -TaskName $Name -ErrorAction SilentlyContinue) {
     $kept = $true
     Write-Output "scheduled task '$Name' is already there and could not be changed: $why"
-    Write-Output "it keeps its old settings; to give it the restart after a crash, run the installer once from an administrator PowerShell"
+    $asked = $false
+    # Asked only where someone can answer, and never from a run that is
+    # already the answer, so it cannot loop.
+    if (-not $Elevated -and [Environment]::UserInteractive) {
+      Write-Output "asking Windows for administrator to change it; answer the prompt that opens"
+      $report = Join-Path ([IO.Path]::GetTempPath()) ("nexttex-task-" + [guid]::NewGuid() + ".txt")
+      $again = @('-NoProfile', '-ExecutionPolicy', 'Bypass', '-File', "`"$PSCommandPath`"",
+        '-Root', "`"$Root`"", '-Name', "`"$Name`"", '-Elevated', '-ForUser', "`"$me`"", '-Report', "`"$report`"")
+      if ($Instance) { $again += @('-Instance', "`"$Instance`"") }
+      try {
+        $child = Start-Process -FilePath 'powershell.exe' -Verb RunAs -ArgumentList $again `
+          -WindowStyle Hidden -Wait -PassThru
+        $asked = $true
+        if (Test-Path $report) {
+          Get-Content -Path $report | ForEach-Object { Write-Output "  $_" }
+          Remove-Item -Path $report -Force -ErrorAction SilentlyContinue
+        }
+        if ($child.ExitCode -eq 0) {
+          Write-Output "scheduled task '$Name' changed with administrator"
+        } else {
+          Write-Output "the administrator run could not change it either (exit $($child.ExitCode))"
+        }
+      } catch {
+        # Start-Process throws when the prompt is declined or cannot open.
+        Write-Output "administrator was declined or could not be asked for: $($_.Exception.Message)"
+      }
+    }
+    if (-not $asked) {
+      Write-Output "it keeps its old settings; to give it the restart after a crash, run the installer once from an administrator PowerShell"
+    }
   } else {
     Write-Output "a scheduled task could not be registered ($why), so using the Startup folder instead"
   }
+}
+
+# An elevated run exists to change the task; if it could not, it says so
+# by its exit, and the run that asked keeps its own shortcut decision.
+if ($Elevated -and -not $registered) {
+  exit 3
 }
 
 if (-not $registered -and -not $kept) {

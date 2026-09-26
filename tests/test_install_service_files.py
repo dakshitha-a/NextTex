@@ -98,6 +98,32 @@ def test_the_helper_falls_back_to_the_startup_folder():
     assert "pythonw.exe" in text, "logging in would leave a console window open"
 
 
+def test_a_task_that_could_not_be_changed_asks_windows_for_administrator():
+    """Q-070's other half. Saying "run the installer from an administrator
+    PowerShell" left the writer to find one; the laptop's task stayed
+    without its restart trigger. Where someone is at the desktop, the
+    script now asks Windows itself: it re-runs itself elevated, which is
+    the "Allow changes?" prompt, waits, and reports what the elevated run
+    said. It never asks from an elevated run, so it cannot loop, and an
+    elevated run answered as another account changes nothing, since the
+    task would then belong to that account."""
+    text = (Path(__file__).resolve().parents[1] / "scripts"
+            / "register-task.ps1").read_text(encoding="utf-8")
+    catch = text[text.index("} catch {"):text.index("if (-not $registered -and")]
+    assert "-Verb RunAs" in catch
+    assert "-Wait" in catch and "-PassThru" in catch
+    assert "[Environment]::UserInteractive" in catch
+    assert "-not $Elevated" in catch
+    assert "-ForUser" in catch and "-Elevated" in catch
+    # Declining the prompt is a thrown error, and says what it said before.
+    assert "declined" in catch
+    head = text[:text.index("$ErrorActionPreference")]
+    assert "[switch]$Elevated" in head and "[string]$ForUser" in head
+    assert "[string]$Report" in head
+    # The elevated run refuses to register a task for someone else.
+    assert "$ForUser -ne" in text
+
+
 def test_a_windows_server_that_dies_is_started_again():
     """Q-070: the task had one trigger, logon, so a server that crashed or
     was ended stayed down until the next sign-in; Linux's unit restarts it.

@@ -54,10 +54,10 @@ OpenAI provider against OpenAI itself.
       minutes, so a server that dies comes back (Q-070). The laptop's task
       was registered from an administrator shell and gives its owner read
       access only, so the script could not change it without
-      administrator; it now says so and writes no shortcut beside it.
-      Running the installer once from an administrator PowerShell applies
-      the restart, and a killed server should then be back within five
-      minutes. That is the check left, and it is the owner's to make.
+      administrator; it now says so, writes no shortcut beside it, and
+      asks Windows for administrator itself where someone is at the
+      desktop. What is left is on the laptop: run the installer, click
+      Yes, end the server, and see it back within five minutes.
 
 - [ ] **Raw controls and literal sizes outside the kit.** 89 raw
       controls and 331 literal sizes in 52 files when the rule began to
