@@ -71,3 +71,13 @@ describe("R-074: the range rewrite says what it rewrote", () => {
     ).toBe("a.tex 7 to 7");
   });
 });
+
+describe("ChatGPT's calls", () => {
+  test("arrive without the prefix and read as Claude's do", () => {
+    // The OpenAI provider names the app's own tools bare, so every one of
+    // its rows read as the tool's own name with the underscores taken out.
+    expect(verbFor("show_page")).toBe("Turned the preview to a page");
+    expect(verbFor("install_package", "asking")).toBe("Installing a package");
+    expect(verbFor("list_files")).toBe("list files");
+  });
+});

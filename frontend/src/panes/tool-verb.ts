@@ -89,6 +89,11 @@ function plainly(name: string): string {
  */
 export function verbFor(name: string, state: CallState = "done"): string {
   if (state === "refused") return "Did not run";
-  if (state === "asking") return ASKING[name] ?? plainly(name);
-  return VERBS[name] ?? plainly(name);
+  // The OpenAI provider names the app's own tools bare, `show_page` for
+  // `mcp__nexttex__show_page`, so each of its rows read as the tool's name
+  // with the underscores taken out. The same word under either provider.
+  const own = `mcp__nexttex__${name}`;
+  const known = name in VERBS || name in ASKING ? name : own in VERBS ? own : name;
+  if (state === "asking") return ASKING[known] ?? plainly(known);
+  return VERBS[known] ?? plainly(known);
 }
