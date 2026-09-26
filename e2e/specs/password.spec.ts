@@ -125,3 +125,38 @@ test("the lock's card can be put away for good, and a press on the lock opens th
     await own.stop();
   }
 });
+
+test("saving the name does not take the caret from the password being typed", async ({ page }) => {
+  // Seen once in a full run as "Those two do not match." after both boxes
+  // were filled with the same words. Leaving the name field saves it, and
+  // when the save came back the card's state changed and its focus effect,
+  // written for the card opening, put the caret back in the first password
+  // box: whatever was typed next into "Again" went into the box above it.
+  // A slow save makes the moment certain rather than rare.
+  const own = await startServer();
+  try {
+    await page.route("**/api/auth/name", async (route) => {
+      await new Promise((done) => setTimeout(done, 700));
+      await route.continue();
+    });
+    await page.goto(`${own.base}/?token=${own.token}`);
+    await page.getByTestId("password-nudge").click();
+    const card = page.getByTestId("access-card");
+    await expect(card).toBeVisible();
+    const boxes = card.locator('input[type="password"]');
+    await card.getByTestId("display-name").click();
+    await page.keyboard.type("Dakshitha");
+    await boxes.nth(0).click();
+    await page.keyboard.type("a-long-enough-one");
+    await boxes.nth(1).click();
+    // Slowly enough to straddle the name coming back.
+    const saved = page.waitForResponse("**/api/auth/name");
+    await page.keyboard.type("a-long-enough-one", { delay: 90 });
+    await saved;
+    await expect(boxes.nth(0)).toHaveValue("a-long-enough-one");
+    await expect(boxes.nth(1)).toHaveValue("a-long-enough-one");
+    await expect(boxes.nth(1)).toBeFocused();
+  } finally {
+    await own.stop();
+  }
+});

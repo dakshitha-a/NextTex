@@ -236,18 +236,15 @@ this host could not reproduce; each says which.
       shape is a tool that lists a file's open threads with their quotes,
       and a reply the agent writes goes through the same route as a
       person's, under the agent's name.
-- [ ] **`password.spec.ts` "setting a password says so and closes itself"
-      timed out once in four full runs**, and is understood well enough to
-      be left alone. The close-out run worked the arithmetic rather than
-      the timeout. The chain is a sequence of causes, not a race: the POST
-      returns, `access-done` renders, `AccessCard.tsx:61-69`'s deliberate
-      1800 ms timer fires `onClose`, `PasswordNudge.tsx:74-77` runs one
-      `api.auth()`, and the lock goes. Every wait in the spec is on an
-      observable and there is no window in which an event can be missed.
-      The budget against that is generous: `playwright.config.ts` gives
-      `expect` ten seconds, not the five this entry used to claim, the
-      spec's own `toHaveCount(0)` gets six for 1800 ms plus a round trip,
-      and the test has sixty against a worst case near twenty-six. Only a
-      whole-machine stall fails it, which the one retry is there for.
-      Widening a timeout here is the move `docs/testing.md` calls not
-      worth it. If it recurs, open the trace before touching the numbers.
+- [x] **`password.spec.ts` "setting a password says so and closes itself"
+      timed out once in four full runs**, and the entry here called it a
+      whole-machine stall, to be left alone unless it recurred. It
+      recurred on 26 September, and the trace said otherwise: the card
+      answered "Those two do not match." after both boxes were filled
+      alike. Leaving the name field saves the name; when the save came
+      back, the card's state changed, and its focus effect, keyed on the
+      state and written for the card opening, put the caret back in the
+      first password box, so what was typed next into "Again" went into
+      the box above. A writer typing quickly after their name could do the
+      same. The effect runs once, when the settings arrive, and a spec
+      with the name save slowed to 700 ms types across it.

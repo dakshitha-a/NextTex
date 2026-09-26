@@ -101,9 +101,14 @@ export default function AccessCard({
     };
   }, [read]);
 
+  // Once, when the settings first arrive. Keyed on the state itself, it ran
+  // again when saving the name updated it, and took the caret from whatever
+  // was being typed: a confirmation half typed into "Again" went on in the
+  // password box above it, and the card said the two did not match.
+  const ready = state !== null;
   useEffect(() => {
-    if (state) first.current?.focus();
-  }, [state, focus]);
+    if (ready) first.current?.focus();
+  }, [ready, focus]);
 
   // Said out loud rather than left as a colour change, and cleared after a
   // moment so the card does not accumulate a log of everything you did.
