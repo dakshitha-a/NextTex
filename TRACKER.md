@@ -24,7 +24,19 @@ things go to be forgotten rather than a list anybody reads.
 
 ## In hand
 
-Nothing is in hand. The fix run closed on 25 September 2026 at 3.19.0,
+Nothing is in hand. The backlog close-out closed on 26 September 2026 at
+4.1.0, one push per step from 3.19.1: a script's escaped grandchild ended
+by Stop, the Windows task asking for administrator itself, the browser
+flakes fixed at their causes, diff, Vite and pdf.js a major version up
+with the build's Node floor at 22.13 as 4.0.0, every control and size
+from the kit, and the agent answering comments. It turned up and fixed a
+reload that lost the answer being streamed, a name save that took the
+caret from a password, and a pdf.js text layer sized by the old rules.
+Its tracker page is https://claude.ai/artifact/BRABBddBZDD4j9iF1yHAkc.
+Two items stay open below: the laptop's task, until the owner clicks
+Allow there, and OpenAI against OpenAI, by the owner's choice.
+
+The fix run closed on 25 September 2026 at 3.19.0,
 having fixed the probe's findings in the order its report proposed, one
 push per step, 3.18.2 to 3.19.0. Its tracker page is
 https://claude.ai/artifact/1PHFeRFMcKicS3PZFCqCzW. The findings were
@@ -219,7 +231,9 @@ this host could not reproduce; each says which.
       shapes is the half that stays unproven, since there is no account
       here to find out with; the local run says the parser, the tool
       loop, the card and the usage chunk all hold against a server that
-      speaks the same protocol.
+      speaks the same protocol. The backlog close-out of 26 September
+      left it open by the owner's choice: a key would cost money, and
+      the local run is the evidence there is.
 - [x] **Stop against the real CLI, since the buffer fix.** Pressed on 24
       September 2026 in a throwaway install of 3.16.0 under `~/work/tests`
       signed in through the machine's own `claude`, on Sonnet 5: Stop 5.5
