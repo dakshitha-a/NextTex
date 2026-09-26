@@ -237,6 +237,70 @@ def test_cancelling_a_run_ends_the_interpreter(tmp_path):
         os.kill(pid, 0)
 
 
+def _alive(pid: int) -> bool:
+    """Running, as opposed to gone or a zombie waiting for init to reap it."""
+    try:
+        with open(f"/proc/{pid}/stat", encoding="utf-8") as stat:
+            return stat.read().rsplit(")", 1)[1].split()[0] != "Z"
+    except OSError:
+        return False
+
+
+@pytest.mark.skipif(not sys.platform.startswith("linux"), reason="the escape is a Linux session")
+@pytest.mark.parametrize("capture", [False, True])
+def test_stopping_a_run_ends_a_child_that_left_its_session(tmp_path, capture):
+    """A script can start a child that calls `setsid` and forks again, so
+    the grandchild is in no group the stop signals and its parent has
+    exited.  Stop used to leave it running (Q-007); the runner now keeps
+    such orphans as its own descendants, and the stop walks them."""
+    escaped = tmp_path / "escaped.pid"
+    script = tmp_path / "escapes.py"
+    script.write_text(
+        "import os, subprocess, sys, time\n"
+        "code = (\n"
+        "    'import os, sys, time\\n'\n"
+        "    'os.setsid()\\n'\n"
+        "    'if os.fork():\\n'\n"
+        "    '    os._exit(0)\\n'\n"
+        "    'open(sys.argv[1], \"w\").write(str(os.getpid()))\\n'\n"
+        "    'time.sleep(60)\\n'\n"
+        ")\n"
+        f"subprocess.run([sys.executable, '-c', code, {str(escaped)!r}])\n"
+        "time.sleep(30)\n",
+        encoding="utf-8",
+    )
+
+    async def scenario() -> None:
+        kwargs = {"capture": tmp_path / "capture"} if capture else {}
+        task = asyncio.ensure_future(plots.run(tmp_path, tmp_path / ".nexttex", script, **kwargs))
+        for _ in range(250):
+            if escaped.exists() and escaped.read_text():
+                break
+            await asyncio.sleep(0.02)
+        task.cancel()
+        with pytest.raises(asyncio.CancelledError):
+            # The grandchild holds the run's pipes, so while it lived the
+            # stop itself waited on it, for as long as it cared to run.
+            await asyncio.wait_for(asyncio.shield(task), 10)
+
+    def grandchild() -> int:
+        return int(escaped.read_text() or 0) if escaped.exists() else 0
+
+    try:
+        asyncio.run(scenario())
+        pid = grandchild()
+        assert pid, "the grandchild never started"
+        for _ in range(100):
+            if not _alive(pid):
+                break
+            time.sleep(0.03)
+        assert not _alive(pid), "the grandchild outlived the stop"
+    finally:
+        # Only this test's own grandchild, by the pid it wrote down.
+        if grandchild() and _alive(grandchild()):
+            os.kill(grandchild(), 9)
+
+
 # -- installing on demand ----------------------------------------------------
 @pytest.mark.parametrize("name", [
     "--index-url", "seaborn; curl evil", "../../etc", "", "-U", "a b",

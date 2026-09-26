@@ -78,13 +78,14 @@ OpenAI provider against OpenAI itself.
       loader and one in `diff`'s patch functions, are in code the app
       never calls.
 
-- [ ] **A script that starts a session of its own outlives its stop.**
-      A stopped or timed-out script is ended by killing its process
-      group, and a script that forks and calls `setsid` leaves the group.
-      The fix run capped scripts at three at once (Q-007); the other
-      half, a Linux cgroup per run or tracking by descendant, is medium
-      work for a low finding, since such a script runs as the writer's
-      own user and was written or approved by them.
+- [x] **A script that starts a session of its own outlives its stop.**
+      A stopped or timed-out script was ended by killing its process
+      group, and a script that forks and calls `setsid` left the group;
+      the grandchild also held the run's pipes, so the stop waited on it.
+      Closed by tracking descendants rather than by a cgroup: the runner
+      is a child subreaper on Linux and a job object member on Windows,
+      and `end_tree` walks and ends everything below it. macOS keeps the
+      process group, having neither (Q-007, `tests/test_plots.py`).
 
 The backlog close-out worked every line here that this host could work.
 What stays needs a Windows machine, GitHub, or a report that names what

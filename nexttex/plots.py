@@ -199,7 +199,8 @@ async def run(
 ) -> dict:
     """Run one script and say what happened, in a shape a model can act on.
 
-    With `capture`, the script runs under `script_runner.py`, which keeps
+    The script runs under `script_runner.py`, which keeps what it starts
+    within reach of a stop.  With `capture`, the runner also keeps
     what `pyplot.show()` and the end of the run see as PNGs in that
     directory and notes every `savefig`; the result then carries `figures`
     (their names, in order) and `saved` (the project-relative paths the
@@ -216,11 +217,12 @@ async def run(
     # (Q-044).
     (root / FIGURES).mkdir(exist_ok=True)
     env = environment(state_dir)
-    argv = [sys.executable, str(path)]
+    # Always the runner, captured or not: it is also what keeps a child
+    # that left the script's session within reach of a stop (Q-007).
+    argv = [sys.executable, str(RUNNER), str(path)]
     if capture is not None:
         capture.mkdir(parents=True, exist_ok=True)
         env[CAPTURE_ENV] = str(capture)
-        argv = [sys.executable, str(RUNNER), str(path)]
     started = time.monotonic()
     try:
         process = await asyncio.create_subprocess_exec(

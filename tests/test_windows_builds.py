@@ -42,6 +42,34 @@ def test_posix_ends_the_group_and_a_gone_process_is_quiet():
     proctree.end_tree(child.pid, hard=True)     # already gone
 
 
+def _proc(tmp_path, parents):
+    """A fake `/proc` where each pid has the parent given."""
+    for pid, parent in parents.items():
+        (tmp_path / str(pid)).mkdir()
+        (tmp_path / str(pid) / "stat").write_text(f"{pid} (a) b) S {parent} 1 1 0", encoding="utf-8")
+    (tmp_path / "self").mkdir()
+    return str(tmp_path)
+
+
+def test_descendants_are_walked_nearest_first_and_a_name_with_brackets_is_read(tmp_path):
+    proc = _proc(tmp_path, {10: 1, 11: 10, 12: 10, 13: 11, 14: 13, 20: 1})
+    assert proctree.descendants(10, proc=proc) == [11, 12, 13, 14]
+    assert proctree.descendants(20, proc=proc) == []
+    assert proctree.descendants(10, proc=str(tmp_path / "missing")) == []
+
+
+def test_the_runner_keeps_descendants_on_linux_and_leaves_macos_alone():
+    from nexttex import script_runner
+
+    assert script_runner._keep_descendants("darwin") == ""
+    if sys.platform.startswith("linux"):
+        # In a throwaway child, so this test process does not become a
+        # subreaper for the rest of the suite.
+        code = "from nexttex import script_runner; print(script_runner._keep_descendants())"
+        said = subprocess.run([sys.executable, "-c", code], capture_output=True, text=True, timeout=30)
+        assert said.stdout.strip() == "subreaper"
+
+
 # -- never a window: MiKTeX's own installer ---------------------------------------
 
 def paths(tmp_path):

@@ -2,7 +2,8 @@
 in the child interpreter rather than in the server.
 
 `python script_runner.py scripts/fig.py` behaves like `python scripts/fig.py`
-with one addition: what the script draws is kept.  Every `pyplot.show()`
+with two additions: what the script draws is kept, and what the script
+starts stays within reach of a stop, which `_keep_descendants` explains.  Every `pyplot.show()`
 saves the open figures into the capture directory and closes them, so a
 script written for a screen shows its plots in the pane instead of in a
 window that will never open; every `savefig` is noted, so the pane can say
@@ -209,10 +210,102 @@ def _print_traceback(error: BaseException) -> None:
     sys.stderr.flush()
 
 
+#: `prctl`'s option for a child subreaper, from <linux/prctl.h>.
+PR_SET_CHILD_SUBREAPER = 36
+#: From <winnt.h>: the job's limit flags, and the class that sets them.
+JOB_OBJECT_LIMIT_KILL_ON_JOB_CLOSE = 0x2000
+JOB_OBJECT_EXTENDED_LIMIT_INFORMATION = 9
+
+
+def _keep_descendants(platform: str | None = None) -> str:
+    """Hold on to everything the script starts, so a stop reaches it.
+
+    On Linux this process becomes a child subreaper: a grandchild whose
+    parent exits comes here instead of to init, so `proctree.end_tree`
+    finds it by walking down from this pid, even after `setsid` took it out
+    of the group (Q-007).  On Windows this process joins a job object that
+    ends every member when its last handle closes, and this process holds
+    the only handle, so ending it ends the lot.  Anything that fails leaves
+    the run as it was before; it says which it did, for the tests.
+    """
+    platform = platform or sys.platform
+    try:
+        import ctypes
+    except ImportError:
+        return ""
+    if platform.startswith("linux"):
+        try:
+            libc = ctypes.CDLL(None, use_errno=True)
+            if libc.prctl(PR_SET_CHILD_SUBREAPER, 1, 0, 0, 0) == 0:
+                return "subreaper"
+        except (OSError, AttributeError):
+            pass
+        return ""
+    if platform == "win32":
+        try:
+            return _join_job(ctypes)
+        except (OSError, AttributeError, ValueError):
+            return ""
+    return ""
+
+
+def _join_job(ctypes) -> str:
+    from ctypes import wintypes
+
+    class Basic(ctypes.Structure):
+        _fields_ = [
+            ("PerProcessUserTimeLimit", ctypes.c_int64),
+            ("PerJobUserTimeLimit", ctypes.c_int64),
+            ("LimitFlags", wintypes.DWORD),
+            ("MinimumWorkingSetSize", ctypes.c_size_t),
+            ("MaximumWorkingSetSize", ctypes.c_size_t),
+            ("ActiveProcessLimit", wintypes.DWORD),
+            ("Affinity", ctypes.c_size_t),
+            ("PriorityClass", wintypes.DWORD),
+            ("SchedulingClass", wintypes.DWORD),
+        ]
+
+    class Counters(ctypes.Structure):
+        _fields_ = [(name, ctypes.c_uint64) for name in (
+            "ReadOperationCount", "WriteOperationCount", "OtherOperationCount",
+            "ReadTransferCount", "WriteTransferCount", "OtherTransferCount",
+        )]
+
+    class Extended(ctypes.Structure):
+        _fields_ = [
+            ("BasicLimitInformation", Basic),
+            ("IoInfo", Counters),
+            ("ProcessMemoryLimit", ctypes.c_size_t),
+            ("JobMemoryLimit", ctypes.c_size_t),
+            ("PeakProcessMemoryUsed", ctypes.c_size_t),
+            ("PeakJobMemoryUsed", ctypes.c_size_t),
+        ]
+
+    kernel32 = ctypes.WinDLL("kernel32", use_last_error=True)
+    kernel32.CreateJobObjectW.restype = wintypes.HANDLE
+    kernel32.GetCurrentProcess.restype = wintypes.HANDLE
+    job = kernel32.CreateJobObjectW(None, None)
+    if not job:
+        return ""
+    limits = Extended()
+    limits.BasicLimitInformation.LimitFlags = JOB_OBJECT_LIMIT_KILL_ON_JOB_CLOSE
+    if not kernel32.SetInformationJobObject(
+        wintypes.HANDLE(job), JOB_OBJECT_EXTENDED_LIMIT_INFORMATION,
+        ctypes.byref(limits), ctypes.sizeof(limits),
+    ):
+        return ""
+    if not kernel32.AssignProcessToJobObject(wintypes.HANDLE(job), wintypes.HANDLE(kernel32.GetCurrentProcess())):
+        return ""
+    # Never closed: the handle is this process's until it ends, and its
+    # closing then is what ends everything the script started.
+    return "job"
+
+
 def main(argv: list[str]) -> int:
     if len(argv) < 2:
         sys.stderr.write("usage: script_runner.py SCRIPT\n")
         return 2
+    _keep_descendants()
     script = os.path.abspath(argv[1])
     directory = os.environ.get(CAPTURE_ENV)
     if directory:
