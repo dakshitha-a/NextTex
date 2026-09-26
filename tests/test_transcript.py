@@ -23,6 +23,25 @@ def test_streamed_text_is_stored_as_one_message(tmp_path):
     assert items[1]["text"] == "Hello there."
 
 
+def test_text_still_streaming_is_read_back_as_a_live_message(tmp_path):
+    """Text is held until the turn's words end, so a window reloaded while
+    an answer streamed read a transcript with the question and no answer,
+    and said the answer had been interrupted by a restart. What has been
+    said so far is part of what the transcript reads back, marked live, and
+    it is still written once, whole, when the words end."""
+    t = Transcript(tmp_path / "t.jsonl")
+    t.record({"type": "turn_start", "prompt": "hello"})
+    t.record({"type": "text", "text": "Working "})
+    t.record({"type": "text", "text": "on it."})
+    items = t.items()
+    assert [i["kind"] for i in items] == ["user", "claude"]
+    assert items[1] == {"kind": "claude", "text": "Working on it.", "live": True}
+    t.record({"type": "done"})
+    kinds = [i["kind"] for i in t.items()]
+    assert kinds == ["user", "claude", "turn_end"]
+    assert "live" not in t.items()[1]
+
+
 def test_an_edit_gets_an_id_so_its_undo_can_be_recorded(tmp_path):
     t = Transcript(tmp_path / "t.jsonl")
     event = t.record({"type": "edit", "path": "main.tex", "before": "a", "after": "b"})

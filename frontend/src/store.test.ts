@@ -320,6 +320,36 @@ describe("a notice reaches the panel and keeps its tone", () => {
     expect(get().chat[0]).toMatchObject({ tone: "error" });
   });
 
+  test("a reload while an answer streams keeps what was said and carries on", () => {
+    // The page came back from a transcript that had the question and not
+    // the answer, and said "interrupted when NextTex restarted" over a turn
+    // that was still running. The server now reads back what has been
+    // said, marked live, and says whether a turn runs.
+    replayTranscript(
+      [{ kind: "user", text: "Take your time." }, { kind: "claude", text: "Working on it.", live: true }],
+      { running: true },
+    );
+    const chat = get().chat;
+    expect(chat.map((item: any) => item.kind)).toEqual(["user", "claude"]);
+    expect(chat[1]).toMatchObject({ text: "Working on it.", streaming: true });
+    // The rest of the answer lands in the same message, not a second one.
+    __receive({ type: "text", text: " Done." });
+    __receive({ type: "done" });
+    const after = get().chat;
+    expect(after.map((item: any) => item.kind)).toEqual(["user", "claude"]);
+    expect(after[1]).toMatchObject({ text: "Working on it. Done.", streaming: false });
+  });
+
+  test("a turn with no end is still interrupted when nothing is running", () => {
+    replayTranscript([{ kind: "user", text: "hello" }, { kind: "turn_end" }, { kind: "user", text: "again" }]);
+    expect(get().chat.at(-1)).toMatchObject({ kind: "notice", text: "That answer was interrupted when NextTex restarted." });
+    replayTranscript(
+      [{ kind: "user", text: "hello" }, { kind: "turn_end" }, { kind: "user", text: "again" }],
+      { running: true },
+    );
+    expect(get().chat.at(-1)).toMatchObject({ kind: "user" });
+  });
+
   test("reading a transcript without replaying it leaves the live conversation alone", () => {
     // A past conversation is drawn from the same rows and must not touch
     // the store: the live conversation is what the store holds.

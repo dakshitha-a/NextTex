@@ -419,4 +419,11 @@ class Transcript:
             items.append(item)
             if item.get("id"):
                 index[item["id"]] = item
+        # What the turn has said so far, which is held here until its words
+        # end and written then, whole. Left out, a window reloaded while an
+        # answer streamed came back with the question alone and called the
+        # answer interrupted by a restart. Marked live so the page carries
+        # on into it rather than starting a second message.
+        if self._buffer and "".join(self._buffer).strip():
+            items.append({"kind": "claude", "text": "".join(self._buffer), "live": True})
         return items[-MAX_ITEMS:]

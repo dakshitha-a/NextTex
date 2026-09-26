@@ -568,7 +568,7 @@ export default function App() {
       // panel reporting a scan of a folder that has nothing to do with it.
       library: null,
     });
-    replayTranscript(project.transcript ?? []);
+    replayTranscript(project.transcript ?? [], { running: Boolean(project.agentBusy) });
     // A card the server is still waiting on outlives the page that showed
     // it, and the replay above marks it denied.  Ask what is really open.
     void reconcile();

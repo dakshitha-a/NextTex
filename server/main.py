@@ -2583,6 +2583,9 @@ async def open_project(project_id: str):
             "tree": session.project.tree(),
             "context": [d.as_dict() for d in session.context.documents()],
             "transcript": session.transcript.items(),
+            # So a window reloaded mid-turn reads the transcript's open end
+            # as a turn still going rather than one a restart cut off.
+            "agentBusy": bool(session.agent.busy),
             # Which documents are previewed, which others could be, and who
             # reads what -- in the same payload rather than a second round
             # trip, because the preview strip is drawn on the first frame.

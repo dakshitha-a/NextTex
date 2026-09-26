@@ -575,8 +575,14 @@ const nextId = () => `item-${Date.now().toString(36)}-${counter++}`;
  *  window has to as well -- otherwise the agent refers to work the writer
  *  cannot see.  The chips and permission records are also the audit trail
  *  of what an assistant did to the document, which is not session state. */
-export function replayTranscript(items: any[]) {
-  set({ chat: chatFromTranscript(items), awaitingPermission: false });
+export function replayTranscript(items: any[], options: { running?: boolean } = {}) {
+  const chat = chatFromTranscript(items, options);
+  // A turn still running whose words had begun: the rest of them goes on
+  // into the same message, as it would have without the reload.
+  const last = chat[chat.length - 1];
+  streamingId = options.running && last?.kind === "claude" && last.streaming ? last.id : null;
+  streamBuffer = "";
+  set({ chat, awaitingPermission: false });
 }
 
 /** A transcript's rows as the panel's own items, with nothing set.
@@ -585,7 +591,7 @@ export function replayTranscript(items: any[]) {
  *  the same rows and must not touch the store: the live conversation is
  *  what the store holds, and reading an old one has to leave it exactly
  *  where it was. */
-export function chatFromTranscript(items: any[]): ChatItem[] {
+export function chatFromTranscript(items: any[], options: { running?: boolean } = {}): ChatItem[] {
   const chat: ChatItem[] = [];
   for (const item of items) {
     const at = item.at ?? Date.now();
@@ -594,7 +600,9 @@ export function chatFromTranscript(items: any[]): ChatItem[] {
     } else if (item.kind === "claude") {
       chat.push({
         kind: "claude", id: nextId(), text: item.text ?? "", at,
-        streaming: false,
+        // `live` is the part of an answer the server has not yet written
+        // down because the turn is still saying it.
+        streaming: Boolean(options.running && item.live),
       });
     } else if (item.kind === "tool") {
       chat.push({
@@ -641,7 +649,9 @@ export function chatFromTranscript(items: any[]): ChatItem[] {
   // and restarts.  Without this the update feature and the agent feature
   // are quietly at odds: the transcript would reopen mid-sentence with
   // nothing saying so.
-  if (danglingTurn(chat)) {
+  // Not while the server says a turn is running: the open end is that
+  // turn, and a reload mid-answer was told NextTex had restarted.
+  if (!options.running && danglingTurn(chat)) {
     chat.push({
       kind: "notice",
       id: nextId(),

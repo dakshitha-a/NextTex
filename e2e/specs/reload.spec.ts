@@ -124,8 +124,15 @@ test("a reload in the middle of a turn comes back to a turn in progress", async 
   await tab.getByRole("button", { name: "Send" }).click();
   await expect(tab.getByTestId("stop")).toBeVisible({ timeout: 20_000 });
 
+  await expect(tab.getByText("Working on it.")).toBeVisible();
+
   await tab.reload();
 
   await expect(tab.getByTestId("stop")).toBeVisible({ timeout: 20_000 });
+  // What was said before the reload is still there, and nothing claims a
+  // restart: the transcript held the words until the turn ended, so the
+  // page came back with the question alone and called it interrupted.
+  await expect(tab.getByText("Working on it.")).toBeVisible();
+  await expect(tab.getByText("That answer was interrupted when NextTex restarted.")).toHaveCount(0);
   await tab.getByTestId("stop").click();
 });
