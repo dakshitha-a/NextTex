@@ -78,7 +78,7 @@ export default function FileCard({
           <img src={thumb.url} alt="" />
         </div>
       ) : null}
-      <p className="text-[13px] leading-[18px] font-medium text-ink">{node.name}</p>
+      <p className="text-compact leading-4.5 font-medium text-ink">{node.name}</p>
       <p className="t-meta text-ink-3">{facts.join(", ")}</p>
     </FloatingCard>
   );

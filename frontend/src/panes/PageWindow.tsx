@@ -83,7 +83,7 @@ export default function PageWindow({ request }: { request: PageWindowRequest }) 
       {/* The title row: 36 px on the second surface with no rule, like
           the pane headers, the mark, the project at 500 and the document
           in the third ink. */}
-      <div className="flex h-[36px] shrink-0 items-center gap-3 bg-surface-2 px-3">
+      <div className="flex h-9 shrink-0 items-center gap-3 bg-surface-2 px-3">
         <Logo />
         <span className="t-ui min-w-0 truncate font-medium text-ink">{projectName}</span>
         <span className="t-meta min-w-0 truncate text-ink-3" data-testid="page-window-document">

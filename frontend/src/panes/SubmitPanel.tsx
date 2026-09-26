@@ -1,6 +1,6 @@
 import { useEffect, useMemo, useState } from "react";
 import { Button } from "../ui/Button";
-import { Empty, Field, Switch } from "../ui/controls";
+import { Empty, Field, Pressable, Switch } from "../ui/controls";
 import api, { type SubmitFinding, type SubmitReport } from "../api";
 import { set, useStore } from "../store";
 
@@ -158,7 +158,7 @@ export default function SubmitPanel({
           inputMode="numeric"
           value={limitDraft}
           placeholder="none"
-          frameClassName="w-[72px] !h-[28px]"
+          frameClassName="w-18 !h-7"
           className="text-right"
           onChange={(event) => setLimitDraft(event.target.value.replace(/[^0-9]/g, ""))}
           onBlur={saveLimit}
@@ -283,7 +283,7 @@ export default function SubmitPanel({
                       : row.page ? `p. ${row.page}` : "";
                     return (
                       <li key={key}>
-                        <button
+                        <Pressable
                           className="nx-find"
                           data-testid="submit-row"
                           data-kind={row.kind}
@@ -305,7 +305,7 @@ export default function SubmitPanel({
                               <b>What to do:</b> {row.explain.fix}
                             </span>
                           ) : null}
-                        </button>
+                        </Pressable>
                       </li>
                     );
                   })}

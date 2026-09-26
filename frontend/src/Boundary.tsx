@@ -84,7 +84,7 @@ export default class Boundary extends Component<Props, State> {
         data-testid="interface-failed"
         className="flex h-full w-full items-center justify-center bg-surround p-8"
       >
-        <div className="max-w-[420px]">
+        <div className="max-w-105">
           <p className="t-ui-lg mb-1 text-ink">
             {this.state.serverGone
               ? "NextTex is not answering."

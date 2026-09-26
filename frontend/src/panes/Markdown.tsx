@@ -40,9 +40,9 @@ import { inline, parseBlocks, type Block } from "./prose";
 const HEADING = [
   "",
   "t-display mt-2 first:mt-0",
-  "text-[18px] leading-[24px] font-semibold mt-3",
-  "text-[16px] leading-[22px] font-semibold mt-2",
-  "text-[14.5px] leading-[22px] font-semibold mt-2",
+  "text-md-h1 leading-6 font-semibold mt-3",
+  "text-md-h2 leading-5.5 font-semibold mt-2",
+  "text-md-h3 leading-5.5 font-semibold mt-2",
 ];
 
 const Rendered = memo(function Rendered({ block, id }: { block: Block; id: string }) {
@@ -159,7 +159,7 @@ export default function Markdown({
             the first render was pale grey on white, the very thing the
             menu audit exists to catch; that spec measures this pane. */}
         <article
-          className="nx-page nx-theme-light nx-theme-white t-prose mx-auto flex max-w-[72ch] flex-col gap-3 px-[44px] py-[40px] text-ink"
+          className="nx-page nx-theme-light nx-theme-white t-prose mx-auto flex max-w-[72ch] flex-col gap-3 px-11 py-10 text-ink"
           aria-label={name ? `${name}, rendered` : undefined}
           title={onNavigate ? "Double-click to go to this line in the source" : undefined}
           onDoubleClick={onDoubleClick}

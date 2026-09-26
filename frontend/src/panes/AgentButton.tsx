@@ -1,6 +1,7 @@
 import { useStore } from "../store";
 import { agentName, type Provider } from "../agent-name";
 import { shortcut } from "../keys";
+import { Pressable } from "../ui/controls";
 
 /** The way to the agent while the column is an overlay and parked.
  *
@@ -70,7 +71,7 @@ export function AgentStateDot({ className = "" }: { className?: string }) {
       <span
         data-testid="agent-state"
         data-state="waiting"
-        className={`h-[8px] w-[8px] rounded-full border-2 border-surface-2 bg-warn ${className}`}
+        className={`h-2 w-2 rounded-full border-2 border-surface-2 bg-warn ${className}`}
       />
     );
   }
@@ -79,7 +80,7 @@ export function AgentStateDot({ className = "" }: { className?: string }) {
       <span
         data-testid="agent-state"
         data-state="working"
-        className={`nx-agent-working h-[8px] w-[8px] rounded-full border-2 border-surface-2 bg-hint ${className}`}
+        className={`nx-agent-working h-2 w-2 rounded-full border-2 border-surface-2 bg-hint ${className}`}
       />
     );
   }
@@ -97,7 +98,7 @@ export default function AgentButton({ onShow }: { onShow: () => void }) {
   // both its forms, is the tooltip the title gives on hover and what a
   // screen reader hears, not a hint drawn on the button.
   return (
-    <button
+    <Pressable
       className="nx-agent-button fixed z-[35]"
       style={{ right: 14, bottom: 34 }}
       data-testid={`agent-button-${name.toLowerCase()}`}
@@ -109,9 +110,9 @@ export default function AgentButton({ onShow }: { onShow: () => void }) {
     >
       <span className="relative flex items-center text-pen">
         {provider === "openai" ? <OpenAIMark /> : <ClaudeMark />}
-        <AgentStateDot className="absolute -bottom-[2px] -right-[3px]" />
+        <AgentStateDot className="absolute -bottom-0.5 -right-0.75" />
       </span>
       <span className="t-ui">{name}</span>
-    </button>
+    </Pressable>
   );
 }

@@ -94,7 +94,7 @@ export function CommentComposer({
       onMouseDown={(event) => event.stopPropagation()}
     >
       <div className="nx-comment-quote t-meta">{quote}</div>
-      <textarea
+      <TextArea
         ref={field}
         className="nx-comment-field t-ui"
         aria-label="Comment"
@@ -317,7 +317,7 @@ export function CommentThreadCard({
         </div>
       ) : (
         <>
-          <textarea
+          <TextArea
             className="nx-comment-field t-ui"
             aria-label="Reply"
             placeholder="Reply"

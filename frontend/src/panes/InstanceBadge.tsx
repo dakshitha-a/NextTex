@@ -16,7 +16,7 @@ export default function InstanceBadge() {
     <span
       data-testid="instance-badge"
       title={`This is the "${instance}" install, not your main one`}
-      className="t-micro shrink-0 rounded-[3px] border border-warn px-[5px] py-px uppercase tracking-wide text-warn"
+      className="t-micro shrink-0 rounded-mark border border-warn px-1.25 py-px uppercase tracking-wide text-warn"
     >
       {instance}
     </span>

@@ -3,6 +3,7 @@ import { Chevron } from "../chrome";
 import api from "../api";
 import { get } from "../store";
 import { foldersIn } from "../tree";
+import { Input, Pressable } from "../ui/controls";
 
 /** Pick a folder in this project, and make one if the right one is not
  *  there yet.
@@ -43,11 +44,11 @@ export default function FolderChooser({
 
   return (
     <>
-      <button
+      <Pressable
         data-destination
         aria-expanded={open}
         aria-controls="upload-folders"
-        className="flex h-[26px] w-full items-center gap-2 px-[10px] text-left hover:bg-surface-2"
+        className="flex h-6.5 w-full items-center gap-2 px-2.5 text-left hover:bg-surface-2"
         onClick={onToggle}
       >
         <span className="t-micro shrink-0 text-ink-3">Into</span>
@@ -55,7 +56,7 @@ export default function FolderChooser({
         <span className={`shrink-0 text-ink-3 ${open ? "rotate-180" : ""}`}>
           <Chevron direction="down" />
         </span>
-      </button>
+      </Pressable>
 
       {open ? (
         <div className="border-t border-line">
@@ -65,7 +66,7 @@ export default function FolderChooser({
             role="listbox"
             aria-label="Where the files go"
             tabIndex={0}
-            className="max-h-[156px] overflow-auto outline-none"
+            className="max-h-39 overflow-auto outline-none"
             onKeyDown={(event) => {
               if (event.key === "ArrowDown") { event.preventDefault(); move(1); }
               else if (event.key === "ArrowUp") { event.preventDefault(); move(-1); }
@@ -87,14 +88,14 @@ export default function FolderChooser({
                 role="option"
                 aria-selected={folder.path === directory}
                 data-folder={folder.path}
-                className={`relative flex h-[26px] cursor-pointer items-center pr-[10px] ${
+                className={`relative flex h-6.5 cursor-pointer items-center pr-2.5 ${
                   folder.path === directory ? "bg-surface-2" : "hover:bg-surface-2"
                 }`}
                 style={{ paddingLeft: 10 + folder.depth * 13 }}
                 onClick={() => onSelect(folder.path, true)}
               >
                 {folder.path === directory ? (
-                  <span className="absolute left-0 top-0 h-full w-[2px] bg-pen" />
+                  <span className="absolute left-0 top-0 h-full w-0.5 bg-pen" />
                 ) : null}
                 <span className="t-ui truncate text-ink">{folder.name}</span>
               </div>
@@ -102,8 +103,8 @@ export default function FolderChooser({
           </div>
 
           {making ? (
-            <div className="border-t border-line px-[10px] py-1">
-              <input
+            <div className="border-t border-line px-2.5 py-1">
+              <Input
                 autoFocus
                 placeholder="figures"
                 className={`t-ui w-full border-b bg-transparent outline-none placeholder:text-ink-3 ${
@@ -141,12 +142,12 @@ export default function FolderChooser({
               ) : null}
             </div>
           ) : (
-            <button
-              className="block w-full border-t border-line px-[10px] py-[3px] text-left t-ui text-ink-2 hover:text-hint"
+            <Pressable
+              className="block w-full border-t border-line px-2.5 py-0.75 text-left t-ui text-ink-2 hover:text-hint"
               onClick={() => setMaking(true)}
             >
               New folder here
-            </button>
+            </Pressable>
           )}
         </div>
       ) : null}

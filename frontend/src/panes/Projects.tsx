@@ -12,7 +12,7 @@ import Settings from "./Settings";
 import PasswordNudge from "./PasswordNudge";
 import InstanceBadge from "./InstanceBadge";
 import { Button, IconButton } from "../ui/Button";
-import { Announce, Empty, Field, Heading, Kbd, Segmented } from "../ui/controls";
+import { Announce, Empty, Field, Heading, Kbd, Pressable, Segmented, TextArea } from "../ui/controls";
 import { Menu, MenuDivider, MenuItem } from "../ui/Menu";
 import { Sheet } from "../ui/Sheet";
 import {
@@ -578,7 +578,7 @@ export default function Projects({
             says which agent it is rather than only that there is one,
             because that is the question somebody opening it has. */}
         {onChangeAgent ? (
-          <button
+          <Pressable
             type="button"
             className="nx-appbar-agent"
             aria-label={
@@ -597,7 +597,7 @@ export default function Projects({
             <SparkIcon size={14} />
             {provider === "none" ? "No agent" : agentReady === false ? "Not set up" : agentName(provider)}
             <ChevronDownIcon size={11} />
-          </button>
+          </Pressable>
         ) : null}
         <IconButton
           label={
@@ -664,14 +664,14 @@ export default function Projects({
               {view === "active" ? "Projects" : view === "archived" ? "Archived" : "Trash"}
             </h2>
             {view !== "active" ? (
-              <button
+              <Pressable
                 type="button"
                 className="nx-projects-link"
                 data-testid="view-back"
                 onClick={() => setView("active")}
               >
                 Back to projects
-              </button>
+              </Pressable>
             ) : null}
             <span className="flex-1" />
             <Field
@@ -912,7 +912,7 @@ export default function Projects({
                   <span className="text-warn">
                     This folder is no longer there.{" "}
                     {relocating !== project.path ? (
-                      <button
+                      <Pressable
                         type="button"
                         className="text-ink-2 hover:text-ink"
                         data-testid="find-project"
@@ -924,7 +924,7 @@ export default function Projects({
                         }}
                       >
                         Find it
-                      </button>
+                      </Pressable>
                     ) : null}
                   </span>
                 ) : (
@@ -944,7 +944,7 @@ export default function Projects({
                       frameClassName="min-w-0 flex-1"
                       value={rejoinTo}
                       placeholder="A folder for it to arrive in, empty or holding a copy"
-                      className="font-mono text-[12.5px]"
+                      className="font-mono text-small"
                       onChange={(event) => setRejoinTo(event.target.value)}
                       onKeyDown={(event) => {
                         if (event.key === "Enter") rejoin(project);
@@ -979,7 +979,7 @@ export default function Projects({
                       frameClassName="min-w-0 flex-1"
                       value={movedTo}
                       placeholder="Where is it now? e.g. ~/Papers/thesis"
-                      className="font-mono text-[12.5px]"
+                      className="font-mono text-small"
                       onChange={(event) => setMovedTo(event.target.value)}
                       onKeyDown={(event) => {
                         if (event.key === "Enter") relocate(project);
@@ -1035,7 +1035,7 @@ export default function Projects({
                     : stateWords(project.state, project.stateAt)}
                 </span>
                 <div
-                  className="nx-row-actions flex items-center gap-[2px]"
+                  className="nx-row-actions flex items-center gap-0.5"
                   data-testid="row-actions"
                   data-always={
                     project.missing || busy === project.id || more?.id === project.id ? "" : undefined
@@ -1056,7 +1056,7 @@ export default function Projects({
                     </Button>
                   ) : null}
                   {view === "active" && busy === project.id ? (
-                    <span className="t-meta px-[6px] text-ink-3" data-testid="row-typesetting">
+                    <span className="t-meta px-1.5 text-ink-3" data-testid="row-typesetting">
                       Typesetting
                     </span>
                   ) : null}
@@ -1145,15 +1145,15 @@ export default function Projects({
           {loaded && view === "active" && (counts.archived || counts.trashed) ? (
             <div className="nx-projects-under" data-testid="projects-under">
               {counts.archived ? (
-                <button type="button" className="nx-projects-link" data-testid="view-archived" onClick={() => setView("archived")}>
+                <Pressable type="button" className="nx-projects-link" data-testid="view-archived" onClick={() => setView("archived")}>
                   {counts.archived} archived
-                </button>
+                </Pressable>
               ) : null}
               {counts.archived && counts.trashed ? " · " : null}
               {counts.trashed ? (
-                <button type="button" className="nx-projects-link" data-testid="view-trash" onClick={() => setView("trashed")}>
+                <Pressable type="button" className="nx-projects-link" data-testid="view-trash" onClick={() => setView("trashed")}>
                   {counts.trashed} in the trash
-                </button>
+                </Pressable>
               ) : null}
             </div>
           ) : null}
@@ -1173,9 +1173,9 @@ export default function Projects({
                   </Button>
                 </span>
               ) : (
-                <button type="button" className="nx-projects-link" data-testid="empty-trash" onClick={() => setEmptying(true)}>
+                <Pressable type="button" className="nx-projects-link" data-testid="empty-trash" onClick={() => setEmptying(true)}>
                   Empty the trash
-                </button>
+                </Pressable>
               )}
             </div>
           ) : null}
@@ -1221,7 +1221,7 @@ export default function Projects({
                   placeholder="2301.01234, or https://github.com/you/paper"
                   aria-label="An arXiv id, a git URL, or the zip chosen beside"
                   data-testid="bring-source"
-                  className="font-mono text-[12.5px]"
+                  className="font-mono text-small"
                   onChange={(event) => {
                     setSource(event.target.value);
                     // Typing over a chosen zip's name means the zip is
@@ -1257,14 +1257,14 @@ export default function Projects({
           {way === "join" ? (
             <>
               <div className="nx-sheet-label">The invite</div>
-              <textarea
+              <TextArea
                 autoFocus
                 value={invite}
                 rows={3}
                 placeholder="Paste the invite here"
                 aria-label="The invite you were sent"
                 data-testid="invite-input"
-                className="nx-textarea w-full font-mono text-[12.5px]"
+                className="nx-textarea w-full font-mono text-small"
                 onChange={(event) => setInvite(event.target.value)}
               />
             </>
@@ -1292,7 +1292,7 @@ export default function Projects({
                   ? "Where to put it, e.g. ~/writing/their-paper"
                   : "A folder to put it in, e.g. ~/writing/their-paper"
               }
-              className="font-mono text-[12.5px]"
+              className="font-mono text-small"
               onChange={(event) => setPath(event.target.value)}
               onKeyDown={(event) => event.key === "Enter" && add()}
               trailing={

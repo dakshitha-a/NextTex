@@ -48,7 +48,7 @@ export default function ScreenGuide({
       aria-labelledby="screen-guide-heading"
       data-testid="screen-guide"
       tabIndex={-1}
-      className="nx-arrive nx-card nx-guide fixed z-40 max-h-[calc(100vh-16px)] w-[320px] overflow-auto outline-none"
+      className="nx-arrive nx-card nx-guide fixed z-40 max-h-[calc(100vh-16px)] w-80 overflow-auto outline-none"
       style={{ left: placed.left, top: placed.top }}
     >
       <div

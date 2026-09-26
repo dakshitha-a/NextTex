@@ -59,7 +59,7 @@ export const ComposerMenu = forwardRef<
       }}
       role="menu"
       data-testid="composer-menu"
-      className="nx-menu-anchored nx-arrive bottom-[38px] left-0 w-[300px]"
+      className="nx-menu-anchored nx-arrive bottom-9.5 left-0 w-75"
       onKeyDown={(event) => {
         if (walkMenu(event, onClose) && event.key === "Escape") onEscape();
       }}
@@ -139,7 +139,7 @@ export const PromptMenu = forwardRef<
           onMouseDown={(event) => event.preventDefault()}
           onClick={() => onPick(index)}
         >
-          <span className="font-mono text-[13px]">/{prompt.said}</span>
+          <span className="font-mono text-compact">/{prompt.said}</span>
           {prompt.source === "project" ? (
             <span className="t-micro ml-2 text-ink-3">this project's</span>
           ) : null}

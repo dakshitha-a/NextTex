@@ -2,7 +2,7 @@ import { useEffect, useState } from "react";
 import api, { type CollabState, type Member } from "../api";
 import { Sheet } from "../ui/Sheet";
 import { Button } from "../ui/Button";
-import { Field, Heading } from "../ui/controls";
+import { Field, Heading, Input } from "../ui/controls";
 
 /** Sharing a project with somebody else's NextTex.
  *
@@ -233,7 +233,7 @@ export function InviteField({ sharing }: { sharing: Sharing }) {
       data-testid="invite-text"
       aria-label="The invite to send"
       frameClassName="w-full"
-      className="font-mono text-[12.5px]"
+      className="font-mono text-small"
       onFocus={(event) => event.currentTarget.select()}
       trailing={
         <Button
@@ -284,8 +284,8 @@ export function LeaveConfirm({ sharing }: { sharing: Sharing }) {
           ? "The others keep their copies and carry on without you. Your copy on this computer is deleted, with its history. To collaborate on it again you will need a new invite."
           : "The others keep their copies and carry on without you. Your copy stays on this computer as a project of your own, with its history. To collaborate on it again you will need a new invite."}
       </p>
-      <label className="t-micro mt-[6px] flex items-center gap-[6px] text-ink-2">
-        <input
+      <label className="t-micro mt-1.5 flex items-center gap-1.5 text-ink-2">
+        <Input
           type="checkbox"
           checked={deleteCopy}
           data-testid="leave-delete"

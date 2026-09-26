@@ -5,6 +5,7 @@ import {
   type HTMLAttributes,
   type InputHTMLAttributes,
   type ReactNode,
+  type SelectHTMLAttributes,
   type TextareaHTMLAttributes,
 } from "react";
 
@@ -40,6 +41,36 @@ export const Field = forwardRef<HTMLInputElement, FieldProps>(function Field(
 export const TextArea = forwardRef<HTMLTextAreaElement, TextareaHTMLAttributes<HTMLTextAreaElement>>(
   function TextArea(props, ref) {
     return <textarea ref={ref} {...props} />;
+  },
+);
+
+/** Something pressed whose look is its content: a row, a tab, a hit in a
+ *  list, a word in a sentence that does something. `Button` and
+ *  `IconButton` are for controls that look like controls; this is for the
+ *  rest, which take their look from the class their place gives them, as
+ *  `TextArea` does. It is `type="button"` unless told otherwise, so it
+ *  never submits a form by accident (Q-038). */
+export const Pressable = forwardRef<HTMLButtonElement, ButtonHTMLAttributes<HTMLButtonElement>>(
+  function Pressable({ type = "button", ...rest }, ref) {
+    return <button ref={ref} type={type} {...rest} />;
+  },
+);
+
+/** An input that is not a field: a name typed in place in a row, a page
+ *  number in a toolbar, a check box beside its sentence. It takes its look
+ *  from its place, as `TextArea` does; `Field` is the framed text field
+ *  (Q-038). */
+export const Input = forwardRef<HTMLInputElement, InputHTMLAttributes<HTMLInputElement>>(
+  function Input(props, ref) {
+    return <input ref={ref} {...props} />;
+  },
+);
+
+/** A choice from a short list the browser draws, in a toolbar or a row.
+ *  It takes its look from its place, as `TextArea` does (Q-038). */
+export const Select = forwardRef<HTMLSelectElement, SelectHTMLAttributes<HTMLSelectElement>>(
+  function Select(props, ref) {
+    return <select ref={ref} {...props} />;
   },
 );
 

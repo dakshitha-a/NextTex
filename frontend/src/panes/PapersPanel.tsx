@@ -2,7 +2,7 @@ import { Suspense, lazy, useEffect, useMemo, useRef, useState } from "react";
 import api from "../api";
 import { set, useStore } from "../store";
 import { Button } from "../ui/Button";
-import { Empty, Field, Row } from "../ui/controls";
+import { Empty, Field, Row, Select } from "../ui/controls";
 import { FloatingCard } from "../ui/FloatingCard";
 import { ChevronDownIcon, DocIcon, SearchIcon } from "../ui/icons";
 import { bibIn } from "../tree";
@@ -182,7 +182,7 @@ export default function PapersPanel({
         // One box for a query or a DOI, the publisher as a quiet chooser
         // inside it: the server sends a DOI to the resolver and anything
         // else to the chosen source.
-        <div className="shrink-0 pb-[6px]">
+        <div className="shrink-0 pb-1.5">
           <Field
             frameClassName="w-full"
             leading={<SearchIcon size={14} />}
@@ -197,18 +197,18 @@ export default function PapersPanel({
               // The publisher, once there is something to ask it; a DOI
               // needs none, and an empty field is the sentence alone.
               query.trim() ? (
-                <span className="relative flex shrink-0 items-center text-[12px] text-ink-3 hover:text-ink">
-                  <select
+                <span className="relative flex shrink-0 items-center text-meta text-ink-3 hover:text-ink">
+                  <Select
                     value={source}
                     aria-label="Which publisher to ask"
                     data-testid="papers-source"
-                    className="appearance-none bg-transparent pr-[14px]"
+                    className="appearance-none bg-transparent pr-3.5"
                     onChange={(event) => setSource(event.target.value as keyof typeof SOURCE_NAMES)}
                   >
                     <option value="crossref">Crossref</option>
                     <option value="openalex">OpenAlex</option>
                     <option value="semanticscholar">Semantic Scholar</option>
-                  </select>
+                  </Select>
                   <span className="pointer-events-none absolute right-0"><ChevronDownIcon size={10} /></span>
                 </span>
               ) : null
@@ -237,15 +237,15 @@ export default function PapersPanel({
                 // third ink with Add at the right, or what it was added as.
                 <li
                   key={`${row.doi || row.title}:${index}`}
-                  className={`rounded-control px-2 py-[6px] ${card?.doi === row.doi && row.doi ? "bg-wash" : ""}`}
+                  className={`rounded-control px-2 py-1.5 ${card?.doi === row.doi && row.doi ? "bg-wash" : ""}`}
                   data-testid="papers-result"
                   onMouseEnter={(event) => row.doi && showCard(row.doi, event.currentTarget)}
                   onMouseLeave={hideCard}
                   onFocus={(event) => row.doi && showCard(row.doi, event.currentTarget)}
                   onBlur={hideCard}
                 >
-                  <p className="text-[13.5px] leading-[18px] text-ink" title={row.title}>{row.title}</p>
-                  <p className="flex items-end gap-2 text-[12.5px] leading-[17px] text-ink-3">
+                  <p className="text-title-sm leading-4.5 text-ink" title={row.title}>{row.title}</p>
+                  <p className="flex items-end gap-2 text-small leading-4.25 text-ink-3">
                     <span className="min-w-0 flex-1">{who}</span>
                     {row.doi ? (
                       state && state !== "…" ? (
@@ -278,7 +278,7 @@ export default function PapersPanel({
             testid="papers-card"
             // The page's 232 px where the drawer allows it, narrower in a
             // narrow drawer, so the card never leaves the drawer's edge.
-            className="absolute left-[28px] z-20 w-[min(232px,calc(100%-36px))] p-[10px_12px] text-[13px] leading-[18px] text-ink-2"
+            className="absolute left-7 z-20 w-[min(232px,calc(100%-36px))] p-[10px_12px] text-compact leading-4.5 text-ink-2"
             style={{ top: card.top + 44 }}
           >
             <p className="font-medium text-ink">{hovered.title}</p>
@@ -286,7 +286,7 @@ export default function PapersPanel({
             <p className="t-meta text-ink-3">{[hovered.journal, hovered.year].filter(Boolean).join(", ")}</p>
             <p className="t-code-sm text-ink-3">{hovered.doi}</p>
             {hovered.abstract ? (
-              <p className="mt-[6px] line-clamp-6 text-[12.5px] leading-[17px]">{hovered.abstract}</p>
+              <p className="mt-1.5 line-clamp-6 text-small leading-4.25">{hovered.abstract}</p>
             ) : null}
           </FloatingCard>
         ) : null}
@@ -447,7 +447,7 @@ export default function PapersPanel({
         <div className="nx-panel-foot">
           <Button
             size="inline"
-            className="!h-auto min-h-[24px] !whitespace-normal py-[2px] text-left"
+            className="!h-auto min-h-6 !whitespace-normal py-0.5 text-left"
             data-testid="papers-verify"
             disabled={checking}
             onClick={() => void check()}

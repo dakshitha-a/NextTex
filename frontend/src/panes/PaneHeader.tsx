@@ -31,16 +31,16 @@ export default function PaneHeader({
   return (
     <div
       data-testid={testId}
-      className="nx-band flex h-[36px] shrink-0 select-none items-stretch bg-surround pr-[6px]"
+      className="nx-band flex h-9 shrink-0 select-none items-stretch bg-surround pr-1.5"
     >
       {leading ? (
-        <div className="flex shrink-0 items-center gap-[2px] pl-[6px]">
+        <div className="flex shrink-0 items-center gap-0.5 pl-1.5">
           {leading}
         </div>
       ) : null}
       <div className="min-w-0 flex-1">{children}</div>
       {trailing ? (
-        <div className="flex shrink-0 items-center gap-[2px] pl-1">
+        <div className="flex shrink-0 items-center gap-0.5 pl-1">
           {trailing}
         </div>
       ) : null}

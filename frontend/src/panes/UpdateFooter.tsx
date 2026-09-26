@@ -696,9 +696,9 @@ function Line({ children }: { children: React.ReactNode }) {
 function Commits({ commits }: { commits: UpdateReport["commits"] }) {
   const shown = commits.slice(0, 5);
   return (
-    <div className="mt-2 max-h-[132px] overflow-auto">
+    <div className="mt-2 max-h-33 overflow-auto">
       {shown.map((commit) => (
-        <div key={commit.sha} className="flex h-[22px] items-center gap-2">
+        <div key={commit.sha} className="flex h-5.5 items-center gap-2">
           <span className="t-meta min-w-0 flex-1 truncate text-ink-2">
             {commit.subject}
           </span>
@@ -741,7 +741,7 @@ function Log({
       {shown ? (
         <pre
           ref={box}
-          className="t-code-sm mt-2 max-h-[220px] overflow-auto whitespace-pre-wrap rounded-control bg-surface p-3 text-ink-2"
+          className="t-code-sm mt-2 max-h-55 overflow-auto whitespace-pre-wrap rounded-control bg-surface p-3 text-ink-2"
         >
           {lines.join("\n")}
         </pre>

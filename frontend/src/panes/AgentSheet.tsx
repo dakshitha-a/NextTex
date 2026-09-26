@@ -3,7 +3,7 @@ import api from "../api";
 import { loginRefusal } from "../signin";
 import { Sheet } from "../ui/Sheet";
 import { Button } from "../ui/Button";
-import { Field, Heading } from "../ui/controls";
+import { Field, Heading, Pressable } from "../ui/controls";
 
 /** What writes with you: one choice for this install, made or changed in
  *  one sheet.
@@ -149,7 +149,7 @@ export default function AgentSheet({
             /* The radio is the row's head alone, so the setup's own
                controls are not nested inside it. */
             <div key={option} className="nx-agent-option" data-on={on || undefined}>
-              <button
+              <Pressable
                 type="button"
                 className="nx-agent-choice"
                 data-choice={option}
@@ -163,7 +163,7 @@ export default function AgentSheet({
                 <span className="nx-agent-radio" aria-hidden="true" />
                 <span className="nx-agent-title">{TITLES[option]}</span>
                 <span className="nx-agent-explained">{EXPLAINED[option]}</span>
-              </button>
+              </Pressable>
               {on && option === "claude" ? (
                 <ClaudeSetup standing={standing} onDone={onDone} onError={setError} />
               ) : null}
@@ -252,7 +252,7 @@ function OpenAISetup({
         aria-label="OpenAI API key"
         data-testid="openai-key"
         frameClassName="w-full"
-        className="font-mono text-[12.5px]"
+        className="font-mono text-small"
         onChange={(event) => setKey(event.target.value)}
       />
       <Field
@@ -261,7 +261,7 @@ function OpenAISetup({
         aria-label="Model"
         data-testid="openai-model"
         frameClassName="w-full"
-        className="font-mono text-[12.5px]"
+        className="font-mono text-small"
         onChange={(event) => setModel(event.target.value)}
       />
       {/* Ollama, LM Studio, vLLM and most local servers speak this same
@@ -279,7 +279,7 @@ function OpenAISetup({
         aria-label="Base URL"
         data-testid="openai-base-url"
         frameClassName="w-full"
-        className="font-mono text-[12.5px]"
+        className="font-mono text-small"
         onChange={(event) => setBaseUrl(event.target.value)}
       />
     </div>
@@ -539,7 +539,7 @@ function ClaudeSetup({
               placeholder="Paste the code here"
               aria-label="The code from the browser"
               frameClassName="min-w-0 flex-1"
-              className="font-mono text-[12.5px]"
+              className="font-mono text-small"
               onChange={(event) => setCode(event.target.value)}
               onKeyDown={(event) => {
                 if (event.key !== "Enter") return;

@@ -7,14 +7,12 @@ import { describe, expect, test } from "vitest";
  *  literal size or colour in a component is a defect.
  *
  *  Nothing enforced it, which is how 88 raw controls and 189 literal sizes
- *  were found outside the kit by the probe of September 2026 (Q-038). They
- *  are too many to move in one change without churning every pane, so this
- *  is a ratchet: each file may hold at most what it held when the rule
- *  started being enforced, listed below, and a file not listed may hold
- *  none. A change that moves a file onto the kit lowers its number here;
- *  a change that adds one fails. The hidden file inputs are the fair
- *  exception, since a browser has no other way to ask for files, and are
- *  not counted. */
+ *  were found outside the kit by the probe of September 2026 (Q-038). This
+ *  test began as a ratchet, each file allowed what it held, and the backlog
+ *  close-out moved every file onto the kit, so the allowance is gone and
+ *  the rule is simply held. The one exception is the hidden file input,
+ *  since a browser has no other way to ask for files: the pattern below
+ *  does not count an `<input type="file">`. */
 
 const HERE = dirname(fileURLToPath(import.meta.url));
 
@@ -48,31 +46,8 @@ function count(): Record<string, { raw: number; literal: number }> {
   return found;
 }
 
-const ALLOWED: Record<string, { raw: number; literal: number }> = JSON.parse(
-  readFileSync(join(HERE, "kit-rule.allowed.json"), "utf8"),
-);
-
 describe("the kit is the only source of controls", () => {
-  test("no file holds more raw controls or literal sizes than it did", () => {
-    const over: string[] = [];
-    for (const [file, now] of Object.entries(count())) {
-      const was = ALLOWED[file] ?? { raw: 0, literal: 0 };
-      if (now.raw > was.raw) over.push(`${file}: ${now.raw} raw controls, allowed ${was.raw}`);
-      if (now.literal > was.literal) over.push(`${file}: ${now.literal} literal sizes, allowed ${was.literal}`);
-    }
-    expect(over).toEqual([]);
-  });
-
-  test("the allowance is lowered as files move onto the kit", () => {
-    // A number left above what the file now holds would let the next
-    // change add back what this one removed.
-    const now = count();
-    const slack = Object.entries(ALLOWED)
-      .filter(([file, was]) => {
-        const is = now[file] ?? { raw: 0, literal: 0 };
-        return is.raw < was.raw || is.literal < was.literal;
-      })
-      .map(([file]) => file);
-    expect(slack).toEqual([]);
+  test("no component holds a raw control or a literal size", () => {
+    expect(count()).toEqual({});
   });
 });

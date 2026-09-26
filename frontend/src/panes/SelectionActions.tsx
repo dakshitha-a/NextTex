@@ -100,7 +100,7 @@ export default function SelectionActions({
       // The kit's card, in the shell's palette: the two things that float
       // over the page used to follow the page, and on a white page that
       // made them a pale card one step from the paper.  See section 32.
-      className={`nx-card nx-arrive absolute z-20 flex items-center gap-[2px] !px-[6px] !py-[4px] ${shellTheme()}`}
+      className={`nx-card nx-arrive absolute z-20 flex items-center gap-0.5 !px-1.5 !py-1 ${shellTheme()}`}
       style={{ left: at.left, top: at.top }}
       onMouseDown={(event) => {
         // The selection is the whole point of this control, and a press

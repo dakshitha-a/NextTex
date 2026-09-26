@@ -4,7 +4,7 @@ import { readStored, writeStored } from "../appearance";
 import { refreshGit, set, useStore } from "../store";
 import Patch from "./Patch";
 import { Button } from "../ui/Button";
-import { Empty, Field } from "../ui/controls";
+import { Empty, Field, Pressable } from "../ui/controls";
 import { ChevronDownIcon, ChevronRightIcon } from "../ui/icons";
 
 
@@ -166,9 +166,9 @@ export default function GitPanel({
           {status.repository ? null : (
             <p className="nx-note">
               Sending a copy to GitHub is a separate step you can take later.{" "}
-              <button className="text-ink-2 hover:text-ink" data-testid="git-backup" onClick={() => setWizard(true)}>
+              <Pressable className="text-ink-2 hover:text-ink" data-testid="git-backup" onClick={() => setWizard(true)}>
                 Set it up now
-              </button>
+              </Pressable>
             </p>
           )}
         </div>
@@ -216,7 +216,7 @@ export default function GitPanel({
             frameClassName="w-full"
             value={url}
             placeholder="https://github.com/you/paper.git"
-            className="font-mono text-[12.5px]"
+            className="font-mono text-small"
             onChange={(event) => setUrl(event.target.value)}
           />
           <Field
@@ -426,7 +426,7 @@ function ChangeRow({
   return (
     <div data-testid="git-change" data-path={change.path}>
       <div className="nx-git-change">
-        <button
+        <Pressable
           className="nx-git-chevron"
           aria-expanded={showing}
           aria-label={showing ? `Hide what changed in ${change.path}` : `Show what changed in ${change.path}`}
@@ -434,21 +434,21 @@ function ChangeRow({
           onClick={() => setShowing(!showing)}
         >
           {showing ? <ChevronDownIcon size={12} /> : <ChevronRightIcon size={12} />}
-        </button>
-        <button
+        </Pressable>
+        <Pressable
           className="flex min-w-0 flex-1 items-center gap-2 text-left"
           title={`Open ${change.path}`}
           onClick={() => onOpen?.(change.path)}
         >
-          <span className="t-code-sm w-[12px] shrink-0 text-ink-3">{change.state}</span>
+          <span className="t-code-sm w-3 shrink-0 text-ink-3">{change.state}</span>
           <span className="truncate text-ink-2">{change.path}</span>
-        </button>
+        </Pressable>
       </div>
       {showing ? (
         patch === null ? (
           <p className="nx-note">Reading</p>
         ) : patch ? (
-          <Patch text={patch} testId="git-patch" className="mx-2 mb-[6px] ml-[26px]" />
+          <Patch text={patch} testId="git-patch" className="mx-2 mb-1.5 ml-6.5" />
         ) : (
           <p className="nx-note">Nothing to show for this file.</p>
         )
@@ -586,7 +586,7 @@ function CommitRow({ commit, projectId, latexdiff }: { commit: GitCommit; projec
           </Button>
         </span>
       ) : null}
-      <button
+      <Pressable
         className="nx-git-commit"
         aria-expanded={showing}
         title={showing ? "Hide what this commit changed" : "Show what this commit changed"}
@@ -598,12 +598,12 @@ function CommitRow({ commit, projectId, latexdiff }: { commit: GitCommit; projec
           <span className="tnum">{dayOf(commit.when)}</span>
           <span className="t-code-sm">{commit.short}</span>
         </span>
-      </button>
+      </Pressable>
       {showing ? (
         patch === null ? (
           <p className="nx-note">Reading</p>
         ) : patch ? (
-          <Patch text={patch} testId="git-commit-patch" className="mx-2 mb-[6px]" />
+          <Patch text={patch} testId="git-commit-patch" className="mx-2 mb-1.5" />
         ) : (
           <p className="nx-note">Nothing to show for this commit.</p>
         )

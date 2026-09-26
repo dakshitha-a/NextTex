@@ -3,7 +3,7 @@ import { useStore } from "../store";
 import { referencesPending, statusFor } from "./status-dot";
 import { labelFor } from "../words";
 import { type WordScope } from "../api";
-import { Announce } from "../ui/controls";
+import { Announce, Pressable } from "../ui/controls";
 
 /** A spinner shown at 0ms on a one-second task is what tells the user the
  *  task is slow.  The dot only starts breathing once a build crosses this;
@@ -101,26 +101,26 @@ export default function Status({
     // surface with no rule above it, as the direction page draws it.
     <div
       data-testid="status-strip"
-      className="nx-foot @container t-meta flex h-[28px] shrink-0 items-center gap-4 overflow-hidden whitespace-nowrap bg-surround px-3 text-ink-2"
+      className="nx-foot @container t-meta flex h-7 shrink-0 items-center gap-4 overflow-hidden whitespace-nowrap bg-surround px-3 text-ink-2"
     >
       {/* The state words open the Build drawer in every state: it always
           has something to say, the build's state and the way to build
           again, so the control is never a dead stop on the way through. */}
-      <button
+      <Pressable
         data-testid="status"
         data-state={state}
         title={hint || undefined}
-        className="flex shrink-0 items-center gap-[6px] hover:text-ink"
+        className="flex shrink-0 items-center gap-1.5 hover:text-ink"
         onClick={onOpenBuild}
       >
-        <span className={`h-[6px] w-[6px] shrink-0 rounded-full ${dot}`} />
+        <span className={`h-1.5 w-1.5 shrink-0 rounded-full ${dot}`} />
         <span className={loud ? "font-medium text-ink" : "text-ink-2"}>{label}</span>
         {askShell ? (
           <span className="text-warn" data-testid="status-shell-escape">
             shell escape?
           </span>
         ) : null}
-      </button>
+      </Pressable>
       {showDuration ? (
         <span className="tnum hidden shrink-0 @[480px]:inline">
           {((result?.durationMs ?? 0) / 1000).toFixed(2)} s
@@ -170,30 +170,30 @@ export default function Status({
             : "flex shrink-0 items-center gap-4"
         }
       >
-        <button
+        <Pressable
           className="hover:text-ink"
           title="Shift-click to rebuild everything"
           onClick={(event) => onRebuild(event.shiftKey)}
         >
           {autocompile ? "Rebuild" : "Compile"}
-        </button>
+        </Pressable>
         {/* A press rather than a modifier, when there is a reason to press
             it. Shift-click stays and was the only way to ask for a full
             build, written down in a `title` attribute: undiscoverable, and
             no use at all on a tablet. */}
         {referencesPending(result, diagnostics) ? (
-          <button
+          <Pressable
             className="hover:text-ink"
             data-testid="rebuild-everything"
             onClick={() => onRebuild(true)}
           >
             Rebuild everything
-          </button>
+          </Pressable>
         ) : null}
       </span>
       {/* Dropped like every other segment when the pane is narrow, rather
           than clipped: the strip never reflows; it drops. */}
-      <button
+      <Pressable
         className="tnum hidden shrink-0 hover:text-ink @[300px]:inline"
         data-testid="word-count"
         title={`Counting ${wordScope}. Click for the next of ${wordScopes.join(", ")}.`}
@@ -203,7 +203,7 @@ export default function Status({
             standing for "no value yet" in a field of numbers is not
             punctuation between clauses. */}
         {words === null ? "\u2013 words" : labelFor(wordScope, words)}
-      </button>
+      </Pressable>
     </div>
   );
 }

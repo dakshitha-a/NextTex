@@ -97,9 +97,9 @@ export default function PreviewHeader({
       // page has it.  Without this a background document gives no sign it
       // is out of date until you switch to it and find an old page.
       leading: build?.compiling ? (
-        <span className="h-[6px] w-[6px] shrink-0 rounded-full bg-hint" />
+        <span className="h-1.5 w-1.5 shrink-0 rounded-full bg-hint" />
       ) : build?.stale ? (
-        <span className="h-[6px] w-[6px] shrink-0 rounded-full shadow-[inset_0_0_0_1.5px_var(--ink-3)]" />
+        <span className="h-1.5 w-1.5 shrink-0 rounded-full shadow-[inset_0_0_0_1.5px_var(--ink-3)]" />
       ) : undefined,
     };
   });
@@ -118,9 +118,9 @@ export default function PreviewHeader({
       closeLabel: `Close ${name}`,
       testId: `script-tab-${script.path}`,
       badge: script.running ? (
-        <span className="h-[6px] w-[6px] shrink-0 rounded-full bg-hint" />
+        <span className="h-1.5 w-1.5 shrink-0 rounded-full bg-hint" />
       ) : script.result && !script.result.ok ? (
-        <span className="h-[6px] w-[6px] shrink-0 rounded-full bg-error" />
+        <span className="h-1.5 w-1.5 shrink-0 rounded-full bg-error" />
       ) : undefined,
     });
   }
@@ -221,7 +221,7 @@ export default function PreviewHeader({
                 >
                   <PlusIcon />
                   {activePath && candidates.includes(activePath) ? (
-                    <span className="absolute right-[4px] top-[4px] h-[4px] w-[4px] rounded-full bg-hint" />
+                    <span className="absolute right-1 top-1 h-1 w-1 rounded-full bg-hint" />
                   ) : null}
                 </IconButton>
                 {/* The kit's menu, hung from the button's right edge. */}

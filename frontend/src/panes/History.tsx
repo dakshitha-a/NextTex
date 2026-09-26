@@ -3,7 +3,7 @@ import api, { type Version } from "../api";
 import { get, refreshHistory, set, useStore } from "../store";
 import { download } from "../chrome";
 import { Button, IconButton } from "../ui/Button";
-import { Segmented } from "../ui/controls";
+import { Input, Pressable, Segmented } from "../ui/controls";
 import { ChevronDownIcon, ChevronRightIcon } from "../ui/icons";
 import { isRenderable, isText, isViewable } from "./file-kinds";
 import { sizeOf } from "../size";
@@ -242,7 +242,7 @@ export default function History({
       className={`outline-none ${
         docked
           ? "nx-arrive flex h-full w-full min-w-0 shrink-0 flex-col bg-surface-2"
-          : "nx-arrive absolute right-0 top-0 z-20 flex h-full w-[264px] flex-col bg-surface-2 shadow-float"
+          : "nx-arrive absolute right-0 top-0 z-20 flex h-full w-66 flex-col bg-surface-2 shadow-float"
       }`}
       onKeyDown={(event) => {
         // Escape leaves one level at a time, the way it does on the agent
@@ -267,7 +267,7 @@ export default function History({
           title, the file it is about in the third ink, and the one
           control that closes it.  The row is the handle. */}
       <div
-        className="flex shrink-0 cursor-pointer items-center gap-2 pb-[6px] pl-[14px] pr-2 pt-[10px]"
+        className="flex shrink-0 cursor-pointer items-center gap-2 pb-1.5 pl-3.5 pr-2 pt-2.5"
         title="Close the history"
         data-testid="history-header"
         onClick={(event) => {
@@ -288,7 +288,7 @@ export default function History({
         </IconButton>
       </div>
       <div
-        className="flex h-[32px] shrink-0 items-center justify-between px-2"
+        className="flex h-8 shrink-0 items-center justify-between px-2"
         data-testid="history-toolbar"
       >
         {/* Two questions, not two panels: what this file used to say, and
@@ -363,7 +363,7 @@ export default function History({
           return (
             <div key={`${version.sha}-${version.at}`}>
               {first ? (
-                <div className="t-meta sticky top-0 bg-surface-2 px-2 pb-[2px] pt-[10px] text-ink-3">
+                <div className="t-meta sticky top-0 bg-surface-2 px-2 pb-0.5 pt-2.5 text-ink-3">
                   {day}
                 </div>
               ) : null}
@@ -394,7 +394,7 @@ export default function History({
                 // right giving way to Compare and Rename under the pointer,
                 // and the reason or the name as a second line.  The chosen
                 // row and the hovered row take the wash.
-                className={`group relative flex cursor-pointer flex-col gap-[2px] rounded-control px-2 py-[5px] text-[13px] leading-[18px] text-ink-2 hover:bg-wash ${
+                className={`group relative flex cursor-pointer flex-col gap-0.5 rounded-control px-2 py-1.25 text-compact leading-4.5 text-ink-2 hover:bg-wash ${
                   lit ? "bg-wash" : ""
                 }`}
                 onClick={() => choose(version, selected)}
@@ -404,17 +404,17 @@ export default function History({
                     the row above already answers the pointer, and a
                     button stacked over it would answer the same press a
                     second time and toggle the version straight back. */}
-                <button
+                <Pressable
                   className="pointer-events-none absolute inset-0"
                   aria-label={`Version from ${who(version, me)} at ${timeOf(version.at)}`}
                   onClick={() => choose(version, selected)}
                 />
-                <div className="relative z-10 flex flex-col gap-[2px]">
-                <div className="flex items-center gap-[10px]">
+                <div className="relative z-10 flex flex-col gap-0.5">
+                <div className="flex items-center gap-2.5">
                   {rowBinary ? (
                     <span
                       aria-hidden
-                      className="mr-1 flex h-6 w-6 shrink-0 items-center justify-center self-center overflow-hidden rounded-[3px] bg-surface-3"
+                      className="mr-1 flex h-6 w-6 shrink-0 items-center justify-center self-center overflow-hidden rounded-mark bg-surface-3"
                     >
                       {isRenderable(rowPath) && !elsewhere ? (
                         <img
@@ -448,7 +448,7 @@ export default function History({
                   >
                     {elsewhere ? "elsewhere" : size(version.bytes)}
                   </span>
-                  <span className={`items-center gap-[2px] ${reveal}`}>
+                  <span className={`items-center gap-0.5 ${reveal}`}>
                     {!folded &&
                     onCompare &&
                     viewing?.version &&
@@ -495,9 +495,9 @@ export default function History({
                      says how many and unfolds to name them, and each name
                      is the way into that file's own history, which is
                      where a version can be opened, named or restored. */
-                  <div className="flex flex-col gap-[2px]" data-testid="history-tick">
-                    <button
-                      className="flex items-center gap-1 self-start text-[12.5px] text-ink-3 hover:text-ink"
+                  <div className="flex flex-col gap-0.5" data-testid="history-tick">
+                    <Pressable
+                      className="flex items-center gap-1 self-start text-small text-ink-3 hover:text-ink"
                       aria-expanded={unfolded === version.source}
                       data-testid="history-tick-toggle"
                       onClick={(event) => {
@@ -509,12 +509,12 @@ export default function History({
                     >
                       {unfolded === version.source ? <ChevronDownIcon size={12} /> : <ChevronRightIcon size={12} />}
                       {version.why}, {version.count} files
-                    </button>
+                    </Pressable>
                     {unfolded === version.source
                       ? version.paths!.map((path) => (
-                          <button
+                          <Pressable
                             key={path}
-                            className="t-meta truncate pl-[16px] text-left text-ink-3 hover:text-ink"
+                            className="t-meta truncate pl-4 text-left text-ink-3 hover:text-ink"
                             data-testid="history-tick-path"
                             onClick={(event) => {
                               event.stopPropagation();
@@ -522,14 +522,14 @@ export default function History({
                             }}
                           >
                             {path}
-                          </button>
+                          </Pressable>
                         ))
                       : null}
                   </div>
                 ) : version.label ? (
-                  <span className="text-[12.5px] text-ink">{version.label}</span>
+                  <span className="text-small text-ink">{version.label}</span>
                 ) : version.why ? (
-                  <span className="truncate text-[12.5px] text-ink-3" title={version.why}>
+                  <span className="truncate text-small text-ink-3" title={version.why}>
                     {version.why}
                   </span>
                 ) : null}
@@ -597,7 +597,7 @@ export default function History({
                   </div>
                 ) : null}
                 {labelling === version.sha ? (
-                  <input
+                  <Input
                     autoFocus
                     defaultValue={version.label ?? ""}
                     placeholder="Name this version"
@@ -698,12 +698,12 @@ export function ViewingBanner({
   // between them.  It wraps rather than tears in a narrow pane.
   return (
     <div
-      className={`nx-arrive t-meta flex min-h-[32px] shrink-0 flex-wrap items-center gap-x-3 whitespace-nowrap px-3 ${
+      className={`nx-arrive t-meta flex min-h-8 shrink-0 flex-wrap items-center gap-x-3 whitespace-nowrap px-3 ${
         version.by === "claude" ? "bg-pen-wash" : "bg-hint-wash"
       }`}
       data-testid="viewing-banner"
     >
-      <span className="h-[32px] leading-[32px] text-ink">Viewing {timeOf(version.at)}</span>
+      <span className="h-8 leading-8 text-ink">Viewing {timeOf(version.at)}</span>
       <span className={whoInk(version)}>{who(version, me)}</span>
       {version.label || version.why ? (
         <span
@@ -715,7 +715,7 @@ export function ViewingBanner({
       ) : (
         <span className="flex-1" />
       )}
-      <span className="flex h-[32px] items-center gap-[2px]">
+      <span className="flex h-8 items-center gap-0.5">
         {onDownload ? (
           <Button size="inline" onClick={onDownload}>
             Download

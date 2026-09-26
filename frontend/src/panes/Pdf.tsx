@@ -6,7 +6,7 @@ import api from "../api";
 import { download, stemOf } from "../chrome";
 import { get, useStore } from "../store";
 import { Button, IconButton } from "../ui/Button";
-import { Field, Segmented } from "../ui/controls";
+import { Field, Input, Pressable, Segmented } from "../ui/controls";
 import { CheckIcon, ChevronDownIcon, ChevronLeftIcon, ChevronRightIcon, ChevronUpIcon, CloseIcon, SearchIcon } from "../ui/icons";
 import { Menu, MenuDivider, MenuItem } from "../ui/Menu";
 import { under } from "../place-menu";
@@ -1429,12 +1429,12 @@ export default function Pdf({
         // the count, previous and next, and the close, on the second
         // surface, so the two finds read as one feature.
         <div
-          className="flex h-[40px] shrink-0 items-center gap-[6px] bg-surface-2 px-[10px]"
+          className="flex h-10 shrink-0 items-center gap-1.5 bg-surface-2 px-2.5"
           data-testid="pdf-find-bar"
         >
           <Field
             ref={findBox}
-            frameClassName="h-[28px] min-w-0 flex-1 !bg-surface"
+            frameClassName="h-7 min-w-0 flex-1 !bg-surface"
             leading={<SearchIcon size={14} />}
             placeholder="Find on the page"
             data-testid="pdf-find"
@@ -1476,10 +1476,10 @@ export default function Pdf({
         // that built (Q-066). One line, on the second surface like the
         // find strip, with the one thing to do about it.
         <div
-          className="t-meta flex h-[32px] shrink-0 items-center gap-[8px] bg-surface-2 pl-[12px] pr-[8px] text-ink-2"
+          className="t-meta flex h-8 shrink-0 items-center gap-2 bg-surface-2 pl-3 pr-2 text-ink-2"
           data-testid="pdf-kept"
         >
-          <span className="h-[6px] w-[6px] shrink-0 rounded-full bg-error" aria-hidden />
+          <span className="h-1.5 w-1.5 shrink-0 rounded-full bg-error" aria-hidden />
           <span className="min-w-0 truncate">
             The last page that built. This build stopped
             {stoppedAt ? <> at <span className="t-code-sm text-ink-3">{stoppedAt}</span></> : null}
@@ -1622,7 +1622,7 @@ export default function Pdf({
           the one plain action at the right. */}
       <div
         data-testid="preview-footer"
-        className="nx-foot @container t-meta flex h-[28px] shrink-0 items-center gap-4 overflow-hidden whitespace-nowrap bg-surround px-3 text-ink-2"
+        className="nx-foot @container t-meta flex h-7 shrink-0 items-center gap-4 overflow-hidden whitespace-nowrap bg-surround px-3 text-ink-2"
       >
         {/* What the strip drops as the pane narrows, in the order it drops
             them, each at the width the row measures with it: the fit pair
@@ -1651,24 +1651,24 @@ export default function Pdf({
             has, and which mode you are reading in has nothing to do with
             whether you can name it. */}
         <span className="flex shrink-0 items-center gap-1">
-          <button
+          <Pressable
             className="nx-tap [--nx-tap-y:28px] flex h-5 w-5 items-center justify-center text-ink-2 hover:text-ink disabled:text-ink-3"
             disabled={current <= 1}
             onClick={() => step(-1)}
             aria-label="Previous page"
           >
             <ChevronLeftIcon size={12} />
-          </button>
+          </Pressable>
           {pageCount ? (
             <span className="flex items-center gap-1">
-              <input
+              <Input
                 type="number"
                 min={1}
                 max={pageCount}
                 value={current}
                 aria-label="Page"
                 data-testid="page-number"
-                className="nx-strip-field w-[42px]"
+                className="nx-strip-field w-10.5"
                 onChange={(event) => {
                   const want = Number(event.target.value);
                   if (Number.isFinite(want) && want >= 1) goTo(want);
@@ -1677,19 +1677,19 @@ export default function Pdf({
               <span className="tnum">of {pageCount}</span>
             </span>
           ) : (
-            <span className="tnum w-[92px] text-center">–</span>
+            <span className="tnum w-23 text-center">–</span>
           )}
-          <button
+          <Pressable
             className="nx-tap [--nx-tap-y:28px] flex h-5 w-5 items-center justify-center text-ink-2 hover:text-ink disabled:text-ink-3"
             disabled={current >= pageCount}
             onClick={() => step(1)}
             aria-label="Next page"
           >
             <ChevronRightIcon size={12} />
-          </button>
+          </Pressable>
         </span>
         <span className="flex shrink-0 items-center gap-1">
-          <button
+          <Pressable
             className="nx-tap [--nx-tap-y:28px] flex h-5 w-5 items-center justify-center text-ink-2 hover:text-ink"
             onClick={() =>
               setScale((value) =>
@@ -1699,9 +1699,9 @@ export default function Pdf({
             aria-label="Zoom out"
           >
             −
-          </button>
-          <span ref={zoomText} className="nx-strip-field w-[44px]" data-testid="zoom" />
-          <button
+          </Pressable>
+          <span ref={zoomText} className="nx-strip-field w-11" data-testid="zoom" />
+          <Pressable
             className="nx-tap [--nx-tap-y:28px] flex h-5 w-5 items-center justify-center text-ink-2 hover:text-ink"
             onClick={() =>
               setScale((value) =>
@@ -1711,7 +1711,7 @@ export default function Pdf({
             aria-label="Zoom in"
           >
             +
-          </button>
+          </Pressable>
         </span>
         <span className="hidden shrink-0 @[566px]:inline-flex">
           <Segmented
@@ -1730,7 +1730,7 @@ export default function Pdf({
             with a short menu, because three more controls would crowd a
             strip that already drops some as the pane narrows. Named View
             rather than Page, which the layout pair beside it already says. */}
-        <button
+        <Pressable
           ref={viewButton}
           type="button"
           className={`hidden shrink-0 items-center gap-1 whitespace-nowrap hover:text-ink @[372px]:flex ${viewMenu ? "text-ink" : ""}`}
@@ -1749,7 +1749,7 @@ export default function Pdf({
           }}
         >
           View <ChevronUpIcon size={10} />
-        </button>
+        </Pressable>
         <Menu
           open={viewMenu !== null}
           onClose={() => setViewMenu(null)}
@@ -1762,7 +1762,7 @@ export default function Pdf({
           <MenuItem
             role="menuitemcheckbox"
             aria-checked={dark}
-            icon={dark ? <CheckIcon size={14} /> : <span className="inline-block w-[14px]" />}
+            icon={dark ? <CheckIcon size={14} /> : <span className="inline-block w-3.5" />}
             data-testid="pdf-dark"
             onClick={() => {
               setViewMenu(null);
@@ -1774,7 +1774,7 @@ export default function Pdf({
           <MenuItem
             role="menuitemcheckbox"
             aria-checked={spread}
-            icon={spread ? <CheckIcon size={14} /> : <span className="inline-block w-[14px]" />}
+            icon={spread ? <CheckIcon size={14} /> : <span className="inline-block w-3.5" />}
             data-testid="pdf-spread"
             onClick={() => {
               setViewMenu(null);
@@ -1785,7 +1785,7 @@ export default function Pdf({
           </MenuItem>
           <MenuDivider />
           <MenuItem
-            icon={<span className="inline-block w-[14px]" />}
+            icon={<span className="inline-block w-3.5" />}
             data-testid="pdf-rotate"
             onClick={() => {
               setViewMenu(null);
@@ -1795,7 +1795,7 @@ export default function Pdf({
             Rotate a quarter turn
           </MenuItem>
           <MenuItem
-            icon={<span className="inline-block w-[14px]" />}
+            icon={<span className="inline-block w-3.5" />}
             data-testid="pdf-upright"
             disabled={rotation === 0}
             onClick={() => {
@@ -1816,7 +1816,7 @@ export default function Pdf({
             falls back to the URL's last segment, so this saved the page as
             `pdf.pdf`, the browser having added the extension itself. */}
         {projectId && pageCount ? (
-          <button
+          <Pressable
             type="button"
             className="hidden shrink-0 whitespace-nowrap hover:text-ink @[440px]:block"
             onClick={() =>
@@ -1830,7 +1830,7 @@ export default function Pdf({
             title="Save this PDF as it stands, without rebuilding it"
           >
             Download
-          </button>
+          </Pressable>
         ) : null}
       </div>
     </div>

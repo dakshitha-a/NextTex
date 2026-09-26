@@ -2,7 +2,7 @@ import { useEffect, useMemo, useRef, useState } from "react";
 import api, { type SearchHit, type SymbolKind } from "../api";
 import { set, useStore } from "../store";
 import { Button } from "../ui/Button";
-import { Empty, Field } from "../ui/controls";
+import { Empty, Field, Input, Pressable } from "../ui/controls";
 import { SearchIcon } from "../ui/icons";
 
 /** Find, and replace, across the whole project.
@@ -215,7 +215,7 @@ export default function SearchPanel({
     // two switches inside it, the summary line with Replace beside it,
     // and the hits grouped under file rows with the match on the wash.
     <div className="flex min-h-0 flex-1 flex-col px-2 pb-1" data-testid="search-panel">
-      <div className="flex shrink-0 flex-col gap-[6px] pb-[6px]">
+      <div className="flex shrink-0 flex-col gap-1.5 pb-1.5">
         <Field
           ref={box}
           frameClassName="w-full"
@@ -234,8 +234,8 @@ export default function SearchPanel({
             // The two switches CodeMirror's own panel offers, in its own
             // shorthand, so the two find rows in this app do not disagree
             // about what a query means.
-            <span className="flex shrink-0 gap-[2px]">
-              <button
+            <span className="flex shrink-0 gap-0.5">
+              <Pressable
                 className="nx-field-toggle"
                 data-testid="search-case"
                 aria-pressed={matchCase}
@@ -243,8 +243,8 @@ export default function SearchPanel({
                 onClick={() => setMatchCase(!matchCase)}
               >
                 Aa
-              </button>
-              <button
+              </Pressable>
+              <Pressable
                 className="nx-field-toggle"
                 data-testid="search-regex"
                 aria-pressed={regex}
@@ -252,7 +252,7 @@ export default function SearchPanel({
                 onClick={() => setRegex(!regex)}
               >
                 .*
-              </button>
+              </Pressable>
             </span>
           }
         />
@@ -274,7 +274,7 @@ export default function SearchPanel({
       ) : null}
 
       {refs && !problem ? (
-        <div className="pb-[5px]" data-testid="references">
+        <div className="pb-1.25" data-testid="references">
           <div className="nx-line">
             <span className="flex-1 truncate" data-testid="references-summary">
               {hits === null
@@ -300,7 +300,7 @@ export default function SearchPanel({
             </Button>
           </div>
           {renaming ? (
-            <div className="px-2 pt-[5px]">
+            <div className="px-2 pt-1.25">
               <Field
                 ref={renameBox}
                 frameClassName="w-full"
@@ -319,8 +319,8 @@ export default function SearchPanel({
                 }}
               />
               {refs.commented ? (
-                <label className="t-meta mt-[6px] flex items-center gap-[6px] text-ink-2">
-                  <input
+                <label className="t-meta mt-1.5 flex items-center gap-1.5 text-ink-2">
+                  <Input
                     type="checkbox"
                     data-testid="rename-comments"
                     checked={inComments}
@@ -330,15 +330,15 @@ export default function SearchPanel({
                 </label>
               ) : null}
               {confirming ? (
-                <div className="pt-[4px]">
+                <div className="pt-1">
                   {/* The same sentence the replace shows, because it is
                       the same edit: across the project, and not one
                       Mod-Z can take back. */}
-                  <p className="t-meta pb-[4px] text-ink-2">
+                  <p className="t-meta pb-1 text-ink-2">
                     Rename {refs.name} to {newName.trim()} in {files}{" "}
                     {files === 1 ? "file" : "files"}? Each file keeps a version in its history.
                   </p>
-                  <div className="flex gap-[2px]">
+                  <div className="flex gap-0.5">
                     <Button
                       size="inline"
                       variant="danger"
@@ -354,7 +354,7 @@ export default function SearchPanel({
                   </div>
                 </div>
               ) : (
-                <div className="pt-[4px]">
+                <div className="pt-1">
                   <Button
                     size="inline"
                     data-testid="rename-go"
@@ -445,7 +445,7 @@ export default function SearchPanel({
                 <span className="nx-group-count">{rows.length}</span>
               </div>
               {rows.map((hit) => (
-                <button
+                <Pressable
                   key={`${hit.line}:${hit.column}`}
                   className="nx-hit"
                   data-testid="search-hit"
@@ -464,7 +464,7 @@ export default function SearchPanel({
                   {hit.commented ? (
                     <span className="nx-hit-comment" title="In a comment">%</span>
                   ) : null}
-                </button>
+                </Pressable>
               ))}
             </div>
           );

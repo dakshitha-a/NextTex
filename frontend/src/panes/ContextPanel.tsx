@@ -5,6 +5,7 @@ import { Button } from "../ui/Button";
 import { DocIcon } from "../ui/icons";
 import { agentName } from "../agent-name";
 import type { PromptEntry } from "./slash-prompts";
+import { Pressable, TextArea } from "../ui/controls";
 
 const KINDS: {
   key: "style" | "voice" | "source";
@@ -129,7 +130,7 @@ export default function ContextPanel({
   return (
     <div className="flex min-h-0 flex-1 flex-col" data-testid="context-panel">
       {shown ? (
-        <div className="min-h-0 flex-1 overflow-auto pb-[10px]">
+        <div className="min-h-0 flex-1 overflow-auto pb-2.5">
           {/* First, because it is the one thing here the writer dictated
               rather than uploaded, and the only way to reach it: the
               folder it lives in is hidden from the file list. */}
@@ -168,11 +169,11 @@ export default function ContextPanel({
               )
             ) : (
               <>
-                <textarea
+                <TextArea
                   // No resize grip: Chrome draws its own diagonal handle,
                   // which is the one piece of unthemed browser chrome in
                   // the rail.
-                  className="t-ui mt-1 w-full resize-none rounded-[3px] border border-line bg-surface-2 p-2 text-ink outline-none focus:border-pen"
+                  className="t-ui mt-1 w-full resize-none rounded-mark border border-line bg-surface-2 p-2 text-ink outline-none focus:border-pen"
                   rows={6}
                   autoFocus
                   data-testid="memory-editor"
@@ -223,7 +224,7 @@ export default function ContextPanel({
                   <div key={document.id} className="nx-reads-file">
                     <DocIcon />
                     <span className="min-w-0 flex-1 truncate">{document.filename}</span>
-                    <button
+                    <Pressable
                       className="nx-reads-x"
                       onClick={async () => {
                         const projectId = get().projectId;
@@ -233,7 +234,7 @@ export default function ContextPanel({
                       }}
                     >
                       Remove
-                    </button>
+                    </Pressable>
                   </div>
                 ))}
                 {stale.includes(entry.key) ? (
@@ -284,14 +285,14 @@ export default function ContextPanel({
                   {prompt.source === "project" ? (
                     <span className="nx-reads-x" data-always>this project&rsquo;s</span>
                   ) : (
-                    <button
+                    <Pressable
                       className="nx-reads-x"
                       data-always
                       data-testid="prompt-copy"
                       onClick={() => copyPrompt(prompt.name)}
                     >
                       Copy to project
-                    </button>
+                    </Pressable>
                   )}
                 </div>
               ))

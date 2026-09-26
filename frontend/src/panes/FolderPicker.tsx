@@ -65,7 +65,7 @@ export default function FolderPicker({
         onClose();
       }}
     >
-      <Heading id="folder-picker-heading" className="truncate pb-[8px]">
+      <Heading id="folder-picker-heading" className="truncate pb-2">
         {heading}
       </Heading>
 

@@ -202,14 +202,14 @@ export default function AccessCard({
           <p
             role="status"
             data-testid="access-done"
-            className="t-meta pt-[2px] pb-[6px] text-ok"
+            className="t-meta pt-0.5 pb-1.5 text-ok"
           >
             {done}
           </p>
         ) : !state ? (
           // Reading, or the read failed. The second case used to be
           // indistinguishable from the first, for ever.
-          <div className="pb-[4px]">
+          <div className="pb-1">
             {reading ? (
               <div className="t-meta text-ink-3">Reading…</div>
             ) : (
@@ -232,8 +232,8 @@ export default function AccessCard({
           <>
             {/* --- the name ------------------------------------------- */}
             <Heading>Your name</Heading>
-            <div className="py-[4px]">
-              <p className="t-micro mb-[6px] text-ink-3">
+            <div className="py-1">
+              <p className="t-micro mb-1.5 text-ink-3">
                 What collaborators see beside your cursor and your versions.
                 Nothing leaves this machine until you share a project.
               </p>
@@ -255,9 +255,9 @@ export default function AccessCard({
 
             {/* --- the password --------------------------------------- */}
             <Heading>{hasPassword ? "Change the password" : "Set a password"}</Heading>
-            <form id="access-password" className="py-[4px]" onSubmit={savePassword}>
+            <form id="access-password" className="py-1" onSubmit={savePassword}>
               {!hasPassword ? (
-                <p className="t-micro mb-[8px] border-l-2 border-warn pl-[8px] text-ink-2">
+                <p className="t-micro mb-2 border-l-2 border-warn pl-2 text-ink-2">
                   Until you set one, the only way in is the link the server
                   printed, and anyone holding that link can read and edit your
                   projects.
@@ -286,7 +286,7 @@ export default function AccessCard({
                 onChange={setConfirm}
               />
               {hasPassword ? (
-                <p className="t-micro mt-[6px] text-ink-3">
+                <p className="t-micro mt-1.5 text-ink-3">
                   Changing it signs every other browser out.
                 </p>
               ) : null}
@@ -300,7 +300,7 @@ export default function AccessCard({
                   <span className="min-w-0 truncate text-ink">
                     {one.label || "A browser"}
                     {one.current ? (
-                      <span className="t-meta ml-[8px] text-ink-3">this one</span>
+                      <span className="t-meta ml-2 text-ink-3">this one</span>
                     ) : null}
                   </span>
                   <span
@@ -312,13 +312,13 @@ export default function AccessCard({
                 </li>
               ))}
               {state.sessions.length === 0 ? (
-                <li className="t-meta py-[6px] text-ink-3">
+                <li className="t-meta py-1.5 text-ink-3">
                   None. This browser is using the printed link.
                 </li>
               ) : null}
             </ul>
 
-            <div aria-live="polite" className="pt-[8px] empty:hidden">
+            <div aria-live="polite" className="pt-2 empty:hidden">
               {error ? (
                 <p className="t-micro text-error" data-testid="access-error">
                   {error}
@@ -372,9 +372,9 @@ function Field({
   inputRef?: React.RefObject<HTMLInputElement | null>;
 }) {
   return (
-    <label className="mt-[6px] block first:mt-0">
+    <label className="mt-1.5 block first:mt-0">
       {label ? (
-        <span className="t-micro mb-[3px] block text-ink-3">{label}</span>
+        <span className="t-micro mb-0.75 block text-ink-3">{label}</span>
       ) : null}
       <KitField
         ref={inputRef}

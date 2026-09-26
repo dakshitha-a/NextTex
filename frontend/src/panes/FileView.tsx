@@ -5,6 +5,7 @@ import { useStore } from "../store";
 import { kindOf } from "./file-kinds";
 import { fitScale, nextStep } from "./image-zoom";
 import { Button } from "../ui/Button";
+import { Pressable } from "../ui/controls";
 
 const Pdf = lazy(() => import("./Pdf"));
 
@@ -115,48 +116,48 @@ function ImageView({ source, name, path }: { source: string; name: string; path:
       {/* The strip: the preview strip's recipe, 28 px on the second
           surface with no rule, the pixel size at the left and the zoom
           in a well at the right, Fit and Download beside it. */}
-      <div className="t-meta flex h-[28px] shrink-0 items-center gap-4 overflow-hidden whitespace-nowrap bg-surface-2 px-3 text-ink-3">
+      <div className="t-meta flex h-7 shrink-0 items-center gap-4 overflow-hidden whitespace-nowrap bg-surface-2 px-3 text-ink-3">
         {natural ? (
           <span className="tnum">
             {natural.w} &times; {natural.h}
           </span>
         ) : null}
         <span className="ml-auto flex shrink-0 items-center gap-1">
-          <button
+          <Pressable
             className="nx-tap [--nx-tap-y:28px] flex h-5 w-5 items-center justify-center text-ink-2 hover:text-ink"
             aria-label="Zoom out"
             data-testid="image-zoom-out"
             onClick={() => setZoom((current) => stepFrom(current, fit, -1))}
           >
             &minus;
-          </button>
-          <span className="nx-strip-field w-[44px]" data-testid="image-zoom">
+          </Pressable>
+          <span className="nx-strip-field w-11" data-testid="image-zoom">
             {zoom === null ? "Fit" : `${Math.round(zoom * 100)}%`}
           </span>
-          <button
+          <Pressable
             className="nx-tap [--nx-tap-y:28px] flex h-5 w-5 items-center justify-center text-ink-2 hover:text-ink"
             aria-label="Zoom in"
             data-testid="image-zoom-in"
             onClick={() => setZoom((current) => stepFrom(current, fit, 1))}
           >
             +
-          </button>
+          </Pressable>
         </span>
         {/* Fit is a word that is its own target with the row's height for
             a finger, clear of the sign's 44px reach by the gap. */}
-        <button
+        <Pressable
           className={`shrink-0 hover:text-ink ${zoom === null ? "text-ink" : ""}`}
           data-testid="image-fit"
           onClick={() => setZoom(null)}
         >
           Fit
-        </button>
+        </Pressable>
         {/* The file as it is on disk, beside the picture of it.  The
             card for a file nobody can draw has had this from the start;
             a figure only had the tree's row menu, which is not where a
             person looking at the figure is looking. */}
         {projectId ? (
-          <button
+          <Pressable
             type="button"
             className="shrink-0 hover:text-ink"
             onClick={() => void download(api.downloadUrl(projectId, { path }), name)}
@@ -164,7 +165,7 @@ function ImageView({ source, name, path }: { source: string; name: string; path:
             title={`Download ${name}`}
           >
             Download
-          </button>
+          </Pressable>
         ) : null}
       </div>
     </>

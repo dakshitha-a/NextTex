@@ -435,6 +435,23 @@
   --radius-sheet: var(--nx-radius-sheet);
   --spacing-control: var(--nx-control);
   --spacing-row: var(--nx-row);
+  /* Sizes outside the type roles, as size-only utilities (a role sets the
+     line height too, and these sit in lines whose height is set beside
+     them). Named by what they are for; docs/style-guide.md lists them. */
+  --text-small: 12.5px;
+  --text-compact: 13px;
+  --text-title-sm: 13.5px;
+  --text-meta: 12px;
+  --text-caption: 11.5px;
+  --text-badge: 10px;
+  --text-sheet-title: 17px;
+  --text-md-h1: 18px;
+  --text-md-h2: 16px;
+  --text-md-h3: 14.5px;
+  /* The small marks: a key, a tag, a toggle inside a field. */
+  --radius-mark: 3px;
+  /* The card a drag brings with it. */
+  --radius-drop: 5px;
   --color-paper: var(--paper);
 
   --font-sans: "Source Sans 3", ui-sans-serif, system-ui, sans-serif;

@@ -77,7 +77,7 @@ export default function PapersChooser({
 
   return (
     <Sheet open onClose={onClose} labelledBy="papers-heading" testid="papers-chooser" width={380}>
-      <Heading id="papers-heading" className="truncate pb-[8px]">
+      <Heading id="papers-heading" className="truncate pb-2">
         Add papers to {bibName}
       </Heading>
 

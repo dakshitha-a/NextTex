@@ -5,6 +5,7 @@ import Prose from "./prose";
 import { decisionWords } from "./Chat";
 import { usageNote } from "../agent-name";
 import { ColumnHeader } from "./column-header";
+import { Pressable } from "../ui/controls";
 
 type Usage = Awaited<ReturnType<typeof api.usage>>;
 
@@ -98,7 +99,7 @@ export default function PastConversation({
         {!open && archives && archives.length ? (
           <div className="flex flex-col">
             {archives.map((entry) => (
-              <button
+              <Pressable
                 key={entry.name}
                 className="nx-past-row"
                 data-testid="past-conversation"
@@ -106,7 +107,7 @@ export default function PastConversation({
               >
                 <span>{entry.title || "A conversation with no question in it"}</span>
                 <small>{whenFiled(entry.stamp)}</small>
-              </button>
+              </Pressable>
             ))}
           </div>
         ) : null}
@@ -149,7 +150,7 @@ export default function PastConversation({
 function Row({ item }: { item: ChatItem }) {
   if (item.kind === "user") {
     return (
-      <div className="t-prose whitespace-pre-wrap rounded-[3px] bg-surface-2 px-3 py-2 text-ink">
+      <div className="t-prose whitespace-pre-wrap rounded-mark bg-surface-2 px-3 py-2 text-ink">
         {item.text}
       </div>
     );

@@ -1,6 +1,6 @@
 import type { ReactNode } from "react";
 import { IconButton } from "../ui/Button";
-import { Heading } from "../ui/controls";
+import { Heading, Pressable } from "../ui/controls";
 import { ChevronDownIcon, ChevronLeftIcon, ChevronRightIcon } from "../ui/icons";
 
 /** The Claude column's header row, as the direction page draws it: the
@@ -44,7 +44,7 @@ export function ColumnHeader({
       ) : null}
       {onTitle ? (
         <Heading level={2} className="shrink-0">
-          <button
+          <Pressable
             type="button"
             className="nx-column-agent"
             aria-label={titleLabel}
@@ -54,7 +54,7 @@ export function ColumnHeader({
           >
             {title}
             <ChevronDownIcon size={11} />
-          </button>
+          </Pressable>
         </Heading>
       ) : (
         <Heading level={2} className="mr-2 shrink-0">{title}</Heading>

@@ -109,6 +109,22 @@ Type, one family:
 | `t-prose` | 15 on 24, 66 ch | Claude's replies and the tutorial |
 | `t-code`, `t-code-sm` | the mono at 13.5 or 12 | a literal string the machine produced: a path, a key, an invite, a command |
 
+A size outside the roles is a size-only token, declared in `@theme
+inline` beside the others and named for its use, because a role sets a
+line height and these sit in lines whose height is set beside them:
+`text-small`, 12.5, the second line inside a row or a note under a
+control; `text-compact`, 13, a dense row; `text-title-sm`, 13.5, a
+paper's title in a list; `text-meta`, 12; `text-caption`, 11.5, a file
+name inside a sentence; `text-badge`, 10, the initials on an avatar;
+`text-sheet-title`, 17, the settings sheet's section title; and
+`text-md-h1`, `text-md-h2` and `text-md-h3`, 18, 16 and 14.5, the
+Markdown preview's headings. Radii likewise: `rounded-control`,
+`rounded-card` and `rounded-sheet` for controls, cards and sheets,
+`rounded-mark`, 3, for the small marks, a key, a tag, a toggle inside a
+field, and `rounded-drop`, 5, for the card a drag carries. Spacing uses
+Tailwind's own scale, a quarter of a rem to a step, so 6 px is `gap-1.5`
+and 13 px is `pl-3.25`; a bracketed pixel value is the defect.
+
 Source Sans 3 is the one family across the chrome and the prose; no
 serif appears anywhere, and Source Serif 4 is not loaded. Hierarchy is
 carried by size and weight, never by a change of face. Source Code Pro
@@ -145,6 +161,9 @@ kit's `Button` carries those looks as its variants.
 | `Segmented` | `controls.tsx` | two to five exclusive choices, `md` in a sheet and `sm` in a strip; `className="nx-segmented-wrap"` when five may not fit the width, as the templates do not on a phone | a row of toggle buttons |
 | `Heading` | `controls.tsx` | a real `h1`/`h2`/`h3`; `display` for a sheet's or a screen's title | a styled span |
 | `TextArea` | `controls.tsx` | a text box of several lines, taking its look from its place's class | a raw `<textarea>` |
+| `Pressable` | `controls.tsx` | something pressed whose look is its content, taken from its place's class: a row, a tab, a hit in a list, a word in a sentence that acts; `type="button"` unless told otherwise | a raw `<button>` |
+| `Input` | `controls.tsx` | an input that is not a field: a name typed in place in a row, a page number in a toolbar, a check box beside its sentence | a raw `<input>`, except the hidden `type="file"` a browser needs to ask for files |
+| `Select` | `controls.tsx` | a short list the browser draws, in a toolbar or a row | a raw `<select>` |
 | `Announce` | `controls.tsx` | words a screen reader hears when something changes out of sight, a build ending or an update wanting attention: a polite live region, always mounted, drawn as nothing | a visible toast for news the eye already has |
 | `Empty` | `controls.tsx` | what a drawer or a list says when it holds nothing: one sentence and at most one action | an illustration, a heading of its own |
 | `Kbd` | `controls.tsx` | a key or a chord, shown always where a key is the way in | text in a box |
@@ -222,9 +241,11 @@ else.
   focuses it, the arrow keys move it 16 px and 64 with Shift, Enter
   puts it back, and focus shows the hint line a drag shows.
 - `frontend/src/kit-rule.test.ts` holds this section to the code: no
-  component file may hold more raw controls or literal sizes than
-  `kit-rule.allowed.json` lists for it, a file not listed may hold none,
-  and a number is lowered when a file moves onto the kit.
+  component file holds a raw control or a bracketed pixel size or hex
+  colour. It began as a ratchet with an allowance per file, and the
+  backlog close-out moved every file onto the kit and deleted the
+  allowance, with a sweep of every surface before and after to show the
+  move changed nothing a writer sees.
 - A menu is short. Conditional items are present only when they apply,
   never disabled in place; the destructive item is last, after a rule.
 - Motion answers the writer: `.nx-arrive` (120 ms, opacity and a 0.98

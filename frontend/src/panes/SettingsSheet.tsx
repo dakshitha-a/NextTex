@@ -20,7 +20,7 @@ import {
 } from "../appearance";
 import { shortcut } from "../keys";
 import { Button, IconButton } from "../ui/Button";
-import { Chip, ChipToggle, Heading, Segmented, Switch, useLabelId } from "../ui/controls";
+import { Chip, ChipToggle, Heading, Pressable, Segmented, Switch, useLabelId } from "../ui/controls";
 import { Sheet } from "../ui/Sheet";
 import { CloseIcon } from "../ui/icons";
 
@@ -176,7 +176,7 @@ export default function SettingsSheet({
         {/* The tabs alone in the tablist: a tablist may hold nothing else. */}
         <div className="nx-settings-tabs" role="tablist" aria-label="Settings" aria-orientation={narrow ? "horizontal" : "vertical"}>
         {groups.map((candidate) => (
-          <button
+          <Pressable
             key={candidate.id}
             ref={(node) => {
               if (node) tabs.current.set(candidate.id, node);
@@ -196,7 +196,7 @@ export default function SettingsSheet({
           >
             <span>{candidate.title}</span>
             {candidate.where ? <small>{candidate.where}</small> : null}
-          </button>
+          </Pressable>
         ))}
         </div>
         <span className="nx-settings-grow" />
@@ -234,7 +234,7 @@ export default function SettingsSheet({
         aria-labelledby={`settings-tab-${current.id}`}
       >
         <div className="nx-settings-head">
-          <Heading level={2} id={headingId} className="!text-[17px]">{current.title}</Heading>
+          <Heading level={2} id={headingId} className="!text-sheet-title">{current.title}</Heading>
           <span className="nx-settings-where">{current.whereLong}</span>
           <IconButton label="Close" data-testid="settings-close" className="ml-auto" onClick={onClose}>
             <CloseIcon />
@@ -764,7 +764,7 @@ function AddedWords() {
 
   return (
     <SRow title="Words you added" note={problem ? <span className="text-error">{problem}</span> : "Kept with this project."}>
-      <div className="flex max-w-[60%] flex-wrap justify-end gap-[6px]">
+      <div className="flex max-w-[60%] flex-wrap justify-end gap-1.5">
         {words.map((word) => (
           <Chip key={word} onRemove={() => forget(word)} removeLabel={`Forget ${word}`}>
             {word}

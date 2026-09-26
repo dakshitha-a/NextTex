@@ -1,5 +1,6 @@
 import { type Collaborator, useStore } from "../store";
 import { awayWords, peerStanding } from "./peer-standing";
+import { Pressable } from "../ui/controls";
 
 /** Who else is in this project, and whether they are working.
  *
@@ -37,10 +38,10 @@ export default function Collaborators({ onOpen }: {
   }
 
   return (
-    <div className="relative flex shrink-0 items-center gap-[6px] pr-[8px] pl-[6px]">
+    <div className="relative flex shrink-0 items-center gap-1.5 pr-2 pl-1.5">
       {connection === "offline" ? (
         <span
-          className="t-micro flex items-center gap-[5px] text-warn"
+          className="t-micro flex items-center gap-1.25 text-warn"
           data-testid="sync-offline"
         >
           <span className="font-medium">offline</span>
@@ -57,8 +58,8 @@ export default function Collaborators({ onOpen }: {
       ) : null}
 
       {people.length ? (
-        <button
-          className="flex items-center gap-[3px]"
+        <Pressable
+          className="flex items-center gap-0.75"
           aria-label={`${people.length} other ${
             people.length === 1 ? "person" : "people"
           } in this project`}
@@ -72,7 +73,7 @@ export default function Collaborators({ onOpen }: {
           {people.length > 4 ? (
             <span className="t-micro text-ink-3">+{people.length - 4}</span>
           ) : null}
-        </button>
+        </Pressable>
       ) : null}
     </div>
   );
@@ -83,7 +84,7 @@ function Initial({ person }: { person: Collaborator }) {
   return (
     <span
       title={`${person.name}${where}${person.active ? ", writing" : ""}`}
-      className="grid h-[18px] w-[18px] place-items-center rounded-full text-[10px] leading-none font-medium"
+      className="grid h-4.5 w-4.5 place-items-center rounded-full text-badge leading-none font-medium"
       style={{
         // Filled while they are typing, outlined while they are only here.
         // Two states in one mark, so the strip says who is *working* rather

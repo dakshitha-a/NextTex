@@ -6,7 +6,7 @@ import { type Wanted } from "../place-menu";
 import { useDismiss } from "../useDismiss";
 import { FileIcon, FolderIcon } from "./FileIcon";
 import { Button, IconButton } from "../ui/Button";
-import { Field, Heading } from "../ui/controls";
+import { Field, Heading, Input, Pressable } from "../ui/controls";
 import { Menu, MenuDivider, MenuItem } from "../ui/Menu";
 import {
   ChevronDownIcon, ChevronRightIcon, FolderIcon as FolderGlyph, MoreIcon, PlusIcon, SearchIcon, UploadIcon,
@@ -696,7 +696,7 @@ export default function FileTree({
         // them. The chevron has been saying so to everybody else all along.
         aria-expanded={isDirectory ? isOpen : undefined}
         className={[
-          "nx-row group relative shrink-0 cursor-pointer !gap-[6px]",
+          "nx-row group relative shrink-0 cursor-pointer !gap-1.5",
           draggingPath === node.path ? "opacity-50" : "",
         ].join(" ")}
         data-selected={active || undefined}
@@ -777,7 +777,7 @@ export default function FileTree({
           </span>
         ) : null}
         <span
-          className={`flex w-[16px] shrink-0 items-center justify-center ${
+          className={`flex w-4 shrink-0 items-center justify-center ${
             isDirectory ? "text-ink-2" : "text-ink-3"
           }`}
         >
@@ -791,7 +791,7 @@ export default function FileTree({
           )}
         </span>
         {renaming === node.path ? (
-          <input
+          <Input
             autoFocus
             defaultValue={node.name}
             className="t-ui min-w-0 flex-1 border-b border-pen outline-none"
@@ -816,9 +816,9 @@ export default function FileTree({
           {errors > 0 ? (
             <span className="nx-row-when t-meta tnum text-error">{errors}</span>
           ) : null}
-          <button
+          <Pressable
             ref={menu === node.path ? menuButton : undefined}
-            className="nx-row-actions nx-tap flex h-[24px] w-[24px] items-center justify-center rounded-control text-ink-3 hover:text-ink [--nx-tap-y:30px]"
+            className="nx-row-actions nx-tap flex h-6 w-6 items-center justify-center rounded-control text-ink-3 hover:text-ink [--nx-tap-y:30px]"
             aria-label={`Actions for ${node.name}`}
             aria-expanded={menu === node.path}
             onClick={(event) => {
@@ -844,7 +844,7 @@ export default function FileTree({
             }}
           >
             <MoreIcon size={14} />
-          </button>
+          </Pressable>
         </span>
         {menu === node.path ? (
           <Menu
@@ -1073,7 +1073,7 @@ export default function FileTree({
     rows.push(
       <div
         key="no-matches"
-        className="flex h-[26px] items-center px-[10px]"
+        className="flex h-6.5 items-center px-2.5"
         role="treeitem"
         aria-disabled="true"
         data-testid="no-matches"
@@ -1162,13 +1162,13 @@ export default function FileTree({
     // nothing inside it is drawn outside it.  The floor is what keeps the
     // toolbar and a couple of rows visible; past that the panel stack
     // scrolls, which is where the height has to come from.
-    <div className="flex min-h-[104px] flex-1 flex-col overflow-hidden">
+    <div className="flex min-h-26 flex-1 flex-col overflow-hidden">
       {/* The drawer's heading row, drawn here rather than by the drawer
           because its four buttons are this tree's: New file, New folder,
           Upload and Find a file, as the page draws them, with the count
           of files before them. A drag over the row lands at the root. */}
       <div
-        className={`@container flex shrink-0 items-center gap-[2px] pb-[6px] pl-[14px] pr-2 pt-[10px] ${
+        className={`@container flex shrink-0 items-center gap-0.5 pb-1.5 pl-3.5 pr-2 pt-2.5 ${
           dropTarget === ROOT_DROP ? "bg-hint-wash" : ""
         }`}
         onDragEnter={(event) => overDrag(event, null)}
@@ -1224,7 +1224,7 @@ export default function FileTree({
         </IconButton>
       </div>
       {searching ? (
-        <div className="shrink-0 px-2 pb-[6px]">
+        <div className="shrink-0 px-2 pb-1.5">
           <Field
             ref={(node) => {
               searchInput.current = node;
@@ -1265,12 +1265,12 @@ export default function FileTree({
         // Said once and then gone. Clearing a history is silent by nature --
         // the file does not change and the tree does not move -- so without
         // a line here the writer has no way to know it worked.
-        <div className="t-micro px-[10px] py-1 text-ink-3" data-testid="purged-notice">
+        <div className="t-micro px-2.5 py-1 text-ink-3" data-testid="purged-notice">
           {purged}
         </div>
       ) : null}
       <div
-        className={`min-h-0 flex-1 overflow-auto px-2 py-[2px] ${filesOver ? "nx-tree-dropping" : ""}`}
+        className={`min-h-0 flex-1 overflow-auto px-2 py-0.5 ${filesOver ? "nx-tree-dropping" : ""}`}
         role="tree"
         data-dropping={filesOver || undefined}
         onDragEnter={(event) => overDrag(event, null)}
@@ -1468,7 +1468,7 @@ function NewName({
   return (
     <div
       className={`flex flex-col justify-center bg-surface-2 ${
-        problem ? "h-[44px]" : "h-[26px]"
+        problem ? "h-11" : "h-6.5"
       }`}
       style={{ paddingLeft: 10 + depth * INDENT, paddingRight: 10 }}
     >
@@ -1476,7 +1476,7 @@ function NewName({
         {prefix ? (
           <span className="t-ui shrink-0 truncate text-ink-3">{prefix}/</span>
         ) : null}
-        <input
+        <Input
           autoFocus
           disabled={busy}
           value={value}
@@ -1553,13 +1553,13 @@ function MoveTo({
       role="dialog"
       aria-labelledby="move-heading"
       data-testid="move-to"
-      className="nx-arrive fixed z-40 w-[264px] rounded-[5px] border border-line bg-surface shadow-float"
+      className="nx-arrive fixed z-40 w-66 rounded-drop border border-line bg-surface shadow-float"
       style={{
         left: Math.min(moving.at.x, viewportWidth() - 272),
         top: Math.min(moving.at.y, viewportHeight() - 260),
       }}
     >
-      <div id="move-heading" className="t-ui truncate px-[10px] pt-2 text-ink">
+      <div id="move-heading" className="t-ui truncate px-2.5 pt-2 text-ink">
         Move {name}
       </div>
       <FolderChooser

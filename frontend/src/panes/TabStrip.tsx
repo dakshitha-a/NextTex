@@ -5,6 +5,7 @@ import { CloseIcon } from "../ui/icons";
 import {
   HiddenTabs, useFollowActive, useHiddenTabs, useWheelScroll,
 } from "./tab-overflow";
+import { Pressable } from "../ui/controls";
 
 /** A strip of tabs, drawn once for the source pane and the preview pane.
  *
@@ -122,7 +123,7 @@ export default function TabStrip({
   const items = menu && menuFor ? menuFor(menu.path) : [];
 
   return (
-    <div className="relative flex h-[36px] shrink-0">
+    <div className="relative flex h-9 shrink-0">
       {/* A labelled group of buttons rather than an ARIA tablist.  The tab
           pattern promises arrow-key navigation between tabs and a panel
           associated with each one, and this strip has neither; claiming
@@ -132,7 +133,7 @@ export default function TabStrip({
         role="group"
         aria-label={ariaLabel}
         data-testid={kind === "source" ? "source-strip" : "preview-strip"}
-        className="no-scrollbar flex h-[36px] min-w-0 flex-1 overflow-x-auto"
+        className="no-scrollbar flex h-9 min-w-0 flex-1 overflow-x-auto"
       >
         {tabs.map((tab) => {
           const handle = tab.active && onHeaderClick !== undefined;
@@ -152,8 +153,8 @@ export default function TabStrip({
               // count is for when even that is not room.
               data-active={tab.active ? "true" : undefined}
               className={[
-                "nx-tab group relative flex h-[36px] min-w-[72px] max-w-[200px] basis-auto shrink items-center",
-                "gap-[6px] pr-2 transition-colors duration-[90ms]",
+                "nx-tab group relative flex h-9 min-w-18 max-w-50 basis-auto shrink items-center",
+                "gap-1.5 pr-2 transition-colors duration-[90ms]",
                 handle ? "cursor-pointer" : "",
               ].join(" ")}
               title={handle ? headerTitle : undefined}
@@ -181,13 +182,13 @@ export default function TabStrip({
                 });
               }}
             >
-              <button
+              <Pressable
                 aria-current={tab.active ? "true" : undefined}
                 title={tab.title}
                 data-testid={tab.testId}
                 // The tab's left padding is the button's, so a click on the
                 // tab's edge is a click on the tab.
-                className={`t-ui flex min-w-0 flex-1 cursor-pointer items-center gap-[6px] truncate pl-3 text-left ${
+                className={`t-ui flex min-w-0 flex-1 cursor-pointer items-center gap-1.5 truncate pl-3 text-left ${
                   tab.active ? "font-medium" : ""
                 }`}
                 onClick={() => {
@@ -212,7 +213,7 @@ export default function TabStrip({
                   ) : null}
                 </span>
                 {tab.badge}
-              </button>
+              </Pressable>
               {tab.closeLabel ? (
                 // Shown on the tab in front and under the pointer, and
                 // always on a finger, which has no pointer to hover with.
@@ -220,8 +221,8 @@ export default function TabStrip({
                 // tab is as wide as its name now, and a 44px zone under a
                 // mouse reached the name and closed what a click meant to
                 // select.
-                <button
-                  className={`nx-tap-coarse flex h-4 w-4 shrink-0 items-center justify-center rounded-[3px] text-ink-2 hover:text-ink [--nx-tap-y:36px] ${
+                <Pressable
+                  className={`nx-tap-coarse flex h-4 w-4 shrink-0 items-center justify-center rounded-mark text-ink-2 hover:text-ink [--nx-tap-y:36px] ${
                     tab.active ? "" : "hoverable:opacity-0 hoverable:group-hover:opacity-100 hoverable:focus-visible:opacity-100"
                   }`}
                   aria-label={tab.closeLabel}
@@ -231,7 +232,7 @@ export default function TabStrip({
                   }}
                 >
                   <CloseIcon size={11} />
-                </button>
+                </Pressable>
               ) : null}
             </div>
           );

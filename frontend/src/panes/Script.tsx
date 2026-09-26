@@ -5,6 +5,7 @@ import { RunIcon, StopIcon } from "../ui/icons";
 import { useStore } from "../store";
 import { lastLine, outcomeLabel } from "../script-run";
 import { Button } from "../ui/Button";
+import { Pressable } from "../ui/controls";
 
 /** What a script did the last time it ran, in the preview pane.
  *
@@ -99,25 +100,25 @@ export default function Script({
       {/* The strip: the preview strip's recipe, 28 px on the second
           surface with no rule, the path in the mono, Run or Stop, and the
           run's outcome at the right. */}
-      <div className="t-meta flex h-[28px] shrink-0 items-center gap-4 overflow-hidden whitespace-nowrap bg-surface-2 px-3 text-ink-3">
+      <div className="t-meta flex h-7 shrink-0 items-center gap-4 overflow-hidden whitespace-nowrap bg-surface-2 px-3 text-ink-3">
         <span className="t-code-sm truncate text-ink-2" title={path}>{path}</span>
         {running ? (
-          <button
+          <Pressable
             className="nx-tap [--nx-tap-y:28px] flex shrink-0 items-center gap-1 hover:text-ink"
             data-testid="script-stop"
             onClick={() => onStop(path)}
           >
             <StopIcon size={12} /> Stop
-          </button>
+          </Pressable>
         ) : (
-          <button
+          <Pressable
             className="nx-tap [--nx-tap-y:28px] flex shrink-0 items-center gap-1 hover:text-ink"
             data-testid="script-run"
             title="Run this script"
             onClick={() => onRun(path)}
           >
             <RunIcon size={12} /> Run
-          </button>
+          </Pressable>
         )}
         <span
           className={`tnum ml-auto shrink-0 ${
@@ -162,7 +163,7 @@ export default function Script({
           <div className="flex flex-col gap-4 px-4 py-4">
             {live.out ? (
               <pre
-                className="t-code-sm m-0 whitespace-pre-wrap break-words rounded-[3px] border border-line bg-surface px-3 py-2 text-ink"
+                className="t-code-sm m-0 whitespace-pre-wrap break-words rounded-mark border border-line bg-surface px-3 py-2 text-ink"
                 data-testid="script-stdout"
               >
                 {live.out.trimEnd()}
@@ -174,7 +175,7 @@ export default function Script({
         {result && !running ? (
           <div className="flex flex-col gap-4 px-4 py-4">
             {script.changedByAgent ? (
-              <div className="flex items-center gap-3 rounded-[3px] border border-line bg-surface px-3 py-2">
+              <div className="flex items-center gap-3 rounded-mark border border-line bg-surface px-3 py-2">
                 <span className="t-meta text-ink-2">The agent changed this script.</span>
                 <Button variant="ghost" size="inline" data-testid="script-run-again" onClick={() => onRun(path)}>
                   Run again
@@ -198,19 +199,19 @@ export default function Script({
               <ul className="flex flex-col gap-1" data-testid="script-saved">
                 {result.saved.map((file) => (
                   <li key={file}>
-                    <button
+                    <Pressable
                       className="t-meta text-left text-ink-2 hover:text-ink"
                       onClick={() => onOpen(file)}
                     >
                       Wrote <span className="text-ink">{file}</span>
-                    </button>
+                    </Pressable>
                   </li>
                 ))}
               </ul>
             ) : null}
             {result.out.trim() ? (
               <pre
-                className="t-code-sm m-0 whitespace-pre-wrap break-words rounded-[3px] border border-line bg-surface px-3 py-2 text-ink"
+                className="t-code-sm m-0 whitespace-pre-wrap break-words rounded-mark border border-line bg-surface px-3 py-2 text-ink"
                 data-testid="script-stdout"
               >
                 {result.out.trimEnd()}
@@ -270,7 +271,7 @@ function Stderr({ text, failed }: { text: string; failed: boolean }) {
   const head = last && body.endsWith(last) ? body.slice(0, body.length - last.length) : body;
   return (
     <pre
-      className={`t-code-sm m-0 whitespace-pre-wrap break-words rounded-[3px] border px-3 py-2 ${
+      className={`t-code-sm m-0 whitespace-pre-wrap break-words rounded-mark border px-3 py-2 ${
         failed ? "border-error bg-surface" : "border-line bg-surface"
       }`}
       data-testid="script-stderr"

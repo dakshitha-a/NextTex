@@ -95,7 +95,7 @@ export default function Tutorial({
       role="dialog"
       aria-labelledby="tutorial-heading"
       data-testid="tutorial"
-      className="nx-arrive nx-tutorial absolute inset-y-0 z-40 flex w-[380px] max-w-full flex-col"
+      className="nx-arrive nx-tutorial absolute inset-y-0 z-40 flex w-95 max-w-full flex-col"
       style={{ right }}
     >
       {/* The drawn panel: on the second surface with the float shadow and

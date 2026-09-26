@@ -155,7 +155,7 @@ function ReportCard({
         </div>
         {shown ? (
           <pre
-            className="t-code-sm mt-3 max-h-[320px] overflow-auto whitespace-pre-wrap break-words rounded-control bg-surface p-3 text-ink-2"
+            className="t-code-sm mt-3 max-h-80 overflow-auto whitespace-pre-wrap break-words rounded-control bg-surface p-3 text-ink-2"
             data-testid="report-text"
           >
             {report.text}
@@ -175,8 +175,8 @@ export function Card({
   sweeping?: boolean;
 }) {
   return (
-    <div className="relative overflow-hidden rounded-card bg-surface-2 px-3 py-[10px]">
-      {sweeping ? <div className="hairline absolute inset-x-0 top-0 h-[2px]" /> : null}
+    <div className="relative overflow-hidden rounded-card bg-surface-2 px-3 py-2.5">
+      {sweeping ? <div className="hairline absolute inset-x-0 top-0 h-0.5" /> : null}
       {children}
     </div>
   );

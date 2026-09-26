@@ -2,7 +2,7 @@ import { useEffect, useState } from "react";
 import api, { type CommentThread } from "../api";
 import { refreshComments, set, useStore } from "../store";
 import { Button } from "../ui/Button";
-import { Empty } from "../ui/controls";
+import { Empty, Pressable } from "../ui/controls";
 import { ChevronDownIcon, ChevronRightIcon } from "../ui/icons";
 import { colourFor } from "../collab";
 import { openedFrom, repliesSaid, whenSaid } from "./CommentCards";
@@ -70,7 +70,7 @@ export default function CommentsPanel({
         data-detached={thread.detached || undefined}
         onClick={openThread}
       >
-        <button
+        <Pressable
           type="button"
           className="nx-comment-row-open"
           data-testid="comment-row-open"
@@ -82,7 +82,7 @@ export default function CommentsPanel({
         >
           <span className="nx-comment-row-quote t-meta">{thread.quote}</span>
           {first ? <span className="nx-comment-row-body">{first.body}</span> : null}
-        </button>
+        </Pressable>
         <div className="nx-comment-row-meta t-meta">
           {first ? (
             <span style={first.mine ? undefined : { color: colourFor(first.name) }}>
@@ -105,7 +105,7 @@ export default function CommentsPanel({
           )}
           <span className="flex-1" />
           <span
-            className="nx-row-actions flex items-center gap-[2px]"
+            className="nx-row-actions flex items-center gap-0.5"
             data-always={asking === thread.id || undefined}
             onClick={(event) => event.stopPropagation()}
           >
@@ -157,7 +157,7 @@ export default function CommentsPanel({
       ))}
       {resolved.length ? (
         <section>
-          <button
+          <Pressable
             type="button"
             className="nx-comment-fold"
             aria-expanded={showResolved}
@@ -168,7 +168,7 @@ export default function CommentsPanel({
             <span>Resolved</span>
             <span className="flex-1" />
             <span className="t-meta tabular-nums text-ink-3">{resolved.length}</span>
-          </button>
+          </Pressable>
           {showResolved ? resolved.map(row) : null}
         </section>
       ) : null}

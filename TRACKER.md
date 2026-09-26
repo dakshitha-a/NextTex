@@ -59,14 +59,20 @@ OpenAI provider against OpenAI itself.
       desktop. What is left is on the laptop: run the installer, click
       Yes, end the server, and see it back within five minutes.
 
-- [ ] **Raw controls and literal sizes outside the kit.** 89 raw
+- [x] **Raw controls and literal sizes outside the kit.** 89 raw
       controls and 331 literal sizes in 52 files when the rule began to
-      be enforced (Q-038). `frontend/src/kit-rule.test.ts` stops any file
-      from adding one and makes each move onto the kit lower its number
-      in `kit-rule.allowed.json`; moving them all at once would churn
-      every pane for no change a writer sees, so they move as the files
-      are touched, the largest first: `frontend/src/panes/Chat.tsx` and
-      `frontend/src/panes/Projects.tsx`.
+      be enforced (Q-038). The backlog close-out moved them all, so the
+      allowance file is gone and `frontend/src/kit-rule.test.ts` holds
+      every component at none. Spacing went onto Tailwind's own scale,
+      which is exact at a quarter rem a step; font sizes and radii outside
+      the roles became size-only tokens named for their use; and the raw
+      buttons, inputs and selects, which are rows, tabs and words styled
+      by their place, became the kit's pass-through `Pressable`, `Input`
+      and `Select`, as `TextArea` already was. The fidelity sweep of all
+      174 surfaces, before and after: 100 identical to the pixel, and the
+      other 74 differ only in what differs between any two runs, clock
+      times, commit hashes, project names made from the clock, a build
+      that had or had not finished, a hover card caught mid-appearance.
 
 - [x] **Three dependencies are a major version behind.** `pdfjs-dist`
       is at 4.10 against 6.3, `vite` at 6 against 8 and `diff` at 7

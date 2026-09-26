@@ -2,6 +2,7 @@ import { useEffect, useMemo, useRef, useState, type RefObject } from "react";
 import { onFrame } from "../timing";
 import { under } from "../place-menu";
 import { Menu, MenuItem } from "../ui/Menu";
+import { Pressable } from "../ui/controls";
 
 /** What the two tab strips share, so they cannot drift apart again.
  *
@@ -156,7 +157,7 @@ export function HiddenTabs({
     <div className="relative flex shrink-0">
       {/* "+3", the way the page draws it: a count in the third ink with
           no box of its own, on the same row as the tabs it stands for. */}
-      <button
+      <Pressable
         ref={button}
         className="t-meta tnum flex shrink-0 items-center px-2 text-ink-2 hover:text-ink"
         title={`${hidden.length} more ${label}`}
@@ -166,7 +167,7 @@ export function HiddenTabs({
         onClick={() => setOpen((value) => !value)}
       >
         +{hidden.length}
-      </button>
+      </Pressable>
       {/* The kit's menu, hung from the button's right edge so it opens
           inward, and capped at the window's height: a strip with forty
           files open lists most of them here, and a list that ran off the

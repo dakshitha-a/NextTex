@@ -2,7 +2,7 @@ import { useEffect, useMemo, useRef, useState } from "react";
 import { headingAt, type Heading } from "../outline";
 import { useStore } from "../store";
 import { Chevron } from "../chrome";
-import { Empty } from "../ui/controls";
+import { Empty, Pressable } from "../ui/controls";
 
 /** The indent step, matching the file tree above it: the width of a Source
  *  Sans lowercase n at 13px, so the two lists sit on one grid. */
@@ -99,14 +99,14 @@ export default function SectionsPanel({
     <div
       className={`${drawer ? "" : "border-t border-line "}${
         shown && grow
-          ? "flex min-h-[104px] flex-1 flex-col overflow-hidden"
+          ? "flex min-h-26 flex-1 flex-col overflow-hidden"
           : "shrink-0"
       }`}
       data-testid="sections-panel"
     >
       {drawer ? null : (
-        <button
-          className="flex h-[26px] w-full shrink-0 items-center justify-between px-[10px] transition-colors duration-[90ms] hover:bg-surface-2"
+        <Pressable
+          className="flex h-6.5 w-full shrink-0 items-center justify-between px-2.5 transition-colors duration-[90ms] hover:bg-surface-2"
           aria-expanded={open}
           data-testid="sections-toggle"
           onClick={onToggle}
@@ -120,13 +120,13 @@ export default function SectionsPanel({
               <Chevron direction="down" />
             </span>
           </span>
-        </button>
+        </Pressable>
       )}
       {shown ? (
         <div
           ref={list}
-          className={`flex flex-col px-2 py-[4px] ${
-            grow ? "min-h-0 flex-1 overflow-auto" : "max-h-[240px] overflow-auto"
+          className={`flex flex-col px-2 py-1 ${
+            grow ? "min-h-0 flex-1 overflow-auto" : "max-h-60 overflow-auto"
           }`}
         >
           {!activePath ? (
@@ -147,7 +147,7 @@ export default function SectionsPanel({
                 // level, the pen dot on the heading under the caret, and a
                 // heading whose file is not in the project yet greyed with
                 // the reason as its tail.
-                <button
+                <Pressable
                   key={`${heading.line}:${heading.title}`}
                   data-testid="section-row"
                   aria-current={current ? "true" : undefined}
@@ -188,7 +188,7 @@ export default function SectionsPanel({
                       size would shift every row below it several times a
                       minute.  A fill would also take the row's own hover. */}
                   <span
-                    className={`h-[5px] w-[5px] shrink-0 rounded-full ${
+                    className={`h-1.25 w-1.25 shrink-0 rounded-full ${
                       current ? "bg-pen" : "bg-transparent"
                     }`}
                   />
@@ -198,7 +198,7 @@ export default function SectionsPanel({
                   ) : mixed && heading.path ? (
                     <span className="nx-row-trailing nx-row-trailing-always">file</span>
                   ) : null}
-                </button>
+                </Pressable>
               );
             })
           )}

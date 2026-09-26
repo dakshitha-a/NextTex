@@ -1,5 +1,6 @@
 import type { ReactNode } from "react";
 import { ChevronLeftIcon, ChevronRightIcon } from "../ui/icons";
+import { Pressable } from "../ui/controls";
 
 /** A collapsed pane leaves a strip behind, so it is obvious that something
  *  is folded away and obvious how to get it back.  The chevron sits at the
@@ -24,10 +25,10 @@ export default function Collapsed({
   mark?: ReactNode;
 }) {
   return (
-    <button
+    <Pressable
       // A strip on the second surface with no hairline, the kit's plane;
       // the chevron points at the pane it would bring back.
-      className={`group flex w-[28px] shrink-0 flex-col items-center gap-2 bg-surface-2 pt-[10px] transition-colors duration-[90ms] hover:bg-surface-3`}
+      className={`group flex w-7 shrink-0 flex-col items-center gap-2 bg-surface-2 pt-2.5 transition-colors duration-[90ms] hover:bg-surface-3`}
       onClick={onExpand}
       data-testid={`collapsed-${label.toLowerCase()}`}
       title={`Show ${shows}`}
@@ -43,6 +44,6 @@ export default function Collapsed({
       >
         {label}
       </span>
-    </button>
+    </Pressable>
   );
 }

@@ -1,5 +1,5 @@
 import { useEffect, useState } from "react";
-import { Field } from "../ui/controls";
+import { Field, Pressable } from "../ui/controls";
 import { ChevronUpIcon, FolderIcon } from "../ui/icons";
 import api, { type Listing } from "../api";
 
@@ -84,7 +84,7 @@ export default function FolderBrowser({
           aria-label="A folder on the machine running NextTex"
           data-testid={pathTestId}
           frameClassName={`w-full${problem ? " ring-1 ring-error" : ""}`}
-          className="font-mono text-[12.5px]"
+          className="font-mono text-small"
           onChange={(event) => setTyped(event.target.value)}
           onKeyDown={(event) => {
             if (event.key === "Enter") void look(typed);
@@ -96,7 +96,7 @@ export default function FolderBrowser({
 
       <div className="nx-sheet-list">
         {listing?.parent ? (
-          <button
+          <Pressable
             className="nx-row"
             data-testid="folder-up"
             onClick={() => void look(listing.parent!)}
@@ -105,10 +105,10 @@ export default function FolderBrowser({
             <span className="nx-row-label">
               {listing.parent.split("/").pop() || "/"}
             </span>
-          </button>
+          </Pressable>
         ) : null}
         {(listing?.folders ?? []).map((folder) => (
-          <button
+          <Pressable
             key={folder.path}
             data-folder={folder.path}
             className="nx-row"
@@ -121,10 +121,10 @@ export default function FolderBrowser({
                 {folder.pdfs} PDF{folder.pdfs === 1 ? "" : "s"}
               </span>
             ) : null}
-          </button>
+          </Pressable>
         ))}
         {listing && !listing.folders.length ? (
-          <p className="t-meta px-[8px] py-1 text-ink-3">No folders in here.</p>
+          <p className="t-meta px-2 py-1 text-ink-3">No folders in here.</p>
         ) : null}
       </div>
     </>

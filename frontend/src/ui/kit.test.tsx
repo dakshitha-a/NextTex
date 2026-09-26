@@ -1,7 +1,7 @@
 import { act } from "react";
 import { afterEach, describe, expect, test } from "vitest";
 import { Button, IconButton } from "./Button";
-import { Chip, ChipToggle, Empty, Field, Heading, Kbd, Row, Segmented, Switch } from "./controls";
+import { Chip, ChipToggle, Empty, Field, Heading, Input, Kbd, Pressable, Row, Segmented, Select, Switch } from "./controls";
 import { Menu, MenuDivider, MenuItem } from "./Menu";
 import { Sheet } from "./Sheet";
 import { FloatingCard, shellTheme } from "./FloatingCard";
@@ -214,5 +214,46 @@ describe("controls", () => {
     expect(m.container.querySelector(".nx-card")?.classList.contains("nx-theme-light")).toBe(true);
     document.documentElement.dataset.theme = "dark";
     expect(shellTheme()).toBe("nx-theme-dark");
+  });
+});
+
+
+describe("the pass-through parts", () => {
+  // Pressable, Input and Select take their look from their place, as
+  // TextArea does, so what matters is that they add nothing and lose
+  // nothing (Q-038).
+  test("Pressable is a button that never submits unless told, with every attribute and its ref", () => {
+    let ref: HTMLButtonElement | null = null;
+    const m = (mounted = mount(
+      <form>
+        <Pressable ref={(el) => { ref = el; }} className="nx-row" data-testid="p" aria-pressed="true">Row</Pressable>
+        <Pressable type="submit">Go</Pressable>
+      </form>,
+    ));
+    const [row, go] = Array.from(m.container.querySelectorAll("button"));
+    expect(row.type).toBe("button");
+    expect(row.className).toBe("nx-row");
+    expect(row.getAttribute("aria-pressed")).toBe("true");
+    expect(ref).toBe(row);
+    expect(go.type).toBe("submit");
+  });
+
+  test("Input and Select pass everything through and add no class", () => {
+    const m = (mounted = mount(
+      <div>
+        <Input type="checkbox" defaultChecked data-testid="c" />
+        <Select defaultValue="b" aria-label="Pick">
+          <option value="a">A</option>
+          <option value="b">B</option>
+        </Select>
+      </div>,
+    ));
+    const box = m.container.querySelector("input")!;
+    expect(box.type).toBe("checkbox");
+    expect(box.checked).toBe(true);
+    expect(box.className).toBe("");
+    const pick = m.container.querySelector("select")!;
+    expect(pick.value).toBe("b");
+    expect(pick.getAttribute("aria-label")).toBe("Pick");
   });
 });

@@ -1,5 +1,5 @@
 import { Button } from "../ui/Button";
-import { Kbd } from "../ui/controls";
+import { Kbd, Pressable, TextArea } from "../ui/controls";
 import {
   lazy,
   memo,
@@ -584,7 +584,7 @@ export default function Chat({
               says which of the two quiet positions it is in. One click
               steps back one position. */}
           {mode !== "ask" ? (
-            <button
+            <Pressable
               className="nx-column-auto"
               data-testid="auto-chip"
               title={
@@ -595,7 +595,7 @@ export default function Chat({
               onClick={() => chooseMode(mode === "all" ? "project" : "ask")}
             >
               {mode === "all" ? "Auto, all" : "Auto"}
-            </button>
+            </Pressable>
           ) : null}
           {/* Only when the activity line is not there: two flex-1 siblings
               split the slack, and the one line saying what the agent is
@@ -677,7 +677,7 @@ export default function Chat({
       <div
         ref={stream}
         data-testid="chat-stream"
-        className="min-h-0 flex-1 overflow-auto px-[10px] py-3"
+        className="min-h-0 flex-1 overflow-auto px-2.5 py-3"
         onScroll={(event) => {
           const element = event.currentTarget;
           pinned.current =
@@ -693,16 +693,16 @@ export default function Chat({
               </div>
               {/* The three things that most improve the help, as cards on
                   the first surface: each names what it adds and why. */}
-              <div className="mt-1 flex flex-col gap-[6px]">
+              <div className="mt-1 flex flex-col gap-1.5">
                 {WELCOME_ACTIONS.map((action) => (
-                  <button
+                  <Pressable
                     key={action.kind}
                     className="nx-welcome-card"
                     onClick={() => onAddContext?.(action.kind)}
                   >
                     <b>{action.label}</b>
                     <span>{action.detail}</span>
-                  </button>
+                  </Pressable>
                 ))}
               </div>
             </div>
@@ -720,7 +720,7 @@ export default function Chat({
         </div>
       </div>
 
-      <div className="shrink-0 px-3 pb-[10px] pt-2">
+      <div className="shrink-0 px-3 pb-2.5 pt-2">
         {/* Turning the fence off entirely is answered in place above the
             composer, in the same idiom as the new-conversation question and
             for the same reason: the sentence needs room, and this app has
@@ -752,7 +752,7 @@ export default function Chat({
               Everything is still recorded in this conversation, so you can
               read afterwards what was done.
             </p>
-            <div className="mt-2 flex flex-wrap gap-[6px]">
+            <div className="mt-2 flex flex-wrap gap-1.5">
               <Button
                 ref={keepAskingButton}
                 variant="ghost"
@@ -796,7 +796,7 @@ export default function Chat({
             {/* The safe answer carries the weight, and it is the one that
                 takes focus, because the default answer to "shall I throw
                 this away" is no. */}
-            <div className="mt-2 flex gap-[6px]">
+            <div className="mt-2 flex gap-1.5">
               <Button
                 ref={keepButton}
                 variant="ghost"
@@ -831,7 +831,7 @@ export default function Chat({
             box, and one row of tools under it. */}
         <div className="nx-composer">
           {attached.length || attaching || (selected && selected.text.trim()) ? (
-            <div className="flex flex-wrap items-center gap-[6px]" data-testid={attached.length || attaching ? "attachments" : undefined}>
+            <div className="flex flex-wrap items-center gap-1.5" data-testid={attached.length || attaching ? "attachments" : undefined}>
               {/* What the question is about to carry. Shown because the
                   agent answering about a passage the writer no longer has
                   in mind is baffling if nothing on screen said it had been
@@ -842,7 +842,7 @@ export default function Chat({
                   {selected.fromLine === selected.toLine
                     ? `Line ${selected.fromLine}`
                     : `Lines ${selected.fromLine} to ${selected.toLine}`}{" "}
-                  of <span className="font-mono text-[11.5px]">{selected.path.split("/").pop()}</span> go
+                  of <span className="font-mono text-caption">{selected.path.split("/").pop()}</span> go
                   {selected.fromLine === selected.toLine ? "es" : ""} with this
                 </Chip>
               ) : null}
@@ -852,12 +852,12 @@ export default function Chat({
               {attached.map((one) => (
                 <Chip
                   key={one.path}
-                  className="!pl-[3px]"
+                  className="!pl-0.75"
                   onRemove={() => drop(one.path)}
                   removeLabel={`Take ${one.name} off this question`}
                   data-testid="attachment"
                 >
-                  <img src={one.url} alt="" className="h-[16px] w-[16px] rounded-[2px] object-cover" />
+                  <img src={one.url} alt="" className="h-4 w-4 rounded-xs object-cover" />
                   <span className="max-w-[14ch] truncate">{one.name}</span>
                 </Chip>
               ))}
@@ -879,7 +879,7 @@ export default function Chat({
                 />
               </Suspense>
             ) : null}
-            <textarea
+            <TextArea
               ref={composer}
               rows={2}
               value={draft}
@@ -1015,7 +1015,7 @@ export default function Chat({
               <ClipIcon />
             </IconButton>
             <div className="relative min-w-0">
-              <button
+              <Pressable
                 ref={modeButton}
                 type="button"
                 className="nx-mode-chip"
@@ -1037,7 +1037,7 @@ export default function Chat({
                   {modelName}
                   {asks ? `, ${mode === "ask" ? "asks first" : "without asking"}` : ""}
                 </span>
-              </button>
+              </Pressable>
               {menuOpen ? (
                 <Suspense fallback={null}>
                   <ComposerMenu
@@ -1070,7 +1070,7 @@ export default function Chat({
                     ? "Enter to send"
                     : ""}
             </span>
-            <button
+            <Pressable
               type="button"
               className="nx-send"
               aria-label="Send"
@@ -1079,7 +1079,7 @@ export default function Chat({
               onClick={send}
             >
               <SendIcon size={14} />
-            </button>
+            </Pressable>
           </div>
         </div>
       </div>
@@ -1088,12 +1088,12 @@ export default function Chat({
           the way to the breakdown at the foot of the past conversations.
           The sum follows the end of each turn, as `usage` does. */}
       <div
-        className="nx-foot t-meta flex h-[28px] shrink-0 items-center gap-3 px-3 text-ink-2"
+        className="nx-foot t-meta flex h-7 shrink-0 items-center gap-3 px-3 text-ink-2"
         data-testid="agent-foot"
       >
         <span className="tnum truncate" data-testid="agent-tally">{tally(usage?.usage)}</span>
         <span className="flex-1" />
-        <button
+        <Pressable
           className="hover:text-ink"
           data-testid="usage-open"
           title="What this project's conversations have cost, in full"
@@ -1103,7 +1103,7 @@ export default function Chat({
           }}
         >
           Usage
-        </button>
+        </Pressable>
       </div>
       </>
       ) : null}
@@ -1184,7 +1184,7 @@ const Item = memo(function Item({
 
   if (item.kind === "notice") {
     return (
-      <div className={`text-[13px] leading-[18px] ${item.tone === "error" ? "text-error" : "text-ink-3"}`}>
+      <div className={`text-compact leading-4.5 ${item.tone === "error" ? "text-error" : "text-ink-3"}`}>
         {item.text}
       </div>
     );
@@ -1202,7 +1202,7 @@ function ToolRun({ group }: { group: ToolGroup }) {
   const [open, setOpen] = useState(false);
   return (
     <div className="nx-tool-run" data-testid="tool-run" data-open={open || undefined}>
-      <button
+      <Pressable
         type="button"
         className={`nx-tool-line ${group.ok ? "" : "text-error"}`}
         aria-expanded={open}
@@ -1213,9 +1213,9 @@ function ToolRun({ group }: { group: ToolGroup }) {
         {group.ms != null && group.ms >= 500 ? (
           <span className="shrink-0 tabular-nums">{duration(group.ms)}</span>
         ) : null}
-      </button>
+      </Pressable>
       {open ? (
-        <div className="flex flex-col gap-[2px] pl-[18px]">
+        <div className="flex flex-col gap-0.5 pl-4.5">
           {group.items.map((row) => <ToolRow key={row.id} item={row} />)}
         </div>
       ) : null}
@@ -1395,7 +1395,7 @@ function AgentMessage({ item }: { item: Extract<ChatItem, { kind: "claude" }> })
           <Prose text={item.text} />
           {item.streaming ? (
             <span
-              className={`ml-[1px] inline-block h-[1.1em] w-[2px] translate-y-[2px] bg-pen ${
+              className={`ml-px inline-block h-[1.1em] w-0.5 translate-y-0.5 bg-pen ${
                 paused ? "caret-paused" : ""
               }`}
             />
@@ -1445,27 +1445,27 @@ function EditChip({
         onMouseEnter={() => onHoverEdit(item.path, [changedLine, changedLine + 2])}
         onMouseLeave={() => onHoverEdit(item.path, null)}
       >
-        <button
-          className="flex min-w-0 items-center gap-[6px] text-ink"
+        <Pressable
+          className="flex min-w-0 items-center gap-1.5 text-ink"
           aria-expanded={open}
           onClick={() => setOpen(!open)}
         >
           {open ? <ChevronDownIcon size={11} /> : <ChevronRightIcon size={11} />}
           <span className="t-code-sm truncate">{name}</span>
-        </button>
+        </Pressable>
         <span className="nx-diff-counts">
           <span className="text-ok">+{item.added}</span>
           {item.removed ? <span className="text-error">−{item.removed}</span> : null}
         </span>
         <span className="flex shrink-0 gap-2">
-          <button
+          <Pressable
             className="text-ink-2 hover:text-ink"
             onClick={() => onShowEdit(item.path, changedLine)}
           >
             Show
-          </button>
+          </Pressable>
           {undoable ? (
-            <button
+            <Pressable
               className="text-ink-2 hover:text-ink"
               onClick={async () => {
                 const projectId = get().projectId;
@@ -1482,7 +1482,7 @@ function EditChip({
               }}
             >
               Undo
-            </button>
+            </Pressable>
           ) : (
             <span className="t-micro text-ink-3">Can’t undo, you edited this</span>
           )}
@@ -1510,10 +1510,10 @@ function Reverted({
   }, []);
 
   return (
-    <div className="flex h-[20px] items-center gap-3 stream-indent">
+    <div className="flex h-5 items-center gap-3 stream-indent">
       <span className="t-micro text-ink-3 line-through">Reverted: {name}</span>
       {canRedo ? (
-        <button
+        <Pressable
           className="t-micro text-ink-2 hover:text-ink"
           onClick={async () => {
             const projectId = get().projectId;
@@ -1526,7 +1526,7 @@ function Reverted({
           }}
         >
           Redo
-        </button>
+        </Pressable>
       ) : null}
     </div>
   );
@@ -1608,10 +1608,10 @@ function Permission({ item }: { item: Extract<ChatItem, { kind: "permission" }> 
           : "bg-ok";
     return (
       <div
-        className="flex h-[26px] items-center gap-2 stream-indent"
+        className="flex h-6.5 items-center gap-2 stream-indent"
         data-testid={`decided-${item.decision}`}
       >
-        <span className={`h-[6px] w-[6px] rounded-full ${dot}`} />
+        <span className={`h-1.5 w-1.5 rounded-full ${dot}`} />
         {/* Separated by space rather than by punctuation, which is the
             status strip's own rule. The separator here used to be a dash,
             the sweep made it a comma, and a comma before a monospaced run
@@ -1655,11 +1655,11 @@ function Permission({ item }: { item: Extract<ChatItem, { kind: "permission" }> 
         if (event.key === "d") decide("deny");
       }}
     >
-      <span className="w-[3px] shrink-0 rounded-l-card bg-warn" />
-      <div className="min-w-0 flex-1 px-3 py-[10px]">
+      <span className="w-0.75 shrink-0 rounded-l-card bg-warn" />
+      <div className="min-w-0 flex-1 px-3 py-2.5">
         <div className="t-ui font-medium text-ink">{item.headline}</div>
         {item.detail ? (
-          <pre className="t-code-sm mt-2 max-h-[108px] overflow-auto whitespace-pre-wrap rounded-control bg-surface-2 p-2 text-ink-2">
+          <pre className="t-code-sm mt-2 max-h-27 overflow-auto whitespace-pre-wrap rounded-control bg-surface-2 p-2 text-ink-2">
             {item.detail}
           </pre>
         ) : null}
@@ -1702,7 +1702,7 @@ function Permission({ item }: { item: Extract<ChatItem, { kind: "permission" }> 
             of the card.  The row gives way now, not the buttons. */}
         {/* The keys are drawn always, as the page draws them: a hint that
             appears on focus moved the buttons out from under the pointer. */}
-        <div className="mt-3 flex flex-wrap items-center gap-[6px]">
+        <div className="mt-3 flex flex-wrap items-center gap-1.5">
           <Button
             variant="ghost"
             className="shrink-0"

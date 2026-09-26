@@ -2,6 +2,7 @@ import { useEffect, useRef, useState, type ReactNode } from "react";
 import { Chevron } from "../../chrome";
 import { APPEARANCE_CHANGED, type Theme } from "../../appearance";
 import { shortcut } from "../../keys";
+import { Pressable } from "../../ui/controls";
 
 /** The theme, live.
  *
@@ -44,7 +45,7 @@ export function Section({
   return (
     <section id={id} data-section={id} className="scroll-mt-2">
       <h3 className="t-ui-lg mb-2 flex items-baseline gap-2 font-semibold text-ink">
-        <span className="t-code-sm tnum w-[15px] shrink-0 text-right font-normal text-ink-3">{n}</span>
+        <span className="t-code-sm tnum w-3.75 shrink-0 text-right font-normal text-ink-3">{n}</span>
         <span>{title}</span>
       </h3>
       <div className="flex flex-col gap-2">{children}</div>
@@ -101,7 +102,7 @@ export function Keys({ groups }: { groups: { where: string; rows: KeyRow[] }[] }
     <div className="flex flex-col gap-3">
       {groups.map((group) => (
         <div key={group.where} className="flex flex-col">
-          <div className="t-meta mb-[2px] text-ink-3">
+          <div className="t-meta mb-0.5 text-ink-3">
             {group.where}
           </div>
           {group.rows.map((row) => {
@@ -109,9 +110,9 @@ export function Keys({ groups }: { groups: { where: string; rows: KeyRow[] }[] }
             return (
               <div
                 key={row.spec ?? row.key}
-                className="flex min-h-[26px] items-start gap-3 py-[3px]"
+                className="flex min-h-6.5 items-start gap-3 py-0.75"
               >
-                <span className="t-code-sm w-[118px] shrink-0 leading-[18px] text-ink">
+                <span className="t-code-sm w-29.5 shrink-0 leading-4.5 text-ink">
                   {keys ? (
                     <>
                       <span className="block">{keys.mac}</span>
@@ -121,7 +122,7 @@ export function Keys({ groups }: { groups: { where: string; rows: KeyRow[] }[] }
                     row.key
                   )}
                 </span>
-                <span className="t-ui min-w-0 flex-1 leading-[18px] text-ink-2">{row.does}</span>
+                <span className="t-ui min-w-0 flex-1 leading-4.5 text-ink-2">{row.does}</span>
               </div>
             );
           })}
@@ -166,7 +167,7 @@ export function Figure({
         loading={eager ? "eager" : "lazy"}
         className="block w-full rounded-control border border-line"
       />
-      <figcaption className="t-micro mt-[6px] text-ink-3">{caption}</figcaption>
+      <figcaption className="t-micro mt-1.5 text-ink-3">{caption}</figcaption>
     </figure>
   );
 }
@@ -237,16 +238,16 @@ export function Contents({
 
   return (
     <div className="nx-tutorial-contents shrink-0">
-      <button
+      <Pressable
         ref={trigger}
         data-contents-row
         data-testid="tutorial-contents"
         aria-expanded={open}
         aria-controls="tutorial-contents-list"
-        className="nx-tap [--nx-tap-y:30px] nx-tutorial-row flex h-[30px] w-full items-center gap-[6px] text-left"
+        className="nx-tap [--nx-tap-y:30px] nx-tutorial-row flex h-7.5 w-full items-center gap-1.5 text-left"
         onClick={() => setOpen((value) => !value)}
       >
-        <span className="t-code-sm tnum w-[15px] shrink-0 text-right text-ink-3">{here + 1}</span>
+        <span className="t-code-sm tnum w-3.75 shrink-0 text-right text-ink-3">{here + 1}</span>
         <span className="t-ui min-w-0 flex-1 truncate text-ink">
           {entries[here]?.label ?? "Contents"}
         </span>
@@ -254,7 +255,7 @@ export function Contents({
           {open ? "Close" : "Contents"}
         </span>
         <Chevron direction={open ? "up" : "down"} />
-      </button>
+      </Pressable>
 
       {open ? (
         <div
@@ -267,14 +268,14 @@ export function Contents({
           {entries.map((entry, index) => {
             const mine = entry.id === current;
             return (
-              <button
+              <Pressable
                 key={entry.id}
                 role="listitem"
                 data-contents-row
                 data-testid="tutorial-contents-row"
                 aria-current={mine ? "true" : undefined}
                 tabIndex={index === focused ? 0 : -1}
-                className="nx-tutorial-row relative flex h-[28px] w-full items-center gap-[6px] text-left"
+                className="nx-tutorial-row relative flex h-7 w-full items-center gap-1.5 text-left"
                 onFocus={() => setFocused(index)}
                 onClick={() => leave(entry.id)}
                 onKeyDown={(event) => {
@@ -303,7 +304,7 @@ export function Contents({
               >
                 {/* The current row by ink weight alone: the pen is the
                     agent's colour, not a place marker. */}
-                <span className="t-code-sm tnum w-[15px] shrink-0 text-right text-ink-3">
+                <span className="t-code-sm tnum w-3.75 shrink-0 text-right text-ink-3">
                   {index + 1}
                 </span>
                 <span
@@ -313,7 +314,7 @@ export function Contents({
                 >
                   {entry.label}
                 </span>
-              </button>
+              </Pressable>
             );
           })}
         </div>

@@ -4,6 +4,7 @@ import { statusFor } from "./status-dot";
 import { Button } from "../ui/Button";
 import { get, set, useStore } from "../store";
 import api from "../api";
+import { Pressable, Select } from "../ui/controls";
 
 /** The Build drawer's body: the build's state, what to fix, and the way
  *  to build again.
@@ -132,7 +133,7 @@ function InstallPackage({ file }: { file: string }) {
       ) : null}
       {said ? (
         <pre
-          className="t-code-sm max-h-[72px] w-full overflow-auto whitespace-pre-wrap text-error"
+          className="t-code-sm max-h-18 w-full overflow-auto whitespace-pre-wrap text-error"
           data-testid="tex-install-error"
         >
           {said}
@@ -258,7 +259,7 @@ export default function Diagnostics({
     <div className="flex min-h-0 flex-1 flex-col" data-testid="diagnostics" data-state={status.state}>
       {/* The state as the strip words it: the dot, the words, the time. */}
       <div className="nx-build-state" data-testid="build-state">
-        <span className={`h-[7px] w-[7px] shrink-0 rounded-full ${status.dot}`} />
+        <span className={`h-1.75 w-1.75 shrink-0 rounded-full ${status.dot}`} />
         <span className="text-ink">{status.label}</span>
         {showDuration ? (
           <span className="t-meta tnum text-ink-3">{((result?.durationMs ?? 0) / 1000).toFixed(2)} s</span>
@@ -272,7 +273,7 @@ export default function Diagnostics({
            question: one previewed document is the ordinary case and a
            filter with one option is furniture. */
         <div className="nx-line justify-end">
-          <select
+          <Select
             value={only}
             aria-label="Which document"
             data-testid="diagnostics-document"
@@ -285,12 +286,12 @@ export default function Diagnostics({
                 {name.split("/").pop()}
               </option>
             ))}
-          </select>
+          </Select>
         </div>
       ) : null}
       {shellEscape === "asked" ? (
         <div
-          className="mx-2 mb-1 mt-1 shrink-0 rounded-card bg-surface px-3 py-2 text-[13px] leading-[18px]"
+          className="mx-2 mb-1 mt-1 shrink-0 rounded-card bg-surface px-3 py-2 text-compact leading-4.5"
           data-testid="shell-escape-ask"
         >
           <p className="text-ink">
@@ -322,14 +323,14 @@ export default function Diagnostics({
       ) : null}
       {summary ? (
         <div
-          className="mx-2 mb-1 mt-1 shrink-0 rounded-card bg-surface px-3 py-2 text-[12.5px] leading-[17px] text-ink-2"
+          className="mx-2 mb-1 mt-1 shrink-0 rounded-card bg-surface px-3 py-2 text-small leading-4.25 text-ink-2"
           data-testid="build-summary"
         >
           <p>
             <span className="font-medium text-error">Start here. </span>
             {summary.headline}
             {summary.file ? (
-              <button
+              <Pressable
                 className="ml-2 text-ink-3 hover:text-ink"
                 onClick={() =>
                   summary.file && onJump(summary.file, summary.line ?? 1)
@@ -337,7 +338,7 @@ export default function Diagnostics({
               >
                 {summary.file.split("/").pop()}
                 {summary.line ? `:${summary.line}` : ""}
-              </button>
+              </Pressable>
             ) : null}
           </p>
           {/* Deliberately not `summary.detail`: it is the same sentence the
@@ -382,13 +383,13 @@ export default function Diagnostics({
             <div
               key={key}
               data-selected={selected === key ? "true" : undefined}
-              className={`group grid grid-cols-[3px_28px_1fr_auto] items-start gap-x-[8px] py-[5px] pl-[6px] pr-2 text-[12.5px] leading-[17px] text-ink-2 hover:bg-wash ${
+              className={`group grid grid-cols-[3px_28px_1fr_auto] items-start gap-x-2 py-1.25 pl-1.5 pr-2 text-small leading-4.25 text-ink-2 hover:bg-wash ${
                 lit ? "bg-wash" : ""
               }`}
             >
-              <span className={`h-full min-h-[17px] w-[3px] rounded-[2px] ${bar}`} />
-              <button
-                className="col-span-2 grid min-w-0 cursor-pointer grid-cols-[28px_1fr] gap-x-[8px] text-left"
+              <span className={`h-full min-h-4.25 w-0.75 rounded-xs ${bar}`} />
+              <Pressable
+                className="col-span-2 grid min-w-0 cursor-pointer grid-cols-[28px_1fr] gap-x-2 text-left"
                 aria-expanded={open}
                 onClick={() => {
                   setSelected(key);
@@ -403,12 +404,12 @@ export default function Diagnostics({
                     <span className="t-code-sm ml-2 text-ink-3">{item.file.split("/").pop()}</span>
                   ) : null}
                 </span>
-              </button>
+              </Pressable>
               {/* Fix and Copy under the pointer, and always on a finger,
                   which has no pointer to reveal with. */}
-              <span className="flex items-center gap-[2px] hoverable:opacity-0 hoverable:group-hover:opacity-100 hoverable:focus-within:opacity-100">
-                <button
-                  className="px-[6px] text-[12.5px] text-ink-2 hover:text-ink"
+              <span className="flex items-center gap-0.5 hoverable:opacity-0 hoverable:group-hover:opacity-100 hoverable:focus-within:opacity-100">
+                <Pressable
+                  className="px-1.5 text-small text-ink-2 hover:text-ink"
                   onClick={(event) => {
                     event.stopPropagation();
                     onFix(
@@ -418,14 +419,14 @@ export default function Diagnostics({
                   }}
                 >
                   Fix
-                </button>
+                </Pressable>
                 {/* The one thing a writer does with an error message that
                     NextTex cannot do for them: take it somewhere else, to
                     a search or to a colleague. It was selectable text
                     inside a button, which means selecting it opened the
                     row and jumped the editor. */}
-                <button
-                  className="px-[6px] text-[12.5px] text-ink-2 hover:text-ink"
+                <Pressable
+                  className="px-1.5 text-small text-ink-2 hover:text-ink"
                   data-testid="diagnostic-copy"
                   onClick={(event) => {
                     event.stopPropagation();
@@ -438,10 +439,10 @@ export default function Diagnostics({
                   }}
                 >
                   Copy
-                </button>
+                </Pressable>
               </span>
               {open ? (
-                <div className="col-span-2 col-start-3 mt-[2px] text-[12.5px] leading-[17px] text-ink-2">
+                <div className="col-span-2 col-start-3 mt-0.5 text-small leading-4.25 text-ink-2">
                   {item.explain ? (
                     <>
                       <p className="font-medium text-ink">{item.explain.title}</p>
@@ -456,7 +457,7 @@ export default function Diagnostics({
                     </>
                   ) : null}
                   {item.context ? (
-                    <pre className="t-code-sm mt-1 max-h-[54px] overflow-auto rounded-control bg-surface px-2 py-1 text-ink-2">
+                    <pre className="t-code-sm mt-1 max-h-13.5 overflow-auto rounded-control bg-surface px-2 py-1 text-ink-2">
                       {item.context}
                     </pre>
                   ) : null}
@@ -479,15 +480,15 @@ export default function Diagnostics({
           reachable looks like without one. */}
       {logDocument ? (
         rawLog[logDocument] === undefined ? (
-          <button
+          <Pressable
             className="nx-note self-start text-left hover:text-ink"
             data-testid="show-raw-log"
             onClick={() => void showLog(logDocument)}
           >
             Show the raw log
-          </button>
+          </Pressable>
         ) : (
-          <pre className="t-code-sm mx-2 mb-1 max-h-[220px] shrink-0 overflow-auto whitespace-pre-wrap rounded-control bg-surface px-2 py-1 text-ink-3" data-testid="raw-log">
+          <pre className="t-code-sm mx-2 mb-1 max-h-55 shrink-0 overflow-auto whitespace-pre-wrap rounded-control bg-surface px-2 py-1 text-ink-3" data-testid="raw-log">
             {rawLog[logDocument] || "The log is empty."}
           </pre>
         )

@@ -85,7 +85,7 @@ export default function TrashPanel({ onRefresh }: { onRefresh: () => void }) {
                 trailing={
                   <span className="nx-row-tail">
                     <span className="nx-row-when tabular-nums">{when(entry.at)}</span>
-                    <span className="nx-row-actions flex items-center gap-[2px]" data-always={confirming === entry.id || undefined}>
+                    <span className="nx-row-actions flex items-center gap-0.5" data-always={confirming === entry.id || undefined}>
                       {confirming === entry.id ? (
                         <>
                           <span className="pr-1 text-ink-2">For good?</span>

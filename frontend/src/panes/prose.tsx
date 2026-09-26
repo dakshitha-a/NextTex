@@ -117,7 +117,7 @@ export function inline(text: string, keyPrefix: string): ReactNode[] {
       nodes.push(
         <code
           key={key}
-          className="t-code-sm rounded-control bg-surface-2 px-[3px] py-[1px]"
+          className="t-code-sm rounded-control bg-surface-2 px-0.75 py-px"
         >
           {token.slice(1, -1)}
         </code>,

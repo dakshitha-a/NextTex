@@ -212,7 +212,7 @@ export function FoldButton({
   onClick: () => void;
 }) {
   return (
-    <IconButton label={label} className="!w-[22px] shrink-0" onClick={onClick}>
+    <IconButton label={label} className="!w-5.5 shrink-0" onClick={onClick}>
       <Chevron direction={direction} />
     </IconButton>
   );
@@ -339,8 +339,8 @@ export function Handle({
       <span
         className={
           row
-            ? "absolute -top-1 left-0 z-10 w-full h-[9px] select-none [@media(pointer:coarse)]:-top-3 [@media(pointer:coarse)]:h-[24px]"
-            : "absolute -left-1 top-0 z-10 h-full w-[9px] select-none [@media(pointer:coarse)]:-left-3 [@media(pointer:coarse)]:w-[24px]"
+            ? "absolute -top-1 left-0 z-10 w-full h-2.25 select-none [@media(pointer:coarse)]:-top-3 [@media(pointer:coarse)]:h-6"
+            : "absolute -left-1 top-0 z-10 h-full w-2.25 select-none [@media(pointer:coarse)]:-left-3 [@media(pointer:coarse)]:w-6"
         }
       />
     </div>
@@ -388,7 +388,7 @@ export function NameWell({ name }: { name: string }) {
     return () => watch.disconnect();
   }, [name]);
   return (
-    <span ref={well} className="nx-name-well t-ui-lg ml-[14px] min-w-0 flex-1" data-testid="project-name">
+    <span ref={well} className="nx-name-well t-ui-lg ml-3.5 min-w-0 flex-1" data-testid="project-name">
       <span ref={text} className="nx-name">
         {name}
       </span>

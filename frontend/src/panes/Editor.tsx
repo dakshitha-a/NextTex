@@ -55,6 +55,7 @@ const WordMenu = lazy(() => import("./WordMenu"));
 const EditorComments = lazy(() => import("./EditorComments"));
 import { placeClear } from "./place-clear";
 import type { CommentsApi } from "./EditorComments";
+import { Pressable } from "../ui/controls";
 
 
 
@@ -1566,17 +1567,17 @@ export default function Editor({
       }}
     >
       {atTop ? (
-        <button
+        <Pressable
           type="button"
           data-testid="section-bar"
           data-line={atTop.line}
           title={`Go to line ${atTop.line}`}
-          className="nx-section-bar absolute left-0 right-0 z-10 flex h-[22px] items-center gap-[6px] overflow-hidden whitespace-nowrap border-b border-line bg-surface px-[10px] text-left"
+          className="nx-section-bar absolute left-0 right-0 z-10 flex h-5.5 items-center gap-1.5 overflow-hidden whitespace-nowrap border-b border-line bg-surface px-2.5 text-left"
           style={{ top: panelsHeight }}
           onClick={() => jumpRef.current?.(atTop.line)}
         >
           {trailTo(outlineNow, atTop).map((heading, index, trail) => (
-            <span key={`${heading.line}:${heading.title}`} className="flex min-w-0 items-center gap-[6px]">
+            <span key={`${heading.line}:${heading.title}`} className="flex min-w-0 items-center gap-1.5">
               {index ? <span className="t-micro text-ink-3">›</span> : null}
               <span
                 className={`t-micro truncate ${index === trail.length - 1 ? "text-ink-2" : "text-ink-3"}`}
@@ -1585,7 +1586,7 @@ export default function Editor({
               </span>
             </span>
           ))}
-        </button>
+        </Pressable>
       ) : null}
       {actions ? (
         <Suspense fallback={null}>

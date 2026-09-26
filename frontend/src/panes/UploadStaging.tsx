@@ -134,7 +134,7 @@ export default function UploadStaging({
 
   return (
     <Sheet ref={card} open onClose={close} labelledBy="upload-heading" testid="upload-staging" width={380}>
-      <Heading id="upload-heading" className="truncate pb-[8px]">
+      <Heading id="upload-heading" className="truncate pb-2">
         {heading}
       </Heading>
 
@@ -153,7 +153,7 @@ export default function UploadStaging({
         // Dropped on a folder, the folder is the answer and there is no
         // choice to draw; but the sheet still opens to ask about a name
         // already there, and said nothing about where (Q-061).
-        <p className="t-meta -mt-[4px] pb-[6px] text-ink-2" data-testid="upload-into">
+        <p className="t-meta -mt-1 pb-1.5 text-ink-2" data-testid="upload-into">
           Into{" "}
           {directory ? <span className="t-code-sm text-ink">{directory}</span> : "the project's top folder"}
         </p>

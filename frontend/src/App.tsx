@@ -167,6 +167,7 @@ const PapersPanel = lazy(() => import("./panes/PapersPanel"));
 const SubmitPanel = lazy(() => import("./panes/SubmitPanel"));
 const GitPanel = lazy(() => import("./panes/GitPanel"));
 import { isScript, isTeX, isText, isViewable } from "./panes/file-kinds";
+import { Pressable } from "./ui/controls";
 
 const DEFAULTS: Widths = { rail: 240, editor: 0.5, chat: 380 };
 
@@ -2184,7 +2185,7 @@ export default function App() {
     // that is listening.
     return (
       <div className="flex h-full items-center justify-center bg-surround" data-testid="offline-screen">
-        <div className="max-w-[420px] px-6 text-center">
+        <div className="max-w-105 px-6 text-center">
           <p className="t-ui text-ink">Waiting for NextTex</p>
           <p className="t-meta mt-1 text-ink-2">
             {waitingBecause || "The server is not answering."} This page
@@ -2242,8 +2243,8 @@ export default function App() {
         data-testid="left-column"
         style={{ width: drawerShown && !drawerOver ? 44 + widths.rail + 1 : 44 }}
       >
-        <div className="nx-name-row nx-band flex h-[36px] w-full shrink-0 items-center" data-testid="title-bar">
-          <button
+        <div className="nx-name-row nx-band flex h-9 w-full shrink-0 items-center" data-testid="title-bar">
+          <Pressable
             className="flex h-full min-w-0 flex-1 items-center pr-2 transition-colors duration-[90ms] hover:text-hint"
             data-testid="switch-project"
             onClick={leaveProject}
@@ -2253,7 +2254,7 @@ export default function App() {
                 starting on the drawer's own gutter, so the row's two parts
                 sit over the two columns they head; the chevron at the
                 row's end, past the well the name fades in. */}
-            <span className="flex w-[44px] shrink-0 justify-center"><Logo size={18} /></span>
+            <span className="flex w-11 shrink-0 justify-center"><Logo size={18} /></span>
             {drawerShown && !drawerOver ? (
               <>
                 <NameWell name={projectName} />
@@ -2261,7 +2262,7 @@ export default function App() {
                 <InstanceBadge />
               </>
             ) : null}
-          </button>
+          </Pressable>
         </div>
         <div className="flex min-h-0 flex-1">
       {/* The activity bar: one button per drawer, the one showing marked by
@@ -2271,7 +2272,7 @@ export default function App() {
       <nav
         aria-label="Drawers"
         data-testid="activity-bar"
-        className="flex w-[44px] shrink-0 flex-col items-center gap-[2px] bg-surround pt-2"
+        className="flex w-11 shrink-0 flex-col items-center gap-0.5 bg-surround pt-2"
       >
         {BAR_ITEMS.map(({ id, title, Icon }) => (
           <IconButton
@@ -2317,7 +2318,7 @@ export default function App() {
           <div
             className={
               drawerOver
-                ? "nx-pane absolute left-[44px] top-[36px] z-30 flex h-[calc(100%-36px)] flex-col bg-surface-2 shadow-float outline-none"
+                ? "nx-pane absolute left-11 top-9 z-30 flex h-[calc(100%-36px)] flex-col bg-surface-2 shadow-float outline-none"
                 : "nx-pane flex min-h-0 shrink-0 flex-col bg-surface-2 outline-none"
             }
             style={{ width: widths.rail }}
@@ -2390,7 +2391,7 @@ export default function App() {
               </Suspense>
             ) : (
               <>
-                <div className="flex shrink-0 items-center gap-[2px] pb-[6px] pl-[14px] pr-2 pt-[10px]">
+                <div className="flex shrink-0 items-center gap-0.5 pb-1.5 pl-3.5 pr-2 pt-2.5">
                   <span className="t-ui-lg flex-1 truncate text-ink">
                     {BAR_ITEMS.find((item) => item.id === drawerId)?.title ?? `What ${agentName(agentProvider as Provider | undefined)} reads`}
                   </span>
@@ -2471,17 +2472,17 @@ export default function App() {
                 the preview: the one way to report a problem from inside a
                 project, where a problem is usually met. */}
             <div
-              className="nx-foot t-meta flex h-[28px] shrink-0 items-center px-3 text-ink-2"
+              className="nx-foot t-meta flex h-7 shrink-0 items-center px-3 text-ink-2"
               data-testid="drawer-foot"
             >
-              <button
-                className="flex items-center gap-[6px] hover:text-ink"
+              <Pressable
+                className="flex items-center gap-1.5 hover:text-ink"
                 data-testid="report-problem"
                 onClick={() => setReporting(true)}
               >
                 <ReportIcon size={13} />
                 Report a problem
-              </button>
+              </Pressable>
             </div>
           </div>
           {drawerOver ? null : (
@@ -2512,7 +2513,7 @@ export default function App() {
                 : "hidden"
               : folded.editor
                 ? "hidden"
-                : "min-w-[420px]"
+                : "min-w-105"
           }`}
           style={
             tight || folded.editor
@@ -2608,7 +2609,7 @@ export default function App() {
             </Suspense>
           ) : null}
           {viewing && patchView ? (
-            <div className="shrink-0 border-b border-line px-[10px] pb-2" data-testid="history-patch">
+            <div className="shrink-0 border-b border-line px-2.5 pb-2" data-testid="history-patch">
               <p className="t-micro pt-1 text-ink-2">{patchView.title}</p>
               <Patch text={patchView.text} />
             </div>
@@ -2718,7 +2719,7 @@ export default function App() {
                 : "hidden"
               : folded.pdf
                 ? "hidden"
-                : "min-w-[320px]"
+                : "min-w-80"
           }`}
           // Grow factors are two halves of one whole.  Against Tailwind's
           // flex-1 (grow: 1) an editor at 0.5 takes a third, not a half,
@@ -2878,7 +2879,7 @@ export default function App() {
         <Suspense
           fallback={
             <div
-              className="absolute inset-y-0 z-40 w-[380px] max-w-full bg-surface-2 shadow-float"
+              className="absolute inset-y-0 z-40 w-95 max-w-full bg-surface-2 shadow-float"
               style={{ right: tutorialRight }}
             />
           }
