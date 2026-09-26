@@ -77,6 +77,13 @@ OpenAI provider against OpenAI itself.
       `npm audit` advisories, three in `nanoid` under the spelling
       loader and one in `diff`'s patch functions, are in code the app
       never calls.
+      `diff` is at 9 since the backlog close-out, which also dropped
+      `@types/diff`, since 8 ships its own types, and took its advisory
+      with it. The three `nanoid` advisories stay: the spelling loader
+      imports nanoid 2 as a function and calls it only when it is given
+      no file name, which `hunspell-speller.ts` always gives, and nanoid
+      3, the first fixed line, has no such export, so forcing it would
+      break spelling to silence advisories nothing reaches.
 
 - [x] **A script that starts a session of its own outlives its stop.**
       A stopped or timed-out script was ended by killing its process
