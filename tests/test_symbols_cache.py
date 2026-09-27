@@ -138,10 +138,19 @@ def test_a_citation_carries_its_authors_venue_and_doi(tmp_path):
     assert first["authors"] == "Schuurman, Stolow"
     assert first["venue"] == "Annual Review of Physical Chemistry"
     assert first["doi"] == "10.1146/annurev-physchem-052516-050721"
+    # Completion matches any author, so every surname is kept, uncut.
+    assert second["surnames"] == ["One", "Two", "Three", "Four", "Five"]
     assert second["authors"] == "One, Two, Three and 2 more"
     assert second["venue"] == "Proceedings of Something"
     assert second["doi"] == ""
 
+
+def test_a_citation_says_which_bib_it_came_from(tmp_path):
+    (tmp_path / "refs").mkdir()
+    (tmp_path / "refs" / "a.bib").write_text("@misc{alpha, title={A}}\n", encoding="utf-8")
+    (tmp_path / "b.bib").write_text("@misc{beta, title={B}}\n", encoding="utf-8")
+    found = {entry["key"]: entry["file"] for entry in scan(tmp_path).citations}
+    assert found == {"alpha": "refs/a.bib", "beta": "b.bib"}
 
 def test_deleting_a_file_that_is_not_the_newest_drops_its_labels(tmp_path):
     """Q-018: the stamp was the newest modification time alone, and a

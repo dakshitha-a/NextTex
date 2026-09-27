@@ -143,7 +143,12 @@ export type Symbols = {
      *  inner text; `bodyCut` when the body was cut at the scan's limit. */
     env?: string; graphic?: string; caption?: string; body?: string; bodyCut?: boolean;
   }[];
-  citations: { key: string; type: string; title: string; author: string; year: string; authors?: string; venue?: string; doi?: string }[];
+  citations: {
+    key: string; type: string; title: string; author: string; year: string; authors?: string; venue?: string; doi?: string;
+    /** Every author's surname, uncut, for completion to match; and the
+     *  `.bib` the entry is in, so completion offers the document's own. */
+    surnames?: string[]; file?: string;
+  }[];
   images: string[];
   texfiles: string[];
   commands: { name: string; args: number; file: string; definition?: string }[];

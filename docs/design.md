@@ -10970,3 +10970,50 @@ checks that only the document's own `.bib` reaches citeproc, the header
 naming a missing figure, and that a figure outside the project is never
 read. `e2e/specs/export.spec.ts` downloads a `.docx` whose document
 names a figure that is not there and finds the sentence in the corner.
+
+## 80. Citations after a comma
+
+`\cite{` offered the project's keys, and the list was right for the
+first one only. After `\cite{knuth1984,` it treated the whole argument
+as one key, matched nothing and stayed shut, so the second citation was
+typed from memory. It matched the key alone, and a writer remembers a
+paper by who wrote it, when, or a word of its title more often than by
+the key they gave it. And it offered every `.bib` on disk, where a
+project with a bibliography per document wants the one in front. Asked
+for on 26 September 2026, with the design left to me; drawn on the
+direction page, "Citations after a comma, and figures in Word", as the
+preview of what was built.
+
+Now the list opens again after each comma, and after a comma and a
+space, for the key being typed; the keys already in the braces are not
+offered again. It matches the key, any author's surname, the year and
+the start of any word of the title, with accents ignored, so "muller"
+finds Müller. A key that starts with what was typed comes first, then
+one that contains it, then a surname, a year and a title word, and last
+a key with the typed letters in order and gaps between. The popup is
+the one it was: the kind column's `@`, the key, and the detail column
+at the right, now naming every author up to three, "Lambert, Okafor
+2020". What matched is marked the way a key's letters always were, in
+`--hint` at 600, or in ink on the selected row; a title match adds the
+title to the detail column beside the first author, "Knuth 1984, The
+TeXbook", with the word marked there; a long title is shown from the
+matched word and cut with an ellipsis, so the word is always in the
+popup's width. Taking a key in the middle of a list puts the key in and
+nothing else, and at the end of an open argument closes the brace as
+before.
+
+The list is the bibliography the document reads, through its inputs,
+found in the map of which documents read which files that the preview
+strip already keeps. A document that reads none, or a file no document
+on the strip reads, gets every entry in the project, as before, since an
+empty list is worse than a long one.
+
+`frontend/src/panes/cite-match.test.ts` covers the document a file
+belongs to, the bibliography offered and its fallback, the key after a
+comma and the keys around it, the ranking tier by tier with accents and
+a surname the short line cut, and what taking a key puts in the text.
+`e2e/specs/cite-completion-comma.spec.ts` types a second citation after
+a comma in a real editor, finds the first key absent and an unread
+`.bib` absent, a surname and a title word matched and marked, and a key
+taken in the middle of a list with no stray brace.
+

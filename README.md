@@ -124,6 +124,11 @@ close the tab. No database, no Docker, no nginx.
   references* and *Rename* on a `\ref` or `\cite` card are a click
   away. Which of them show is a row on the settings sheet, one chip per
   kind, with a switch above it for all of them at once.
+- **Citations complete from your bibliography.** Inside `\cite{` the list
+  offers the keys of the `.bib` your document reads, and opens again
+  after each comma for the next one, leaving out the keys already there.
+  Type a key, an author's surname, a year or a word of the title:
+  `\cite{knuth1984, conic` finds the paper on conical intersections.
 - **Find and drag in the Files drawer**, with open files following a folder
   that moves.
 - **The look is written down.** Every control comes from one kit on one

@@ -193,8 +193,13 @@ def language_of(text: str) -> dict | None:
     return {"code": found[1], "line": " ".join(found[2].split())}
 
 
-def _bib_entries(text: str) -> list[dict]:
-    """Citation keys with enough detail to tell two papers apart."""
+def _bib_entries(text: str, file: str = "") -> list[dict]:
+    """Citation keys with enough detail to tell two papers apart.
+
+    `file` is the `.bib` they came from, relative to the project, so the
+    editor can offer only the entries of the bibliography the document it
+    is in reads; `surnames` is every author, for completion to match an
+    author the short `authors` line has cut."""
     entries: list[dict] = []
     for match in BIB_ENTRY.finditer(text):
         start = match.end()
@@ -216,20 +221,25 @@ def _bib_entries(text: str) -> list[dict]:
             "venue": _clean(fields.get("journal", "") or fields.get("booktitle", "")
                             or fields.get("publisher", "")),
             "doi": _clean(fields.get("doi", "")),
+            "surnames": _surnames(fields.get("author", "")),
+            "file": file,
         })
     return entries
+
+
+def _surnames(value: str) -> list[str]:
+    """Every author's surname, first to last."""
+    names = [part.strip() for part in value.split(" and ") if part.strip()]
+    return [
+        _clean(name.split(",")[0] if "," in name else name.split()[-1])
+        for name in names
+    ]
 
 
 def _authors(value: str) -> str:
     """Every author as surname, first to last, or the first three and how
     many more: enough to recognise the paper, short enough for a card."""
-    if not value:
-        return ""
-    names = [part.strip() for part in value.split(" and ") if part.strip()]
-    surnames = [
-        _clean(name.split(",")[0] if "," in name else name.split()[-1])
-        for name in names
-    ]
+    surnames = _surnames(value)
     if len(surnames) > 3:
         return ", ".join(surnames[:3]) + f" and {len(surnames) - 3} more"
     return ", ".join(surnames)
@@ -408,7 +418,7 @@ def scan(
         if suffix == ".bib":
             try:
                 found.citations.extend(_bib_entries(path.read_text(
-                    encoding="utf-8", errors="replace")))
+                    encoding="utf-8", errors="replace"), relative))
             except OSError:
                 pass
             continue

@@ -53,6 +53,7 @@ import { python } from "@codemirror/legacy-modes/mode/python";
 import { closeBrackets, closeBracketsKeymap } from "@codemirror/autocomplete";
 import type { Diagnostic, Symbols } from "../api";
 import { latexCompletions } from "./latex-complete";
+import type { CiteScope } from "./cite-match";
 import { bibCompletions } from "./bib-complete";
 import { environmentToClose, indentOf, opensEnvironment } from "./close-environment";
 import { isEscaped } from "./escaping";
@@ -734,6 +735,9 @@ export function languageFor(
     onSymbol?: OnSymbol;
     /** The formula card's Copy as SVG and Save as PNG. */
     onEquation?: OnEquation;
+    /** Where the file sits among the documents, so citation completion
+     *  offers the bibliography its document reads. */
+    citeScope?: () => CiteScope | null;
   } = {},
 ): Extension[] {
   if (isScript(path)) {
@@ -774,7 +778,7 @@ export function languageFor(
     afterEndOfDocument(),
     ...(options.onSymbol ? [renameKey(options.onSymbol)] : []),
     ...(options.follow ? [followLinks(symbols, options.follow)] : []),
-    ...(options.complete ? [latexCompletions(symbols)] : []),
+    ...(options.complete ? [latexCompletions(symbols, options.citeScope)] : []),
   ];
 }
 

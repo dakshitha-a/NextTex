@@ -25,6 +25,7 @@ import {
   grammarCompartment,
   viewExtensions,
 } from "./editor-setup";
+import { documentOf } from "./cite-match";
 import { isCode, isMarkdown, isTeX } from "./file-kinds";
 import { pasteExtension } from "./paste";
 import { reconciled } from "./parked";
@@ -251,7 +252,7 @@ export default function Editor({
     const chosen = state.settings.language;
     if (chosen) return chosen;
     const path = current.current ?? "";
-    const owner = state.owners[path]?.[0] ?? (state.previews.includes(path) ? path : state.activePreview);
+    const owner = documentOf(path, state.owners, state.previews, state.activePreview);
     return (owner ? symbols.current?.languages?.[owner]?.code : undefined) ?? "en";
   }, []);
 
@@ -260,7 +261,7 @@ export default function Editor({
     if (chosen !== "follow") return chosen;
     const path = current.current ?? "";
     const state = get();
-    const owner = state.owners[path]?.[0] ?? (state.previews.includes(path) ? path : state.activePreview);
+    const owner = documentOf(path, state.owners, state.previews, state.activePreview);
     const declared = owner ? symbols.current?.english?.[owner] : undefined;
     return declared ?? "either";
   }, []);
@@ -773,6 +774,15 @@ export default function Editor({
     const languageOf = (path: string) => languageFor(path, () => symbols.current, {
       follow: (target, line) => opener.current?.(target, line),
       complete: true,
+      citeScope: () => {
+        const state = get();
+        return {
+          path: current.current ?? "",
+          owners: state.owners,
+          previews: state.previews,
+          activePreview: state.activePreview,
+        };
+      },
       // The tree's entry for the figure: its modification time is the
       // stamp the thumbnail is cached under, so a regenerated plot is
       // redrawn and one that is not is drawn once.

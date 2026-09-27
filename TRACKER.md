@@ -67,6 +67,11 @@ OpenAI provider against OpenAI itself.
 
 ### Known gaps, with a cost somebody will eventually pay
 
+- [ ] **A citation list that spans lines is not completed.** The
+      completion source reads the current line, so a `\cite{` whose keys
+      run onto the next line offers nothing there. Rare, since a list is
+      usually typed on one line; the fix is reading back to the brace.
+
 - [x] **The owner's Windows task has no restart until it is run again
       as administrator.** A new install's logon task repeats every five
       minutes, so a server that dies comes back (Q-070). The laptop's task

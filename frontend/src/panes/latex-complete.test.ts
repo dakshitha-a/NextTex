@@ -52,6 +52,19 @@ describe("citations", () => {
     expect(at(text)!.from).toBe(text.length - 3);
   });
 
+  test("after a comma the next key is completed, and the one before is not offered again", () => {
+    const text = "\\cite{lamport1994, kn";
+    const result = at(text)!;
+    expect(result.from).toBe(text.length - 2);
+    expect(result.options.map((option) => option.label)).toEqual(["knuth1984"]);
+    // The only entry is already cited, so there is nothing to offer.
+    expect(at("\\cite{knuth1984, ")).toBeNull();
+  });
+
+  test("a title word finds its key", () => {
+    expect(labels("\\cite{texb")).toEqual(["knuth1984"]);
+  });
+
   test("a project with no bibliography offers nothing rather than an empty box", () => {
     const state = EditorState.create({ doc: "\\cite{" });
     const empty = latexSource(() => null)(new CompletionContext(state, 6, false));
@@ -115,10 +128,13 @@ describe("commands", () => {
 });
 
 describe("staying open while a word grows", () => {
-  test("a citation list says it is still valid inside its braces", () => {
-    // Without this CodeMirror asks again on every keystroke and the whole
-    // list is rebuilt -- four hundred objects per character on a thesis.
-    expect(at("\\cite{")!.validFor).toBeDefined();
+  test("a citation list ranks itself, and answers each keystroke from that", () => {
+    // CodeMirror's filter knows only the key, so the list is ranked by the
+    // source; `update` re-ranks without a round through the debounce.
+    const result = at("\\cite{")!;
+    expect(result.filter).toBe(false);
+    expect(result.update).toBeDefined();
+    expect(result.validFor).toBeUndefined();
   });
 
   test("and a command list says the same", () => {
@@ -198,7 +214,7 @@ describe("accepting closes the argument", () => {
     const result = latexSource(() => SYMBOLS)(context)!;
     const option = result.options.find((o) => o.label === label)!;
     expect(typeof option.apply).toBe("function");
-    (option.apply as any)(view, option, result.from, pos);
+    (option.apply as any)(view, option, result.from, result.to ?? pos);
     return { text: view.state.doc.toString(), caret: view.state.selection.main.head };
   }
 
@@ -212,6 +228,12 @@ describe("accepting closes the argument", () => {
     const done = accept("See \\ref{eq:|} now", "eq:gap");
     expect(done.text).toBe("See \\ref{eq:gap} now");
     expect(done.caret).toBe("See \\ref{eq:gap}".length);
+  });
+
+  it("puts a citation before a comma in alone", () => {
+    const done = accept("\\cite{knu|,lamport1994}", "knuth1984");
+    expect(done.text).toBe("\\cite{knuth1984,lamport1994}");
+    expect(done.caret).toBe("\\cite{knuth1984".length);
   });
 
   it("closes a citation and a file name the same way", () => {

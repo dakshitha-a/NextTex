@@ -18,6 +18,14 @@ import type { Extension } from "@codemirror/state";
 import type { EditorView } from "@codemirror/view";
 import type { Symbols } from "../api";
 import { labelSays } from "./latex-links";
+import {
+  type CiteScope,
+  citeContext,
+  citeInsertion,
+  documentOf,
+  haystack,
+  rankCitations,
+} from "./cite-match";
 
 /** Commands worth offering, with their argument shapes.
  *  `#{n}` marks a field the writer tabs through. */
@@ -243,9 +251,12 @@ function closing(text: string) {
 
 /** While the cursor is still inside the same braces, the list CodeMirror
  *  already has is still the right list -- it filters it itself.  Without
- *  this the source ran again on every keystroke and rebuilt four hundred
- *  citation objects each time. */
+ *  this the source ran again on every keystroke and rebuilt the whole list
+ *  each time.  Citations rank their own list instead; see `citations`. */
 const INSIDE_BRACES = /^[^}{]*$/;
+
+/** Every command whose argument is a list of citation keys. */
+const CITE = /^(no|super|paren|text|auto|foot|full)?cite[a-zA-Z]*$/;
 
 /** What the completion list would be at one position.
  *
@@ -255,6 +266,7 @@ const INSIDE_BRACES = /^[^}{]*$/;
  */
 export function latexSource(
   symbols: () => Symbols | null,
+  scope?: () => CiteScope | null,
 ): (context: CompletionContext) => CompletionResult | null {
   return (context: CompletionContext): CompletionResult | null => {
     const line = context.state.doc.lineAt(context.pos);
@@ -266,17 +278,8 @@ export function latexSource(
       const from = context.pos - argument.typed.length;
       const { command } = argument;
 
-      if (/^(no|super|paren|text|auto|foot|full)?cite[a-zA-Z]*$/.test(command)) {
-        const options = (found?.citations ?? []).map((entry) => ({
-          label: entry.key,
-          apply: closing(entry.key),
-          detail: [entry.author, entry.year].filter(Boolean).join(" "),
-          info: entry.title || undefined,
-          type: "constant",
-        }));
-        return options.length
-          ? { from, options, validFor: INSIDE_BRACES }
-          : null;
+      if (CITE.test(command)) {
+        return citations(context, argument.typed, found, scope?.() ?? null);
       }
 
       if (/^(eq|auto|page|c|name|v)?ref$/.test(command)) {
@@ -370,13 +373,102 @@ export function latexSource(
   };
 }
 
-export function latexCompletions(symbols: () => Symbols | null): Extension {
+export function latexCompletions(
+  symbols: () => Symbols | null,
+  scope?: () => CiteScope | null,
+): Extension {
   return autocompletion({
-    override: [latexSource(symbols)],
+    override: [latexSource(symbols, scope)],
     activateOnTyping: true,
     // The kind column: a glyph per kind, drawn by styles.css.
     icons: true,
     maxRenderedOptions: 60,
     closeOnBlur: true,
+    // A citation's detail column, drawn here rather than from `detail` so
+    // the letters an author, a year or a title word matched are marked
+    // the way the key's are.  Every other option keeps its own `detail`.
+    addToOptions: [{ position: 80, render: citeDetail }],
   });
+}
+
+/** What a citation row's detail column says and which letters matched,
+ *  written when the list is made and read when a row is drawn. */
+const DETAIL = new WeakMap<Completion, { text: string; marks: number[] }>();
+/** The key's matched letters, for `getMatch`. */
+const LABEL = new WeakMap<Completion, number[]>();
+
+function citeDetail(completion: Completion): Node | null {
+  const detail = DETAIL.get(completion);
+  if (!detail || !detail.text) return null;
+  const span = document.createElement("span");
+  span.className = "cm-completionDetail";
+  let at = 0;
+  for (let i = 0; i < detail.marks.length; i += 2) {
+    const [from, to] = [detail.marks[i], detail.marks[i + 1]];
+    if (from > at) span.append(detail.text.slice(at, from));
+    const mark = document.createElement("span");
+    mark.className = "cm-completionMatchedText";
+    mark.textContent = detail.text.slice(from, to);
+    span.append(mark);
+    at = to;
+  }
+  if (at < detail.text.length) span.append(detail.text.slice(at));
+  return span;
+}
+
+/** The citation list at the caret: the key after the last comma is the
+ *  one being completed, the keys already in the braces are left out, and
+ *  the list is ranked here rather than filtered by CodeMirror, which only
+ *  knows the key.  `update` answers each keystroke from the same ranking,
+ *  so the list never shows a stale moment, and a comma starts the next
+ *  key with a list of its own. */
+function citations(
+  context: CompletionContext,
+  typed: string,
+  found: Symbols | null,
+  scope: CiteScope | null,
+): CompletionResult | null {
+  const all = found?.citations ?? [];
+  if (!all.length) return null;
+  const line = context.state.doc.lineAt(context.pos);
+  const after = line.text.slice(context.pos - line.from);
+  const { segment, back, forward, excluded } = citeContext(typed, after);
+  const document = scope
+    ? documentOf(scope.path, scope.owners, scope.previews, scope.activePreview)
+    : "";
+  const entries = haystack(all, scope?.owners ?? {}, document);
+  const from = context.pos - back;
+  const to = context.pos + forward;
+  const options = rankCitations(entries, segment, excluded).map((hit): Completion => {
+    const key = hit.citation.key;
+    const option: Completion = {
+      label: key,
+      info: hit.citation.title || undefined,
+      type: "constant",
+      apply: (view: EditorView, _completion: Completion, start: number, end: number) => {
+        const { insert, caret } = citeInsertion(view.state.sliceDoc(end, view.state.doc.lineAt(end).to), key);
+        view.dispatch({
+          changes: { from: start, to: end, insert },
+          selection: { anchor: start + caret },
+          userEvent: "input.complete",
+        });
+      },
+    };
+    DETAIL.set(option, { text: hit.detail, marks: hit.marks });
+    LABEL.set(option, hit.label);
+    return option;
+  });
+  if (!options.length) return null;
+  return {
+    from,
+    to,
+    options,
+    filter: false,
+    getMatch: (option) => LABEL.get(option) ?? [],
+    update: (_current, _from, _to, next) => {
+      const here = next.state.doc.lineAt(next.pos);
+      const now = inArgument(here.text.slice(0, next.pos - here.from));
+      return now && CITE.test(now.command) ? citations(next, now.typed, found, scope) : null;
+    },
+  };
 }
