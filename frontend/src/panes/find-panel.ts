@@ -81,6 +81,9 @@ export function createFindPanel(view: EditorView): Panel {
   field.innerHTML = ICONS.search;
   const input = el("input", "nx-find-input", {
     name: "search", placeholder: "Find", "aria-label": "Find", autocomplete: "off", spellcheck: "false",
+    // How the library finds this field when Mod-f is pressed with the
+    // panel already open, to focus it and take the selection into it.
+    "main-field": "true",
   });
   input.value = query.search;
   field.append(input);

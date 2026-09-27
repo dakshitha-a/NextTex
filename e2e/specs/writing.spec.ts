@@ -183,6 +183,20 @@ test("a focused find field wears one ring, the field's, not a second on its inpu
   expect(await field.evaluate((node) => getComputedStyle(node).boxShadow)).toContain("inset");
 });
 
+test("Control+f with find already open takes the selection back into the field", async ({ tab }) => {
+  // The library's command looks for the field marked `main-field`; without
+  // the mark a second press did nothing and focus stayed in the text.
+  await tab.locator(".cm-content").click();
+  await tab.keyboard.press("Control+f");
+  const field = tab.locator(".cm-panel.cm-search input[name=search]");
+  await field.fill("zzz");
+  await tab.locator(".cm-line", { hasText: "section" }).first().getByText("section").first().dblclick();
+  await expect(field).not.toBeFocused();
+  await tab.keyboard.press("Control+f");
+  await expect(field).toBeFocused();
+  await expect(field).toHaveValue("section");
+});
+
 test("completion offers the project's own labels", async ({ tab }) => {
   await tab.locator(".cm-content").click();
   await tab.keyboard.press("Control+End");
