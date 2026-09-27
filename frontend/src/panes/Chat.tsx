@@ -6,6 +6,7 @@ import {
   Suspense,
   useCallback,
   useEffect,
+  useLayoutEffect,
   useMemo,
   useRef,
   useState,
@@ -24,6 +25,7 @@ const ContextPanel = lazy(() => import("./ContextPanel"));
 // 870 ms of nothing on screen at the first press (Q-062); this column is
 // its own chunk now, fetched when a project opens, so they come with it.
 import { ComposerMenu, PromptMenu } from "./ComposerMenus";
+import { composerHeight } from "./composer-height";
 import {
   alreadyNamed,
   completed,
@@ -448,6 +450,9 @@ export default function Chat({
       if (pinned.current) element.scrollTop = element.scrollHeight;
     });
     for (const child of Array.from(element.children)) follow.observe(child);
+    // The stream itself too: the composer growing as the writer types
+    // makes the stream shorter without changing anything in it.
+    follow.observe(element);
     return () => follow.disconnect();
   }, [chat, view]);
 
@@ -549,6 +554,32 @@ export default function Chat({
       });
     }
   }, [thinking, projectId]);
+
+  // The composer's box grows with what is typed, the card up to half the
+  // column, and then scrolls (`composer-height.ts`). Measured before
+  // paint so a keystroke never shows the box a line short, and again
+  // when the column is resized, which changes both the cap and the
+  // wrapping.
+  const fitComposer = useCallback(() => {
+    const box = composer.current;
+    const card = box?.closest<HTMLElement>(".nx-composer");
+    const pane = box?.closest<HTMLElement>('[data-testid="chat"]');
+    if (!box || !card || !pane) return;
+    box.style.height = "auto";
+    const floor = box.offsetHeight;
+    const rest = card.offsetHeight - floor;
+    const { height, scrolls } = composerHeight(box.scrollHeight, rest, pane.clientHeight, floor);
+    box.style.height = `${height}px`;
+    box.style.overflowY = scrolls ? "auto" : "hidden";
+  }, []);
+  useLayoutEffect(fitComposer, [fitComposer, draft, attached.length, attaching, selected, view]);
+  useEffect(() => {
+    const pane = composer.current?.closest<HTMLElement>('[data-testid="chat"]');
+    if (!pane || typeof ResizeObserver === "undefined") return;
+    const refit = new ResizeObserver(() => fitComposer());
+    refit.observe(pane);
+    return () => refit.disconnect();
+  }, [fitComposer, view]);
 
   return (
     <div className="flex h-full min-h-0 flex-col bg-surface-2" data-testid="chat">

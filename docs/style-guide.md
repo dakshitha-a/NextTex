@@ -190,6 +190,11 @@ else.
 
 ## How things behave
 
+- A box the writer composes a message in grows with its text, so what
+  was typed can be read back whole: from its resting two lines until
+  its card is half the pane it sits in, then it holds that height and
+  scrolls. It never pushes the pane's last content out of view. The
+  Claude column's composer is the one there is (`composer-height.ts`).
 - Hover-revealed actions stay in the DOM, show on `:focus-within`, and
   are always visible under `pointer: coarse` and `hover: none`, so a
   keyboard and a finger reach them.

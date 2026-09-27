@@ -123,6 +123,28 @@ test("opening a folded run while a card waits keeps the card's buttons in view",
   await deny.click();
 });
 
+test("the composer grows as the writer types, to half the column, then scrolls", async ({ tab }) => {
+  await tab.setViewportSize({ width: 1400, height: 840 });
+  const box = tab.locator(".nx-composer-box");
+  const card = tab.locator(".nx-composer");
+  const column = tab.getByTestId("chat");
+  const height = async () => (await box.boundingBox())!.height;
+  const rest = await height();
+  await box.fill(Array.from({ length: 6 }, (_, i) => `Line ${i + 1} of the question.`).join("\n"));
+  // Six lines of 20 px, all in view, nothing to scroll.
+  await expect.poll(height).toBeGreaterThanOrEqual(6 * 20 - 1);
+  expect(await box.evaluate((node) => node.scrollHeight - node.clientHeight)).toBeLessThanOrEqual(1);
+  await box.fill(Array.from({ length: 80 }, (_, i) => `Line ${i + 1} of a long question.`).join("\n"));
+  const half = (await column.boundingBox())!.height / 2;
+  await expect.poll(async () => Math.round((await card.boundingBox())!.height)).toBeLessThanOrEqual(Math.ceil(half));
+  expect((await card.boundingBox())!.height).toBeGreaterThan(half - 21);
+  expect(await box.evaluate((node) => getComputedStyle(node).overflowY)).toBe("auto");
+  expect(await box.evaluate((node) => node.scrollHeight > node.clientHeight)).toBe(true);
+  // Emptied, as after sending, it is back at its resting two lines.
+  await box.fill("");
+  await expect.poll(height).toBe(rest);
+});
+
 test("an agent edit is a version of its own, kept apart from yours", async ({
   app, project, tab,
 }) => {

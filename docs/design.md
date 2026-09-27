@@ -11018,3 +11018,29 @@ a comma in a real editor, finds the first key absent and an unread
 `.bib` absent, a surname and a title word matched and marked, and a key
 taken in the middle of a list with no stray brace.
 
+
+## 81. The composer grows as you type
+
+The box in the Claude column's composer was two lines tall however much
+was typed into it, so a long question scrolled inside a slot and could
+not be read back before it was sent. The writer asked for it to grow as
+they type, up to half the column, and to scroll from there.
+
+The box is now as tall as its text. The whole composer card, with its
+chips and its row of tools, stops at half the column's height, and from
+there the box keeps that height and scrolls with the app's thin
+scrollbar. At rest, and after a question is sent, it is back at its two
+lines. The half above stays for the conversation, and the last turn
+stays in view as the box grows: the stream follows its own height as
+well as its rows' now, so a card waiting for an answer is never pushed
+behind the composer. Nothing is added to the card and no control
+changes; only its height moves. It is drawn on the direction page under
+"The composer grows as you type".
+
+`frontend/src/panes/composer-height.test.ts` covers the rule: two lines
+at rest, the text's height below the cap, the cap at half the column
+less the rest of the card, and two lines in a column too short to grow
+in. `e2e/specs/agent.spec.ts` types six lines and then eighty into the
+real composer, and checks that six lines show whole, that eighty stop
+the card at half the column with the box scrolling, and that an empty
+box is back at its resting height.
