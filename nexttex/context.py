@@ -19,13 +19,13 @@ fastest way to fix the writing.
 from __future__ import annotations
 
 import json
-import shutil
-import subprocess
 import secrets
 import time
 from dataclasses import dataclass, asdict
 from pathlib import Path
 from typing import Literal
+
+from . import extract
 
 Kind = Literal["style", "voice", "source"]
 KINDS: tuple[Kind, ...] = ("style", "voice", "source")
@@ -226,40 +226,13 @@ class ProjectContext:
     # -- text extraction -------------------------------------------------
     @staticmethod
     def _extract(path: Path) -> tuple[str, int | None]:
-        """Get plain text out of an uploaded document.
-
-        PDFs go through `pdftotext -layout`, which preserves the column
-        structure that tables and formatting examples depend on. Anything
-        that is already text is read directly. A file that yields nothing
-        useful is kept anyway -- the user can still download it, and the
-        agent is simply told it could not be read.
+        """Get plain text out of an uploaded document, through
+        `nexttex/extract.py`: a PDF by `pdftotext -layout`, a Word,
+        PowerPoint or Excel file from its XML, and text as it is. A file
+        that yields nothing useful is kept anyway -- the user can still
+        download it, and the agent is simply told it could not be read.
         """
-        suffix = path.suffix.lower()
-        if suffix == ".pdf":
-            if not shutil.which("pdftotext"):
-                return "", None
-            try:
-                result = subprocess.run(
-                    ["pdftotext", "-layout", str(path), "-"],
-                    capture_output=True, text=True, timeout=120,
-                )
-                pages = None
-                if shutil.which("pdfinfo"):
-                    info = subprocess.run(
-                        ["pdfinfo", str(path)], capture_output=True, text=True, timeout=30
-                    ).stdout
-                    for line in info.splitlines():
-                        if line.startswith("Pages:"):
-                            pages = int(line.split()[1])
-                return result.stdout, pages
-            except (subprocess.SubprocessError, ValueError, OSError):
-                return "", None
-        if suffix in {".txt", ".md", ".tex", ".rst", ".org"}:
-            try:
-                return path.read_text(encoding="utf-8", errors="replace"), None
-            except OSError:
-                return "", None
-        return "", None
+        return extract.text_of(path)
 
     def extracted_text(self, document: Document) -> str:
         path = self._extracted_path(document)
