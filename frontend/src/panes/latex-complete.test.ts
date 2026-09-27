@@ -61,6 +61,11 @@ describe("citations", () => {
     expect(at("\\cite{knuth1984, ")).toBeNull();
   });
 
+  test("a citation with a prenote and a postnote completes too", () => {
+    expect(labels("\\cite[see][12]{")).toEqual(["knuth1984"]);
+    expect(labels("\\parencite[p.~4]{kn")).toEqual(["knuth1984"]);
+  });
+
   test("a title word finds its key", () => {
     expect(labels("\\cite{texb")).toEqual(["knuth1984"]);
   });

@@ -11000,7 +11000,8 @@ TeXbook", with the word marked there; a long title is shown from the
 matched word and cut with an ellipsis, so the word is always in the
 popup's width. Taking a key in the middle of a list puts the key in and
 nothing else, and at the end of an open argument closes the brace as
-before.
+before. `\cite[see][12]{`, biblatex's prenote and postnote, completes
+like a bare `\cite{`; with two optional arguments it offered nothing.
 
 The list is the bibliography the document reads, through its inputs,
 found in the map of which documents read which files that the preview

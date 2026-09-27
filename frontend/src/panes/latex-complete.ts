@@ -226,9 +226,11 @@ const commandOptions: Completion[] = COMMANDS.map(([name, template, detail]) =>
   }),
 );
 
-/** Which brace-taking command the cursor sits inside, if any. */
+/** Which brace-taking command the cursor sits inside, if any.  Two
+ *  optional arguments at most, biblatex's `\cite[see][12]{`, which one
+ *  used to hide from completion. */
 function inArgument(before: string): { command: string; typed: string } | null {
-  const match = /\\([a-zA-Z@]+)\s*(?:\[[^\]]*\])?\{([^}{]*)$/.exec(before);
+  const match = /\\([a-zA-Z@]+)\s*(?:\[[^\]]*\]\s*){0,2}\{([^}{]*)$/.exec(before);
   if (!match) return null;
   return { command: match[1], typed: match[2] };
 }
