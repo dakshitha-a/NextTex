@@ -24,11 +24,14 @@ things go to be forgotten rather than a list anybody reads.
 
 ## In hand
 
-- [ ] **Citations and Word figures**, asked for on 26 September 2026:
-      citation completion that reopens after each comma, matches author,
-      year and title words and offers only the linked bibliography; and
-      figures that reach a Word download whatever they are drawn in.
-      Tracker page https://claude.ai/artifact/8GQZBbDqKPk47aNifYXj7q.
+Nothing is in hand. Citations and Word figures closed on 27 September
+2026 at 4.2.0: citation completion that reopens after each comma,
+matches author, year and title words and offers the document's own
+bibliography, and figures that reach a Word download whatever they are
+drawn in. It turned up and fixed the completion popup's underline and
+italics, which CodeMirror's theme had been adding since the overhaul,
+and a race in the Markdown history spec. Its tracker page is
+https://claude.ai/artifact/8GQZBbDqKPk47aNifYXj7q.
 
 The backlog close-out closed on 26 September 2026 at
 4.1.0, one push per step from 3.19.1: a script's escaped grandchild ended
