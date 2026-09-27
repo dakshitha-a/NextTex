@@ -222,6 +222,21 @@ def install_dependencies(console: Console, root: Path, platform: str, uv: str,
     )
 
 
+def install_optional(console: Console, root: Path, platform: str, uv: str,
+                     package: str, label: str) -> Result:
+    """One package that may have no wheel for this platform, from wheels
+    only, so a platform without one fails this step rather than trying to
+    compile it or failing the whole install."""
+    env = dict(os.environ)
+    env["VIRTUAL_ENV"] = str(root / ".venv")
+    if uv:
+        argv = [uv, "pip", "install", "--quiet", "--only-binary", ":all:", package]
+    else:
+        argv = [str(venv_python(root, platform)), "-m", "pip", "install",
+                "--quiet", "--only-binary=:all:", package]
+    return console.run(label, argv, cwd=root, env=env)
+
+
 def install_iroh(console: Console, root: Path, platform: str, uv: str) -> Result:
     """Sharing a project needs iroh, which publishes wheels for Linux, Windows
     and Apple-silicon Macs and no source distribution at all.
@@ -229,15 +244,21 @@ def install_iroh(console: Console, root: Path, platform: str, uv: str) -> Result
     Allowed to fail: everything else in NextTex works without it, and the
     share card says so rather than offering a button that cannot work.
     """
-    env = dict(os.environ)
-    env["VIRTUAL_ENV"] = str(root / ".venv")
-    if uv:
-        argv = [uv, "pip", "install", "--quiet", "iroh"]
-    else:
-        argv = [str(venv_python(root, platform)), "-m", "pip", "install",
-                "--quiet", "iroh"]
-    return console.run("Installing iroh, for sharing a project", argv,
-                       cwd=root, env=env)
+    return install_optional(console, root, platform, uv, "iroh",
+                            "Installing iroh, for sharing a project")
+
+
+def install_resvg(console: Console, root: Path, platform: str, uv: str) -> Result:
+    """A Word download turns an SVG figure into a picture with resvg, which
+    has wheels for every platform the installer supports and a source
+    distribution that needs Rust to build.
+
+    Allowed to fail: `rsvg-convert` or Inkscape do the same where they are
+    installed, and without any of them the figure goes in as SVG, which
+    Word 365 still draws.
+    """
+    return install_optional(console, root, platform, uv, "resvg-py",
+                            "Installing resvg, for SVG figures in Word")
 
 
 # ---------------------------------------------------------------------------

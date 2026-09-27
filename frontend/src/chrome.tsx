@@ -118,7 +118,10 @@ export async function downloadPdf(projectId: string, document = "") {
  *  is what `Content-Disposition` says, or the caller's fallback, and a
  *  refusal is a sentence in the corner rather than a file called
  *  `download`.  `what` is the noun for that sentence. */
-export async function download(url: string, fallback: string, what = "the file") {
+export async function download(
+  url: string, fallback: string, what = "the file",
+  saved?: (response: Response) => void,
+) {
   try {
     const response = await fetch(url, { credentials: "same-origin" });
     if (!response.ok) {
@@ -128,8 +131,22 @@ export async function download(url: string, fallback: string, what = "the file")
     const header = response.headers.get("content-disposition") ?? "";
     const named = /filename="?([^";]+)"?/.exec(header)?.[1];
     saveBlob(await response.blob(), named || fallback);
+    saved?.(response);
   } catch (error: any) {
     set({ error: `Could not download ${what}: ${error.message}` });
+  }
+}
+
+/** What the server says became of a converted document's figures: one
+ *  sentence naming any that could not be made into pictures, quoted
+ *  because a header carries no more than Latin-1, or nothing. */
+export function exportNotes(response: Response): string {
+  const quoted = response.headers.get("x-nexttex-export-notes");
+  if (!quoted) return "";
+  try {
+    return decodeURIComponent(quoted);
+  } catch {
+    return "";
   }
 }
 
@@ -139,13 +156,18 @@ export function downloadZip(projectId: string, fallback = "project.zip") {
 }
 
 /** A document as Word, HTML or Markdown, through pandoc on the server;
- *  a refusal is pandoc's own sentence in the corner. */
+ *  a refusal is pandoc's own sentence in the corner, and so is a figure
+ *  that saved as its name rather than as a picture. */
 export function downloadExport(projectId: string, document: string, format: string) {
   const suffix = EXPORTS.find((entry) => entry.format === format)?.suffix ?? `.${format}`;
   return download(
     api.downloadUrl(projectId, { format, document }),
     `${stemOf(document)}${suffix}`,
     "the converted document",
+    (response) => {
+      const said = exportNotes(response);
+      if (said) set({ error: said });
+    },
   );
 }
 

@@ -24,7 +24,13 @@ things go to be forgotten rather than a list anybody reads.
 
 ## In hand
 
-Nothing is in hand. The backlog close-out closed on 26 September 2026 at
+- [ ] **Citations and Word figures**, asked for on 26 September 2026:
+      citation completion that reopens after each comma, matches author,
+      year and title words and offers only the linked bibliography; and
+      figures that reach a Word download whatever they are drawn in.
+      Tracker page https://claude.ai/artifact/8GQZBbDqKPk47aNifYXj7q.
+
+The backlog close-out closed on 26 September 2026 at
 4.1.0, one push per step from 3.19.1: a script's escaped grandchild ended
 by Stop, the Windows task asking for administrator itself, the browser
 flakes fixed at their causes, diff, Vite and pdf.js a major version up
@@ -255,6 +261,16 @@ this host could not reproduce; each says which.
       which have not.
 
 ### Deliberately not done, and worth revisiting only if something changes
+
+- [ ] **A Word download's figures are pictures, not vectors.** Word 365
+      can carry an SVG with a PNG behind it, which would keep a PDF or SVG
+      figure sharp at any zoom. It needs the `.docx` taken apart and put
+      back after pandoc, Word draws some converted SVG wrongly, and no
+      test here can check it against Word, so 300 dpi pictures were
+      chosen. Worth revisiting if a writer finds print quality lacking.
+- [ ] **A multi-page PDF figure shows its first page.** pandoc does not
+      keep `\includegraphics`'s `page=`, so the export cannot know which
+      page was meant. Rare in a paper; worth doing if one turns up.
 
 - [x] **The agent does not read comments.** A thread was on the
       manifest, where the agent's tools did not look, so "answer the open

@@ -160,6 +160,16 @@ main() {
   else
     .venv/bin/python -m pip install --quiet --upgrade iroh >/dev/null 2>&1 || true
   fi
+  # resvg draws an SVG figure for a Word download. It has a source
+  # distribution that needs Rust, so it is fetched as a wheel only, and a
+  # platform without one keeps SVG figures as SVG.
+  if [ -x .uv/uv ]; then
+    VIRTUAL_ENV="$PWD/.venv" .uv/uv pip install --quiet --upgrade --only-binary :all: resvg-py >/dev/null 2>&1 || true
+  elif command -v uv >/dev/null 2>&1; then
+    VIRTUAL_ENV="$PWD/.venv" uv pip install --quiet --upgrade --only-binary :all: resvg-py >/dev/null 2>&1 || true
+  else
+    .venv/bin/python -m pip install --quiet --upgrade --only-binary=:all: resvg-py >/dev/null 2>&1 || true
+  fi
   note "python packages up to date"
 
   # The interface belonging to the commit just landed on.  Downloaded

@@ -10922,3 +10922,43 @@ longer wrap. The drawing had shown the quoted words at the head of the
 thread card, which the built card has never carried, and was redrawn to
 match it.
 
+## 79. Figures in a Word download
+
+A paper downloaded as Word came out with no figures. pandoc reads
+`\includegraphics{plot}` as written, so a figure named without its
+suffix, or found through `\graphicspath`, was not found at all, and a
+PDF figure, which is what the figure tool makes by default, went into
+the `.docx` as a PDF that no Word draws. An SVG went in with no picture
+behind it, which only Word 365 shows. Asked for on 26 September 2026,
+with the design left to me; drawn on the direction page, "Citations
+after a comma, and figures in Word", as the preview of what was built.
+
+Now every figure is found the way TeX finds it, and anything Word
+cannot show becomes a 300 dpi picture first: PDF and EPS through
+poppler, SVG through resvg, which the installer adds. HTML takes a PDF
+figure as SVG, which a browser draws at any size. A picture is the
+floor every reader can open, in any Word, LibreOffice or Google Docs;
+keeping a vector copy for Word 365 alongside it was weighed and left,
+because Word can draw a converted SVG wrongly and nothing here can check
+it against Word.
+
+The download never fails over a figure. One that cannot become a
+picture shows in the document as its name in brackets, and the corner
+says which, in the notice the app already uses: "main.docx is saved. 1
+figure could not be made into a picture and shows as its name:
+figures/c.eps (no EPS converter on this machine)." An SVG left as SVG
+is said too, with what to install. When every figure arrives, nothing
+is said.
+
+`tests/test_export.py` covers the two passes' argv, `\graphicspath`
+behind a comment, the order a figure is looked for in, a figure outside
+the project by `..`, an absolute path and a symlink, each converter
+through stand-in tools, the resolution a PNG is stamped with, the tree
+rewritten with a lost figure as its name, and the sentences; and with
+the real pandoc and poppler, a paper with a PDF found through
+`\graphicspath`, a PNG named without its suffix and an SVG, finding a
+PNG in the `.docx` for each and no PDF. `tests/api/test_download.py`
+checks that only the document's own `.bib` reaches citeproc, the header
+naming a missing figure, and that a figure outside the project is never
+read. `e2e/specs/export.spec.ts` downloads a `.docx` whose document
+names a figure that is not there and finds the sentence in the corner.

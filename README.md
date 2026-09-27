@@ -92,8 +92,9 @@ close the tab. No database, no Docker, no nginx.
   are writing, a chapter showing the document that includes it. The
   Download drawer is one block per document with a chip for each format:
   `.pdf` always, and with pandoc installed `.docx`, `.html` and `.md`
-  beside it, citations resolved; a new document appears in it as soon as
-  it is saved.
+  beside it, citations resolved and figures included, PDF and SVG ones
+  turned into pictures Word can show; a new document appears in it as
+  soon as it is saved.
 - **Reading and writing modes**: double-click the tab in front of either pane
   to give it the window, and again to get your layout back; one click on it
   folds the pane away.
@@ -1368,7 +1369,7 @@ install it and run the installer again.
 | `pdflatex`, `latexmk`, `synctex` | Typesetting and the two-way jump | yes: TinyTeX, or MiKTeX on Windows, if you let it |
 | `biber` | biblatex bibliographies | yes, via `tlmgr` |
 | `chktex`, `texcount` | Linting and word counts | yes, via `tlmgr` |
-| `pdftotext` | Only for reading a folder of papers into your `.bib` | **named**, and it comes with poppler-utils |
+| `pdftotext` | Only for reading a folder of papers into your `.bib`, and for PDF figures in a Word download | **named**, and it comes with poppler-utils |
 | `pandoc` | Only to download a document as Word, HTML or Markdown | **named** |
 | The [Claude CLI](https://claude.ai/download) | Only for the Claude agent | yes, if you choose it, at install time or later from the settings sheet |
 | An OpenAI API key | Only for the OpenAI agent | no, you paste it into the app |

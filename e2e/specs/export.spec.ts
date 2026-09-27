@@ -1,4 +1,4 @@
-import { readFileSync } from "node:fs";
+import { readFileSync, writeFileSync } from "node:fs";
 import { join } from "node:path";
 import { test, expect, openProject } from "../fixtures";
 import { ROOT, startServer, seedProject } from "../server";
@@ -54,6 +54,44 @@ test("with pandoc the menu offers three formats under each document, and one dow
     const argv = JSON.parse(readFileSync(log, "utf8").trim().split("\n").pop()!);
     expect(argv).toContain("--citeproc");
     expect(argv[argv.indexOf("-t") + 1]).toBe("docx");
+    // Every figure became a picture, so nothing is said about them.
+    await expect(page.getByTestId("notices")).toBeEmpty();
+  } finally {
+    await app.stop();
+  }
+});
+
+test("a figure that could not become a picture is named in a notice after the download", async ({
+  page,
+}) => {
+  const app = await startServer({ NEXTTEX_PANDOC: join(ROOT, "tests", "fake_pandoc.py") });
+  try {
+    const project = await seedProject(app, `export-figure-${Date.now()}`);
+    // TeX skips the figure, since the file is not there, and still
+    // builds; the fake pandoc, like the real one, hands it on to be found.
+    const main = join(project.root, "main.tex");
+    writeFileSync(
+      main,
+      readFileSync(main, "utf8").replace(
+        "\\end{document}",
+        "\\IfFileExists{nothere.png}{\\includegraphics{nothere}}{}\n\\end{document}",
+      ),
+    );
+    await page.goto(`${app.base}/?token=${app.token}`);
+    await page.getByText("Projects", { exact: false }).first().waitFor();
+    await openProject(page, project.root);
+    await expect(page.locator(".cm-editor")).toBeVisible({ timeout: 45_000 });
+
+    await page.getByTestId("bar-download").click();
+    const menu = page.getByTestId("download-panel");
+    await expect(menu.locator('[data-testid="download-row"][data-document="main.tex"]'))
+      .toHaveAttribute("data-built", "true", { timeout: 60_000 });
+    const waiting = page.waitForEvent("download");
+    await menu.getByTestId("download-export").nth(0).click();
+    expect((await waiting).suggestedFilename()).toBe("main.docx");
+    await expect(page.getByTestId("notices")).toContainText(
+      "main.docx is saved. 1 figure could not be made into a picture and shows as its name: nothere (not found).",
+    );
   } finally {
     await app.stop();
   }

@@ -330,6 +330,11 @@ def execute(console: Console, plan, root: Path, platform: str,
     if not iroh.ok:
         notes.append("no iroh build for this platform, so a project cannot be "
                      "shared with another person; everything else works")
+    resvg = steps.install_resvg(console, root, platform, uv)
+    if not resvg.ok:
+        notes.append("no resvg build for this platform, so an SVG figure goes "
+                     "into a Word download as SVG unless rsvg-convert or "
+                     "Inkscape is installed")
 
     # 2 -- TeX --------------------------------------------------------------
     console.write("")

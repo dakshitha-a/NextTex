@@ -79,6 +79,13 @@ stale-mirror message, and writes every argv it saw to the file
 press the drawer's Install button twice against a real pdflatex build and
 assert what would have been run.
 
+`tests/fake_pandoc.py` stands in for pandoc behind `NEXTTEX_PANDOC` and
+logs its argv to `NEXTTEX_FAKE_PANDOC_LOG`. It follows the export's two
+passes: asked for `-t json` it writes a tree with one image for every
+`\includegraphics` outside a comment, named as written, and asked to
+read that tree back it writes the image sources it was handed on its
+second line, so a test sees what each figure became without pandoc.
+
 For anything the page never displays, `e2e/events.ts` subscribes to the
 server's event stream from the test process and counts what arrives. A build
 of a short document takes about 130 milliseconds, which is less time than

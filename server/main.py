@@ -30,7 +30,7 @@ from contextlib import asynccontextmanager
 from dataclasses import dataclass, field
 from pathlib import Path
 from typing import Optional
-from urllib.parse import urlsplit
+from urllib.parse import quote as url_quote, urlsplit
 
 from starlette.background import BackgroundTask
 from fastapi import (
@@ -4845,25 +4845,39 @@ async def download(
         if not export.pandoc_here():
             raise HTTPException(409, "pandoc is not installed on the machine running NextTex")
         root = session.project.root
-        bibs = [
-            candidate for candidate in walk_project(root, build_dir=session.project.build_dir)
-            if candidate.suffix.lower() == ".bib"
-        ]
 
-        def run() -> tuple[bytes, str]:
+        def run() -> tuple[bytes, str, str]:
+            # What the document reads: its bibliographies for citeproc,
+            # and its sources for any `\graphicspath` they set.  A
+            # document that names no bibliography keeps every `.bib` in
+            # the project, as the export always had.
+            try:
+                relative = main.resolve().relative_to(root.resolve()).as_posix()
+                reads = sorted(session.deps.reachable([relative]))
+            except ValueError:
+                reads = []
+            bibs = [root / name for name in reads if name.lower().endswith(".bib")]
+            bibs = [bib for bib in bibs if bib.is_file()] or [
+                candidate for candidate in walk_project(root, build_dir=session.project.build_dir)
+                if candidate.suffix.lower() == ".bib"
+            ]
+            sources = [root / name for name in reads if name.lower().endswith((".tex", ".ltx"))]
             with tempfile.TemporaryDirectory(prefix="nexttex-export-") as scratch:
-                written = export.convert(main, format, Path(scratch), root, bibs)
-                return written.read_bytes(), written.name
+                written = export.convert(main, format, Path(scratch), root, bibs, sources)
+                said = export.notes_sentence(written.notes, written.path.name)
+                return written.path.read_bytes(), written.path.name, said
 
         try:
-            data, name = await asyncio.to_thread(run)
+            data, name, said = await asyncio.to_thread(run)
         except export.ExportError as error:
             raise HTTPException(422, f"pandoc could not convert it: {error}")
         _writer, _suffix, media = export.FORMATS[format]
-        return Response(
-            content=data, media_type=media,
-            headers={"Content-Disposition": _attachment(name)},
-        )
+        headers = {"Content-Disposition": _attachment(name)}
+        if said:
+            # What became of the figures, for the download menu to show:
+            # quoted, since a header carries no more than Latin-1.
+            headers["X-NextTex-Export-Notes"] = url_quote(said)
+        return Response(content=data, media_type=media, headers=headers)
 
     session = SESSIONS.get(project_id)
     project = session.project if session else REGISTRY.find(project_id)

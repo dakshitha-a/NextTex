@@ -311,10 +311,14 @@ try {
     # for must not fail the whole update: an install that cannot have it
     # keeps everything except sharing a project.
     Run uv @('pip', 'install', '--quiet', '--upgrade', 'iroh') -Optional | Out-Null
+    # resvg draws an SVG figure for a Word download; a wheel only, since
+    # its source distribution needs Rust.
+    Run uv @('pip', 'install', '--quiet', '--upgrade', '--only-binary', ':all:', 'resvg-py') -Optional | Out-Null
   } else {
     $python = '.venv\Scripts\python.exe'
     Run $python @('-m', 'pip', 'install', '--quiet', '--upgrade', '-r', 'requirements.txt') | Out-Null
     Run $python @('-m', 'pip', 'install', '--quiet', '--upgrade', 'iroh') -Optional | Out-Null
+    Run $python @('-m', 'pip', 'install', '--quiet', '--upgrade', '--only-binary=:all:', 'resvg-py') -Optional | Out-Null
   }
   Note 'up to date'
 

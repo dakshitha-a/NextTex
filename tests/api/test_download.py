@@ -404,9 +404,84 @@ def test_the_three_formats_come_back_from_pandoc_named_after_the_document(client
         assert answer.headers["content-disposition"] == f'attachment; filename="main.{suffix}"'
         assert b"fake pandoc wrote" in answer.content
     seen = [json.loads(line) for line in log.read_text(encoding="utf-8").splitlines()]
-    assert [argv[argv.index("-t") + 1] for argv in seen] == ["docx", "html", "gfm"]
-    # The project's .bib rides along with citeproc.
-    assert all("--citeproc" in argv and any(a.endswith("references.bib") for a in argv) for argv in seen)
+    # Word and HTML read the LaTeX to a tree first and write from it, so
+    # their figures can be found and converted in between.
+    assert [argv[argv.index("-t") + 1] for argv in seen] == ["json", "docx", "json", "html", "gfm"]
+    writes = [argv for argv in seen if argv[argv.index("-t") + 1] != "json"]
+    # The document's .bib rides along with citeproc.
+    assert all("--citeproc" in argv and any(a.endswith("references.bib") for a in argv) for argv in writes)
+    assert "x-nexttex-export-notes" not in answer.headers
+
+
+def _export(client, opened, monkeypatch, tmp_path, document="main.tex", fmt="docx"):
+    import json
+
+    log = tmp_path / "pandoc.jsonl"
+    monkeypatch.setenv("NEXTTEX_PANDOC", str(FAKE_PANDOC))
+    monkeypatch.setenv("NEXTTEX_FAKE_PANDOC_LOG", str(log))
+    answer = client.get(
+        f"/api/projects/{opened['id']}/download", params={"format": fmt, "document": document},
+    )
+    seen = [json.loads(line) for line in log.read_text(encoding="utf-8").splitlines()] if log.exists() else []
+    return answer, seen
+
+
+def test_only_the_bibliography_the_document_reads_goes_to_citeproc(client, opened, project_dir, monkeypatch, tmp_path):
+    (project_dir / "unrelated.bib").write_text("@misc{x, title={X}}\n", encoding="utf-8")
+    answer, seen = _export(client, opened, monkeypatch, tmp_path)
+    assert answer.status_code == 200, answer.text
+    write = seen[-1]
+    assert any(a.endswith("references.bib") for a in write)
+    assert not any(a.endswith("unrelated.bib") for a in write)
+
+
+def test_a_document_that_names_no_bibliography_keeps_every_one(client, opened, project_dir, monkeypatch, tmp_path):
+    (project_dir / "note.tex").write_text(
+        "\\documentclass{article}\\begin{document}Hi\\end{document}\n", encoding="utf-8",
+    )
+    answer, seen = _export(client, opened, monkeypatch, tmp_path, document="note.tex")
+    assert answer.status_code == 200, answer.text
+    assert any(a.endswith("references.bib") for a in seen[-1])
+
+
+def test_a_figure_that_cannot_be_found_is_named_in_a_header(client, opened, project_dir, monkeypatch, tmp_path):
+    from urllib.parse import unquote
+
+    (project_dir / "figs.tex").write_text(
+        "\\documentclass{article}\\usepackage{graphicx}\\graphicspath{{figures/}}\n"
+        "\\begin{document}\\includegraphics{dot}\\includegraphics{nothere}\\end{document}\n",
+        encoding="utf-8",
+    )
+    (project_dir / "figures" / "dot.png").write_bytes(b"\x89PNG\r\n\x1a\n")
+    answer, _seen = _export(client, opened, monkeypatch, tmp_path, document="figs.tex")
+    assert answer.status_code == 200, answer.text
+    said = unquote(answer.headers["x-nexttex-export-notes"])
+    assert said == (
+        "figs.docx is saved. 1 figure could not be made into a picture and shows as its name: "
+        "nothere (not found)."
+    )
+    # The figure found through \\graphicspath reached the writer as a file.
+    images = answer.content.decode("utf-8").splitlines()[1]
+    assert images == "images: " + str((project_dir / "figures" / "dot.png").resolve())
+
+
+def test_a_figure_that_leaves_the_project_is_never_read(client, opened, project_dir, monkeypatch, tmp_path):
+    from urllib.parse import unquote
+
+    outside = project_dir.parent / "outside.png"
+    outside.write_bytes(b"\x89PNG\r\n\x1a\n")
+    (project_dir / "escape.tex").write_text(
+        "\\documentclass{article}\\usepackage{graphicx}\\begin{document}"
+        "\\includegraphics{../outside.png}\\includegraphics{" + str(outside) + "}\\end{document}\n",
+        encoding="utf-8",
+    )
+    answer, _seen = _export(client, opened, monkeypatch, tmp_path, document="escape.tex")
+    assert answer.status_code == 200, answer.text
+    # Neither reached the writer as a file: both became their names.
+    assert answer.content.decode("utf-8").splitlines()[1] == "images: "
+    said = unquote(answer.headers["x-nexttex-export-notes"])
+    assert "../outside.png (outside the project)" in said
+    assert f"{outside} (outside the project)" in said
 
 
 def test_without_pandoc_the_answer_says_so(client, opened, monkeypatch):

@@ -427,10 +427,11 @@ def survey(
         add(Finding("pdftotext", "pdftotext", PRESENT, where=which("pdftotext")))
     else:
         add(Finding("pdftotext", "pdftotext", YOURS,
-                    why="for reading a folder of papers into a .bib, and the "
+                    why="for reading a folder of papers into a .bib, the "
                         "submission check's font and image rows, which come "
-                        "with it as pdffonts and pdfimages. NextTex works "
-                        "without it.",
+                        "with it as pdffonts and pdfimages, and PDF figures "
+                        "in a Word download, through its pdftocairo. "
+                        "NextTex works without it.",
                     command=command_for("pdftotext")))
     if which("pandoc"):
         add(Finding("pandoc", "pandoc", PRESENT, where=which("pandoc")))
