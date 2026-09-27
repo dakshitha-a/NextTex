@@ -251,7 +251,10 @@ test("a Markdown file's versions reach the open panel without a build", async ({
   await tab.keyboard.type("\nA second line.\n");
   await landed(app, project, "A second line.", "notes.md");
   await expect.poll(() => rows.count(), { timeout: 10_000 }).toBeGreaterThan(before);
-  expect(events.types.slice(mark)).toContain("history_changed");
+  // Waited for rather than read once: the reload's build of main.tex can
+  // refresh the panel first, so the row is there a moment before the
+  // event that the keystroke's version was recorded.
+  await expect.poll(() => events.types.slice(mark), { timeout: 10_000 }).toContain("history_changed");
   const builtThis = events.payloads
     .slice(mark)
     .filter((event) => event.type === "compile_start" && event.document === "notes.md");
