@@ -12,7 +12,7 @@ import {
   ChevronDownIcon, ChevronRightIcon, FolderIcon as FolderGlyph, MoreIcon, PlusIcon, SearchIcon, UploadIcon,
 } from "../ui/icons";
 import { countFiles } from "../tree";
-import { iconFor, isBib, isData, isScript } from "./file-kinds";
+import { NX_PATH, iconFor, isBib, isData, isScript } from "./file-kinds";
 import api, { type TreeNode } from "../api";
 import { readStored } from "../appearance";
 import { download, downloadPdf } from "../chrome";
@@ -57,7 +57,6 @@ const INDENT = 16;
  *  type list is visible there -- so whether a move is legal is decided from
  *  `dragging`, and the authoritative path is read from the event at drop.
  *  A drag from another window has no `dragging` and simply does nothing. */
-const NX_PATH = "application/x-nexttex-path";
 
 const ROOT_DROP = "\u0000root";
 
@@ -752,7 +751,9 @@ export default function FileTree({
           event.stopPropagation();
           disarmCard();
           event.dataTransfer.setData(NX_PATH, node.path);
-          event.dataTransfer.effectAllowed = "move";
+          // A move within the tree, or a link from the Claude composer,
+          // which points the agent at the file rather than copying it.
+          event.dataTransfer.effectAllowed = "linkMove";
           dragging.current = node.path;
           setDraggingPath(node.path);
         }}
@@ -1279,19 +1280,26 @@ export default function FileTree({
         onDrop={(event) => drop(event, null)}
         onPaste={(event) => {
           // Screenshot to figure, which in chemistry writing is a loop
-          // somebody runs all afternoon.  The clipboard has no filename,
-          // so it gets a dated one and goes through the same chooser as
-          // everything else rather than landing somewhere by surprise.
+          // somebody runs all afternoon, and files copied in a file
+          // manager, which paste as themselves. A screenshot has no real
+          // filename, only the browser's "image.png", so it gets a dated
+          // one; a copied file keeps its own. Either way it goes through
+          // the same chooser as everything else rather than landing
+          // somewhere by surprise.
           const items = Array.from(event.clipboardData?.files ?? []);
-          const images = items.filter((file) => file.type.startsWith("image/"));
-          if (!images.length) return;
+          if (!items.length) return;
           event.preventDefault();
           const day = new Date().toISOString().slice(0, 10);
-          const named = images.map((file, index) => {
+          const unnamed = items.filter(
+            (file) => file.type.startsWith("image/") && /^(image\.[a-z]+)?$/i.test(file.name),
+          );
+          const named = items.map((file) => {
+            const index = unnamed.indexOf(file);
+            if (index < 0) return file;
             const extension = file.type.split("/")[1]?.split("+")[0] ?? "png";
             return new File(
               [file],
-              `pasted-${day}${images.length > 1 ? `-${index + 1}` : ""}.${extension}`,
+              `pasted-${day}${unnamed.length > 1 ? `-${index + 1}` : ""}.${extension}`,
               { type: file.type },
             );
           });

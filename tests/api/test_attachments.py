@@ -1,4 +1,5 @@
-"""Images a writer hands to the agent.
+"""Files a writer hands to the agent: pictures, documents and text,
+attached from the desktop or pointed to in the project.
 
 The bytes go on disk and the question carries the path, which is the one
 section 27 of the design document was written about: an image on this wire
@@ -57,15 +58,15 @@ def test_the_same_image_twice_costs_one_file(client, opened, project_dir):
     assert len(kept) == 1
 
 
-def test_something_that_is_not_an_image_is_refused(client, opened):
-    """A file the model cannot look at is better refused here than turned
-    into a tool call that fails."""
+def test_a_kind_the_agent_cannot_read_is_refused_by_name(client, opened):
+    """A file the model cannot read is better refused here than turned
+    into a tool call that fails, and the refusal says what does go."""
     response = attach(
-        client, opened["id"], data=b"\\documentclass{article}",
-        name="main.tex", kind="text/x-tex",
+        client, opened["id"], data=b"PK\x03\x04", name="project.zip", kind="application/zip",
     )
     assert response.status_code == 400
-    assert "image" in response.json()["detail"].lower()
+    detail = response.json()["detail"]
+    assert "project.zip" in detail and "Word" in detail
 
 
 def test_an_image_too_large_for_the_model_is_refused_with_a_number(client, opened):
@@ -120,15 +121,136 @@ def test_a_path_nobody_attached_is_dropped(client, opened):
 
 
 def test_only_so_many_are_taken(client, opened):
+    """Ten things with a question at most, and six of them pictures."""
     from nexttex import attachments
 
-    paths = [
+    pictures = [
         attach(client, opened["id"], data=png(index)).json()["path"]
-        for index in range(attachments.MOST + 3)
+        for index in range(attachments.MOST_PICTURES + 2)
+    ]
+    notes = [
+        attach(client, opened["id"], data=f"note {index}".encode(), name=f"n{index}.md", kind="").json()["path"]
+        for index in range(attachments.MOST)
     ]
     response = client.post(
         f"/api/projects/{opened['id']}/agent/ask",
-        json={"prompt": "All of these.", "attached": paths},
+        json={"prompt": "All of these.", "attached": pictures + notes},
     )
-    assert len(response.json()["attached"]) == attachments.MOST
+    taken = response.json()["attached"]
+    assert len(taken) == attachments.MOST
+    assert sum(path.endswith(".png") for path in taken) == attachments.MOST_PICTURES
     wait_idle(opened["id"])
+
+
+def docx(text: str) -> bytes:
+    import zipfile
+
+    buffer = io.BytesIO()
+    with zipfile.ZipFile(buffer, "w") as archive:
+        archive.writestr(
+            "word/document.xml",
+            '<w:document xmlns:w="http://schemas.openxmlformats.org/wordprocessingml/2006/main">'
+            f"<w:body><w:p><w:r><w:t>{text}</w:t></w:r></w:p></w:body></w:document>",
+        )
+    return buffer.getvalue()
+
+
+def test_each_kind_goes_by_its_name_whatever_the_browser_called_it(client, opened):
+    """A browser names a `.py`, a `.md` or a `.heic` with whatever the
+    machine believes, often nothing, so the suffix decides."""
+    for name, data in [
+        ("fit.py", b"print('decay')\n"),
+        ("README.md", b"# Notes\n"),
+        ("reviewer-notes.docx", docx("Fine")),
+        ("scan.tif", b"II*\x00"),
+        ("photo.HEIC", b"\x00\x00\x00\x18ftypheic"),
+    ]:
+        response = attach(client, opened["id"], data=data, name=name, kind="")
+        assert response.status_code == 200, (name, response.text)
+        assert response.json()["path"].lower().endswith(name[name.rindex("."):].lower())
+
+
+def test_a_word_document_is_kept_with_its_text_beside_it(client, opened, project_dir):
+    body = attach(
+        client, opened["id"], data=docx("The fast component is 180 fs."),
+        name="reviewer-notes.docx", kind="application/octet-stream",
+    ).json()
+    # The original name stays in the kept name, which the model reads.
+    assert "reviewer-notes" in body["name"]
+    text = project_dir / ".nexttex" / "attachments" / (body["name"] + ".txt")
+    assert text.read_text(encoding="utf-8").strip() == "The fast component is 180 fs."
+
+
+def test_a_document_has_a_larger_allowance_than_a_picture(client, opened):
+    from nexttex import attachments
+
+    big = b"x" * (attachments.LIMITS["picture"] + 1)
+    assert attach(client, opened["id"], data=big, name="large.md", kind="").status_code == 413
+    assert attachments.LIMITS["document"] > attachments.LIMITS["picture"]
+
+
+def test_an_attached_name_is_told_by_its_own_path_not_the_one_given(client, opened):
+    """Only the base name is looked up, and the model is told the path
+    rebuilt from it: a body that dresses a real attachment's name up as a
+    path elsewhere does not carry that path through."""
+    path = attach(client, opened["id"]).json()["path"]
+    name = path.rsplit("/", 1)[1]
+    response = client.post(
+        f"/api/projects/{opened['id']}/agent/ask",
+        json={"prompt": "Look.", "attached": [f"../../../home/somebody/{name}"]},
+    )
+    assert response.json()["attached"] == [path]
+    wait_idle(opened["id"])
+
+
+def test_a_project_file_is_pointed_to_by_its_path(client, opened, project_dir):
+    (project_dir / "notes").mkdir(exist_ok=True)
+    (project_dir / "notes" / "reviewer.docx").write_bytes(docx("Cite Schuurman."))
+    response = client.post(
+        f"/api/projects/{opened['id']}/agent/ask",
+        json={"prompt": "Answer the reviewer.", "files": ["notes/reviewer.docx", "./main.tex", "notes"]},
+    )
+    assert response.status_code == 200
+    assert response.json()["files"] == ["notes/reviewer.docx", "main.tex", "notes/"]
+    # The Word file's text is kept among the attachments, by its content.
+    made = list((project_dir / ".nexttex" / "attachments").glob("project-*-reviewer.docx.txt"))
+    assert made and made[0].read_text(encoding="utf-8").strip() == "Cite Schuurman."
+    wait_idle(opened["id"])
+
+
+def test_a_project_path_that_leaves_the_project_is_dropped(client, opened, tmp_path):
+    """The same fence every file route uses: `..`, an absolute path, a
+    control file and a missing one each go nowhere."""
+    outside = tmp_path / "secret.md"
+    outside.write_text("private", encoding="utf-8")
+    response = client.post(
+        f"/api/projects/{opened['id']}/agent/ask",
+        json={
+            "prompt": "Read these.",
+            "files": ["../../../../etc/passwd", str(outside), "latexmkrc", "never-there.md"],
+        },
+    )
+    assert response.status_code == 200
+    assert response.json()["files"] == []
+    wait_idle(opened["id"])
+
+
+def test_the_model_is_told_each_file_and_how_to_read_it():
+    from nexttex.attachments import Handed, sentence
+
+    note = sentence(
+        [
+            Handed(".nexttex/attachments/a-notes.docx", "document", ".nexttex/attachments/a-notes.docx.txt"),
+            Handed(".nexttex/attachments/b.png", "picture"),
+            Handed(".nexttex/attachments/c.heic", "picture"),
+        ],
+        [Handed("figures/scan.tif", "picture", ".nexttex/attachments/project-1-scan.tif.png"), Handed("data/", None, folder=True)],
+    )
+    assert "The writer attached 3 files" in note
+    assert "a Word document; its text is in .nexttex/attachments/a-notes.docx.txt" in note
+    assert "b.png, a picture\n" in note
+    assert "c.heic, a picture in a format that could not be converted here" in note
+    assert "not files of theirs to edit" in note
+    assert "The writer points you to 2 files in the project" in note
+    assert "figures/scan.tif, a picture; a PNG of it is at" in note
+    assert "data/ (a folder)" in note

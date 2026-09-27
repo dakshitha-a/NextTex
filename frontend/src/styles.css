@@ -1729,6 +1729,12 @@ button.nx-reads-x[data-always]:hover { color: var(--pen); }
   overflow-y: hidden;
 }
 .nx-composer-box::placeholder { color: var(--ink-3); }
+/* A file or a tree row over the composer: the drop target the tree shows,
+   the hint's wash and edge, and the box says what a drop does. */
+.nx-composer[data-dropping] { background: var(--hint-wash); box-shadow: inset 0 0 0 1.5px var(--hint); }
+.nx-composer[data-dropping] .nx-composer-box::placeholder { color: var(--ink); }
+/* A chip's glyph for a file with no thumbnail, in the tree's third ink. */
+.nx-attachment-glyph { display: inline-flex; color: var(--ink-3); }
 .nx-composer-tools { display: flex; align-items: center; gap: 2px; min-width: 0; }
 .nx-composer-tools .nx-icon-button { color: var(--ink-3); }
 .nx-composer-tools .nx-icon-button:hover { color: var(--ink); }

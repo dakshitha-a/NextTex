@@ -1123,7 +1123,7 @@ const api = {
         `&line=${line}&document=${encodeURIComponent(document)}`,
     ),
 
-  /** One image the writer pasted, dropped or picked.
+  /** One file the writer pasted, dropped or picked for a question.
    *
    *  Not through `json()`: this is multipart, like the upload path, because
    *  base64 in a JSON body would be a third larger for no reason. */
@@ -1152,6 +1152,9 @@ const api = {
      *  above the question for the model; the panel shows chips instead, so
      *  the conversation reads as what was typed. */
     attached?: string[],
+    /** Files in the project the writer dragged from the tree, by their
+     *  project paths: pointed to, not copied. */
+    files?: string[],
   ) =>
     request<any>(
       `/projects/${id}/agent/ask`,
@@ -1166,6 +1169,7 @@ const api = {
             }
           : null,
         attached: attached ?? [],
+        files: files ?? [],
       }),
     ),
   respond: (id: string, requestId: string, decision: string) =>

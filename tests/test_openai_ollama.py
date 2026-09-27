@@ -104,3 +104,48 @@ def test_a_figure_is_asked_about_and_drawn(tmp_path):
     assert (agent.root / "scripts" / "square.py").is_file()
     tool_done = [e for e in seen if e["type"] == "tool_done" and e["name"] == "run_plot_script"]
     assert tool_done and tool_done[0]["ok"] is True
+
+
+def test_an_attached_word_file_is_read_through_its_text(tmp_path):
+    """A Word file the model cannot read as it is: the text written beside
+    it at attach time is what the model reads, and its answer comes from
+    that text."""
+    import zipfile
+    from io import BytesIO
+
+    from nexttex import attachments
+
+    agent = make(tmp_path)
+    buffer = BytesIO()
+    with zipfile.ZipFile(buffer, "w") as archive:
+        archive.writestr(
+            "word/document.xml",
+            '<w:document xmlns:w="http://schemas.openxmlformats.org/wordprocessingml/2006/main">'
+            "<w:body><w:p><w:r><w:t>The reviewer's code word is heliotrope.</w:t></w:r></w:p>"
+            "</w:body></w:document>",
+        )
+    path, _name = attachments.keep(agent.root / ".nexttex", buffer.getvalue(), ".docx", "reviewer-notes.docx")
+    given = attachments.attached(agent.root / ".nexttex", [path])
+    assert given and given[0].readable
+    seen = asyncio.run(turn_with_context(
+        agent,
+        "What is the reviewer's code word? Read the attached notes and answer with the word alone.",
+        attachments.sentence(given),
+    ))
+    said = " ".join(event.get("text", "") for event in seen if event["type"] == "text")
+    assert "heliotrope" in said.lower()
+
+
+async def turn_with_context(agent: OpenAIAgent, prompt: str, context: str) -> list[dict]:
+    seen: list[dict] = []
+
+    async def drain() -> None:
+        async for event in agent.events():
+            seen.append(event)
+            if event["type"] == "done":
+                return
+
+    reader = asyncio.create_task(drain())
+    await agent.ask(prompt, context=context)
+    await asyncio.wait_for(reader, timeout=TURN_SECONDS)
+    return seen

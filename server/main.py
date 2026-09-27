@@ -5888,44 +5888,50 @@ def _selected_context(selection: dict | None) -> str:
 
 @app.post("/api/projects/{project_id}/agent/attachment")
 async def agent_attachment(project_id: str, file: UploadFile = File(...)):
-    """Take one image the writer pasted, dropped or picked.
+    """Take one file the writer pasted, dropped or picked for a question:
+    a document, a picture or a text file, the kinds in
+    `attachments.SUFFIXES`.
 
     The bytes go on disk and the question carries the path, for the reason
     written at the top of `nexttex/attachments.py`: the agent already reads
-    images from disk, that path is the one section 27 hardened, and the
+    files from disk, that path is the one section 27 hardened, and the
     transcript ends up recording a filename rather than a megabyte of
-    base64.
+    base64. A file the model cannot read as it is gets a companion it can,
+    its text or a PNG, written beside it.
     """
     session = session_for(project_id)
-    kind = (file.content_type or "").split(";")[0].strip().lower()
-    if kind not in attachments.KINDS:
+    suffix = attachments.suffix_for(file.filename or "", file.content_type or "")
+    if suffix is None:
         raise HTTPException(
             400,
-            "That is not an image the agent can look at. PNG, JPEG, WebP "
-            "and GIF are the ones it can.",
+            f"{Path(file.filename or 'That file').name} cannot go with a question. "
+            "The agent takes documents (PDF, Word, Excel, PowerPoint), "
+            "pictures and text files such as Markdown and Python.",
         )
+    kind = attachments.SUFFIXES[suffix]
+    limit = attachments.LIMITS[kind]
+    noun = {"picture": "That picture", "document": "That document"}.get(kind, "That file")
     # Asked before the read where the header offers an answer. Reading a
     # file into memory and then measuring it is the wrong order for the one
     # case the limit exists for.
     declared = getattr(file, "size", None)
-    if declared is not None and declared > attachments.LIMIT:
+    if declared is not None and declared > limit:
         raise HTTPException(
             413,
-            f"That image is {declared // (1024 * 1024)} MB, and the agent "
-            f"takes up to {attachments.LIMIT // (1024 * 1024)}.",
+            f"{noun} is {declared // (1024 * 1024)} MB, and the agent "
+            f"takes up to {limit // (1024 * 1024)}.",
         )
     data = await file.read()
     if not data:
         raise HTTPException(400, "That file is empty.")
-    if len(data) > attachments.LIMIT:
+    if len(data) > limit:
         raise HTTPException(
             413,
-            f"That image is {len(data) // (1024 * 1024)} MB, and the agent "
-            f"takes up to {attachments.LIMIT // (1024 * 1024)}. A "
-            "screenshot at screen resolution is well under it.",
+            f"{noun} is {len(data) // (1024 * 1024)} MB, and the agent "
+            f"takes up to {limit // (1024 * 1024)}.",
         )
     path, name = await asyncio.to_thread(
-        attachments.keep, session.project.state_dir, data, kind
+        attachments.keep, session.project.state_dir, data, suffix, file.filename or ""
     )
     return {"path": path, "name": name, "bytes": len(data)}
 
@@ -5936,6 +5942,7 @@ async def agent_ask(
     prompt: str = Body(..., embed=True),
     selection: dict | None = Body(None, embed=True),
     attached: list[str] | None = Body(None, embed=True),
+    files: list[str] | None = Body(None, embed=True),
 ):
     session = session_for(project_id)
     session.start_agent_pump()
@@ -5944,22 +5951,39 @@ async def agent_ask(
     # cursor debounce had last managed to deliver.
     if selection and str(selection.get("text") or "").strip():
         session.note_selection(selection)
-    # The images the writer attached, named above the question in the same
-    # preamble the selection uses. `turn_start` does not carry it, so the
-    # conversation on screen shows what was typed rather than the question
-    # with a list of paths stapled to it; the chips under the composer are
-    # what says an image went with it.
+    # The files the writer attached, and the project files they dragged from
+    # the tree, named above the question in the same preamble the selection
+    # uses. `turn_start` does not carry it, so the conversation on screen
+    # shows what was typed rather than the question with a list of paths
+    # stapled to it; the chips under the composer are what says a file went
+    # with it.
     #
-    # Checked against the directory rather than trusted: this is a list of
-    # strings out of an HTTP body, and the one thing it must not become is a
-    # way to make the agent read an arbitrary path.
-    held = attachments.directory(session.project.state_dir)
-    paths = [
-        name for name in (attached or [])
-        if isinstance(name, str) and (held / Path(name).name).is_file()
-    ][: attachments.MOST]
+    # Neither list is trusted: each is strings out of an HTTP body, and the
+    # one thing it must not become is a way to make the agent read an
+    # arbitrary path. An attachment is found by its base name in the
+    # attachment directory and named by the path rebuilt from it; a project
+    # file goes through the same fence every file route uses, and one
+    # outside the project, a control file or a missing one is dropped.
+    state_dir = session.project.state_dir
+    given = await asyncio.to_thread(attachments.attached, state_dir, list(attached or []))
+    resolved: list[tuple[Path, str]] = []
+    for name in files or []:
+        if not isinstance(name, str) or not name.strip():
+            continue
+        try:
+            target = session.project.resolve(name)
+            relative = session.project.relative(target)
+        except (PermissionError, OSError, ValueError):
+            continue
+        if is_control_path(Path(relative)) or not target.exists():
+            continue
+        resolved.append((target, relative))
+    pointed = await asyncio.to_thread(
+        attachments.pointed, state_dir, session.project.root, resolved[: attachments.MOST]
+    )
+    paths = [item.path for item in given]
     preamble = _selected_context(selection)
-    note = attachments.sentence(paths)
+    note = attachments.sentence(given, pointed)
     if note:
         preamble = f"{note}\n\n{preamble}" if preamble else note
     # A `/` naming a reusable prompt: the file's text goes ahead of the
@@ -5973,7 +5997,7 @@ async def agent_ask(
         await session.agent.ask(prompt, context=preamble)
     except RuntimeError as exc:
         raise HTTPException(409, str(exc))
-    return {"ok": True, "attached": paths}
+    return {"ok": True, "attached": paths, "files": [item.path for item in pointed]}
 
 
 @app.get("/api/projects/{project_id}/agent/archives")

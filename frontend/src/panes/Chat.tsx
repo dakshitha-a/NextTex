@@ -26,6 +26,8 @@ const ContextPanel = lazy(() => import("./ContextPanel"));
 // its own chunk now, fetched when a project opens, so they come with it.
 import { ComposerMenu, PromptMenu } from "./ComposerMenus";
 import { composerHeight } from "./composer-height";
+import { ATTACHABLE, NX_PATH, hasThumbnail, iconFor, isAttachable } from "./file-kinds";
+import { FileIcon } from "./FileIcon";
 import {
   alreadyNamed,
   completed,
@@ -172,6 +174,12 @@ export function tidy(items: ChatItem[]): ChatItem[] {
   return out;
 }
 
+/** A thing that goes with the next question: a file kept for the agent
+ *  (`attachment`, by the path the attachment route handed back, with an
+ *  object URL for a picture's thumbnail) or a file in the project the
+ *  writer dragged from the tree (`project`, by its project path). */
+type Held = { path: string; name: string; url: string; from: "attachment" | "project" };
+
 export default function Chat({
   onShowEdit,
   onHoverEdit,
@@ -225,7 +233,7 @@ export default function Chat({
   // follow-up goes out after the current turn ends, by which time the
   // writer has usually selected something else or nothing at all.
   const queued = useRef<
-    { text: string; selection: State["selected"]; attached: string[] }[]
+    { text: string; selection: State["selected"]; attached: string[]; files: string[] }[]
   >([]);
   // A ref does not re-render, so the "yours will go next" line read a count
   // that only changed when something else happened to redraw the panel.
@@ -277,9 +285,11 @@ export default function Chat({
    *  the store, because nothing outside this panel needs them and they are
    *  gone the moment Send is pressed. `url` is an object URL for the
    *  thumbnail, revoked when the chip goes. */
-  const [attached, setAttached] = useState<
-    { path: string; name: string; url: string }[]
-  >([]);
+  const [attached, setAttached] = useState<Held[]>([]);
+  /** Something droppable is over the composer: the card lights as the
+   *  tree does. A count, because entering the box inside the card leaves
+   *  the card first. */
+  const [dropping, setDropping] = useState(0);
   const [attaching, setAttaching] = useState(0);
   /** When the running turn started, or null. Set from `thinking` rather
    *  than from an event, because `turn_start` is not the only way a browser
@@ -456,22 +466,29 @@ export default function Chat({
     return () => follow.disconnect();
   }, [chat, view]);
 
-  /** Take images somebody pasted, dropped or picked.
+  /** Take files somebody pasted, dropped or picked: documents, pictures
+   *  and text, the kinds in `ATTACHABLE`.
    *
-   *  Only images, and quietly: a paste is usually text, and a drop on the
-   *  panel is usually an accident, so anything else is left alone rather
-   *  than refused with a message about a thing the writer was not trying to
-   *  do. A file the agent cannot look at is refused by the route, which is
-   *  where the list of what it can look at lives.
+   *  A paste is usually text, so a paste of something else is left alone
+   *  quietly. A drop or a pick is meant, so a file that cannot go with a
+   *  question is named in a notice rather than vanishing. The route keeps
+   *  the list that refuses; this one only decides what to try.
    */
   const take = useCallback(
-    async (files: File[]) => {
+    async (files: File[], meant = true) => {
       const projectId = get().projectId;
       if (!projectId) return;
-      const images = files.filter((file) => file.type.startsWith("image/"));
-      if (!images.length) return;
-      setAttaching((count) => count + images.length);
-      for (const file of images) {
+      const going = files.filter((file) => isAttachable(file.name));
+      const left = files.filter((file) => !isAttachable(file.name));
+      if (meant && left.length) {
+        set({
+          error: `${left.map((file) => file.name).join(", ")} cannot go with a question: `
+            + "the agent takes documents, pictures and text files.",
+        });
+      }
+      if (!going.length) return;
+      setAttaching((count) => count + going.length);
+      for (const file of going) {
         try {
           const kept = await api.attach(projectId, file);
           setAttached((held) =>
@@ -480,7 +497,8 @@ export default function Chat({
               : [...held, {
                   path: kept.path,
                   name: file.name || kept.name,
-                  url: URL.createObjectURL(file),
+                  url: hasThumbnail(file.name) ? URL.createObjectURL(file) : "",
+                  from: "attachment",
                 }],
           );
         } catch (error: any) {
@@ -493,13 +511,44 @@ export default function Chat({
     [],
   );
 
+  /** A file or folder dragged from the tree: pointed to by its project
+   *  path, not copied. */
+  const pointAt = useCallback((path: string) => {
+    const name = path.slice(path.lastIndexOf("/") + 1) || path;
+    setAttached((held) =>
+      held.some((one) => one.from === "project" && one.path === path)
+        ? held
+        : [...held, { path, name, url: "", from: "project" }],
+    );
+  }, []);
+
   const drop = useCallback((path: string) => {
     setAttached((held) => {
       const going = held.find((one) => one.path === path);
-      if (going) URL.revokeObjectURL(going.url);
+      if (going?.url) URL.revokeObjectURL(going.url);
       return held.filter((one) => one.path !== path);
     });
   }, []);
+
+  // A drag that ends anywhere, or is called off, leaves the card unlit:
+  // a leave the card never heard would otherwise keep it lit.
+  useEffect(() => {
+    const done = () => setDropping(0);
+    window.addEventListener("drop", done);
+    window.addEventListener("dragend", done);
+    return () => {
+      window.removeEventListener("drop", done);
+      window.removeEventListener("dragend", done);
+    };
+  }, []);
+
+  /** Whether a drag carries something the composer takes: files from the
+   *  desktop, or a row from the tree. Only the types are readable while
+   *  dragging, so this is all that can be asked before the drop. */
+  const carries = (event: React.DragEvent) => {
+    const types = Array.from(event.dataTransfer.types);
+    return types.includes("Files") || types.includes(NX_PATH);
+  };
 
   const send = async () => {
     const text = draft.trim();
@@ -509,9 +558,10 @@ export default function Chat({
     // question goes later, and by then the writer has usually clicked
     // somewhere else and the selection they meant is gone.
     const held = get().selected;
-    const images = attached.map((one) => one.path);
+    const images = attached.filter((one) => one.from === "attachment").map((one) => one.path);
+    const files = attached.filter((one) => one.from === "project").map((one) => one.path);
     setDraft("");
-    for (const one of attached) URL.revokeObjectURL(one.url);
+    for (const one of attached) if (one.url) URL.revokeObjectURL(one.url);
     setAttached([]);
     // Marked pending, so `turn_start` recognises it as this tab's own and
     // does not add a second. Every other tab has none and pushes one.
@@ -526,12 +576,12 @@ export default function Chat({
       // A follow-up thought arrives while Claude is still answering the
       // last one.  Hold it and send it when the turn ends, rather than
       // refusing it and making the writer remember to ask again.
-      queued.current.push({ text, selection: held, attached: images });
+      queued.current.push({ text, selection: held, attached: images, files });
       setQueuedCount(queued.current.length);
       return;
     }
     try {
-      await api.ask(projectId, text, held, images);
+      await api.ask(projectId, text, held, images, files);
     } catch (error: any) {
       // Put it back in the box rather than losing what they typed.
       setDraft(text);
@@ -549,7 +599,7 @@ export default function Chat({
     const next = queued.current.shift();
     setQueuedCount(queued.current.length);
     if (next) {
-      api.ask(projectId, next.text, next.selection, next.attached).catch((error: any) => {
+      api.ask(projectId, next.text, next.selection, next.attached, next.files).catch((error: any) => {
         set({ error: error.message });
       });
     }
@@ -860,7 +910,39 @@ export default function Chat({
         {/* The composer is one card on the first surface, as the page
             draws it: what goes with the question as chips at the top, the
             box, and one row of tools under it. */}
-        <div className="nx-composer">
+        <div
+          className="nx-composer"
+          data-dropping={dropping > 0 || undefined}
+          data-testid="composer"
+          onDragEnter={(event) => {
+            if (!carries(event)) return;
+            event.preventDefault();
+            setDropping((count) => count + 1);
+          }}
+          onDragLeave={(event) => {
+            if (!carries(event)) return;
+            setDropping((count) => Math.max(0, count - 1));
+          }}
+          onDragOver={(event) => {
+            if (!carries(event)) return;
+            event.preventDefault();
+            event.dataTransfer.dropEffect = Array.from(event.dataTransfer.types).includes(NX_PATH)
+              ? "link"
+              : "copy";
+          }}
+          onDrop={(event) => {
+            if (!carries(event)) return;
+            event.preventDefault();
+            setDropping(0);
+            const path = event.dataTransfer.getData(NX_PATH);
+            if (path) {
+              pointAt(path);
+              composer.current?.focus({ preventScroll: true });
+              return;
+            }
+            void take(Array.from(event.dataTransfer.files ?? []));
+          }}
+        >
           {attached.length || attaching || (selected && selected.text.trim()) ? (
             <div className="flex flex-wrap items-center gap-1.5" data-testid={attached.length || attaching ? "attachments" : undefined}>
               {/* What the question is about to carry. Shown because the
@@ -877,24 +959,39 @@ export default function Chat({
                   {selected.fromLine === selected.toLine ? "es" : ""} with this
                 </Chip>
               ) : null}
-              {/* An image attached by accident to a question about
+              {/* A file attached by accident to a question about
                   something else is worse than no attachment, and the only
-                  way to notice is to see it. */}
+                  way to notice is to see it. A picture shows itself; any
+                  other file the tree's glyph for its kind. A file from the
+                  tree shows its project path in the code face, as the
+                  selection chip names its file. */}
               {attached.map((one) => (
                 <Chip
-                  key={one.path}
-                  className="!pl-0.75"
+                  key={`${one.from}:${one.path}`}
+                  className={one.url ? "!pl-0.75" : undefined}
                   onRemove={() => drop(one.path)}
                   removeLabel={`Take ${one.name} off this question`}
                   data-testid="attachment"
+                  data-from={one.from}
+                  title={one.from === "project" ? one.path : one.name}
                 >
-                  <img src={one.url} alt="" className="h-4 w-4 rounded-xs object-cover" />
-                  <span className="max-w-[14ch] truncate">{one.name}</span>
+                  {one.url ? (
+                    <img src={one.url} alt="" className="h-4 w-4 rounded-xs object-cover" />
+                  ) : (
+                    <span className="nx-attachment-glyph">
+                      <FileIcon name={iconFor(one.name)} />
+                    </span>
+                  )}
+                  {one.from === "project" ? (
+                    <span className="max-w-[22ch] truncate font-mono text-caption">{one.path}</span>
+                  ) : (
+                    <span className="max-w-[18ch] truncate">{one.name}</span>
+                  )}
                 </Chip>
               ))}
               {attaching ? (
                 <span className="t-micro text-ink-3">
-                  {attaching === 1 ? "Adding an image" : `Adding ${attaching} images`}
+                  {attaching === 1 ? "Adding a file" : `Adding ${attaching} files`}
                 </span>
               ) : null}
             </div>
@@ -933,24 +1030,16 @@ export default function Chat({
               // through to the browser's own handling.
               onPaste={(event) => {
                 const files = Array.from(event.clipboardData?.files ?? []);
-                if (files.some((file) => file.type.startsWith("image/"))) {
+                if (files.some((file) => isAttachable(file.name))) {
                   event.preventDefault();
-                  void take(files);
+                  void take(files, false);
                 }
               }}
-              onDragOver={(event) => {
-                if (Array.from(event.dataTransfer.types).includes("Files")) {
-                  event.preventDefault();
-                }
-              }}
-              onDrop={(event) => {
-                const files = Array.from(event.dataTransfer.files ?? []);
-                if (files.some((file) => file.type.startsWith("image/"))) {
-                  event.preventDefault();
-                  void take(files);
-                }
-              }}
-              placeholder={blocked ? `Ask ${name}, or answer above` : `Ask ${name}, or type / for a prompt`}
+              placeholder={
+                dropping > 0
+                  ? "Drop to send it with your question"
+                  : blocked ? `Ask ${name}, or answer above` : `Ask ${name}, or type / for a prompt`
+              }
               className="nx-composer-box"
               data-blocked={blocked || undefined}
               onFocus={() => setFocusedComposer(true)}
@@ -1029,7 +1118,7 @@ export default function Chat({
               ref={picker}
               type="file"
               id="nx-attach"
-              accept="image/png,image/jpeg,image/webp,image/gif"
+              accept={Array.from(ATTACHABLE).join(",")}
               multiple
               hidden
               onChange={(event) => {
@@ -1038,8 +1127,8 @@ export default function Chat({
               }}
             />
             <IconButton
-              label="Attach an image"
-              title="Attach an image. You can also paste or drop one."
+              label="Attach a file"
+              title="Attach a file. You can also paste or drop one, or drag one from the files."
               data-testid="attach"
               onClick={() => picker.current?.click()}
             >

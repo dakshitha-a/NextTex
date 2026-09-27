@@ -11044,3 +11044,65 @@ in. `e2e/specs/agent.spec.ts` types six lines and then eighty into the
 real composer, and checks that six lines show whole, that eighty stop
 the card at half the column with the box scrolling, and that an empty
 box is back at its resting height.
+
+## 82. Documents, code and pictures by drag and drop
+
+The writer asked for Word, Excel, PowerPoint, PDF, Markdown, Python and
+picture files in their various formats to be droppable on the file tree,
+to join the project, and on the Claude composer, from the tree or
+straight from the desktop, to go with a question. The composer took four
+kinds of picture and nothing else.
+
+**The tree already took every kind.** Its drop and the upload route
+never filtered by type, only refusing the files a build would run; what
+was missing was proof, since no test had dropped anything but a PNG.
+`e2e/specs/tree-kinds.spec.ts` now drops one of each kind on the tree and
+two more on a folder, and finds each as a row and on disk. The tree's
+paste took only images; it takes any file now, a copied file under its
+own name and a screenshot under the dated one it always had. The rows
+gained glyphs: a workbook takes the table the data files have, a Word or
+OpenDocument text the page of prose, a TIFF, BMP or HEIC the picture,
+and a deck the one new glyph, a landscape slide with a title bar, which
+differs from every sheet in the set by its shape.
+
+**The composer takes the same kinds**, by the paper clip, by paste, by a
+drop from the desktop, or dragged from the tree. A file from the desktop
+goes with the question and is kept in `.nexttex/attachments/`, not in
+the project; the tree is where a file is kept. A file or folder dragged
+from the tree is pointed to by its project path rather than copied, and
+its chip shows that path in the code face. A picture's chip keeps its
+thumbnail and any other file shows the tree's glyph for its kind. While
+a file or a tree row is over the composer, the card takes the hint's
+wash and edge, the drop target the tree shows, and the box says "Drop to
+send it with your question". A drop of something that cannot go, an
+archive say, is named in a notice; a paste of it is left alone, since a
+paste is usually text.
+
+**Every kind reaches the agent in a form it can read.** The Claude CLI
+reads text, the four common pictures and PDF; the OpenAI provider reads
+text alone. So a PDF, Word, Excel or PowerPoint file gets its text
+written beside it, and a picture in another format a PNG where
+ImageMagick or an SVG converter is here, and the model is told each
+file, its kind and the path to read for it. Where no PNG could be made
+it is told so, rather than pointed at a picture it cannot open. The
+same text reader serves "What Claude reads", which now takes Word,
+PowerPoint and Excel documents as well as PDFs and text. At most ten
+files go with a question, six of them pictures; a document may be 32 MB
+and a picture or a text file 8.
+
+**Found on the way:** the ask route looked an attachment up by its base
+name but passed the string it was given to the model, so a body could
+dress a real attachment's name up as a path elsewhere and the model was
+told that path. It is told the path rebuilt from the base name now.
+
+`tests/test_extract.py` builds a Word file, a deck, a workbook, a PDF and
+a BMP byte by byte and checks what comes out of each.
+`tests/api/test_attachments.py` checks each kind by its suffix whatever
+the browser called it, the Word file's text kept beside it, the limits,
+a project file pointed to with its companion, the path fence for project
+paths, the rebuilt attachment path and the sentence the model reads.
+`frontend/src/panes/file-kinds.test.ts` holds the composer's list and
+the server's together and checks the glyphs. `e2e/specs/agent.spec.ts`
+attaches a Word file, a script and a TIFF through the picker, drops a
+Markdown file and an archive, drags a tree row onto the composer, and
+reads back from the scripted agent what it was told.

@@ -4,8 +4,11 @@ import { fileURLToPath } from "node:url";
 import { describe, expect, test } from "vitest";
 
 import {
+  ATTACHABLE,
   extensionOf,
+  hasThumbnail,
   iconFor,
+  isAttachable,
   isBib,
   isCode,
   isData,
@@ -72,7 +75,7 @@ describe("what kind of thing a file is", () => {
     expect(iconFor("data/runs.csv")).toBe("data");
     expect(iconFor("figures/pes.pdf")).toBe("pdf");
     expect(iconFor("figures/pes.png")).toBe("image");
-    expect(iconFor("notes.odt")).toBe("file");
+    expect(iconFor("everything.zip")).toBe("file");
     expect(iconFor("scripts/fig.py")).toBe("script");
   });
 
@@ -135,5 +138,54 @@ describe("what looks like a dataset", () => {
     ]) {
       expect(isData(name)).toBe(false);
     }
+  });
+});
+
+/** What goes with a question to the agent.
+ *
+ *  The server's list in `nexttex/attachments.py` is the one that refuses;
+ *  this one decides what the composer tries to send. They must be the same
+ *  list: a kind only the server knew would never be tried, and a kind only
+ *  this file knew would be refused after the writer saw it accepted. */
+describe("what can go with a question", () => {
+  test("the composer and the server agree on the kinds", () => {
+    const python = readFileSync(
+      join(here, "..", "..", "..", "nexttex", "attachments.py"),
+      "utf-8",
+    );
+    const block = python.slice(python.indexOf("SUFFIXES = {"));
+    const server = [...block.slice(0, block.indexOf("\n}")).matchAll(/"(\.[a-z0-9]+)":/g)]
+      .map(([, suffix]) => suffix)
+      .sort();
+    expect(server.length).toBeGreaterThan(10);
+    expect([...ATTACHABLE].sort()).toEqual(server);
+  });
+
+  test("documents, code and pictures go; an archive does not", () => {
+    for (const name of [
+      "notes.docx", "sheet.xlsx", "talk.pptx", "paper.pdf", "README.md",
+      "fit.py", "scan.tif", "photo.HEIC", "plot.svg", "shot.png",
+    ]) {
+      expect(isAttachable(name), name).toBe(true);
+    }
+    for (const name of ["project.zip", "binary.exe", "Makefile", "data.h5"]) {
+      expect(isAttachable(name), name).toBe(false);
+    }
+  });
+
+  test("only a picture the browser draws gets a thumbnail", () => {
+    expect(hasThumbnail("shot.png")).toBe(true);
+    expect(hasThumbnail("plot.svg")).toBe(true);
+    expect(hasThumbnail("scan.tif")).toBe(false);
+    expect(hasThumbnail("paper.pdf")).toBe(false);
+  });
+
+  test("Office files and pictures the browser cannot draw take the tree's glyphs", () => {
+    expect(iconFor("lifetimes.xlsx")).toBe("data");
+    expect(iconFor("reviewer-notes.docx")).toBe("tex");
+    expect(iconFor("notes.odt")).toBe("tex");
+    expect(iconFor("group-meeting.pptx")).toBe("slides");
+    expect(iconFor("scan.tiff")).toBe("image");
+    expect(iconFor("photo.heic")).toBe("image");
   });
 });

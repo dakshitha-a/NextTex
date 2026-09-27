@@ -1074,17 +1074,27 @@ it tomorrow and the pane shows the last run.
 
 ### You can show it something
 
-Paste a screenshot into the box, drop an image on the column, or pick one
-with the attach button beside it.
-A referee's marked-up page, a table that has come out wrong, a figure from
-somebody else's paper: hand it over rather than describing it. The chip
-above the box shows a thumbnail of what is going with the question, so an
-image attached to the wrong question is something you notice rather than
+Paste a screenshot into the box, drop a file on it from your desktop, or
+pick one with the attach button beside it. Pictures, PDFs, Word, Excel and
+PowerPoint files, Markdown, Python and other text all go. A referee's
+marked-up page, a table that has come out wrong, a reviewer's notes in
+Word, a figure from somebody else's paper: hand it over rather than
+describing it. You can also drag a file or a folder from the Files drawer
+onto the box, and the agent is pointed at it where it is in the project.
+The chips above the box show what is going with the question, a thumbnail
+for a picture and the file's own glyph for anything else, so a file
+attached to the wrong question is something you notice rather than
 something you find out about.
 
-The image is kept inside the project, in `.nexttex/attachments/`, and the
-agent reads it from there. Nothing about it goes anywhere your question was
-not already going.
+A file from your desktop is kept inside the project, in
+`.nexttex/attachments/`, and the agent reads it from there; it is not added
+to your files, and dropping it on the Files drawer is how you keep it. Think
+of it like dragging a file into a notebook cell's output rather than into
+the notebook's folder. The agent cannot read a Word, Excel or PowerPoint
+file as it is, so NextTex writes its text beside it, and a picture in a
+format the agent cannot open, such as TIFF or HEIC, gets a PNG copy where
+this machine can make one. Nothing about any of it goes anywhere your
+question was not already going.
 
 ### A review in two voices, and a prompt is a file
 

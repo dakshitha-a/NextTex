@@ -145,6 +145,18 @@ function Mark({ name }: { name: IconName }) {
           <path d="M2.4 11.1l3.1-2.9 2.5 2.2 2.4-2.7 3.2 3.4" />
         </>
       );
+    case "slides":
+      // A deck: the only landscape shape in the set, a slide with its
+      // title bar and two lines under it. Shape, not count, tells it from
+      // the sheets.
+      return (
+        <>
+          <rect x="1.8" y="3.6" width="12.4" height="8.4" rx="0.8" />
+          <path d="M1.8 6h12.4" />
+          <path d="M4.2 8.3h4.6" />
+          <path d="M4.2 10h3" />
+        </>
+      );
     default:
       return <Sheet />;
   }

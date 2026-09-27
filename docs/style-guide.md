@@ -195,6 +195,14 @@ else.
   its card is half the pane it sits in, then it holds that height and
   scrolls. It never pushes the pane's last content out of view. The
   Claude column's composer is the one there is (`composer-height.ts`).
+- A drop target is the hint's wash with a 1.5 px hint edge, shown only
+  while something it takes is over it, and a sentence where the target
+  has room for one says what a drop does: the file tree ("Drop to add
+  them to the project") and the Claude composer ("Drop to send it with
+  your question"). Nothing is drawn at rest.
+- A chip for a file shows a thumbnail when it is a picture the browser
+  draws and otherwise the tree's glyph for its kind (`iconFor`), in the
+  third ink; a project path in it is in the code face.
 - Hover-revealed actions stay in the DOM, show on `:focus-within`, and
   are always visible under `pointer: coarse` and `hover: none`, so a
   keyboard and a finger reach them.

@@ -2,6 +2,7 @@ import { test, expect } from "../fixtures";
 import type { Page } from "@playwright/test";
 import type { Instance } from "../server";
 import { landed } from "../typing";
+import { zip } from "../zip";
 
 /** The conversation panel, driven by a scripted stand-in.
  *
@@ -790,6 +791,87 @@ test("the question reads as what was typed, not as a list of paths", async ({
   await expect(tab.getByText(".nexttex/attachments")).toHaveCount(0);
   // And the chips are gone, because they went with it.
   await expect(tab.getByTestId("attachments")).toHaveCount(0);
+});
+
+function wordFile(text: string): Buffer {
+  return zip({
+    "word/document.xml":
+      '<w:document xmlns:w="http://schemas.openxmlformats.org/wordprocessingml/2006/main">'
+      + `<w:body><w:p><w:r><w:t>${text}</w:t></w:r></w:p></w:body></w:document>`,
+  });
+}
+
+test("documents, code and pictures go with a question, and the agent is told how to read each", async ({
+  tab,
+}) => {
+  // Picked through the paper clip: a Word file, a script and a TIFF. The
+  // chips show the tree's glyph for each, since none is a picture the
+  // browser draws.
+  await tab.setInputFiles("#nx-attach", [
+    { name: "reviewer-notes.docx", mimeType: "application/vnd.openxmlformats-officedocument.wordprocessingml.document", buffer: wordFile("Cite Schuurman for the assignment.") },
+    { name: "fit.py", mimeType: "text/x-python", buffer: Buffer.from("print('decay')\n") },
+    { name: "scan.tif", mimeType: "image/tiff", buffer: Buffer.from("II*\u0000") },
+  ]);
+  const chips = tab.getByTestId("attachments");
+  await expect(chips.getByTestId("attachment")).toHaveCount(3, { timeout: 20_000 });
+  await expect(chips).toContainText("reviewer-notes.docx");
+  await expect(chips.locator("img")).toHaveCount(0);
+  await expect(chips.locator(".nx-attachment-glyph")).toHaveCount(3);
+
+  // Dropped from the desktop: a Markdown file, and an archive that cannot
+  // go, which is named in a notice rather than vanishing.
+  const dropped = await tab.evaluateHandle(() => {
+    const data = new DataTransfer();
+    data.items.add(new File(["# Plan"], "plan.md", { type: "" }));
+    data.items.add(new File(["PK"], "everything.zip", { type: "application/zip" }));
+    return data;
+  });
+  await tab.dispatchEvent("[data-testid=composer]", "drop", { dataTransfer: dropped });
+  await expect(chips.getByTestId("attachment")).toHaveCount(4, { timeout: 20_000 });
+  await expect(tab.getByText(/everything\.zip cannot go with a question/)).toBeVisible();
+
+  await ask(tab, "context", "Do the notes agree with the fit?");
+  // What the agent was given ahead of the question, said back by the
+  // scripted agent: each file, and for the Word file the text beside it.
+  await expect(tab.getByText(/The writer attached 4 files/)).toBeVisible({ timeout: 20_000 });
+  await expect(tab.getByText(/reviewer-notes\.docx, a Word document; its text is in/)).toBeVisible();
+  await expect(tab.getByText(/scan\.tif, a picture/)).toBeVisible();
+  await expect(tab.getByTestId("attachments")).toHaveCount(0);
+});
+
+test("a file dragged from the tree is pointed to, and the composer lights while it is over", async ({
+  tab,
+}) => {
+  const composer = tab.getByTestId("composer");
+  const row = tab.getByRole("treeitem", { name: /main\.tex/ }).first();
+  await expect(row).toBeVisible({ timeout: 20_000 });
+  // Lit while the drag is over it, with the box saying what a drop does.
+  const carrying = await tab.evaluateHandle(() => {
+    const data = new DataTransfer();
+    data.setData("application/x-nexttex-path", "main.tex");
+    return data;
+  });
+  await tab.dispatchEvent("[data-testid=composer]", "dragenter", { dataTransfer: carrying });
+  await expect(composer).toHaveAttribute("data-dropping", "true");
+  await expect(tab.locator(".nx-composer-box")).toHaveAttribute("placeholder", "Drop to send it with your question");
+  await tab.dispatchEvent("[data-testid=composer]", "dragleave", { dataTransfer: carrying });
+  await expect(composer).not.toHaveAttribute("data-dropping", "true");
+
+  // A real drag of the row onto the composer.
+  await row.dragTo(composer);
+  const chip = tab.getByTestId("attachment");
+  await expect(chip).toHaveCount(1, { timeout: 10_000 });
+  await expect(chip).toHaveAttribute("data-from", "project");
+  await expect(chip).toContainText("main.tex");
+  // The row stayed where it was: a drop on the composer is not a move.
+  await expect(row).toBeVisible();
+  await expect(composer).not.toHaveAttribute("data-dropping", "true");
+
+  await ask(tab, "context", "What does this file set up?");
+  await expect(tab.getByText(/The writer points you to a file in the project/)).toBeVisible({
+    timeout: 20_000,
+  });
+  await expect(tab.getByRole("listitem").filter({ hasText: /^main\.tex$/ })).toBeVisible();
 });
 
 test("escape stops a turn before it closes the panel", async ({ tab }) => {

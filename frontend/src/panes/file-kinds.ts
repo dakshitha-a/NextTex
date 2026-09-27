@@ -141,14 +141,24 @@ export type IconName =
   | "style"
   | "data"
   | "script"
+  | "slides"
   | "file";
+
+/** A picture the browser cannot draw but a row should still call one. */
+const PICTURE = new Set([".tif", ".tiff", ".bmp", ".heic", ".heif"]);
 
 export function iconFor(path: string): IconName {
   const extension = extensionOf(path);
   if (isTeX(path)) return "tex";
   if (extension === ".bib" || extension === ".bst" || extension === ".bbl") return "bib";
   if (extension === ".sty" || extension === ".cls") return "style";
-  if (kindOf(path) === "image") return "image";
+  if (kindOf(path) === "image" || PICTURE.has(extension)) return "image";
+  // Office files take the glyph of what is inside them: a workbook is a
+  // table, a Word document is prose, and a deck is the one landscape
+  // shape in the set.
+  if (extension === ".xlsx" || extension === ".xls" || extension === ".ods") return "data";
+  if (extension === ".docx" || extension === ".doc" || extension === ".odt") return "tex";
+  if (extension === ".pptx" || extension === ".ppt" || extension === ".odp") return "slides";
   if (kindOf(path) === "pdf") return "pdf";
   if (extension === ".py" || extension === ".sh") return "script";
   if (
@@ -158,4 +168,32 @@ export function iconFor(path: string): IconName {
     return "data";
   }
   return "file";
+}
+
+/** The drag type a file-tree row carries: its project path, and nothing a
+ *  page elsewhere would take as a file. The tree moves rows with it and
+ *  the Claude composer takes it as a file to point the agent at. */
+export const NX_PATH = "application/x-nexttex-path";
+
+/** What can go with a question to the agent, by suffix: documents,
+ *  pictures and text. The server keeps the same list in
+ *  `nexttex/attachments.py`, which is the one that refuses; this one only
+ *  decides what the composer tries to send, and the vitest beside this
+ *  file holds the two together. */
+export const ATTACHABLE = new Set([
+  ".pdf", ".docx", ".xlsx", ".pptx",
+  ".png", ".jpg", ".jpeg", ".gif", ".webp", ".svg", ".tif", ".tiff",
+  ".bmp", ".heic", ".heif", ".avif",
+  ".md", ".markdown", ".txt", ".py", ".r", ".m", ".tex", ".bib", ".csv",
+  ".tsv", ".json", ".yml", ".yaml", ".toml", ".dat",
+]);
+
+export function isAttachable(name: string): boolean {
+  return ATTACHABLE.has(extensionOf(name));
+}
+
+/** Whether a chip can show this attachment as a thumbnail: a picture the
+ *  browser draws. A TIFF or a HEIC gets the picture glyph instead. */
+export function hasThumbnail(name: string): boolean {
+  return IMAGE.has(extensionOf(name));
 }
