@@ -145,10 +145,16 @@ test("Allow always survives a reload as a settled card", async ({ page }) => {
 
   await page.reload();
   await expect(page.locator(".cm-editor")).toBeVisible({ timeout: 45_000 });
+  // The reload brings the first turn's "Done." back with the transcript,
+  // so waiting for the last one to be visible returned before the second
+  // turn had asked anything, and the request count was read too early
+  // (one full run in four). Wait for a new one instead.
+  const dones = page.getByText("Done.", { exact: true });
+  const shown = await dones.count();
   const before = requests;
   await askForAFigure(page);
-  await expect(page.getByText("Done.", { exact: true }).last()).toBeVisible({ timeout: 20_000 });
-  expect(requests).toBeGreaterThan(before);
+  await expect(dones).toHaveCount(shown + 1, { timeout: 20_000 });
+  await expect.poll(() => requests).toBeGreaterThan(before);
   // Nothing was left open to answer: the second run was recorded as
   // settled by the remembered rule, not asked about.
   await expect(page.locator(".permission-card")).toHaveCount(0);
