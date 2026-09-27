@@ -112,16 +112,18 @@ a literal colour, size or raw control in a component is a defect. The guide
 is what keeps the look the visual overhaul gave the app from drifting pane
 by pane, which is how the inconsistency it replaced arose.
 
-**Every visual change is mocked up before it is built.** The direction
-page, the Artifact at https://claude.ai/artifact/9dczkpMaP23Be5H5AEJVPp,
-is the specification and the living record of the interface. A change
-the writer would see, however small, is drawn there in the page's own
-idiom, in both themes where the page shows both, and waits for the
-writer's approval before any code; when the writer explicitly asks for
-something to be done without their review, the drawing still goes on the
-page as the preview of what was built. Before each commit the real
-surface is rendered beside the drawing and any difference is fixed or put
-to the writer. The page is republished at that address, never replaced,
+**Every visual change is previewed on the direction page.** The
+direction page, the Artifact at
+https://claude.ai/artifact/9dczkpMaP23Be5H5AEJVPp, is the specification
+and the living record of the interface. The design decisions are the
+session's to make, from `docs/style-guide.md`, and since 27 September
+2026 they do not wait for the writer's approval: a change the writer
+would see, however small, is drawn on the page in its own idiom, in both
+themes where the page shows both, and then built. Only when the writer
+explicitly asks to see a preview before implementation does the drawing
+wait for their word. Before each commit the real surface is rendered
+beside the drawing and any difference is fixed or redrawn. The page is
+republished at that address, never replaced,
 its index names every section, and a proposal that loses leaves it while
 the one that wins stays with a line under Decided.
 
