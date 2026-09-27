@@ -395,3 +395,22 @@ MINIMAL_PDF = (
     b"4 0 obj<</Length 21>>stream\n0 0 1 rg 0 0 72 36 re f\nendstream endobj\n"
     b"trailer<</Root 1 0 R>>\n%%EOF\n"
 )
+
+
+@pytest.mark.skipif(REAL is None, reason="pandoc is needed")
+def test_the_real_pandoc_writes_a_file_whose_figures_are_lost(tmp_path, monkeypatch):
+    """A figure that is not there becomes its name, inside a figure
+    environment and outside one, and pandoc still writes the file."""
+    monkeypatch.setenv("NEXTTEX_PANDOC", REAL)
+    main = tmp_path / "main.tex"
+    main.write_text(
+        "\\documentclass{article}\\usepackage{graphicx}\\begin{document}\nText.\n"
+        "\\begin{figure}\\includegraphics{nothere}\\caption{x}\\end{figure}\n"
+        "\\includegraphics{alsogone}\n\\end{document}\n", encoding="utf-8",
+    )
+    for fmt in ("docx", "html"):
+        done = export.convert(main, fmt, tmp_path, tmp_path, [])
+        assert done.path.is_file()
+        assert done.notes == [export.FigureNote("nothere", "missing"), export.FigureNote("alsogone", "missing")]
+    with zipfile.ZipFile(tmp_path / "main.docx") as archive:
+        assert "[nothere]" in archive.read("word/document.xml").decode("utf-8")
