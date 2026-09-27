@@ -171,6 +171,18 @@ test("find's close sits last in its row, clear of Replace", async ({ tab }) => {
   await expect(panel).toHaveCount(0);
 });
 
+test("a focused find field wears one ring, the field's, not a second on its input", async ({ tab }) => {
+  await tab.locator(".cm-content").click();
+  await tab.keyboard.press("Control+f");
+  const panel = tab.locator(".cm-panel.cm-search");
+  await panel.locator("button[name=toggle-replace]").click();
+  const input = panel.locator("input[name=replace]");
+  await expect(input).toBeFocused();
+  expect(await input.evaluate((node) => getComputedStyle(node).outlineStyle)).toBe("none");
+  const field = panel.locator(".nx-find-replace .nx-find-field");
+  expect(await field.evaluate((node) => getComputedStyle(node).boxShadow)).toContain("inset");
+});
+
 test("completion offers the project's own labels", async ({ tab }) => {
   await tab.locator(".cm-content").click();
   await tab.keyboard.press("Control+End");
