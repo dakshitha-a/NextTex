@@ -2264,7 +2264,7 @@ button.nx-reads-x[data-always]:hover { color: var(--pen); }
    itself, 3.6:1 in the light theme, and the row's own highlight already
    says this is the one.  The menu audit in e2e/specs/menus-contrast.spec.ts
    is what found it. */
-.cm-tooltip-autocomplete > ul > li[aria-selected] .cm-completionMatchedText {
+.cm-tooltip.cm-tooltip-autocomplete > ul > li[aria-selected] .cm-completionMatchedText {
   color: var(--ink);
 }
 /* The kind column, a glyph per kind of completion in place of CodeMirror's
@@ -2283,12 +2283,15 @@ button.nx-reads-x[data-always]:hover { color: var(--pen); }
 .cm-tooltip-autocomplete .cm-completionIcon-type::after { content: "{ }"; font-family: var(--font-mono); }
 .cm-tooltip-autocomplete .cm-completionIcon-namespace::after { content: "pkg"; }
 .cm-completionLabel { color: inherit; }
-.cm-completionMatchedText {
+/* Three classes deep, because CodeMirror's base theme underlines matched
+   letters and sets the detail in italics under a scoped class of its own
+   that outranked these two, so the popup showed both since the overhaul. */
+.cm-tooltip.cm-tooltip-autocomplete .cm-completionMatchedText {
   color: var(--hint);
   text-decoration: none;
   font-weight: 600;
 }
-.cm-completionDetail {
+.cm-tooltip.cm-tooltip-autocomplete .cm-completionDetail {
   font-family: var(--font-sans);
   font-style: normal;
   font-size: 12px;

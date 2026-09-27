@@ -7572,6 +7572,14 @@ weight alone says which they are, since the row's own highlight already
 says it is the one. The first finding of the menu audit below beyond the
 field it was written for.
 
+The weight was the only mark the app meant, and the detail column was
+meant upright, but CodeMirror's base theme underlines matched letters
+and sets the detail in italics under a scoped class that outranked the
+app's two rules, so the popup had shown both since the overhaul. Found
+on 26 September 2026 when the citation list was rendered beside its
+drawing; the rules are three classes deep now, and
+`e2e/specs/ref-completion-brace.spec.ts` reads the computed style.
+
 ### An audit of every menu, popup and floating panel, kept as a spec
 
 The audit the writer asked for is `e2e/specs/menus-contrast.spec.ts`, and

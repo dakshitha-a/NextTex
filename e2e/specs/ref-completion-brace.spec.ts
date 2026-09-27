@@ -20,6 +20,13 @@ test("a label accepted inside \\ref{ closes the brace", async ({ tab }) => {
   // The list with an option chosen, not only the list: under load the
   // list can draw before its options do, and an Enter then is a newline.
   await expect(tab.locator(".cm-tooltip-autocomplete li[aria-selected=true]")).toBeVisible({ timeout: 5000 });
+  // Marked by weight and colour alone, and the detail upright: CodeMirror's
+  // own theme underlined the one and slanted the other until the popup's
+  // rules outranked it.
+  const matched = tab.locator(".cm-tooltip-autocomplete .cm-completionMatchedText").first();
+  await expect(matched).toHaveCSS("text-decoration-line", "none");
+  await expect(matched).toHaveCSS("font-weight", "600");
+  await expect(tab.locator(".cm-tooltip-autocomplete .cm-completionDetail").first()).toHaveCSS("font-style", "normal");
   // CodeMirror ignores Enter for its `interactionDelay`, 75 ms after the
   // list opens, so a keystroke meant for the text is not taken as a pick;
   // under load the test's Enter fell inside it and became a newline.
