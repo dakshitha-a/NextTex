@@ -244,7 +244,38 @@ class Transcript:
 
         if kind == "turn_start":
             self._flush_text()
-            self._append({"kind": "user", "text": event.get("prompt", "")})
+            origin = event.get("origin")
+            if isinstance(origin, dict):
+                # A turn the CLI began on its own, for a message from
+                # another session or a notice: a line of its own kind, so
+                # the replay draws where it came from rather than an empty
+                # question.
+                self._injected_count = getattr(self, "_injected_count", 0) + 1
+                self._last_injected = f"injected-{time.time_ns()}-{self._injected_count}"
+                self._append({
+                    "kind": "injected",
+                    "id": self._last_injected,
+                    "origin": str(origin.get("kind", "")),
+                    "label": str(origin.get("label", "")),
+                    "name": str(origin.get("name", "")),
+                    "text": str(origin.get("text", "")),
+                })
+            else:
+                self._append({"kind": "user", "text": event.get("prompt", "")})
+        elif kind == "turn_origin":
+            # Where that turn came from, which the CLI says only at its end:
+            # a line that patches the injected one, as a decision patches
+            # its card.
+            origin = event.get("origin") or {}
+            target = getattr(self, "_last_injected", "")
+            if target and isinstance(origin, dict):
+                self._append({
+                    "kind": "injected_origin", "id": target,
+                    "origin": str(origin.get("kind", "")),
+                    "label": str(origin.get("label", "")),
+                    "name": str(origin.get("name", "")),
+                    "text": str(origin.get("text", "")),
+                })
         elif kind == "text":
             self._buffer.append(event.get("text", ""))
         elif kind == "text_end":
@@ -404,6 +435,12 @@ class Transcript:
                 target = index.get(item.get("id", ""))
                 if target:
                     target["decision"] = item.get("decision")
+                continue
+            if kind == "injected_origin":
+                target = index.get(item.get("id", ""))
+                if target:
+                    for key in ("origin", "label", "name", "text"):
+                        target[key] = item.get(key, target.get(key))
                 continue
             if kind == "edit_state":
                 target = index.get(item.get("id", ""))

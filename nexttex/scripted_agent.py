@@ -111,6 +111,8 @@ class ScriptedAgent:
 
         self._events: asyncio.Queue | None = None
         self._turn: asyncio.Task | None = None
+        # Turns a script says the CLI will begin on its own after this one.
+        self._later: list[dict] = []
         self._pending: dict[str, asyncio.Future] = {}
         #: The cards themselves, beside the futures, because a
         #: reloading browser asks every agent what it is waiting on
@@ -240,6 +242,7 @@ class ScriptedAgent:
     async def _run(self, prompt: str) -> None:
         started = time.monotonic()
         self._ended = False
+        self._later = []
         await self._emit({"type": "turn_start", "prompt": prompt})
         vanished = False
         try:
@@ -270,6 +273,41 @@ class ScriptedAgent:
         await self._finish(
             "success", costUsd=self.usage["costUsd"], usage=self.usage
         )
+        for step in self._later:
+            asyncio.create_task(self._inject_later(step))
+
+    async def _inject_later(self, step: dict) -> None:
+        """Begin the kept turn after its delay, once nothing is running,
+        with the `origin` the real agent reads off the CLI's message."""
+        from .agent import origin_view
+
+        await asyncio.sleep(float(step.get("after", 0.2)))
+        while self.busy:
+            await asyncio.sleep(0.05)
+        origin = dict(step.get("origin") or {"kind": "peer"})
+        self._turn = asyncio.create_task(
+            self._run_injected(origin_view(origin, str(origin.get("body", ""))),
+                               list(step.get("steps") or []))
+        )
+
+    async def _run_injected(self, view: dict, steps: list[dict]) -> None:
+        self._ended = False
+        self._later = []
+        self._why = view["label"]
+        # As the real CLI does it: the turn begins with its output and says
+        # where it came from on its result.
+        from .agent import ORIGIN_PENDING
+
+        await self._emit({"type": "turn_start", "prompt": "", "origin": dict(ORIGIN_PENDING)})
+        try:
+            for step in steps:
+                await self._step(step)
+        except asyncio.CancelledError:
+            await self._say_it_stopped()
+            raise
+        self._last_used = time.monotonic()
+        await self._emit({"type": "turn_origin", "origin": view})
+        await self._finish("success", costUsd=self.usage["costUsd"], usage=self.usage)
 
     async def _say_it_stopped(self) -> None:
         """Emit the ending from inside a cancellation.
@@ -288,6 +326,13 @@ class ScriptedAgent:
 
     async def _step(self, step: dict) -> None:
         kind = step.get("kind", "")
+
+        if kind == "inject":
+            # A turn the CLI will begin on its own once this one ends, for
+            # a message from another session or a notice: kept, and started
+            # after `done`, the way the real CLI's arrives.
+            self._later.append(step)
+            return
 
         if kind == "text":
             text = str(step.get("text", ""))

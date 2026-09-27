@@ -1282,6 +1282,10 @@ const Item = memo(function Item({
     );
   }
 
+  if (item.kind === "injected") {
+    return <InjectedLine item={item} />;
+  }
+
   if (item.kind === "claude") {
     return <AgentMessage item={item} />;
   }
@@ -1318,6 +1322,40 @@ const Item = memo(function Item({
 })
 
 /** A run of tool calls as one sentence, opening to its rows. */
+/** Where a turn nobody here asked for came from, in place of a question:
+ *  one quiet line, the message folded under it behind the chevron a tool
+ *  run uses, since it was written for the agent rather than the writer. */
+function InjectedLine({ item }: { item: Extract<ChatItem, { kind: "injected" }> }) {
+  const [open, setOpen] = useState(false);
+  const at = item.name ? item.label.indexOf(item.name) : -1;
+  const label = at >= 0 ? (
+    <>
+      {item.label.slice(0, at)}
+      <b className="nx-injected-name">{item.name}</b>
+      {item.label.slice(at + item.name.length)}
+    </>
+  ) : item.label;
+  const time = new Date(item.at).toLocaleTimeString([], { hour: "2-digit", minute: "2-digit" });
+  return (
+    <div className="nx-tool-run nx-injected" data-testid="injected" data-open={open || undefined}>
+      <Pressable
+        type="button"
+        className="nx-tool-line"
+        aria-expanded={open}
+        disabled={!item.text}
+        onClick={() => setOpen((was) => !was)}
+      >
+        {open ? <ChevronDownIcon size={12} /> : <ChevronRightIcon size={12} />}
+        <span className="min-w-0 flex-1 truncate">{label}</span>
+        <span className="shrink-0 tabular-nums">{time}</span>
+      </Pressable>
+      {open && item.text ? (
+        <div className="nx-injected-text" data-testid="injected-text">{item.text}</div>
+      ) : null}
+    </div>
+  );
+}
+
 function ToolRun({ group }: { group: ToolGroup }) {
   const [open, setOpen] = useState(false);
   return (

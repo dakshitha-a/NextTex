@@ -44,6 +44,13 @@ export type ChatItem =
     }
   | { kind: "claude"; id: string; text: string; at: number; streaming: boolean }
   | {
+      /** A turn the agent began without anyone here asking: a message
+       *  from another Claude session, a notice, a scheduled prompt.
+       *  `label` says where it came from, `name` is the sender's name
+       *  within it, and `text` is the message, which the panel folds. */
+      kind: "injected"; id: string; label: string; name: string; text: string; at: number;
+    }
+  | {
       kind: "edit";
       id: string;
       path: string;
@@ -597,6 +604,11 @@ export function chatFromTranscript(items: any[], options: { running?: boolean } 
     const at = item.at ?? Date.now();
     if (item.kind === "user") {
       chat.push({ kind: "user", id: nextId(), text: item.text ?? "", at });
+    } else if (item.kind === "injected") {
+      chat.push({
+        kind: "injected", id: nextId(), label: item.label ?? "",
+        name: item.name ?? "", text: item.text ?? "", at,
+      });
     } else if (item.kind === "claude") {
       chat.push({
         kind: "claude", id: nextId(), text: item.text ?? "", at,
@@ -1353,6 +1365,20 @@ function receive(event: any) {
       // A new turn has no plan and no activity yet.  The plan is the
       // turn's own, so it does not survive into the next one.
       const without = state.chat.filter((item) => item.kind !== "plan");
+      // A turn the agent began on its own is drawn as where it came from,
+      // and never takes the place of a question this tab is still sending.
+      const origin = event.origin && typeof event.origin === "object" ? event.origin : null;
+      if (origin) {
+        set({
+          thinking: true, activity: null, turnEdits: [],
+          chat: [...without, {
+            kind: "injected" as const, id: nextId(),
+            label: String(origin.label ?? ""), name: String(origin.name ?? ""),
+            text: String(origin.text ?? ""), at: Date.now(),
+          }],
+        });
+        break;
+      }
       const asked = [...without].reverse().find((item) => item.kind === "user");
       const chat =
         asked && (asked as { pending?: boolean }).pending
@@ -1369,6 +1395,19 @@ function receive(event: any) {
               },
             ];
       set({ thinking: true, activity: null, chat, turnEdits: [] });
+      break;
+    }
+    case "turn_origin": {
+      // Where a turn the agent began on its own came from, which the CLI
+      // says only at its end: the line drawn at its start takes it.
+      const origin = event.origin && typeof event.origin === "object" ? event.origin : null;
+      const last = [...state.chat].reverse().find((item) => item.kind === "injected");
+      if (origin && last) {
+        updateChat(last.id, {
+          label: String(origin.label ?? ""), name: String(origin.name ?? ""),
+          text: String(origin.text ?? ""),
+        } as Partial<ChatItem>);
+      }
       break;
     }
     case "text":

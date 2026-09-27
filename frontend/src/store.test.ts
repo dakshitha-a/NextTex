@@ -643,3 +643,43 @@ describe("what a comment tool's row says it was done to", () => {
     expect(summariseTool("reply_to_comment", { thread: "gone", text: "Yes." })).toBe("");
   });
 });
+
+/** A turn the agent began without anyone here asking, reported by another
+ *  Claude session: it is drawn as where it came from, never as a question,
+ *  and never takes the place of one this tab is still sending. */
+describe("a turn nobody here asked for", () => {
+  const origin = { kind: "peer", label: "A message from nx-a", name: "nx-a", text: "Done." };
+
+  test("it is an injected line and a running turn, not a question", () => {
+    set({ chat: [] });
+    __receive({ type: "turn_start", prompt: "", origin });
+    const chat = get().chat;
+    expect(chat.map((item) => item.kind)).toEqual(["injected"]);
+    expect(chat[0]).toMatchObject({ label: "A message from nx-a", name: "nx-a", text: "Done." });
+    expect(get().thinking).toBe(true);
+  });
+
+  test("a question this tab is sending keeps its bubble", () => {
+    set({ chat: [{ kind: "user", id: "q", text: "mine", at: 1, pending: true }] });
+    __receive({ type: "turn_start", prompt: "", origin });
+    const chat = get().chat;
+    expect(chat[0]).toMatchObject({ kind: "user", text: "mine", pending: true });
+    expect(chat[1].kind).toBe("injected");
+  });
+
+  test("where it came from, said at its end, is written onto the line", () => {
+    set({ chat: [] });
+    __receive({ type: "turn_start", prompt: "", origin: { kind: "unknown", label: "A message arrived", name: "", text: "" } });
+    __receive({ type: "turn_origin", origin });
+    expect(get().chat[0]).toMatchObject({ kind: "injected", label: "A message from nx-a", name: "nx-a", text: "Done." });
+  });
+
+  test("the record replays it as the same line", () => {
+    const chat = chatFromTranscript([
+      { kind: "injected", label: "A message from nx-a", name: "nx-a", text: "Done." },
+      { kind: "claude", text: "Passing it on." },
+      { kind: "turn_end" },
+    ]);
+    expect(chat.map((item) => item.kind)).toEqual(["injected", "claude", "turn_end"]);
+  });
+});

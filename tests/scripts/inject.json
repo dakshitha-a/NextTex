@@ -1,0 +1,10 @@
+[
+  {"kind": "text", "text": "Asked it. I will pass the lifetimes on when they come."},
+  {"kind": "inject", "after": 0.4,
+   "origin": {"kind": "peer", "name": "nx-tera-uracil", "from": "uds:/tmp/uracil.sock",
+              "body": "The S1 runs finished. Lifetimes: 182 fs in hexane, 2.1 ps in water."},
+   "steps": [
+     {"kind": "wait", "seconds": 2.5},
+     {"kind": "text", "text": "The uracil session has the lifetimes: 182 fs in hexane and 2.1 ps in water."}
+   ]}
+]

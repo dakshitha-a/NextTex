@@ -11106,3 +11106,50 @@ the server's together and checks the glyphs. `e2e/specs/agent.spec.ts`
 attaches a Word file, a script and a TIFF through the picker, drops a
 Markdown file and an archive, drags a tree row onto the composer, and
 reads back from the scripted agent what it was told.
+
+## 83. A turn nobody in the app started, shown live
+
+Another Claude session reported on 27 September 2026 that the Claude
+column stopped showing replies live. A reply to a message from another
+session, or to a notice that one had gone idle, appeared only when the
+writer next typed, stamped at the writer's own second and sometimes
+split in two, so the writer kept sending "?". Its agent's cross-session
+address had also changed, and a message sent to the old one was lost.
+
+Both had one cause each. NextTex read the CLI only inside a turn it had
+started, so a turn the CLI began on its own waited in the SDK's buffer,
+and the next question drained it and stopped at its result, leaving the
+answers after it one question late. And the idle reaper counted only
+turns NextTex had started as use, so a CLI whose only traffic for half an
+hour was other sessions was shut down mid-exchange and came back under a
+new address. Now the CLI is read between turns, a turn it begins is run
+like any other and counts as use, and nothing is left waiting in the
+buffer.
+
+In the column, such a turn is introduced by one quiet line in the tool
+line's shape saying where it came from: "A message from nx-tera-uracil",
+"Another session finished what it was doing", "A scheduled prompt", "A
+message from outside NextTex". The real CLI says where a turn came from
+only when it ends, so while the reply streams the line reads "A message
+arrived" and takes its name at the end. The sender's name is a step up in ink, the
+time is at the line's end, and the message is folded under it, since it
+was written for the agent rather than the writer. The reply below is an
+ordinary turn, live as it streams, with the working line and Stop in the
+header. A question typed during it waits and goes next, through the
+queue the composer already had. The line is recorded as itself, so a
+reload shows the same line rather than an empty question. It is drawn
+on the direction page under "A turn nobody in the app started".
+
+`tests/test_agent_robustness.py` drives the real agent against a client
+with the SDK's one buffer: an injected turn is emitted live with its
+origin and its own end; the next question gets its own answer and not
+the injected one, which is the reported fault; a question during it is
+refused, which is what the composer's queue waits on; the reaper waits;
+Stop ends it; a stray result between turns is read and not shown; and
+each kind of origin is named for the writer. `tests/test_transcript.py`
+and `frontend/src/store.test.ts` cover the record, the replay and the
+pending question keeping its bubble. `e2e/specs/agent.spec.ts` has the
+scripted agent begin such a turn after an asked one, and checks that
+the line appears with nothing typed, that a question typed meanwhile
+waits and is answered, that the message opens, and that a reload keeps
+the line.

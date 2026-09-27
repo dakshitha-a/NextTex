@@ -874,6 +874,44 @@ test("a file dragged from the tree is pointed to, and the composer lights while 
   await expect(tab.getByRole("listitem").filter({ hasText: /^main\.tex$/ })).toBeVisible();
 });
 
+test("a turn nobody here asked for is shown as it happens, and a question typed meanwhile waits", async ({
+  tab,
+}) => {
+  // Reported by another Claude session: a reply to a message from another
+  // session appeared only when the writer next typed. The scripted agent
+  // begins a turn on its own after the asked one ends, as the CLI does
+  // for a cross-session message.
+  await ask(tab, "inject", "Ask the uracil session for the lifetimes.");
+  await expect(tab.getByText("Asked it. I will pass the lifetimes on when they come.")).toBeVisible({
+    timeout: 20_000,
+  });
+  // While it runs the line is neutral, as with the real CLI, which names
+  // where a turn came from only on its result; Stop is there as for any
+  // turn.
+  const line = tab.getByTestId("injected");
+  await expect(line).toBeVisible({ timeout: 10_000 });
+  await expect(line).toContainText("A message arrived");
+  await expect(tab.getByTestId("stop")).toBeVisible();
+
+  // Typed while that turn runs: held, and sent when it ends.
+  const composer = tab.locator("textarea");
+  await composer.fill("#script:reply\nWhat does a label do?");
+  await tab.getByRole("button", { name: "Send" }).click();
+  await expect(tab.getByText(/The uracil session has the lifetimes/)).toBeVisible({ timeout: 20_000 });
+  // At its end the line takes where it came from.
+  await expect(line).toContainText("A message from nx-tera-uracil", { timeout: 10_000 });
+  await expect(tab.getByText(/A label attaches a name/)).toBeVisible({ timeout: 20_000 });
+
+  // The message is folded under the line and opens.
+  await line.getByRole("button").click();
+  await expect(tab.getByTestId("injected-text")).toContainText("182 fs in hexane");
+
+  // And the record keeps it as the same line, not as an empty question.
+  await tab.reload();
+  await expect(tab.getByTestId("injected")).toHaveCount(1, { timeout: 30_000 });
+  await expect(tab.getByTestId("injected")).toContainText("A message from nx-tera-uracil");
+});
+
 test("escape stops a turn before it closes the panel", async ({ tab }) => {
   // Stop is the writer's one escape hatch from a turn doing the wrong
   // thing, and it was a `t-micro` text button in a 32px header that can be

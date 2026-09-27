@@ -375,3 +375,41 @@ def test_a_stopped_turn_is_said_to_have_been_stopped():
     assert stopped == [{"type": "notice", "message": "Stopped."}, {"type": "done", "subtype": "interrupted"}]
     assert _said_before({"type": "done", "subtype": "success"}) == [{"type": "done", "subtype": "success"}]
     assert _said_before({"type": "text", "text": "x"}) == [{"type": "text", "text": "x"}]
+
+
+def test_a_turn_nobody_here_asked_for_is_its_own_line(tmp_path):
+    """A turn the CLI began for a message from another session is recorded
+    as where it came from, not as an empty question."""
+    t = Transcript(tmp_path / "t.jsonl")
+    t.record({"type": "turn_start", "prompt": "", "origin": {
+        "kind": "peer", "label": "A message from nx-a", "name": "nx-a", "text": "Done.",
+    }})
+    t.record({"type": "text", "text": "Passing it on."})
+    t.record({"type": "text_end"})
+    t.record({"type": "done", "subtype": "success"})
+    items = t.items()
+    assert [i["kind"] for i in items] == ["injected", "claude", "turn_end"]
+    assert items[0]["label"] == "A message from nx-a"
+    assert items[0]["name"] == "nx-a"
+    assert items[0]["text"] == "Done."
+
+
+def test_where_a_turn_came_from_is_written_onto_its_line_when_known(tmp_path):
+    """The CLI names the origin only on the turn's result, so the line is
+    patched by a later one, and the replay shows the patched line."""
+    t = Transcript(tmp_path / "t.jsonl")
+    t.record({"type": "turn_start", "prompt": "", "origin": {
+        "kind": "unknown", "label": "A message arrived", "name": "", "text": "",
+    }})
+    t.record({"type": "text", "text": "heliotrope"})
+    t.record({"type": "text_end"})
+    t.record({"type": "turn_origin", "origin": {
+        "kind": "peer", "label": "A message from nx-a", "name": "nx-a", "text": "Say it.",
+    }})
+    t.record({"type": "done", "subtype": "success"})
+    items = t.items()
+    assert [i["kind"] for i in items] == ["injected", "claude", "turn_end"]
+    assert items[0]["label"] == "A message from nx-a"
+    assert items[0]["text"] == "Say it."
+    again = Transcript(tmp_path / "t.jsonl").items()
+    assert again[0]["label"] == "A message from nx-a"

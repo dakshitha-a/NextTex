@@ -911,3 +911,213 @@ def test_a_turn_that_ends_on_its_own_keeps_its_client(tmp_path):
     assert events[-1]["subtype"] == "success"
     assert subject._client is client
     assert not client.disconnected
+
+
+# -- Turns the CLI starts itself ---------------------------------------------
+#
+# Reported by another Claude session on 27 September 2026: a reply to a
+# cross-session message or an idle notice appeared only when the writer next
+# typed, stamped at the writer's second, and the answers after it ran one
+# question late.  NextTex read the CLI only inside a turn it had started, so
+# a turn the CLI started itself waited in the SDK's buffer, and the next
+# question drained it and stopped at its result.  The SDK marks such a turn
+# with an `origin` on its user message.
+
+
+class ListeningClient(QueueClient):
+    """`QueueClient` with the SDK's `receive_messages()`: the same buffer,
+    read without stopping at a result, and `inject` for a turn the CLI
+    starts on its own."""
+
+    async def receive_messages(self):
+        while True:
+            yield await self.buffer.get()
+
+    def inject(self, *items):
+        async def feed():
+            for item in items:
+                if isinstance(item, (int, float)):
+                    await asyncio.sleep(item)
+                else:
+                    await self.buffer.put(item)
+
+        return asyncio.create_task(feed())
+
+
+def _from_peer(text: str = "The runs finished.", name: str = "nx-tera-uracil"):
+    from claude_agent_sdk import UserMessage
+
+    return UserMessage(
+        content=f"<cross-session-message>{text}</cross-session-message>",
+        origin={"kind": "peer", "name": name, "from": "uds:/tmp/x.sock", "body": text},
+    )
+
+
+def _quick(prompt: str):
+    return [0.01, _text(f"Answer to {prompt}"), _result()]
+
+
+def test_a_turn_the_cli_starts_itself_is_shown_as_it_happens(tmp_path):
+    """The report: with nobody asking, the injected turn is emitted live,
+    with where it came from, and ends with its own `done`."""
+    subject = make_agent(tmp_path)
+    client = ListeningClient(_quick)
+    subject._client = client
+
+    async def run():
+        await subject.ask("first")
+        await drain(subject)
+        client.inject(_from_peer(), _text("Passing it on."), _result())
+        return await drain(subject)
+
+    events = asyncio.run(run())
+    start = events[0]
+    assert start["type"] == "turn_start"
+    assert start["prompt"] == ""
+    assert start["origin"]["kind"] == "peer"
+    assert start["origin"]["label"] == "A message from nx-tera-uracil"
+    assert start["origin"]["text"] == "The runs finished."
+    texts = "".join(e.get("text", "") for e in events if e["type"] == "text")
+    assert texts == "Passing it on."
+    assert events[-1]["type"] == "done" and events[-1]["subtype"] == "success"
+
+
+def test_the_question_after_an_injected_turn_gets_its_own_answer(tmp_path):
+    """The one-question-late half of the report, on the same buffer: the
+    injected turn is read when it happens, so the next question's reader
+    starts clean."""
+    subject = make_agent(tmp_path)
+    client = ListeningClient(_quick)
+    subject._client = client
+
+    async def run():
+        await subject.ask("first")
+        await drain(subject)
+        feeding = client.inject(_from_peer(), _text("Passing it on."), _result())
+        await feeding
+        await drain(subject)
+        await subject.ask("next")
+        return await drain(subject)
+
+    events = asyncio.run(run())
+    texts = "".join(e.get("text", "") for e in events if e["type"] == "text")
+    assert texts == "Answer to next", events
+    assert client.buffer.empty()
+
+
+def test_a_question_during_an_injected_turn_is_refused_and_the_reaper_waits(tmp_path):
+    """An injected turn is a running turn: `ask` refuses as for any other,
+    which is what the composer's queue waits on, and the idle reaper, which
+    asks `busy`, leaves the CLI alone.  Its end counts as use."""
+    subject = make_agent(tmp_path)
+    client = ListeningClient(_quick)
+    subject._client = client
+
+    async def run():
+        await subject.ask("first")
+        await drain(subject)
+        client.inject(_from_peer(), _text("Working on it"), 0.3, _result())
+        await drain(subject, until="text")
+        assert subject.busy
+        refused = False
+        try:
+            await subject.ask("while it runs")
+        except RuntimeError:
+            refused = True
+        await drain(subject)
+        return refused
+
+    assert asyncio.run(run())
+    assert not subject.busy
+    assert subject.idle_seconds < 5
+
+
+def test_stop_ends_an_injected_turn(tmp_path):
+    subject = make_agent(tmp_path)
+    client = ListeningClient(_quick)
+    subject._client = client
+
+    async def run():
+        await subject.ask("first")
+        await drain(subject)
+        client.inject(_from_peer(), _text("Long"), 30, _result())
+        await drain(subject, until="text")
+        await subject.interrupt()
+        return await drain(subject)
+
+    events = asyncio.run(run())
+    assert events[-1]["subtype"] == "interrupted"
+    assert not subject.busy
+
+
+def test_a_stray_result_between_turns_is_read_and_not_shown(tmp_path):
+    """A result with nothing before it, left by an earlier turn, is not a
+    turn: it is read so the next question does not stop at it, and nothing
+    is drawn for it."""
+    subject = make_agent(tmp_path)
+    client = ListeningClient(_quick)
+    subject._client = client
+
+    async def run():
+        await subject.ask("first")
+        await drain(subject)
+        await client.inject(_result())
+        await asyncio.sleep(0.05)
+        await subject.ask("next")
+        return await drain(subject)
+
+    events = asyncio.run(run())
+    assert [e["type"] for e in events].count("turn_start") == 1
+    texts = "".join(e.get("text", "") for e in events if e["type"] == "text")
+    assert texts == "Answer to next", events
+
+
+def test_the_origin_is_named_for_the_writer():
+    from nexttex.agent import origin_view
+
+    assert origin_view({"kind": "peer", "name": "nx-a"}, "hi")["label"] == "A message from nx-a"
+    assert origin_view({"kind": "peer", "from": "uds:/x"}, "hi")["label"] == "A message from another session"
+    assert origin_view(
+        {"kind": "task-notification", "subkind": "scheduled-trigger"}, "Rebuild."
+    )["label"] == "A scheduled prompt"
+    idle = origin_view(
+        {"kind": "task-notification", "subkind": "peer-send-message"},
+        "[Cross-session idle notice] nx-tera-uracil is idle.",
+    )
+    assert idle["label"] == "Another session finished what it was doing"
+    assert origin_view({"kind": "channel", "server": "slack"}, "x")["label"] == "A message from slack"
+    assert origin_view({"kind": "something-new"}, "x")["label"] == "A message from outside NextTex"
+    assert len(origin_view({"kind": "peer"}, "y" * 10_000)["text"]) <= 4001
+
+
+def test_a_peer_message_as_the_real_cli_sends_it(tmp_path):
+    """Measured against the real CLI on 27 September 2026: the injected
+    turn begins with its reply, with no user message before it, and the
+    origin is on the result. The line starts neutral and learns where the
+    turn came from at its end."""
+    from claude_agent_sdk import AssistantMessage, ResultMessage, SystemMessage, TextBlock
+
+    subject = make_agent(tmp_path)
+    client = ListeningClient(_quick)
+    subject._client = client
+    origin = {"kind": "peer", "name": "nexttex-dev", "from": "uds:/tmp/x.sock",
+              "body": "Reply with exactly the word heliotrope."}
+
+    async def run():
+        await subject.ask("first")
+        await drain(subject)
+        client.inject(
+            SystemMessage(subtype="init", data={"session_id": "s"}),
+            AssistantMessage(content=[TextBlock(text="heliotrope")], model="m"),
+            ResultMessage(subtype="success", duration_ms=1, duration_api_ms=1,
+                          is_error=False, num_turns=1, session_id="s",
+                          total_cost_usd=0.0, usage={}, origin=origin),
+        )
+        return await drain(subject)
+
+    events = asyncio.run(run())
+    kinds = [e["type"] for e in events]
+    assert kinds == ["turn_start", "text", "text_end", "turn_origin", "done"], kinds
+    assert events[0]["origin"]["label"] == "A message arrived"
+    assert events[3]["origin"]["label"] == "A message from nexttex-dev"
+    assert events[3]["origin"]["text"] == "Reply with exactly the word heliotrope."

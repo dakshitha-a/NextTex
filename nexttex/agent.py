@@ -198,6 +198,74 @@ NETWORK_COMMANDS = frozenset({
 NETWORK_GIT_VERBS = frozenset({"push", "pull", "fetch", "clone", "remote", "submodule"})
 
 
+#: How much of an injected turn's message the panel is given.
+ORIGIN_TEXT_LIMIT = 4000
+
+
+def origin_view(origin: dict | None, text: str) -> dict:
+    """What the panel and the transcript say about a turn the CLI started
+    on its own: the kind, a line naming where it came from, and the message.
+
+    The CLI stamps an `origin` on the user message of every turn it injects
+    (a message from another session, a notice that one went idle, a
+    scheduled prompt, an MCP channel), and a turn this client asked for has
+    none. The name is the sender's own and is for display only; the SDK
+    says it is asserted by the sender, never proof of who they are.
+    """
+    origin = origin or {}
+    kind = str(origin.get("kind") or "")
+    subkind = str(origin.get("subkind") or "")
+    name = str(origin.get("name") or "").strip()
+    body = str(origin.get("body") or text or "").strip()
+    if kind == "peer":
+        label = f"A message from {name}" if name else "A message from another session"
+    elif kind == "task-notification" and subkind == "scheduled-trigger":
+        label = "A scheduled prompt"
+    elif kind == "task-notification" and body.startswith("[Cross-session idle notice]"):
+        label = "Another session finished what it was doing"
+    elif kind == "task-notification" and subkind == "peer-send-message":
+        label = "A message from another session"
+    elif kind == "task-notification":
+        label = "A background task finished"
+    elif kind == "channel":
+        server = str(origin.get("server") or "").strip()
+        label = f"A message from {server}" if server else "A message from outside NextTex"
+    else:
+        label = "A message from outside NextTex"
+    if len(body) > ORIGIN_TEXT_LIMIT:
+        body = body[:ORIGIN_TEXT_LIMIT] + "\u2026"
+    shown = name if kind == "peer" else ""
+    return {"kind": kind or "unknown", "label": label, "name": shown, "text": body}
+
+
+#: What the line says while a turn the CLI began is still running and has
+#: not said where it came from. The CLI names the origin on the turn's
+#: result, not before its output, so this is replaced when the turn ends.
+ORIGIN_PENDING = {"kind": "unknown", "label": "A message arrived", "name": "", "text": ""}
+
+
+def _message_text(message) -> str:
+    """The plain text of a user message, whether a string or blocks."""
+    content = getattr(message, "content", "")
+    if isinstance(content, str):
+        return content
+    parts = []
+    for block in content or []:
+        text = getattr(block, "text", None)
+        if isinstance(text, str):
+            parts.append(text)
+    return "\n".join(parts)
+
+
+def _injected(message) -> dict | None:
+    """The origin of a message that starts a turn the CLI began itself, or
+    None. Human-kind and unattributed messages are this client's own."""
+    origin = getattr(message, "origin", None)
+    if not origin or origin.get("kind") in (None, "", "human"):
+        return None
+    return origin
+
+
 def landing_line(tool_name: str, data: dict, before: str) -> int | None:
     """Which line a write is about to land on, against the text as it is now.
 
@@ -526,6 +594,12 @@ class ProjectAgent:
         # The single ordered channel every turn writes to.
         self._events: asyncio.Queue | None = None
         self._turn: asyncio.Task | None = None
+        # Reads the CLI between turns, for a turn it starts on its own; see
+        # `_listen`.
+        self._listener: asyncio.Task | None = None
+        # Whether the running turn is one the CLI began, whose origin its
+        # result will name.
+        self._injected_turn = False
         self._cancelled = False
         # Whether a Stop is already waiting for the CLI to end the turn.  A
         # second Stop in that window cancels the reader at once.
@@ -2534,6 +2608,7 @@ class ProjectAgent:
         return client
 
     async def disconnect(self) -> None:
+        await self._stop_listening()
         client, self._client = self._client, None
         if client is not None:
             try:
@@ -2559,6 +2634,8 @@ class ProjectAgent:
         current = self._client
         if client is not None and current is not client:
             return
+        if self._listener is not asyncio.current_task():
+            await self._stop_listening()
         self._client = None
         if current is not None:
             try:
@@ -2665,6 +2742,102 @@ class ProjectAgent:
     def busy(self) -> bool:
         return self._turn is not None and not self._turn.done()
 
+    # -- turns the CLI starts itself ----------------------------------------
+    # The CLI can begin a turn with nobody in NextTex asking: a message from
+    # another Claude session, a notice that one went idle, a scheduled
+    # prompt. Its output goes into the same SDK buffer as everything else,
+    # and that buffer was read only inside a turn NextTex had started, so
+    # such a turn waited there until the writer next typed. That question's
+    # reader then stopped at the waiting turn's result, and every answer
+    # after it came one question late, which is how another session
+    # reported it on 27 September 2026. Between turns a listener reads the
+    # buffer instead, and a message that starts a turn becomes one.
+
+    def _start_listening(self) -> None:
+        client = self._client
+        if client is None or not hasattr(client, "receive_messages"):
+            return
+        if self.busy or (self._listener is not None and not self._listener.done()):
+            return
+        self._listener = asyncio.create_task(self._listen(client))
+
+    async def _stop_listening(self) -> None:
+        """Stop the listener before anything else reads the buffer. A
+        listener that has just begun a turn has already handed the stream
+        to it, so this never cuts one in half."""
+        listener, self._listener = self._listener, None
+        if listener is None or listener.done() or listener is asyncio.current_task():
+            return
+        listener.cancel()
+        try:
+            await listener
+        except (asyncio.CancelledError, Exception):
+            pass
+
+    async def _listen(self, client) -> None:
+        """Read the CLI while no turn is running, until one begins.
+
+        A user message with a non-human `origin` begins a turn, and so does
+        output with nothing before it, which only a turn nobody here asked
+        for can produce. A result with nothing before it is the tail of an
+        earlier turn: read, so the next question does not stop at it, and
+        not shown. The session id is kept from whatever says it.
+        """
+        try:
+            async for message in client.receive_messages():
+                if client is not self._client:
+                    return
+                origin = _injected(message) if isinstance(message, UserMessage) else None
+                if origin is not None or isinstance(message, (StreamEvent, AssistantMessage)):
+                    self._begin_injected(message, origin)
+                    return
+                if isinstance(message, SystemMessage):
+                    session_id = (getattr(message, "data", {}) or {}).get("session_id")
+                    if session_id and session_id != self._session_id:
+                        self._session_id = session_id
+                        self._save_session(session_id)
+                    continue
+                if isinstance(message, ResultMessage):
+                    log.info("read a result between turns that no turn was waiting for")
+            # The stream ended: the CLI is gone. The next question builds a
+            # client again and resumes the conversation from its session id.
+            if client is self._client:
+                log.info("the CLI closed its stream between turns")
+                self._listener = None
+                await self._drop_client(client)
+        except asyncio.CancelledError:
+            raise
+        except Exception as exc:
+            log.warning("reading the CLI between turns failed: %s", exc)
+            if client is self._client:
+                self._listener = None
+                await self._drop_client(client)
+
+    def _begin_injected(self, first, origin: dict | None) -> None:
+        """Run a turn the CLI began, from the message that began it.
+
+        Measured against the real CLI on 27 September 2026: a message from
+        another session begins with the reply itself, and the `origin` is
+        on the turn's `ResultMessage`, not on a user message before it. So
+        the line starts neutral and `_stream` says where it came from when
+        the result names it (`turn_origin`).
+        """
+        view = (
+            origin_view(origin, _message_text(first) if isinstance(first, UserMessage) else "")
+            if origin is not None else dict(ORIGIN_PENDING)
+        )
+        self._injected_turn = origin is None
+        self._cancelled = False
+        self._done_sent = False
+        now = time.monotonic()
+        self._last_event = now
+        self._last_used = now
+        self._why = view["label"]
+        self._listener = None
+        self._queue().put_nowait({"type": "turn_start", "prompt": "", "origin": view})
+        self._last_event = now
+        self._turn = asyncio.create_task(self._run_turn(None, first))
+
     async def ask(self, prompt: str, *, context: str = "") -> None:
         """Start a turn. Returns as soon as it is running, not when it ends.
 
@@ -2676,8 +2849,13 @@ class ProjectAgent:
         not, so the conversation on screen shows the question that was
         typed rather than the question with a chapter stapled to it.
         """
+        # The listener goes first: the SDK's buffer has one reader, and a
+        # turn the CLI began on its own may have just started, which the
+        # check below then sees as the turn that is running.
+        await self._stop_listening()
         if self.busy:
             raise RuntimeError("a turn is already running")
+        self._injected_turn = False
         self._cancelled = False
         self._done_sent = False
         self._last_event = time.monotonic()
@@ -2687,7 +2865,7 @@ class ProjectAgent:
             self._run_turn(f"{context}\n\n{prompt}" if context else prompt)
         )
 
-    async def _run_turn(self, prompt: str) -> None:
+    async def _run_turn(self, prompt: str | None, first=None) -> None:
         """Run one turn, and guarantee that it ends where the browser can see.
 
         Everything the interface does after a question is keyed on `done`
@@ -2710,7 +2888,7 @@ class ProjectAgent:
         self._result_consumed = False
         watchdog = asyncio.create_task(self._watch_for_silence())
         try:
-            await self._stream(prompt)
+            await self._stream(prompt, first)
         except asyncio.CancelledError:
             await self._emit({"type": "done", "subtype": "interrupted"})
             # Cancelled from outside, by Stop's fallback, the watchdog, the
@@ -2741,6 +2919,7 @@ class ProjectAgent:
                 await self._emit({"type": "done", "subtype": "no_result"})
             self._turn = None
             await self._apply_deferred_model()
+            self._start_listening()
 
     async def _watch_for_silence(self) -> None:
         """End a turn that has stopped producing anything at all.
@@ -2804,11 +2983,18 @@ class ProjectAgent:
         )
         return name, now - started
 
-    async def _stream(self, prompt: str) -> None:
+    async def _stream(self, prompt: str | None, first=None) -> None:
+        """One turn's messages, from the query to its result.
+
+        `prompt` is the question this client asks. A turn the CLI began on
+        its own has none: `_listen` has already read its first message,
+        which is handed in as `first` and read before the rest.
+        """
         async with self._lock:
             self._last_used = time.monotonic()
             client = await self._ensure_client()
-            await client.query(prompt)
+            if prompt is not None:
+                await client.query(prompt)
 
             # With include_partial_messages on, text arrives twice: as
             # content_block_delta events and again in the completed
@@ -2834,7 +3020,13 @@ class ProjectAgent:
                 thinking_since = None
                 await self._emit({"type": "thinking_end", "ms": elapsed})
 
-            async for message in client.receive_response():
+            async def this_turn():
+                if first is not None:
+                    yield first
+                async for message in client.receive_response():
+                    yield message
+
+            async for message in this_turn():
                 # A message from inside a subagent, which after the two
                 # layers in `_decide` and `_options` should be unreachable,
                 # and that is exactly why this is here.  The SDK emits a
@@ -2948,6 +3140,12 @@ class ProjectAgent:
                         self._session_id = session_id
                         self._save_session(session_id)
                     self._record_usage(message)
+                    if self._injected_turn:
+                        self._injected_turn = False
+                        await self._emit({
+                            "type": "turn_origin",
+                            "origin": origin_view(getattr(message, "origin", None), ""),
+                        })
                     # The CLI names a stopped turn's result its own way;
                     # the panel and the transcript key on "interrupted".
                     await self._emit({

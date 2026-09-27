@@ -1775,6 +1775,10 @@ button.nx-reads-x[data-always]:hover { color: var(--pen); }
 }
 .nx-tool-line > svg { flex: none; align-self: center; }
 .nx-tool-run { display: flex; flex-direction: column; gap: 2px; }
+/* A turn nobody here asked for: the tool line's shape, the sender's name
+   a step up in ink, the message on the first surface when opened. */
+.nx-injected-name { color: var(--ink-2); font-weight: 500; }
+.nx-injected-text { margin-left: 18px; padding: 6px 10px; border-radius: var(--nx-radius-card); background: var(--surface); color: var(--ink-2); font-size: 13px; line-height: 18px; white-space: pre-wrap; overflow-wrap: anywhere; }
 .nx-tool-run > button:hover { color: var(--ink-2); }
 .nx-tool-run .nx-tool-line .t-code-sm { color: var(--ink-2); font-size: 12px; }
 .nx-turn { border-left: 2px solid var(--pen); padding-left: 12px; }

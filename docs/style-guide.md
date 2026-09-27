@@ -200,6 +200,11 @@ else.
   has room for one says what a drop does: the file tree ("Drop to add
   them to the project") and the Claude composer ("Drop to send it with
   your question"). Nothing is drawn at rest.
+- A turn the agent began without the writer asking is introduced by one
+  line in the tool line's shape and third ink, naming where it came from
+  with the sender's name in the second ink at 500 and the time at its
+  end; the message is folded under it. It never borrows the writer's
+  question card, which is theirs alone.
 - A chip for a file shows a thumbnail when it is a picture the browser
   draws and otherwise the tree's glyph for its kind (`iconFor`), in the
   third ink; a project path in it is in the code face.
