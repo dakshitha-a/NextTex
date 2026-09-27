@@ -152,6 +152,25 @@ test("find counts its matches, steps through them, and replaces behind its own c
   await expect(panel).toHaveCount(0);
 });
 
+test("find's close sits last in its row, clear of Replace", async ({ tab }) => {
+  // CodeMirror's base theme lifts any `[name=close]` in a search panel to
+  // the panel's top right corner, which put the close on top of Replace.
+  await tab.locator(".cm-content").click();
+  await tab.keyboard.press("Control+f");
+  const panel = tab.locator(".cm-panel.cm-search");
+  const close = panel.getByRole("button", { name: "Close find" });
+  const replace = panel.locator("button[name=toggle-replace]");
+  for (const replacing of [false, true]) {
+    if (replacing) await replace.click();
+    const shut = (await close.boundingBox())!;
+    const open = (await replace.boundingBox())!;
+    expect(shut.x).toBeGreaterThanOrEqual(open.x + open.width);
+    expect(Math.abs(shut.y + shut.height / 2 - (open.y + open.height / 2))).toBeLessThan(1);
+  }
+  await close.click();
+  await expect(panel).toHaveCount(0);
+});
+
 test("completion offers the project's own labels", async ({ tab }) => {
   await tab.locator(".cm-content").click();
   await tab.keyboard.press("Control+End");

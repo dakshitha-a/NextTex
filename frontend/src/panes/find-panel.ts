@@ -112,7 +112,9 @@ export function createFindPanel(view: EditorView): Panel {
   const replaceToggle = el("button", "nx-find-quiet", { type: "button", name: "toggle-replace", "aria-expanded": String(replacing) });
   replaceToggle.textContent = "Replace";
   row.append(replaceToggle);
-  const close = iconButton("Close find", "close", "close");
+  // Not `name="close"`: the library's base theme places that name at the
+  // panel's top right corner, over Replace.
+  const close = iconButton("Close find", "close", "dismiss");
   close.addEventListener("click", () => closeSearchPanel(view));
   row.append(close);
   dom.append(row);

@@ -1074,6 +1074,14 @@ input, textarea { font: inherit; color: inherit; background: transparent; }
    editor grew forty pixels past its pane the first time the count read
    "No matches". */
 .nx-find-panel { display: flex; flex-direction: column; gap: 4px; padding: 6px 10px; contain: inline-size; }
+/* The panel keeps the library's `cm-search` class, so the library's base
+   theme still reaches it: a padding of its own, and a margin on every
+   input and button that the row's gap already provides. One class more
+   than that theme's selectors puts the kit's spacing back. The theme
+   also lifts any `[name=close]` to the top right corner, which is why
+   the close in `find-panel.ts` is named something else. */
+.cm-editor .cm-panel.cm-search.nx-find-panel { padding: 6px 10px; position: static; }
+.cm-editor .cm-panel.cm-search.nx-find-panel :is(input, button) { margin: 0; }
 .nx-find-input { width: 0; }
 .nx-find-row { display: flex; align-items: center; gap: 6px; min-width: 0; }
 .nx-find-field { flex: 1; min-width: 0; height: 28px; gap: 6px; background: var(--surface); }
