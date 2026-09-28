@@ -14,7 +14,20 @@ end to end case, the PDF changing after a write from another process, is
 
 import asyncio
 
+import pytest
+
 from server import main as server_main
+from server import session as session_module
+
+
+@pytest.fixture(autouse=True)
+def patient_debounce(monkeypatch):
+    """Long enough that the build these tests look for is still waiting
+    when they look.  A debounce that has finished waiting hands itself to
+    the build and is no longer pending, so on a slow runner a check made
+    more than 1.6 s after the fold found nothing."""
+    for name in ("COMPILE_DEBOUNCE", "UNSETTLED_DEBOUNCE", "BACKGROUND_DEBOUNCE"):
+        monkeypatch.setattr(session_module, name, 60.0)
 
 
 def fold(client, project_id: str, *paths: str) -> None:
