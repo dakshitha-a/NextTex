@@ -24,18 +24,17 @@ things go to be forgotten rather than a list anybody reads.
 
 ## In hand
 
-Torn build files, opened on 28 September 2026 from a writing agent's
-report: overlapping builds of one document left a cut-short `.aux`, an
-empty `.bbl` and once an `.aux` full of NUL bytes. Done: a cancelled
-build puts back what it touched, the agent's build and compile as you
-type no longer supersede each other, a damaged `.aux` or an empty
-bibliography is cleared once without being asked, Rebuild everything
-and the compile tool's `clean` start from a clean build directory, and
-the e2e harness ends the builds it started. Still to do: the release.
-Its tracker page is
+Nothing is in hand. Torn build files closed on 28 September 2026 at
+4.6.0, from a writing agent's report of a cut-short `.aux`, an empty
+`.bbl` and an `.aux` full of NUL bytes: a cancelled build puts back what
+it touched, a cancelled task no longer leaves an engine running beside
+the next one, the agent's build and compile as you type no longer
+supersede each other, a damaged file is cleared once without being
+asked, and Rebuild everything starts clean. It turned up and fixed the
+e2e harness leaving its builds running. Its tracker page is
 https://claude.ai/artifact/L17MEaxrgQgBMUNoewDJUJ.
 
-Before it, Citations and Word figures closed on 27 September
+Citations and Word figures closed on 27 September
 2026 at 4.2.0: citation completion that reopens after each comma,
 matches author, year and title words and offers the document's own
 bibliography, and figures that reach a Word download whatever they are
