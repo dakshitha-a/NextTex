@@ -345,7 +345,13 @@ async def _fold_tick(session: ProjectSession, paths: set[str]) -> None:
                 continue
     if edited:
         for path, text, before in edited:
-            session.note_edit(path, text, before)
+            # By the file's clock: the build the agent started right after
+            # writing it has already read it.  See `_wait_then_build`.
+            try:
+                written_at = path.stat().st_mtime
+            except OSError:
+                written_at = None
+            session.note_edit(path, text, before, written_at)
         session.schedule_compile()
     if not changed:
         return

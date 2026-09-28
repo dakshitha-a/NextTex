@@ -17,7 +17,10 @@ one the last full pass could.
 
 **Never let two runs share a build directory.** A new keystroke kills the
 run in flight -- the whole process group, because latexmk spawns children
-that outlive it otherwise -- before starting the next.
+that outlive it otherwise -- before starting the next.  A pass killed that
+way stops wherever it was, which can be half way through its `.aux`, so
+the files it would have handed to the next pass are put back as they were
+before it started (`CompileScheduler._restore`).
 
 The one non-obvious mechanism here is the stand-in main file. `\\includeonly`
 has to sit in the preamble, so scoping a build to one chapter means either
@@ -37,6 +40,7 @@ from contextlib import asynccontextmanager
 import os
 import re
 import shutil
+import signal
 import subprocess
 import sys
 import time
@@ -47,7 +51,8 @@ from typing import Callable
 
 from .childenv import without_secrets
 from .deps import uncommented
-from .proctree import end_tree
+from .atomic import write_atomically
+from .proctree import descendants, end_tree
 from .latexlog import ParsedLog, parse as parse_log
 
 #: The stand-in written beside a document when only part of it is being
@@ -280,6 +285,46 @@ def _finished_pdf(path: Path) -> bool:
             return b"%%EOF" in handle.read()
     except OSError:
         return False
+
+
+#: What a job's name is followed by when the rest has a dot of its own.
+#: Anything else with a second dot, `main.v2.aux`, is another job's.
+_TWO_PART = frozenset({"run.xml", "synctex.gz", "synctex(busy)", "kept.pdf"})
+
+#: A job's files that record a pass rather than feed the next one: the
+#: output, the log and the recorder's list.  Left out of what a cancelled
+#: build puts back, since nothing reads them into a pass and the three big
+#: ones would be copied on every keystroke for nothing.
+_NOT_STATE = frozenset({
+    "pdf", "kept.pdf", "log", "fls", "synctex.gz", "synctex(busy)", "nexttex-scope",
+})
+
+
+def job_files(build_dir: Path, jobname: str) -> list[Path]:
+    """Every file in the build directory that belongs to this job.
+
+    Two documents share a build directory, told apart by jobname, so this
+    is the list anything that rewrites or removes a job's files works
+    from; `si.aux` is never touched on behalf of `main`.
+    """
+    prefix = jobname + "."
+    try:
+        entries = list(os.scandir(build_dir))
+    except OSError:
+        return []
+    found: list[Path] = []
+    for entry in entries:
+        if not entry.name.startswith(prefix):
+            continue
+        rest = entry.name[len(prefix):]
+        if "." in rest and rest not in _TWO_PART:
+            continue
+        try:
+            if entry.is_file():
+                found.append(Path(entry.path))
+        except OSError:
+            continue
+    return found
 
 
 @dataclass
@@ -517,6 +562,33 @@ class BuildQueue:
             self._release()
 
 
+def _alive(pid: int) -> bool:
+    """Whether `pid` is still running, a zombie counting as gone."""
+    try:
+        with open(f"/proc/{pid}/stat", encoding="utf-8", errors="replace") as stat:
+            return stat.read().rsplit(")", 1)[1].split()[0] != "Z"
+    except (OSError, IndexError):
+        return False
+
+
+async def _outlived(pids: list[int], timeout: float = 3.0) -> None:
+    """Wait for processes that were asked to end, then make them.
+
+    Empty where there is no `/proc` to read, where `descendants` found
+    nothing either.
+    """
+    deadline = time.monotonic() + timeout
+    left = [pid for pid in pids if _alive(pid)]
+    while left and time.monotonic() < deadline:
+        await asyncio.sleep(0.05)
+        left = [pid for pid in left if _alive(pid)]
+    for pid in left:
+        try:
+            os.kill(pid, getattr(signal, "SIGKILL", signal.SIGTERM))
+        except OSError:
+            pass
+
+
 class CompileScheduler:
     """Serialises builds for one project.
 
@@ -638,11 +710,16 @@ class CompileScheduler:
         # latexmk spawns pdflatex and biber; killing only the parent
         # leaves them writing into the build directory. The whole tree, on
         # either platform: see `nexttex/proctree.py`.
+        below = descendants(proc.pid)
         end_tree(proc.pid)
         try:
             await asyncio.wait_for(proc.wait(), timeout=3)
         except asyncio.TimeoutError:
             end_tree(proc.pid, hard=True)
+        # latexmk going is not the engine going.  Until pdflatex has too,
+        # the next build would open the `.aux` it still has open, and the
+        # two would write the file at different offsets.
+        await _outlived(below)
 
     async def build(
         self, focus: Path | None = None, force_full: bool = False
@@ -747,6 +824,10 @@ class CompileScheduler:
         # \include writes one .aux per included file, mirrored under the
         # output directory; the engine will not create those directories.
         self._mirror_build_tree(main_source)
+        # What this pass will rewrite, as the last pass left it, so a
+        # cancel or a timeout can put it back rather than leave a torn
+        # `.aux` for the next pass to read.
+        held = await asyncio.to_thread(self._snapshot, main_source)
 
         # Without the server's credentials, as a figure script is (Q-006).
         env = {**without_secrets(os.environ), **LOG_ENV, **self.paths.search_env()}
@@ -793,8 +874,19 @@ class CompileScheduler:
 
         try:
             await asyncio.wait_for(proc.wait(), timeout=self.timeout)
+        except asyncio.CancelledError:
+            # The task awaiting this build was cancelled.  The engine does
+            # not know that, and left running it is a writer nothing
+            # tracks: `_process` goes back to None below, so the next
+            # build's `cancel` would find nothing to stop and start a
+            # second engine over the same files.  Ended here, synchronously,
+            # because a cancelled task should not wait on anything more.
+            end_tree(proc.pid, hard=True)
+            self._restore(held, main_source)
+            raise
         except asyncio.TimeoutError:
             await self.cancel()
+            await asyncio.to_thread(self._restore, held, main_source)
             return CompileResult(
                 Outcome.TIMEOUT, None, None, time.monotonic() - started, scope,
                 "full" if full_pass else "fast", engine, escape,
@@ -811,6 +903,7 @@ class CompileScheduler:
             # its engine mid-run, so a superseded full pass was reported
             # as finished, cleared the mark that asked for a full pass, and
             # left a torn .aux for the next fast pass to typeset against.
+            await asyncio.to_thread(self._restore, held, main_source)
             return CompileResult(
                 Outcome.CANCELLED, None, None, time.monotonic() - started, scope,
                 "full" if full_pass else "fast", engine, escape,
@@ -854,6 +947,55 @@ class CompileScheduler:
             outcome, log, pdf, time.monotonic() - started, scope,
             "full" if full_pass else "fast", engine, escape, version,
         )
+
+    def _state_files(self, main_source: str) -> list[Path]:
+        """The files one pass hands the next: this job's, less its output
+        and log, and the `.aux` of every chapter it includes."""
+        prefix = len(self.paths.jobname) + 1
+        files = [
+            path for path in job_files(self.paths.build_dir, self.paths.jobname)
+            if path.name[prefix:] not in _NOT_STATE
+        ]
+        for target in included_targets(main_source):
+            aux = self.paths.build_dir / f"{target}.aux"
+            if aux.is_file():
+                files.append(aux)
+        return files
+
+    def _snapshot(self, main_source: str) -> dict[Path, bytes]:
+        """Those files' bytes, held in memory: tens of kilobytes on a
+        thesis, and nothing on disk for the tree or git to see."""
+        held: dict[Path, bytes] = {}
+        for path in self._state_files(main_source):
+            try:
+                held[path] = path.read_bytes()
+            except OSError:
+                continue
+        return held
+
+    def _restore(self, held: dict[Path, bytes], main_source: str) -> None:
+        """Put a cancelled pass's files back as the pass before it left them.
+
+        The four reports of 27 and 28 September were this: an agent's edit
+        started a build, its own compile a moment later cancelled that
+        one, and the pdflatex killed half way through `si.aux` left the
+        file cut short.  The next pass stopped on "File ended while
+        scanning use of \\@newl@bel", and a bibtex run over the short
+        file wrote an empty `.bbl` that every later build kept.
+        """
+        for path in self._state_files(main_source):
+            if path not in held:
+                path.unlink(missing_ok=True)
+        for path, data in held.items():
+            try:
+                if path.read_bytes() == data:
+                    continue
+            except OSError:
+                pass
+            try:
+                write_atomically(path, data)
+            except OSError:
+                continue
 
     def _note_unresolved(self, log: ParsedLog, full_pass: bool) -> None:
         """Decide from the log whether the next build must be a full one.

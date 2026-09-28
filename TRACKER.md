@@ -24,7 +24,17 @@ things go to be forgotten rather than a list anybody reads.
 
 ## In hand
 
-Nothing is in hand. Citations and Word figures closed on 27 September
+Torn build files, opened on 28 September 2026 from a writing agent's
+report: overlapping builds of one document left a cut-short `.aux`, an
+empty `.bbl` and once an `.aux` full of NUL bytes. Done: a cancelled
+build puts back what it touched, and the agent's build and compile as
+you type no longer supersede each other. Still to do: recovery from a
+corrupt `.aux` or an empty bibliography, a clean Rebuild everything and
+a `clean` option on the compile tool, and the e2e build processes that
+outlive their server. Its tracker page is
+https://claude.ai/artifact/L17MEaxrgQgBMUNoewDJUJ.
+
+Before it, Citations and Word figures closed on 27 September
 2026 at 4.2.0: citation completion that reopens after each comma,
 matches author, year and title words and offers the document's own
 bibliography, and figures that reach a Word download whatever they are

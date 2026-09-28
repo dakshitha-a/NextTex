@@ -95,6 +95,18 @@ class DocumentState:
     diagnostics: list[dict] = field(default_factory=list)
     debounce: asyncio.Task | None = None
     unsettled: bool = False
+    #: When the newest edit to a file this document reads was made, by the
+    #: file's own clock when the watcher saw it, and the moment the build
+    #: in flight began, and the moment the newest whole build that left
+    #: nothing owed began.  An edit older than a build's start is one that
+    #: build read.  See `_wait_then_build`.
+    edited_at: float = 0.0
+    started_at: float = 0.0
+    covered_at: float = 0.0
+    #: The id of the newest build that finished rather than being
+    #: superseded, and the callers waiting for the next one to.
+    finished: int = 0
+    waiters: list = field(default_factory=list)
 
 
 MATH_DELIMITER = re.compile(r"(?<!\\)\$")
@@ -1136,7 +1148,7 @@ class ProjectSession:
     # -- compiling --------------------------------------------------------
     async def compile(
         self, force_full: bool = False, document: str | None = None,
-        settling: bool = False,
+        settling: bool = False, follow: bool = True,
     ) -> CompileResult:
         """Build one document, and let it settle.
 
@@ -1157,8 +1169,18 @@ class ProjectSession:
         spawns a second, so a package that always asks for a rerun cannot
         loop; and it is spawned rather than awaited, so the route and the
         agent's tool get the fast result when it is ready.
+
+        `follow` is for a caller that wants an answer, the Rebuild button
+        and the agent's `compile` tool: when a newer build supersedes this
+        one, the caller gets that build's result instead of "cancelled".
+        The agent used to see "cancelled", build again, and supersede the
+        build that had superseded it.  Such a caller also takes the place
+        of a debounced build still waiting for this document, since
+        whatever that build was for has been written by now.
         """
         state = self.document_for(document)
+        if follow and not settling and state.debounce is not None and not state.debounce.done():
+            state.debounce.cancel()
         # Every build carries an id, and its result carries the same one.
         # A cancelled build's result arrives *after* its replacement has
         # already started, so a client clearing "compiling" on any cancelled
@@ -1184,6 +1206,9 @@ class ProjectSession:
         # the file it points at.
         focus = self._focus if self._owns(state, self._focus) else None
         async with self.queue.slot(priority=state.path == self.visible):
+            started = time.time()
+            if state.in_flight == build:
+                state.started_at = started
             result = await state.compiler.build(focus=focus, force_full=force_full)
         payload = await self.client_payload(result, state.path)
         state.last_payload = payload
@@ -1199,16 +1224,52 @@ class ProjectSession:
         # finishing must not say the newer one has stopped.
         if state.in_flight == build:
             state.in_flight = 0
+            state.started_at = 0.0
+        if result.outcome is not Outcome.CANCELLED:
+            if build > state.finished:
+                state.finished = build
+            if result.scope == "full" and not state.compiler.needs_full:
+                state.covered_at = max(state.covered_at, started)
+            waiters, state.waiters = state.waiters, []
+            for waiter in waiters:
+                if not waiter.done():
+                    waiter.set_result(result)
         await self.events.publish(
             {"type": "compile_done", "build": build, "document": state.path,
              "settling": settling, **payload}
         )
         if self._unsettled_by(state, result, build, settling):
             spawn(
-                self.compile(force_full=True, document=state.path, settling=True),
+                self.compile(
+                    force_full=True, document=state.path, settling=True, follow=False,
+                ),
                 "the settling build",
             )
+        if result.outcome is Outcome.CANCELLED and follow:
+            return await self._result_after(state, build, result)
         return result
+
+    async def _result_after(
+        self, state: DocumentState, build: int, fallback: CompileResult,
+    ) -> CompileResult:
+        """The result of the build that replaced `build`, once it is in.
+
+        `fallback` when none arrives: the document went off the strip, or
+        typing kept replacing builds for longer than two build timeouts.
+        """
+        if state.finished > build and state.last_result is not None:
+            return state.last_result
+        waiter = asyncio.get_running_loop().create_future()
+        state.waiters.append(waiter)
+        try:
+            return await asyncio.wait_for(
+                waiter, timeout=2 * state.compiler.timeout
+            )
+        except asyncio.TimeoutError:
+            return fallback
+        finally:
+            if waiter in state.waiters:
+                state.waiters.remove(waiter)
 
     def _keep_unopened(
         self, state: DocumentState, result: CompileResult, payload: dict,
@@ -1310,17 +1371,56 @@ class ProjectSession:
         )
 
     async def _wait_then_build(self, name: str, delay: float) -> None:
+        """Build once the edits have settled, unless a build has read them.
+
+        The agent edits a file and calls `compile` straight away; the
+        watcher sees the same write a moment later and asks for a build
+        of its own.  Started, that build superseded the agent's, killing
+        its pdflatex part way through the `.aux`, which is how a torn
+        `si.aux` came about four times in two days.  So a build already
+        running that began after the newest edit is waited for, not
+        replaced, and when a whole build that left nothing owed has read
+        the edits, nothing is built at all.  A keystroke made while a
+        build runs is newer than its start, and still replaces it.
+        """
         try:
             await asyncio.sleep(delay)
+            state = self.documents.get(name)
+            while (
+                state is not None and state.in_flight
+                and state.started_at > state.edited_at
+            ):
+                waiter = asyncio.get_running_loop().create_future()
+                state.waiters.append(waiter)
+                try:
+                    await asyncio.wait_for(waiter, timeout=2 * state.compiler.timeout)
+                except asyncio.TimeoutError:
+                    break
+                finally:
+                    if waiter in state.waiters:
+                        state.waiters.remove(waiter)
         except asyncio.CancelledError:
             return
-        await self.compile(document=name)
+        state = self.documents.get(name)
+        if state is None or state.covered_at > state.edited_at:
+            return
+        # Waiting is over and building begins, so this task is no longer
+        # a debounce for the next edit to cancel.  It used to be: a
+        # keystroke during the build cancelled the task, the engine was
+        # left running with nothing holding it, and the build after the
+        # keystroke started a second pdflatex over the same `.aux`.  Two
+        # writers at two offsets is how `si.aux` came to hold 8144 NUL
+        # bytes.  A newer build now supersedes this one the ordinary way.
+        if state.debounce is asyncio.current_task():
+            state.debounce = None
+        await self.compile(document=name, follow=False)
 
     def note_edit(
         self,
         path: Path,
         text: str | bytes | None = None,
         previous: str | bytes | None = None,
+        written_at: float | None = None,
     ) -> None:
         """Tell the documents that read this file that it changed.
 
@@ -1328,7 +1428,12 @@ class ProjectSession:
         the document that includes it; editing the supplementary information
         rebuilds only that. `schedule_compile` then builds what is listed
         here, so the callers of it need no idea any of this happened.
+
+        `written_at` is when the file changed, which only the watcher
+        knows, since it sees a write after the fact; every other caller
+        wrote the file just now.
         """
+        when = written_at if written_at is not None else time.time()
         relative = self.relative_or_none(str(path))
         if relative:
             self.deps.note_changed(relative)
@@ -1348,6 +1453,7 @@ class ProjectSession:
             state = self.documents.get(name)
             if state is None:
                 continue
+            state.edited_at = max(state.edited_at, when)
             if binary:
                 # A figure rather than prose.  There is no half-finished
                 # equation to wait for, and the honest answer for the build
