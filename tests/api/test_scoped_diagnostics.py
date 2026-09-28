@@ -34,7 +34,7 @@ def build(session, outcome_of):
     state = session.documents["main.tex"]
     state.compiler._needs_full = False
 
-    async def fake_build(focus=None, force_full=False):
+    async def fake_build(focus=None, force_full=False, clean=False):
         return outcome_of
 
     async def cancel():

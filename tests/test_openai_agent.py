@@ -311,6 +311,16 @@ def test_compiling_names_the_document_and_counts_what_the_build_said(tmp_path):
 
     refused = asyncio.run(made._dispatch("compile_document", {"document": "nope.tex"}))
     assert built == ["esi.tex"], "a name the project does not build must not build the one on screen"
+
+    cleaned: list[dict] = []
+
+    async def clean_now(**kwargs):
+        cleaned.append(kwargs)
+        return CompileResult(Outcome.OK, ParsedLog(pages=3), None, 0.5, "full", "full")
+
+    made.compile_now = clean_now
+    asyncio.run(made._dispatch("compile_document", {"document": "esi.tex", "clean": True}))
+    assert cleaned == [{"document": "esi.tex", "clean": True}]
     assert "nope.tex is not a document this project builds" in refused
     assert "main.tex, esi.tex" in refused
 

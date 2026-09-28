@@ -39,7 +39,7 @@ def test_publishing_a_huge_build_does_not_hold_the_loop(client, opened, project_
     state = session.documents["main.tex"]
     result = big_result(project_dir)
 
-    async def fake_build(focus=None, force_full=False):
+    async def fake_build(focus=None, force_full=False, clean=False):
         return result
 
     async def cancel():
@@ -87,7 +87,7 @@ def test_the_compile_route_answers_with_the_published_payload(client, opened, pr
     state = session.documents["main.tex"]
     result = big_result(project_dir)
 
-    async def fake_build(focus=None, force_full=False):
+    async def fake_build(focus=None, force_full=False, clean=False):
         return result
 
     async def cancel():

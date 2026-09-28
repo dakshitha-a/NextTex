@@ -5448,14 +5448,18 @@ async def compile_now(
     project_id: str,
     full: bool = Body(False, embed=True),
     document: str = Body("", embed=True),
+    clean: bool = Body(False, embed=True),
 ):
     """Build one document now.
 
     An empty `document` means the main one, which is what every caller
-    written before a project could have several sends.
+    written before a project could have several sends.  `clean` removes
+    the document's build files first; Rebuild everything sends it.
     """
     session = session_for(project_id)
-    result = await session.compile(force_full=full, document=document or None)
+    result = await session.compile(
+        force_full=full, document=document or None, clean=clean,
+    )
     state = session.document_for(document)
     # The payload the build already made and published, unless a newer
     # build has replaced it, in which case this one's is made again, off

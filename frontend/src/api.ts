@@ -775,8 +775,13 @@ const api = {
       { method: "DELETE" },
     ),
 
+  /** `full` is Rebuild everything, which starts from a clean build
+   *  directory: an `.aux` a cancelled pass cut short survives a full
+   *  pass, and only removing it gets the writer past it. */
   compile: (id: string, full = false, document = "") =>
-    request<CompileResult>(`/projects/${id}/compile`, json({ full, document })),
+    request<CompileResult>(
+      `/projects/${id}/compile`, json({ full, document, clean: full }),
+    ),
   /** Which documents are previewed, which could be, and who reads what. */
   documents: (id: string) =>
     request<DocumentsPayload>(`/projects/${id}/documents`),

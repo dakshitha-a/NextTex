@@ -335,12 +335,16 @@ TOOLS: list[dict] = [
                 "errors, warnings, undefined citations and references, "
                 "overfull boxes. A project can hold several documents; name "
                 "one with `document` (a root .tex path relative to the "
-                "project), or leave it out for the one on screen."
+                "project), or leave it out for the one on screen. `clean` "
+                "true removes the document's .aux, .bbl and other build files "
+                "first; use it when a build complains about a file under the "
+                "build directory or the bibliography stays empty."
             ),
             "parameters": {
                 "type": "object",
                 "properties": {
                     "document": {"type": "string", "description": "A root .tex file, relative to the project."},
+                    "clean": {"type": "boolean", "description": "Remove this document's build files first."},
                 },
             },
         },
@@ -1100,9 +1104,10 @@ class OpenAIAgent:
                 known = ", ".join(self.documents()) or "none yet"
                 return (f"{named} is not a document this project builds. "
                         f"The documents are: {known}.")
-            result = await self._maybe(
-                self.compile_now(document=named) if named else self.compile_now()
-            )
+            kwargs = {"document": named} if named else {}
+            if args.get("clean"):
+                kwargs["clean"] = True
+            result = await self._maybe(self.compile_now(**kwargs))
             payload = result.as_dict() if hasattr(result, "as_dict") else (result or {})
             if not isinstance(payload, dict):
                 payload = {}

@@ -48,7 +48,7 @@ def drive(session, results: list[CompileResult], **first):
     calls: list[dict] = []
     remaining = list(results)
 
-    async def build(focus=None, force_full=False):
+    async def build(focus=None, force_full=False, clean=False):
         calls.append({"force_full": force_full})
         return remaining.pop(0) if remaining else full(False)
 

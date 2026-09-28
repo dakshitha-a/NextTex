@@ -142,6 +142,72 @@ def test_a_keystroke_during_a_build_still_replaces_it_and_the_caller_hears_the_r
     assert result.outcome is Outcome.OK, "the caller was told 'cancelled'"
 
 
+def _after_a_whole_build(client, project_id, fake):
+    """A finished whole build that left nothing owed, so that anything the
+    session thinks it read will be skipped."""
+    session = server_main.SESSIONS[project_id]
+
+    async def build():
+        await session.compile(document="main.tex")
+
+    client.portal.call(build)
+    assert fake.ran == 1
+
+
+def test_a_file_synced_in_with_an_old_mtime_is_still_built(
+    client, opened, project_dir, monkeypatch,
+):
+    """Dropbox, `rsync -a` and `unzip` keep the source's mtime. Believed,
+    it is older than the last whole build, which would then count as
+    having read the file, and the preview would stay stale."""
+    import os
+
+    monkeypatch.setattr(session_module, "COMPILE_DEBOUNCE", 0.05)
+    project_id = opened["id"]
+    fake = _stand_in(client, project_id)
+    _after_a_whole_build(client, project_id, fake)
+    session = server_main.SESSIONS[project_id]
+    main = project_dir / "main.tex"
+    text = main.read_text(encoding="utf-8") + "\nSynced from elsewhere.\n"
+    main.write_text(text, encoding="utf-8")
+    old = main.stat().st_mtime - 3600
+    os.utime(main, (old, old))
+
+    async def fold_then_wait():
+        await server_main._fold_tick(session, {"main.tex"})
+        for _ in range(100):
+            await asyncio.sleep(0.02)
+            if fake.ran == 2 and not session.documents["main.tex"].in_flight:
+                break
+
+    client.portal.call(fold_then_wait)
+
+    assert fake.ran == 2, "a synced file was taken as already built"
+
+
+def test_an_upload_that_says_nothing_about_what_changed_is_still_built(
+    client, opened, monkeypatch,
+):
+    """An upload or a restore schedules a build with no `note_edit`, so
+    nothing stamped when it happened."""
+    monkeypatch.setattr(session_module, "COMPILE_DEBOUNCE", 0.05)
+    project_id = opened["id"]
+    fake = _stand_in(client, project_id)
+    _after_a_whole_build(client, project_id, fake)
+    session = server_main.SESSIONS[project_id]
+
+    async def schedule_then_wait():
+        session.schedule_compile()
+        for _ in range(100):
+            await asyncio.sleep(0.02)
+            if fake.ran == 2 and not session.documents["main.tex"].in_flight:
+                break
+
+    client.portal.call(schedule_then_wait)
+
+    assert fake.ran == 2
+
+
 def test_a_keystroke_during_a_debounced_build_does_not_cancel_its_task(
     client, opened, project_dir, monkeypatch,
 ):

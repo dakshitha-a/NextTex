@@ -402,6 +402,12 @@ How to work here:
   `compile_diagnostics` lists every document's problems under its name.
   Read the counts a build reports, not only the errors: undefined
   citations mean the PDF has question marks in it.
+- Never run pdflatex, xelatex, lualatex, bibtex, biber or latexmk
+  yourself, and never delete or edit files in the build directory. NextTex
+  builds on its own as files change, and a second engine in the same
+  build directory corrupts the .aux and .bbl files both read. When a
+  build looks wrong because of those files, call `compile` with
+  `clean: true`.
 
 Explain what you changed in a sentence or two. The user can see the diff, so
 do not restate it line by line.
@@ -1664,8 +1670,11 @@ class ProjectAgent:
             "project, for a project with several; left out, it is the one on "
             "screen. Use this to check your own work before saying you are "
             "done, and read the counts, not only the errors: a build with no "
-            "errors and three undefined citations is not finished.",
-            {"document": str},
+            "errors and three undefined citations is not finished. `clean` "
+            "true removes the document's .aux, .bbl and other build files "
+            "first; use it when a build complains about a file under the "
+            "build directory or the bibliography stays empty.",
+            {"document": str, "clean": bool},
         )
         async def compile_document(args: dict) -> dict:
             return await self.compile_tool(args)
@@ -2092,9 +2101,10 @@ class ProjectAgent:
                 f"{named} is not a document this project builds. "
                 f"The documents are: {known}."
             )
-        result = await (
-            self.compile_now(document=named) if named else self.compile_now()
-        )
+        kwargs = {"document": named} if named else {}
+        if args.get("clean"):
+            kwargs["clean"] = True
+        result = await self.compile_now(**kwargs)
         payload = result.as_dict() if hasattr(result, "as_dict") else result
         return self._text(compile_report(named, payload))
 

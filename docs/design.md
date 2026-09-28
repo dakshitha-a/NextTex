@@ -11153,3 +11153,36 @@ scripted agent begin such a turn after an asked one, and checks that
 the line appears with nothing typed, that a question typed meanwhile
 waits and is answered, that the message opens, and that a reload keeps
 the line.
+
+## 84. Rebuild everything starts clean
+
+A writing agent reported on 28 September 2026 that overlapping builds
+had damaged the files in `build/` four times in two days: an `.aux` cut
+short, an empty bibliography that every later build kept, and an
+`si.aux` with 8144 NUL bytes that stopped the document building at all.
+The writer was offered Rebuild everything, and did not know whether it
+cleared those files or only built again. It only built again, over the
+same damaged `.aux`, so deleting the file by hand was the only way past.
+
+Rebuild everything now means what it says. It removes the document's
+own build files, its `.aux`, `.bbl`, latexmk's record and the rest,
+keeps the PDF so the preview has pages while it runs, and builds the
+whole document from nothing. Another document's files in the same build
+directory are left alone. Rebuild stays the quick one, over what the
+last build left. Nothing on screen changes: the button, its place and
+its words are the ones the Build drawer already had, so there was
+nothing new to draw on the direction page.
+
+The writer should rarely need it. A build that finds its `.aux` cut off
+or full of NUL bytes clears it before the engine reads it, and a build
+whose bibliography was made from an incomplete `.aux`, which bibtex
+says in so many words, is cleaned and run again once, on its own. The
+agent's `compile` tool takes `clean` for the same thing, and says when a
+build recovered, so it does not look for the fault in the writer's text.
+The agent is told never to run pdflatex or bibtex itself, since a second
+engine in the build directory is how such files get damaged.
+
+`e2e/specs/clean-rebuild.spec.ts` presses Rebuild and finds a leftover
+file kept, presses Rebuild everything and finds it gone with another
+document's file untouched, then fills the `.aux` with NUL bytes and
+builds past it with Rebuild everything.

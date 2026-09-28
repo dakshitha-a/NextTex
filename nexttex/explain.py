@@ -388,6 +388,9 @@ def compile_report(document: str, payload: dict) -> str:
     line = head + ", ".join(counts) + f", {seconds:.1f} s"
     if payload.get("bibliographyStale"):
         line += ". The engine asked for the bibliography to be rerun; the next build will."
+    if payload.get("recovered"):
+        line += (f". {payload['recovered']}, so the build files were cleared and it was "
+                 "built again from nothing; nothing in the source needs changing for that")
     errors = [d for d in payload.get("diagnostics", []) if d.get("severity") == "error"]
     if errors:
         line += "\n" + "\n".join(

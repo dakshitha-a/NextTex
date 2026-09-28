@@ -254,6 +254,10 @@ class CompileResult:
     #: The build wrote no PDF, as pdfTeX does when it stops on a fatal
     #: error, and the one on disk is the last build's, put back.
     pdf_kept: bool = False
+    #: Why the build was cleaned and run again on its own, or "".  The
+    #: agent's report says so, so it does not go looking for a fault in
+    #: the writer's source that a damaged build file caused.
+    recovered: str = ""
 
     def as_dict(self) -> dict:
         return {
@@ -265,6 +269,7 @@ class CompileResult:
             "shellEscape": self.shell_escape,
             "engineVersion": self.engine_version,
             "pdfKept": self.pdf_kept,
+            "recovered": self.recovered,
             "pdf": str(self.pdf) if self.pdf else None,
             **(self.log.as_dict() if self.log else
                {"diagnostics": [], "errorCount": 0, "warningCount": 0, "rawTail": ""}),
@@ -298,6 +303,21 @@ _TWO_PART = frozenset({"run.xml", "synctex.gz", "synctex(busy)", "kept.pdf"})
 _NOT_STATE = frozenset({
     "pdf", "kept.pdf", "log", "fls", "synctex.gz", "synctex(busy)", "nexttex-scope",
 })
+
+
+#: What a clean build keeps of a job: the PDF and what goes with it, so
+#: the preview has pages to show while the clean build runs.
+_KEPT_BY_CLEAN = frozenset({"pdf", "kept.pdf", "synctex.gz", "nexttex-scope"})
+
+#: Errors that name a file a previous pass wrote.  Only acted on when the
+#: file they point at is in the build directory, because "File ended
+#: while scanning" is also what an unclosed brace in the writer's own
+#: text says.
+_TORN_ERRORS = (
+    "File ended while scanning",
+    "Text line contains an invalid character",
+    "Runaway argument",
+)
 
 
 def job_files(build_dir: Path, jobname: str) -> list[Path]:
@@ -722,9 +742,19 @@ class CompileScheduler:
         await _outlived(below)
 
     async def build(
-        self, focus: Path | None = None, force_full: bool = False
+        self, focus: Path | None = None, force_full: bool = False,
+        clean: bool = False,
     ) -> CompileResult:
-        """Compile, scoped to `focus`'s chapter when that is possible."""
+        """Compile, scoped to `focus`'s chapter when that is possible.
+
+        `clean` first removes what earlier passes left for this document,
+        its `.aux`, `.bbl`, latexmk's database and the rest, keeping only
+        the PDF, and then runs a full pass: what Rebuild everything means,
+        and what the agent's `compile` tool asks for with `clean`.
+
+        A build whose files turn out to be damaged is cleaned and run
+        again once, without being asked; see `_damaged`.
+        """
         self._generation += 1
         generation = self._generation
         await self.cancel()
@@ -735,7 +765,15 @@ class CompileScheduler:
                 return CompileResult(Outcome.CANCELLED, None, None, 0.0, "full", "fast")
             scope_before = self._set_aside_pdf()
             try:
-                result = await self._run(focus, force_full)
+                result = await self._run(focus, force_full, clean)
+                if (
+                    result.outcome in (Outcome.OK, Outcome.ERRORS)
+                    and generation == self._generation
+                ):
+                    why = await asyncio.to_thread(self._damaged, result)
+                    if why:
+                        result = await self._run(None, True, True)
+                        result.recovered = why
             finally:
                 kept = self._settle_pdf(scope_before)
             if kept:
@@ -784,12 +822,25 @@ class CompileScheduler:
             self._note_pdf_scope(scope_before)
         return True
 
-    async def _run(self, focus: Path | None, force_full: bool) -> CompileResult:
+    async def _run(
+        self, focus: Path | None, force_full: bool, clean: bool = False,
+    ) -> CompileResult:
         started = time.monotonic()
         generation = self._generation
         self.paths.build_dir.mkdir(parents=True, exist_ok=True)
 
         main_source = self.paths.main.read_text(encoding="utf-8", errors="replace")
+        recovered = ""
+        if not clean and await asyncio.to_thread(self._torn, main_source):
+            # A file the last pass cut short, or two writers left holes
+            # in: the engine would stop on it at \begin{document}, and
+            # every later pass with it, so it goes before this one starts.
+            clean = True
+            recovered = f"{self.paths.jobname}.aux was damaged"
+        if clean:
+            await asyncio.to_thread(self._clean, main_source)
+            force_full = True
+            self._rerun_pending = True
         scope = "full"
         only = None
         if (
@@ -946,6 +997,7 @@ class CompileScheduler:
         return CompileResult(
             outcome, log, pdf, time.monotonic() - started, scope,
             "full" if full_pass else "fast", engine, escape, version,
+            recovered=recovered,
         )
 
     def _state_files(self, main_source: str) -> list[Path]:
@@ -961,6 +1013,96 @@ class CompileScheduler:
             if aux.is_file():
                 files.append(aux)
         return files
+
+    def _clean(self, main_source: str) -> None:
+        """Remove what earlier passes left for this document and no other."""
+        prefix = len(self.paths.jobname) + 1
+        doomed = [
+            path for path in job_files(self.paths.build_dir, self.paths.jobname)
+            if path.name[prefix:] not in _KEPT_BY_CLEAN
+        ]
+        doomed += [
+            self.paths.build_dir / f"{target}.aux"
+            for target in included_targets(main_source)
+        ]
+        for path in doomed:
+            try:
+                path.unlink(missing_ok=True)
+            except OSError:
+                continue
+        # Nothing a full pass assumed about the old files still holds.
+        self._unresolved_after_full = None
+
+    def _torn(self, main_source: str) -> bool:
+        """Whether an `.aux` this document reads is damaged beyond reading.
+
+        TeX writes an `.aux` a whole line at a time, so a file that does
+        not end in a newline was cut off, and one holding NUL bytes had
+        two writers.  Both stop the engine at \\begin{document}.  An
+        unclosed brace in the writer's text leaves neither, so a genuine
+        mistake never costs a clean build.
+        """
+        files = [self.paths.build_dir / f"{self.paths.jobname}.aux"]
+        files += [
+            self.paths.build_dir / f"{target}.aux"
+            for target in included_targets(main_source)
+        ]
+        for path in files:
+            try:
+                data = path.read_bytes()
+            except OSError:
+                continue
+            if b"\0" in data or (data and not data.endswith(b"\n")):
+                return True
+        return False
+
+    def _damaged(self, result: CompileResult) -> str:
+        """Why a finished build must be cleaned and run again, or "".
+
+        Two ways, both from the reports of 27 and 28 September 2026.  An
+        error the engine placed in a file under the build directory, the
+        "invalid character" in `si.aux` that nothing but deleting it got
+        past.  And a bibliography built from an `.aux` that was incomplete
+        when bibtex read it: bibtex said "I found no \\citation commands",
+        wrote an empty `.bbl`, and the builds after it were fast passes
+        that never run bibtex, 67 citations undefined throughout.
+        """
+        log = result.log
+        if log is None:
+            return ""
+        build_dir = self.paths.build_dir.resolve()
+        for error in log.errors:
+            if error.file is None or not any(s in error.message for s in _TORN_ERRORS):
+                continue
+            try:
+                inside = error.file.resolve().is_relative_to(build_dir)
+            except (OSError, ValueError):
+                inside = False
+            if inside:
+                return f"{error.file.name} was damaged"
+        # Any pass, not only a full one: the full pass that ran bibtex over
+        # the short file stored its 67 undefined keys as the ones a full
+        # pass leaves, so `_note_unresolved` saw every fast pass after it
+        # as agreeing, and none ever asked for bibtex again.
+        if not log.undefined_citations:
+            return ""
+        job = self.paths.build_dir / self.paths.jobname
+        try:
+            aux = job.with_name(job.name + ".aux").read_text(encoding="utf-8", errors="replace")
+        except OSError:
+            return ""
+        if "\\citation{" not in aux or "\\bibdata{" not in aux:
+            return ""
+        bbl = job.with_name(job.name + ".bbl")
+        try:
+            blg = job.with_name(job.name + ".blg").read_text(encoding="utf-8", errors="replace")
+        except OSError:
+            blg = ""
+        # Only bibtex's own word for it: an empty `.bbl` is also what a
+        # missing `.bib` leaves, and cleaning would not mend that.
+        if "I found no \\citation commands" in blg:
+            return f"{bbl.name} was built from an incomplete {self.paths.jobname}.aux"
+        return ""
 
     def _snapshot(self, main_source: str) -> dict[Path, bytes]:
         """Those files' bytes, held in memory: tens of kilobytes on a

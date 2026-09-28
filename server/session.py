@@ -67,6 +67,11 @@ HISTORY_EVENT_DELAY = 0.3
 # the time somebody switches to it.
 BACKGROUND_DEBOUNCE = 4.0
 
+# The oldest a file's own mtime may be and still be believed as the moment
+# of an edit the watcher has just seen.  The watcher sees a write within a
+# second or two; a file synced in with its source's mtime is hours old.
+TRUSTED_MTIME_AGE = 10.0
+
 
 @dataclass
 class DocumentState:
@@ -1148,7 +1153,7 @@ class ProjectSession:
     # -- compiling --------------------------------------------------------
     async def compile(
         self, force_full: bool = False, document: str | None = None,
-        settling: bool = False, follow: bool = True,
+        settling: bool = False, follow: bool = True, clean: bool = False,
     ) -> CompileResult:
         """Build one document, and let it settle.
 
@@ -1177,6 +1182,12 @@ class ProjectSession:
         build that had superseded it.  Such a caller also takes the place
         of a debounced build still waiting for this document, since
         whatever that build was for has been written by now.
+
+        `clean` is Rebuild everything and the agent's `compile` with
+        `clean`: this document's build files go first.  It is not
+        `force_full`, which the settling build and a download ask for,
+        and neither of those may throw away the `.aux` a writer's cross
+        references are waiting on.
         """
         state = self.document_for(document)
         if follow and not settling and state.debounce is not None and not state.debounce.done():
@@ -1209,7 +1220,9 @@ class ProjectSession:
             started = time.time()
             if state.in_flight == build:
                 state.started_at = started
-            result = await state.compiler.build(focus=focus, force_full=force_full)
+            result = await state.compiler.build(
+                focus=focus, force_full=force_full or clean, clean=clean,
+            )
         payload = await self.client_payload(result, state.path)
         state.last_payload = payload
         # A superseded build carries no log.  Keeping its empty diagnostics
@@ -1344,6 +1357,13 @@ class ProjectSession:
             self._read_by_none = False
             return
         self._read_by_none = False
+        if not self._dirty:
+            # Nobody said what changed, so nothing stamped when: an upload
+            # or a restore.  Now, or a whole build that began before it
+            # would count as having read it, and `_wait_then_build` would
+            # build nothing.
+            for state in self.documents.values():
+                state.edited_at = time.time()
         targets = self._visible_first(self._dirty or set(self.documents))
         self._dirty = set()
 
@@ -1431,9 +1451,17 @@ class ProjectSession:
 
         `written_at` is when the file changed, which only the watcher
         knows, since it sees a write after the fact; every other caller
-        wrote the file just now.
+        wrote the file just now.  It is believed only when it is recent:
+        Dropbox, OneDrive, `rsync -a`, `cp -p`, `tar` and `unzip` all
+        deliver a file with its source's old mtime, older than the last
+        whole build, and that build would then count as having read it.
         """
-        when = written_at if written_at is not None else time.time()
+        now = time.time()
+        when = (
+            written_at
+            if written_at is not None and 0 <= now - written_at <= TRUSTED_MTIME_AGE
+            else now
+        )
         relative = self.relative_or_none(str(path))
         if relative:
             self.deps.note_changed(relative)

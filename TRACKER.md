@@ -27,11 +27,12 @@ things go to be forgotten rather than a list anybody reads.
 Torn build files, opened on 28 September 2026 from a writing agent's
 report: overlapping builds of one document left a cut-short `.aux`, an
 empty `.bbl` and once an `.aux` full of NUL bytes. Done: a cancelled
-build puts back what it touched, and the agent's build and compile as
-you type no longer supersede each other. Still to do: recovery from a
-corrupt `.aux` or an empty bibliography, a clean Rebuild everything and
-a `clean` option on the compile tool, and the e2e build processes that
-outlive their server. Its tracker page is
+build puts back what it touched, the agent's build and compile as you
+type no longer supersede each other, a damaged `.aux` or an empty
+bibliography is cleared once without being asked, Rebuild everything
+and the compile tool's `clean` start from a clean build directory, and
+the e2e harness ends the builds it started. Still to do: the release.
+Its tracker page is
 https://claude.ai/artifact/L17MEaxrgQgBMUNoewDJUJ.
 
 Before it, Citations and Word figures closed on 27 September

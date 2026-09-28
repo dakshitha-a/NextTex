@@ -592,6 +592,13 @@ the full pass by itself a moment later, so the page settles without you
 pressing Rebuild. A half-finished equation holds the build back for four
 seconds rather than reporting an error you already know about.
 
+The files a build leaves for the next one, the `.aux` and the
+bibliography, are looked after too. If one is ever damaged, NextTex clears
+it and builds again on its own. Rebuild everything, at the foot of the
+Build drawer, always starts from nothing: it clears the document's build
+files, keeps the pages on screen while it works, and typesets the whole
+document again.
+
 **The engine is the document's choice.** A paper in a non-Latin script,
 or one whose venue hands out a font, needs `fontspec`, and `fontspec`
 needs XeTeX or LuaTeX. Put `% !TeX program = xelatex` (or `lualatex`) on

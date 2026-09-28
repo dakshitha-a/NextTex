@@ -140,3 +140,154 @@ def test_a_build_whose_task_is_cancelled_leaves_no_engine_running(tmp_path, monk
 
     assert not build_module._alive(seen[0]), "the engine outlived its build"
     assert (build / "main.aux").read_text(encoding="utf-8") == WHOLE_AUX
+
+
+# -- recovery and the clean build -------------------------------------------
+#
+# Against the real engine, since what is being shown is that pdflatex and
+# latexmk get past files that stopped them on 28 September.
+
+import shutil
+
+import pytest
+
+REAL = shutil.which("latexmk") and shutil.which("pdflatex")
+needs_tex = pytest.mark.skipif(not REAL, reason="needs latexmk and pdflatex")
+
+CITING = (
+    "\\documentclass{article}\n"
+    "\\begin{document}\n"
+    "\\section{One}\\label{sec:one}\n"
+    "See \\ref{sec:one} and \\cite{knuth1984}.\n"
+    "\\bibliographystyle{plain}\n"
+    "\\bibliography{refs}\n"
+    "\\end{document}\n"
+)
+BIB = "@book{knuth1984, title={The TeXbook}, author={Knuth, Donald}, year={1984}, publisher={Addison-Wesley}}\n"
+
+
+def _real(tmp_path: Path) -> CompileScheduler:
+    (tmp_path / "main.tex").write_text(CITING, encoding="utf-8")
+    (tmp_path / "refs.bib").write_text(BIB, encoding="utf-8")
+    return CompileScheduler(ProjectPaths(
+        root=tmp_path, main=tmp_path / "main.tex", build_dir=tmp_path / "build",
+    ))
+
+
+def _counted(scheduler: CompileScheduler) -> list[tuple[bool, bool]]:
+    runs: list[tuple[bool, bool]] = []
+    original = scheduler._run
+
+    async def counting(focus, force_full, clean=False):
+        runs.append((force_full, clean))
+        return await original(focus, force_full, clean)
+
+    scheduler._run = counting
+    return runs
+
+
+@needs_tex
+def test_an_aux_full_of_nul_bytes_is_cleared_before_the_engine_reads_it(tmp_path):
+    scheduler = _real(tmp_path)
+    assert asyncio.run(scheduler.build()).outcome is Outcome.OK
+    aux = tmp_path / "build" / "main.aux"
+    whole = aux.read_bytes()
+    lines = whole.split(b"\n")
+    aux.write_bytes(b"\n".join(lines[:2]) + b"\n" + b"\0" * 8144 + b"\n".join(lines[2:]))
+
+    result = asyncio.run(scheduler.build())
+
+    assert result.outcome is Outcome.OK, result.log.errors if result.log else None
+    assert b"\0" not in aux.read_bytes()
+    assert not result.log.undefined_citations
+    assert result.recovered == "main.aux was damaged"
+
+
+@needs_tex
+def test_an_aux_cut_off_mid_line_is_cleared_before_the_engine_reads_it(tmp_path):
+    scheduler = _real(tmp_path)
+    asyncio.run(scheduler.build())
+    aux = tmp_path / "build" / "main.aux"
+    aux.write_bytes(aux.read_bytes()[:40])
+    runs = _counted(scheduler)
+
+    result = asyncio.run(scheduler.build())
+
+    assert result.outcome is Outcome.OK, result.log.errors if result.log else None
+    assert result.recovered
+    assert len(runs) == 1, "cleared before the engine read it, so no second run"
+
+
+@needs_tex
+def test_an_empty_bibliography_from_a_short_aux_is_rebuilt_once(tmp_path):
+    """bibtex read an `.aux` cut short, said "I found no \\citation
+    commands" and wrote an empty `.bbl`. The full pass that ran it stored
+    its undefined keys as the ones a full pass leaves, so every fast pass
+    after it agreed and none asked for bibtex again: all 67 citations
+    undefined until bibtex was run by hand."""
+    import subprocess
+
+    scheduler = _real(tmp_path)
+    asyncio.run(scheduler.build())
+    build = tmp_path / "build"
+    aux = build / "main.aux"
+    whole = aux.read_bytes()
+    aux.write_bytes(b"\\relax \n")
+    subprocess.run(["bibtex", "main"], cwd=build, capture_output=True)
+    # And the pass after it, typeset against the empty `.bbl`, wrote an
+    # `.aux` with the citations and none of their `\\bibcite` answers.
+    aux.write_bytes(b"".join(
+        line for line in whole.splitlines(keepends=True)
+        if not line.startswith(b"\\bibcite")
+    ))
+    assert (build / "main.bbl").stat().st_size == 0
+    # What that full pass left the scheduler believing.
+    scheduler._needs_full = False
+    scheduler._unresolved_after_full = frozenset({"knuth1984"})
+    runs = _counted(scheduler)
+
+    result = asyncio.run(scheduler.build())
+
+    assert not result.log.undefined_citations, "the empty .bbl was kept"
+    assert result.recovered
+    assert len(runs) == 2, "recovery must run once, not loop"
+    assert (build / "main.bbl").stat().st_size > 0
+
+
+@needs_tex
+def test_a_clean_build_removes_this_documents_files_and_no_one_elses(tmp_path):
+    scheduler = _real(tmp_path)
+    asyncio.run(scheduler.build())
+    build = tmp_path / "build"
+    (build / "si.aux").write_text("si's own\n", encoding="utf-8")
+    (build / "main.toc").write_text("left from long ago\n", encoding="utf-8")
+    stale = build / "main.fdb_latexmk"
+    stale.write_text("stale\n", encoding="utf-8")
+
+    result = asyncio.run(scheduler.build(clean=True))
+
+    assert result.outcome is Outcome.OK
+    assert (build / "si.aux").read_text(encoding="utf-8") == "si's own\n"
+    assert not (build / "main.toc").exists()
+    assert stale.read_text(encoding="utf-8") != "stale\n"
+    assert not result.log.undefined_citations
+
+
+def test_an_unclosed_brace_in_the_writers_text_costs_no_clean_build(tmp_path, monkeypatch):
+    """"File ended while scanning" is also what the writer's own unclosed
+    brace says; it points at their file, not the build directory, and must
+    not turn every keystroke into a clean full pass."""
+    from nexttex.latexlog import Diagnostic, ParsedLog
+
+    scheduler = _scheduler(tmp_path, monkeypatch)
+    log = ParsedLog()
+    log.diagnostics.append(Diagnostic(
+        file=tmp_path / "main.tex", line=3, severity="error",
+        message="File ended while scanning use of \\textbf.",
+    ))
+    result = build_module.CompileResult(Outcome.ERRORS, log, None, 0.1, "full", "fast")
+    assert scheduler._damaged(result) == ""
+
+    log.diagnostics[0].file = tmp_path / "build" / "main.aux"
+    log.diagnostics[0].message = "Text line contains an invalid character."
+    assert scheduler._damaged(result)

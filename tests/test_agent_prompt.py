@@ -175,3 +175,46 @@ def test_the_compile_tool_reports_the_counts_and_refuses_an_unknown_document(tmp
 
 async def _sync(value):
     return value
+
+
+def test_the_compile_tool_asks_for_a_clean_build_and_says_when_one_recovered(tmp_path):
+    """An agent that meets a damaged `.aux` used to try to delete it, and
+    Claude Code refuses a write to a file named `aux`; `clean` asks
+    NextTex to do it.  A build that recovered on its own says so, so the
+    agent does not look for the fault in the writer's source."""
+    import asyncio
+
+    from nexttex.compile import CompileResult, Outcome
+    from nexttex.latexlog import ParsedLog
+
+    asked: list[dict] = []
+
+    async def compile_now(**kwargs):
+        asked.append(kwargs)
+        return CompileResult(
+            Outcome.OK, ParsedLog(pages=2), None, 1.0, "full", "full",
+            recovered="si.aux was damaged",
+        )
+
+    subject = ProjectAgent(
+        tmp_path, tmp_path / ".nexttex", compile_now=compile_now,
+        documents=lambda: ["main.tex", "si.tex"],
+    )
+
+    answer = asyncio.run(subject.compile_tool({"document": "si.tex", "clean": True}))
+
+    assert asked == [{"document": "si.tex", "clean": True}]
+    text = answer["content"][0]["text"]
+    assert "si.aux was damaged" in text
+    assert "nothing in the source needs changing" in text
+    asyncio.run(subject.compile_tool({}))
+    assert asked[-1] == {}
+
+
+def test_the_agent_is_told_never_to_run_the_engine_itself():
+    """The reporting agent ran `bibtex main` in build/ by hand beside the
+    builds NextTex was running."""
+    from nexttex.agent import SYSTEM_PROMPT
+
+    assert "Never run pdflatex" in SYSTEM_PROMPT
+    assert "clean: true" in SYSTEM_PROMPT
