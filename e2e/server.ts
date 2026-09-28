@@ -1,4 +1,4 @@
-import { spawn, type ChildProcess } from "node:child_process";
+import { spawn, spawnSync, type ChildProcess } from "node:child_process";
 import { connect, createServer } from "node:net";
 import { mkdtempSync, mkdirSync, writeFileSync, cpSync, rmSync } from "node:fs";
 import { tmpdir } from "node:os";
@@ -204,7 +204,18 @@ export async function startServer(
     }
   };
 
-  const orphanGuard = () => endGroup("SIGKILL");
+  /** The builds, which run in a session of their own, so no signal to the
+   *  server's group reaches them; every one names this sandbox on its
+   *  command line. Synchronous, so the `exit` guard can use it too. */
+  const endBuilds = () => {
+    if (process.platform === "win32") return;
+    spawnSync("pkill", ["-KILL", "-f", sandbox], { stdio: "ignore" });
+  };
+
+  const orphanGuard = () => {
+    endGroup("SIGKILL");
+    endBuilds();
+  };
   process.on("exit", orphanGuard);
 
   return {
@@ -218,8 +229,16 @@ export async function startServer(
     async stop() {
       process.off("exit", orphanGuard);
       endGroup("SIGTERM");
-      await new Promise((resolve) => setTimeout(resolve, 400));
+      // Time for the server's own shutdown, which ends every build it is
+      // running. It had 400 ms, and a SIGKILL that landed while it was
+      // ending a build's tree caught `end_tree` between freezing the
+      // engine and signalling it: 1366 latexmk and pdflatex were found on
+      // the development machine on 28 September 2026, 830 of them frozen.
+      for (let waited = 0; child.exitCode === null && waited < 8000; waited += 100) {
+        await new Promise((resolve) => setTimeout(resolve, 100));
+      }
       if (child.exitCode === null) endGroup("SIGKILL");
+      endBuilds();
 
       // Even with the group gone, a build's last write can still be settling,
       // and a recursive delete that races one raises ENOTEMPTY from a

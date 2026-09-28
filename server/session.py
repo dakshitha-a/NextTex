@@ -1855,6 +1855,11 @@ class ProjectSession:
         if self._rescan is not None:
             self._rescan.cancel()
             self._rescan = None
+        # Builds before anything slow: the process that closes a session
+        # is often about to be killed, and a build left running then has
+        # nothing left to end it.
+        for state in list(self.documents.values()):
+            await self._retire(state)
         # First, so anything still only in a document reaches the disk
         # before the project stops being open.
         await self.peers.close()
@@ -1864,5 +1869,3 @@ class ProjectSession:
             self._agent_pump.cancel()
         await self.agent.disconnect()
         await self.scripts.close()
-        for state in list(self.documents.values()):
-            await self._retire(state)
