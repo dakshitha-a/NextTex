@@ -216,7 +216,7 @@ export default function GitPanel({
             frameClassName="w-full"
             value={url}
             placeholder="https://github.com/you/paper.git"
-            className="font-mono text-small"
+            className="nx-field-mono"
             onChange={(event) => setUrl(event.target.value)}
           />
           <Field

@@ -1914,6 +1914,11 @@ button.nx-reads-x[data-always]:hover { color: var(--pen); }
   outline: none;
 }
 .nx-field-input::placeholder { color: var(--ink-3); }
+/* A field that holds a literal string, an invite, a key, a path, is in the
+   code face. It is a class of the kit's own, because `.nx-field-input`
+   above sets `font: inherit` outside any layer, and that beat the
+   `font-mono` utility these fields carried, so they drew in the sans. */
+.nx-field-input.nx-field-mono { font-family: var(--font-mono); font-size: 12.5px; }
 
 .nx-chip {
   display: inline-flex; align-items: center; gap: 6px;

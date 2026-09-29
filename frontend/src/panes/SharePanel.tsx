@@ -233,7 +233,7 @@ export function InviteField({ sharing }: { sharing: Sharing }) {
       data-testid="invite-text"
       aria-label="The invite to send"
       frameClassName="w-full"
-      className="font-mono text-small"
+      className="nx-field-mono"
       onFocus={(event) => event.currentTarget.select()}
       trailing={
         <Button

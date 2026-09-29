@@ -84,7 +84,7 @@ export default function FolderBrowser({
           aria-label="A folder on the machine running NextTex"
           data-testid={pathTestId}
           frameClassName={`w-full${problem ? " ring-1 ring-error" : ""}`}
-          className="font-mono text-small"
+          className="nx-field-mono"
           onChange={(event) => setTyped(event.target.value)}
           onKeyDown={(event) => {
             if (event.key === "Enter") void look(typed);

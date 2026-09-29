@@ -118,6 +118,9 @@ test("the drawer shares the project, makes an invite, and lists the members", as
   await expect(invite).toBeVisible();
   const first = await invite.inputValue();
   expect(first).toMatch(/^nexttex-share-v1-/);
+  // An invite is a literal string, so it is in the code face; a stray
+  // unlayered `font: inherit` once put it in the sans.
+  expect(await invite.evaluate((el) => getComputedStyle(el).fontFamily)).toContain("Source Code Pro");
   await expect(panel.getByText("Expires in a week")).toBeVisible();
   const rows = panel.getByTestId("people-list").locator("li");
   await expect(rows.first()).toContainText("You");

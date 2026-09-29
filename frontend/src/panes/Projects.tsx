@@ -968,7 +968,7 @@ export default function Projects({
                       frameClassName="min-w-0 flex-1"
                       value={rejoinTo}
                       placeholder="A folder for it to arrive in, empty or holding a copy"
-                      className="font-mono text-small"
+                      className="nx-field-mono"
                       onChange={(event) => setRejoinTo(event.target.value)}
                       onKeyDown={(event) => {
                         if (event.key === "Enter") rejoin(project);
@@ -1003,7 +1003,7 @@ export default function Projects({
                       frameClassName="min-w-0 flex-1"
                       value={movedTo}
                       placeholder="Where is it now? e.g. ~/Papers/thesis"
-                      className="font-mono text-small"
+                      className="nx-field-mono"
                       onChange={(event) => setMovedTo(event.target.value)}
                       onKeyDown={(event) => {
                         if (event.key === "Enter") relocate(project);
@@ -1229,7 +1229,7 @@ export default function Projects({
                   placeholder="2301.01234, or https://github.com/you/paper"
                   aria-label="An arXiv id, a git URL, or the zip chosen beside"
                   data-testid="bring-source"
-                  className="font-mono text-small"
+                  className="nx-field-mono"
                   onChange={(event) => {
                     setSource(event.target.value);
                     // Typing over a chosen zip's name means the zip is
@@ -1300,7 +1300,7 @@ export default function Projects({
                   ? "Where to put it, e.g. ~/writing/their-paper"
                   : "A folder to put it in, e.g. ~/writing/their-paper"
               }
-              className="font-mono text-small"
+              className="nx-field-mono"
               onChange={(event) => setPath(event.target.value)}
               onKeyDown={(event) => event.key === "Enter" && add()}
               trailing={

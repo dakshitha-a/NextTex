@@ -252,7 +252,7 @@ function OpenAISetup({
         aria-label="OpenAI API key"
         data-testid="openai-key"
         frameClassName="w-full"
-        className="font-mono text-small"
+        className="nx-field-mono"
         onChange={(event) => setKey(event.target.value)}
       />
       <Field
@@ -261,7 +261,7 @@ function OpenAISetup({
         aria-label="Model"
         data-testid="openai-model"
         frameClassName="w-full"
-        className="font-mono text-small"
+        className="nx-field-mono"
         onChange={(event) => setModel(event.target.value)}
       />
       {/* Ollama, LM Studio, vLLM and most local servers speak this same
@@ -279,7 +279,7 @@ function OpenAISetup({
         aria-label="Base URL"
         data-testid="openai-base-url"
         frameClassName="w-full"
-        className="font-mono text-small"
+        className="nx-field-mono"
         onChange={(event) => setBaseUrl(event.target.value)}
       />
     </div>
@@ -539,7 +539,7 @@ function ClaudeSetup({
               placeholder="Paste the code here"
               aria-label="The code from the browser"
               frameClassName="min-w-0 flex-1"
-              className="font-mono text-small"
+              className="nx-field-mono"
               onChange={(event) => setCode(event.target.value)}
               onKeyDown={(event) => {
                 if (event.key !== "Enter") return;
