@@ -1503,15 +1503,24 @@ export default function App() {
    *  panel you then have to click into has saved nobody anything. */
   const toggleChat = useCallback(() => {
     if (get().agent?.provider === "none") return;
+    // The caret goes to the composer a moment after the column opens, and
+    // only if nothing else has taken it in that moment: a search opened by
+    // its chord straight after lost its caret to this timer.
+    const was = document.activeElement;
+    const focusSoon = () =>
+      window.setTimeout(() => {
+        const now = document.activeElement;
+        if (now === was || now === document.body || now === null) chat.current?.focusComposer();
+      }, 60);
     if (chatOverRef.current) {
       const opening = !chatOpenRef.current;
       setChatOpen(opening);
-      if (opening) window.setTimeout(() => chat.current?.focusComposer(), 60);
+      if (opening) focusSoon();
       return;
     }
     const opening = foldedRef.current.chat;
     fold("chat");
-    if (opening) window.setTimeout(() => chat.current?.focusComposer(), 60);
+    if (opening) focusSoon();
   }, [fold]);
 
   /** Close the agent panel, whichever form it is in, and leave everything
