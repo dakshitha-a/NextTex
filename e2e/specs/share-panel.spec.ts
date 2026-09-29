@@ -3,6 +3,10 @@ import { openPeople, shareProject, waitShared } from "../collab";
 import { readFileSync, writeFileSync } from "node:fs";
 import { join } from "node:path";
 
+// A NextTex of its own: this spec changes the writer's name, which the whole install holds, and a
+// shared server holds every other test's projects and choices.
+test.use({ ownServer: true });
+
 /** The People drawer: sharing, inviting, the members and their rows, and
  *  an install that has been put out of the share.
  *

@@ -1,0 +1,66 @@
+{
+  "about": "What the quick tier runs for a changed file: each area names source globs and the specs they reach. A changed file under frontend/ or server/ that no area names runs the whole browser tier, and says so, so this table grows rather than missing something. Globs: * is within one path segment, ** is any depth. Specs are names in e2e/specs without .spec.ts, and may end in * for a family. Read by e2e/quick.mjs; tests/test_check_areas.py checks every glob here still matches something.",
+  "always": ["first-use", "layout"],
+  "areas": [
+    {
+      "name": "the preview",
+      "sources": ["frontend/src/panes/Pdf.tsx", "frontend/src/panes/pdf-*.ts", "frontend/src/panes/PageWindow.tsx", "frontend/src/panes/PreviewHeader.tsx", "frontend/src/page-window.ts", "frontend/src/follow-preview.ts", "nexttex/synctex.py"],
+      "specs": ["pdf-*", "preview-swap", "kept-pdf", "previews", "page-window", "appearance", "latex-links", "markdown-preview"]
+    },
+    {
+      "name": "the frame and the panes",
+      "sources": ["frontend/src/App.tsx", "frontend/src/layout.ts", "frontend/src/motion.ts", "frontend/src/folds.ts", "frontend/src/header-gesture.ts", "frontend/src/panes/Collapsed.tsx", "frontend/src/panes/PaneHeader.tsx", "frontend/src/panes/Status.tsx", "frontend/src/viewport.ts", "frontend/src/remember.ts"],
+      "specs": ["layout", "chat-layout", "motion", "remembered-layout", "feet", "folds", "navigation", "tab-strips", "touch", "reload", "clipping", "parked-tab", "two-tabs"]
+    },
+    {
+      "name": "the projects screen",
+      "sources": ["frontend/src/panes/Projects.tsx", "frontend/src/project-*.ts", "frontend/src/panes/FolderPicker.tsx", "frontend/src/panes/FolderBrowser.tsx", "frontend/src/panes/FolderChooser.tsx", "frontend/src/panes/JoinOfferCard.tsx", "frontend/src/templates.ts", "nexttex/project.py", "nexttex/templates/**"],
+      "specs": ["projects-*", "share-from-list", "download", "moved-project", "first-run", "open-speed"]
+    },
+    {
+      "name": "the editor",
+      "sources": ["frontend/src/panes/Editor.tsx", "frontend/src/panes/editor-setup.ts", "frontend/src/panes/keymaps.ts", "frontend/src/panes/latex-*.ts", "frontend/src/panes/bib-complete.ts", "frontend/src/panes/cite-match.ts", "frontend/src/panes/close-environment.ts", "frontend/src/panes/paste.ts", "frontend/src/paste-table.ts", "frontend/src/panes/find-panel.ts", "frontend/src/panes/SelectionActions.tsx", "frontend/src/panes/SourceHeader.tsx", "frontend/src/panes/TabStrip.tsx", "frontend/src/panes/tab-overflow.tsx", "frontend/src/tabs.ts", "frontend/src/keys.ts", "frontend/src/panes/after-end.ts"],
+      "specs": ["writing", "keymaps", "toolbar", "undo", "paste", "altgr", "cite-completion-comma", "ref-completion-brace", "column-select", "tab-menu", "tab-strips", "related-tabs", "verb-row-scale", "fix-run-comforts", "outside-write", "outside-utf8"]
+    },
+    {
+      "name": "spelling, grammar and the hover cards",
+      "sources": ["frontend/src/panes/spell*.ts", "frontend/src/panes/hunspell-speller.ts", "frontend/src/panes/grammar*.ts", "frontend/src/panes/WordMenu.tsx", "frontend/src/panes/hover-card.ts", "frontend/src/panes/math-hover.ts", "frontend/src/panes/table-hover.ts", "frontend/src/panes/place-clear.ts", "frontend/src/panes/thumbnails.ts", "frontend/src/panes/equation-verbs.ts", "nexttex/dictionaries.py", "nexttex/dictionary.py", "nexttex/equation.py"],
+      "specs": ["spelling", "grammar", "hover-cards", "hover-card-placement", "table-hover", "equation", "file-card"]
+    },
+    {
+      "name": "the Claude column",
+      "sources": ["frontend/src/panes/Chat.tsx", "frontend/src/panes/ComposerMenus.tsx", "frontend/src/panes/ContextPanel.tsx", "frontend/src/panes/PastConversation.tsx", "frontend/src/panes/tool-*.ts", "frontend/src/panes/composer-height.ts", "frontend/src/panes/slash-prompts.ts", "frontend/src/panes/column-header.tsx", "frontend/src/panes/AgentButton.tsx", "frontend/src/panes/AgentSheet.tsx", "frontend/src/agent-*.ts", "frontend/src/arrive-source.ts", "server/transcript.py", "nexttex/agent.py", "nexttex/scripted_agent.py", "nexttex/openai_agent.py", "nexttex/providers.py", "nexttex/tools.py", "nexttex/permission_gate.py", "nexttex/arrive.py", "nexttex/prompts/**"],
+      "specs": ["agent", "agent-sheet", "agent-comments", "slash-commands", "turn-name", "arrive", "chat-layout", "openai-*", "sign-in", "scripts"]
+    },
+    {
+      "name": "the drawers",
+      "sources": ["frontend/src/panes/FileTree.tsx", "frontend/src/panes/FileCard.tsx", "frontend/src/panes/FileIcon.tsx", "frontend/src/panes/file-kinds.ts", "frontend/src/tree.ts", "frontend/src/panes/UploadStaging.tsx", "frontend/src/upload-report.ts", "frontend/src/panes/FileView.tsx", "frontend/src/panes/image-zoom.ts", "frontend/src/panes/History.tsx", "frontend/src/panes/TrashPanel.tsx", "frontend/src/panes/SectionsPanel.tsx", "frontend/src/outline.ts", "frontend/src/panes/SearchPanel.tsx", "frontend/src/panes/PapersPanel.tsx", "frontend/src/panes/PapersChooser.tsx", "frontend/src/panes/GitPanel.tsx", "frontend/src/panes/Patch.tsx", "frontend/src/panes/patch-hunks.ts", "frontend/src/panes/PeoplePanel.tsx", "frontend/src/panes/SharePanel.tsx", "frontend/src/panes/Diagnostics.tsx", "frontend/src/panes/diagnostic-rows.ts", "frontend/src/panes/DownloadPanel.tsx", "frontend/src/panes/SubmitPanel.tsx", "frontend/src/panes/Comments*.tsx", "frontend/src/panes/CommentCards.tsx", "frontend/src/panes/EditorComments.tsx", "frontend/src/panes/comment-*.ts", "frontend/src/panes/Script.tsx", "frontend/src/script-run.ts"],
+      "specs": ["files", "file-card", "tree-kinds", "rename", "drop-note", "deleted-open-file", "image-view", "history-*", "sections", "project-search", "papers", "bib-check", "git", "share-panel", "build-cap", "scoped-diagnostics", "compile-state", "export", "submit", "comments", "agent-comments", "scripts", "download"]
+    },
+    {
+      "name": "settings and the front door",
+      "sources": ["frontend/src/panes/Settings*.tsx", "frontend/src/panes/AccessCard.tsx", "frontend/src/panes/PasswordNudge.tsx", "frontend/src/appearance.ts", "frontend/src/signin.ts", "frontend/src/panes/ReportSheet.tsx", "frontend/src/panes/UpdateFooter.tsx", "frontend/src/panes/update-standing.ts", "frontend/src/panes/tutorial/**", "frontend/src/panes/CommandPalette.tsx", "frontend/src/palette-*.ts", "nexttex/auth.py", "nexttex/config.py", "nexttex/updates.py", "nexttex/report.py"],
+      "specs": ["settings", "settings-heading", "appearance", "password", "sign-in", "report", "update", "tutorial", "palette", "engine", "first-run"]
+    },
+    {
+      "name": "the kit and the stylesheet",
+      "sources": ["frontend/src/ui/**", "frontend/src/styles.css", "frontend/src/chrome.tsx", "frontend/src/panes/menu-keys.ts", "frontend/src/place-menu.ts", "frontend/src/useDismiss.ts"],
+      "specs": ["kit", "a11y", "menus-contrast", "menus-on-screen", "layout", "appearance", "clipping", "motion"]
+    },
+    {
+      "name": "building",
+      "sources": ["nexttex/compile.py", "nexttex/passes.py", "nexttex/latexlog.py", "nexttex/lint_explain.py", "nexttex/explain.py", "nexttex/texpkg.py", "nexttex/deps.py", "nexttex/auxlabels.py", "server/session.py"],
+      "specs": ["clean-rebuild", "settling", "build-cap", "scoped-diagnostics", "compile-state", "kept-pdf", "previews", "tex-install", "engine", "outside-write", "preview-swap"]
+    },
+    {
+      "name": "the server's routes and its lifetime",
+      "sources": ["server/main.py", "server/run.py", "server/comeback.py", "frontend/src/api.ts", "frontend/src/store.ts", "frontend/src/Boundary.tsx", "frontend/src/boundary-cause.ts", "frontend/src/main.tsx"],
+      "specs": ["*"]
+    },
+    {
+      "name": "collaboration",
+      "sources": ["server/collab/**", "frontend/src/collab.ts", "frontend/src/panes/Collaborators.tsx", "frontend/src/panes/peer-standing.ts"],
+      "specs": ["share-panel", "share-from-list", "two-tabs", "comments", "moved-project"]
+    }
+  ]
+}

@@ -4,10 +4,13 @@ import { chromePath } from "./browser";
 export default defineConfig({
   testDir: "./specs",
   globalSetup: "./global-setup.ts",
-  // The specs each start their own NextTex, so they are genuinely
-  // independent -- but each one is a real server and a real LaTeX build,
-  // so two at a time is plenty on one machine.
-  workers: 2,
+  // Six at a time.  Each worker runs one NextTex that its tests share
+  // (fixtures.ts), a Chromium and the LaTeX builds its tests start, and
+  // six of those fit an eight-core machine with room for the builds; the
+  // whole tier took an hour at two, with a server started for every test.
+  // NEXTTEX_E2E_WORKERS sets another number for a machine that is busy or
+  // smaller.
+  workers: Number(process.env.NEXTTEX_E2E_WORKERS) || 6,
   // One retry, and it is not papering over flakiness in the app.  Each
   // spec starts a real server and runs a real LaTeX build; two of those at
   // once on a loaded machine occasionally pushes a compile past a timeout

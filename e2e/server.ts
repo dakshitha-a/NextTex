@@ -48,6 +48,9 @@ export type Instance = {
   sandbox: string;
   /** Everything the server has printed so far. */
   output(): string;
+  /** Whether the server process is still running.  A server shared by a
+   *  worker's tests is asked this before each one, and replaced if not. */
+  alive(): boolean;
   stop(): Promise<void>;
 };
 
@@ -226,6 +229,7 @@ export async function startServer(
     /** Everything the server has printed so far, for a spec that needs to
      *  see a traceback the page never shows. */
     output: () => log,
+    alive: () => !died && child.exitCode === null,
     async stop() {
       process.off("exit", orphanGuard);
       endGroup("SIGTERM");

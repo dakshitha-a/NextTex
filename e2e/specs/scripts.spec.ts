@@ -4,6 +4,10 @@ import { dirname, join } from "node:path";
 import { fileURLToPath } from "node:url";
 import { test, expect, openFolders, openProject } from "../fixtures";
 
+// A NextTex of its own: this spec changes the agent provider, which the whole install holds, and a
+// shared server holds every other test's projects and choices.
+test.use({ ownServer: true });
+
 /** Python scripts in the source pane.
  *
  *  The agent draws a figure by writing a script into `scripts/` and running

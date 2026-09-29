@@ -1,6 +1,10 @@
 import { test, expect } from "../fixtures";
 import { seedProject } from "../server";
 
+// A NextTex of its own: this spec measures every row on the projects screen, and a
+// shared server holds every other test's projects and choices.
+test.use({ ownServer: true });
+
 /** The projects screen keeps a reading width on a wide window.
  *
  *  Raised by the writer: on a full-screen ultrawide the rows ran the

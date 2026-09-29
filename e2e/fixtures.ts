@@ -6,13 +6,49 @@ type Fixtures = {
   project: { id: string; root: string };
   /** A browser tab already inside the project, with the token accepted. */
   tab: Page;
+  /** Whether this test gets a NextTex of its own rather than the one its
+   *  worker shares.  A spec that changes something the whole install
+   *  holds, the agent provider, the writer's name, or that counts the rows
+   *  of the projects screen, which on a shared server lists every other
+   *  test's project too, sets `test.use({ ownServer: true })`. */
+  ownServer: boolean;
 };
 
-export const test = base.extend<Fixtures>({
-  app: async ({}, use) => {
-    const instance = await startServer();
-    await use(instance);
-    await instance.stop();
+type WorkerFixtures = {
+  /** The NextTex this worker's tests share, held in a box so a server that
+   *  has died can be replaced for the tests after it. */
+  shared: { current: Instance | null };
+};
+
+/** Each worker starts one NextTex and every test it runs reuses it, which
+ *  is most of what the browser tier used to spend: a server started and
+ *  stopped per test, 619 times.  A test still seeds a project of its own,
+ *  under a unique name, and still gets a fresh browser context, so what
+ *  it writes to storage is its own. */
+export const test = base.extend<Fixtures, WorkerFixtures>({
+  ownServer: [false, { option: true }],
+  shared: [
+    async ({}, use) => {
+      const box: { current: Instance | null } = { current: null };
+      await use(box);
+      await box.current?.stop();
+    },
+    { scope: "worker" },
+  ],
+  app: async ({ ownServer, shared }, use) => {
+    if (ownServer) {
+      const instance = await startServer();
+      await use(instance);
+      await instance.stop();
+      return;
+    }
+    // Checked before each test: one server that fell over would otherwise
+    // fail every test after it on this worker.
+    if (!shared.current || !shared.current.alive()) {
+      await shared.current?.stop().catch(() => undefined);
+      shared.current = await startServer();
+    }
+    await use(shared.current);
   },
   project: async ({ app }, use, info) => {
     await use(await seedProject(app, `p${info.workerIndex}-${Date.now()}`));

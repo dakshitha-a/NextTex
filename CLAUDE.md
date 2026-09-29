@@ -87,13 +87,20 @@ gets its own commit so it stays legible in the log.
 ## Checks
 
 `scripts/check.sh` runs `tsc`, `vitest` and `pytest`, always.
-`scripts/check.sh --all` adds the build, the bundle budget and the Playwright
-tier, and is required whenever `frontend/` or a route the browser exercises
-changed; export `NEXTTEX_NODE_BIN` to a Node 22.13 or newer first if the system
-Node is older. Facts about the machine, such as where that Node lives, go
-in `CLAUDE.local.md`, which Claude Code reads beside this file and git
-ignores; this file holds only what is true of the project. CI pins Python
-3.10, so nothing newer than 3.10 goes in.
+`scripts/check.sh --quick` adds the build and only the browser specs the
+changed files reach, through `e2e/areas.json`; it is the check to run while
+working. `scripts/check.sh --all` adds the build, the bundle budget and every
+Playwright spec, and is required before any push that changed `frontend/` or
+a route the browser exercises; export `NEXTTEX_NODE_BIN` to a Node 22.13 or
+newer first if the system Node is older. A new source file under `frontend/`
+or `server/` goes into an area of `e2e/areas.json`, or the quick tier runs
+everything and says so. A spec that changes install-wide state, or counts the
+projects screen's rows, sets `test.use({ ownServer: true })`, since the
+browser tier's workers otherwise share one server each. Facts about the
+machine, such as where that Node lives, go in `CLAUDE.local.md`, which
+Claude Code reads beside this file and git ignores; this file holds only
+what is true of the project. CI pins Python 3.10, so nothing newer than
+3.10 goes in.
 
 Three things keep the suite from reaching a real account, and none of them
 may be undone: the `NEXTTEX_CLAUDE_BINARY` line in `tests/conftest.py`,

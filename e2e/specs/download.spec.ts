@@ -2,6 +2,10 @@ import { test, expect } from "../fixtures";
 import type { Download, Page } from "@playwright/test";
 import { readFileSync } from "node:fs";
 
+// A NextTex of its own: this spec reads a row of the projects screen, and a
+// shared server holds every other test's projects and choices.
+test.use({ ownServer: true });
+
 /** Taking a copy of the whole project away, from inside it.
  *
  *  The writer reported the ZIP failing from inside an open project with

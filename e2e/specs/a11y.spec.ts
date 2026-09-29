@@ -3,6 +3,10 @@ import { shareProject, waitShared } from "../collab";
 import { test, expect, openFolders } from "../fixtures";
 import type { Page } from "@playwright/test";
 
+// A NextTex of its own: this spec audits the projects screen and its
+// guide, and a shared server's list holds every other test's projects.
+test.use({ ownServer: true });
+
 /** Whether the app can be used by somebody who is not using a mouse, or
  *  whose eyes are not mine.
  *

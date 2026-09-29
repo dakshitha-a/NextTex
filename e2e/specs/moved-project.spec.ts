@@ -2,6 +2,11 @@ import { renameSync, rmSync } from "node:fs";
 import { join } from "node:path";
 import { test, expect } from "../fixtures";
 
+// A NextTex of its own: this spec removes project folders and reads what
+// the projects screen says about them, and a shared server's list holds
+// every other test's projects too.
+test.use({ ownServer: true });
+
 /** A project whose folder moved or went away.
  *
  *  Both of these were dead ends: the entry could not be removed, because a

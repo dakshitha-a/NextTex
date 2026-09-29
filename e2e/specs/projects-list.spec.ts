@@ -1,6 +1,10 @@
 import { test, expect } from "../fixtures";
 import { seedProject } from "../server";
 
+// A NextTex of its own: this spec counts and reads the rows of the projects screen, and a
+// shared server holds every other test's projects and choices.
+test.use({ ownServer: true });
+
 /** The projects screen when there is a real number of projects on it.
  *
  *  Every other spec seeds one project, so nothing had ever looked at the

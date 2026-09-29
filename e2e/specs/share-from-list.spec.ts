@@ -1,6 +1,10 @@
 import { test, expect } from "../fixtures";
 import { seedProject } from "../server";
 
+// A NextTex of its own: this spec shares from a row of the projects screen, and a
+// shared server holds every other test's projects and choices.
+test.use({ ownServer: true });
+
 /** Sharing from the projects screen: a row's Share opens the same sheet
  *  the workspace uses, over the list, without opening the project.
  *

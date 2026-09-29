@@ -1,12 +1,14 @@
 #!/usr/bin/env bash
 # Everything that can say "this is still working", in the order it is worth
-# hearing.  Fast first: the browser tier takes about twenty-four minutes
-# and the Python tier about six (measured in September 2026, and growing
-# with the suites; docs/testing.md has the numbers), so a mistake in a
-# route should not cost half an hour to find out about.
+# hearing.  Fast first: the browser tier takes about nine minutes at six
+# workers and the Python tier about five (measured on 29 September 2026;
+# docs/testing.md has the numbers), so a mistake in a route does not wait
+# on the browser to be found.
 #
 #   scripts/check.sh          the fast tier -- types, frontend, Python
-#   scripts/check.sh --all    adds the browser tier
+#   scripts/check.sh --quick  adds the build and the browser specs the
+#                             changed files reach (e2e/areas.json)
+#   scripts/check.sh --all    adds the build, the bundle and every browser spec
 #   scripts/check.sh --bench  the benchmarks, against a thesis-shaped project
 set -euo pipefail
 
@@ -41,6 +43,20 @@ if [ "${1:-}" = "--bench" ]; then
   step "Benchmarks"
   .venv/bin/python -m bench.bench
   exit
+fi
+
+if [ "${1:-}" = "--quick" ]; then
+  step "Frontend build"
+  (cd frontend && npm run build >/dev/null)
+
+  step "Browser, the specs the changes reach"
+  chosen="$(node e2e/quick.mjs)"
+  if [ "$chosen" = "ALL" ]; then
+    (cd e2e && node_modules/.bin/playwright test)
+  else
+    # shellcheck disable=SC2086
+    (cd e2e && node_modules/.bin/playwright test $chosen)
+  fi
 fi
 
 if [ "${1:-}" = "--all" ]; then

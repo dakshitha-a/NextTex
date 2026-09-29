@@ -3,6 +3,10 @@ import { seedProject } from "../server";
 import { mkdirSync, writeFileSync } from "node:fs";
 import { join } from "node:path";
 
+// A NextTex of its own: this spec times the projects screen with its own list on it, and a
+// shared server holds every other test's projects and choices.
+test.use({ ownServer: true });
+
 /** How long a file takes to have its text on screen.
  *
  *  Not a threshold -- `bench/` is where budgets live -- but a measurement

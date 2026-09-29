@@ -1,6 +1,10 @@
 import { test, expect } from "../fixtures";
 import { seedProject } from "../server";
 
+// A NextTex of its own: this spec counts the rows of the projects screen and its views, and a
+// shared server holds every other test's projects and choices.
+test.use({ ownServer: true });
+
 /** Archived and trashed: two reversible states in front of "delete".
  *
  *  NextTex registers projects rather than importing them, so the only way

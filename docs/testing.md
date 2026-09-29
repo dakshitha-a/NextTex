@@ -4,17 +4,46 @@ Four tiers, and each exists because the one above it cannot see what it
 sees.
 
 ```bash
-scripts/check.sh          # types, frontend and Python: about seven minutes
-scripts/check.sh --all    # adds the build and the browser tier: about thirty minutes
+scripts/check.sh          # types, frontend and Python: about five minutes
+scripts/check.sh --quick  # adds the build and the browser specs the changes reach
+scripts/check.sh --all    # adds the build, the bundle and every browser spec: about fifteen minutes
 scripts/check.sh --bench  # what the slow parts cost, on a project shaped like a long document
 ```
 
-The times are what the run of September 2026 measured on the
-development machine, with about 2,500 Python tests and 600 browser
-tests: six minutes of pytest, and twenty-four of Playwright under four
-workers. They grow with the suites, and a loaded machine stretches the
-browser tier most; the probe found the twelve minutes written here had
-become twenty-two (Q-041).
+The times are what the run of 29 September 2026 measured on the
+development machine, an eight-core one, with about 2,600 Python tests and
+640 browser tests: five minutes of pytest, and nine of Playwright under
+six workers sharing a server each. The same browser tier took about an
+hour the day before, at two workers with a server started for every test,
+which is why it was reworked. They grow with the suites, and a loaded
+machine stretches the browser tier most; the probe once found the twelve
+minutes written here had become twenty-two (Q-041).
+
+**The quick tier** is the one to run while working. `e2e/quick.mjs` reads
+the files changed against `origin/master`, committed or not, looks each up
+in `e2e/areas.json`, and runs the specs its areas name, a changed spec
+itself, and `first-use` and `layout` always. A change to the preview's
+`Pdf.tsx` alone runs fourteen specs of 104. A changed file under
+`frontend/` or `server/` that no area names runs everything and says so on
+the way, as does a change to the browser tier's own files, so the table is
+grown rather than a spec quietly skipped; `tests/test_check_areas.py`
+checks that every glob in it still matches a file and every spec name a
+spec. `NEXTTEX_QUICK_FILES="a b"` names the changed files instead, to ask
+what a change would run. `--all` is still the check before any push that
+changed `frontend/` or a route the browser exercises.
+
+**The browser tier's workers share a server each.** `e2e/fixtures.ts`
+starts one NextTex per worker, reused by every test the worker runs, and
+checked before each test so a server that fell over is replaced rather
+than failing the rest. A test still seeds a project of its own under a
+unique name and still gets a fresh browser context. A spec that changes
+what the whole install holds, the agent provider, the writer's name, or
+that counts, audits or deletes the projects screen's rows, which on a
+shared server lists every other test's projects too, sets
+`test.use({ ownServer: true })` and gets a server of its own; ten do. A
+spec that calls `startServer` with its own environment is unchanged.
+`NEXTTEX_E2E_WORKERS` sets another number of workers for a busy or smaller
+machine.
 
 If the Node on your PATH is older than 20, point `NEXTTEX_NODE_BIN` at a
 newer one rather than changing the system's.
@@ -53,9 +82,10 @@ really does block until somebody answers. The real agent needs an account,
 costs money and answers differently every time, which is why none of that
 had ever been tested.
 
-`e2e/` is the browser. Each spec starts a NextTex of its own: own port, own
-state directories, own projects, and a config written before the server so
-the token is known rather than scraped out of a log line. Waits are on
+`e2e/` is the browser. Each worker starts a NextTex of its own, shared by
+its tests as above: own port, own state directories, own projects, and a
+config written before the server so the token is known rather than scraped
+out of a log line. Waits are on
 observables (a response, a DOM state), never on a clock. It exists mainly
 for the things that only exist in a browser: two windows on one project, the
 autosave race, the permission card's shield, a reload rebuilding the
