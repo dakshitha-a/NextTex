@@ -62,6 +62,7 @@ import { inputTarget, labelTarget, linkAt } from "./latex-links";
 import { mac } from "./math-hover";
 import { mathHover, type FigureFacts, type OnEquation, type OnSymbol } from "./math-hover";
 import { afterEndOfDocument } from "./after-end";
+import { conflictBars } from "./conflicts";
 import {
   braceAfter,
   commentStart,
@@ -807,6 +808,9 @@ export function extensions(
     ...base(),
     markField,
     flashField,
+    // Every file type the merge can mark, not only LaTeX, and never the
+    // read-only version view, where nothing can be chosen.
+    conflictBars(),
     EditorView.updateListener.of((update) => {
       if (update.docChanged) {
         const marker = remote?.current as any;

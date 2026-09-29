@@ -198,6 +198,31 @@ async function labelKnown(tab: Page, name: string) {
 }
 
 const SURFACES: Record<string, Surface> = {
+  "merge-conflict": {
+    // Two versions of a paragraph kept by a merge, as the direction
+    // page's "Two versions of a paragraph" draws them: written from
+    // outside the way a pull would bring them in.
+    open: async (tab) => {
+      if (ctx) {
+        const block = (id: string) => [
+          `% NextTex: two versions of this paragraph were written apart. Keep one. {nexttex-conflict ${id}}`,
+          `% Version from Alice {nexttex-conflict ${id} 1}`,
+          "The decay is fitted with two exponentials, whose time constants differ by an order of magnitude.",
+          "",
+          `% Version from Bob {nexttex-conflict ${id} 2}`,
+          "A double exponential fits the decay; the two time constants are an order of magnitude apart.",
+          "",
+          `% End of the two versions {nexttex-conflict ${id} end}`,
+        ].join("\n");
+        fs.writeFileSync(path.join(ctx.root, "main.tex"), [
+          "\\section{Results}", "", "The measured signal falls after the pulse.", "", block("7f3a91"), "Table 1 lists the fitted values.", "",
+        ].join("\n"));
+      }
+      await tab.getByTestId("conflict-head").first().waitFor({ timeout: 30_000 });
+      await tab.mouse.move(10, 10);
+      return tab.locator(".cm-editor");
+    },
+  },
   "math-hover": {
     open: (tab) => hoverAt(tab, "A gap of $E = mc^2$ appears.", "mc^2", ".nx-math-tooltip"),
     close: async (tab) => { await tab.mouse.move(10, 10); await tab.waitForTimeout(300); },

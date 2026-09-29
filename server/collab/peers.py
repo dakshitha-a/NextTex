@@ -62,14 +62,16 @@ import secrets
 import time
 from pathlib import Path
 
-from pycrdt import Map, create_sync_message, handle_sync_message
+from pycrdt import Doc, Map, Text, create_sync_message, handle_sync_message, read_message
+from pycrdt._sync import create_sync_step1_message
 
 from nexttex.atomic import write_atomically
 from nexttex.history import now_ms
 from nexttex.project import shares_home
 
-from . import history_sync, identity, transport, wire
-from .store import ARRIVED_LIMIT, _WELL_FORMED_ID as _WELL_FORMED_ID_RE
+from . import history_sync, identity, paragraphs, transport, wire
+from .agreed import Agreed, state_of
+from .store import ARRIVED_LIMIT, _kept_both, _WELL_FORMED_ID as _WELL_FORMED_ID_RE
 
 log = logging.getLogger("nexttex.collab")
 
@@ -157,6 +159,12 @@ def _unwrap(invite: str) -> dict:
 #: What a share id looks like: `token_hex(16)` from `begin_sharing`.  A
 #: joiner takes its id from an invite, so it is checked against this before
 #: it names a file anywhere.
+#: How often the documents that moved are compared with each peer's, to
+#: note a state both agree on.
+AGREE_EVERY = 3.0
+#: How long a document waits off the disk for another install's merge.
+MERGE_HOLD = 15.0
+
 WELL_FORMED_SHARE_ID = re.compile(r"[0-9a-f]{8,64}")
 
 
@@ -307,6 +315,18 @@ class PeerLink:
         self.wanted: dict[str, float] = {}
         #: Files asked for by manifest id, the same way.
         self.wanted_files: dict[str, float] = {}
+        #: Whether the other end said it can do the paragraph merge.
+        self.can_merge = False
+        #: Document id to the checkpoint this link's opening step 1 was sent
+        #: against, so the step 2 that answers it can be read as "what they
+        #: did since we last agreed".
+        self.from_base: dict[str, bytes] = {}
+        #: Files this link has held off the disk while its merge is made.
+        self.holding: set[str] = set()
+        #: Documents that moved since their state was last compared with
+        #: this peer's. Per link, so a link that has not yet said what it
+        #: can do keeps its list until it has.
+        self.to_agree: set[str] = set()
         #: When something last went out, for the heartbeat's silence.
         self._last_sent = 0.0
         self._pinger: asyncio.Task | None = None
@@ -411,7 +431,8 @@ class PeerLink:
             if doc is None:
                 continue
             self.offered.add(doc_id)
-            await self.send(wire.sync(doc_id, create_sync_message(doc)))
+            await self.send(wire.sync_step(doc_id, self.network.step_one(self, doc_id, doc)))
+            self.to_agree.add(doc_id)
 
         # And what those files used to say.  Cheap to ask, and it is the
         # difference between joining a project and joining a project with
@@ -524,6 +545,14 @@ class PeerLink:
             # it without that byte, exactly as sync.py passes it.
             if not frame.payload or frame.payload[0] != 0:
                 return
+            if "merge-1" in (frame.header.get("can") or ()):
+                self.can_merge = True
+            step = frame.payload[1] if len(frame.payload) > 1 else -1
+            text_doc = doc_id.startswith("text/")
+            # The answer to our opening step 1 is the one moment the other
+            # side's changes since we last agreed arrive as one piece.
+            base = self.from_base.pop(doc_id, None) if step == 1 and text_doc else None
+            before = str(doc.get("text", type=Text)) if base is not None else ""
             self.network.applying = self
             store.applying_remote = True
             try:
@@ -531,19 +560,35 @@ class PeerLink:
             finally:
                 self.network.applying = None
                 store.applying_remote = False
+            if base is not None:
+                self.network.after_reconnect(self, doc_id, doc, base, before, frame.payload[2:])
+            elif step == 0 and text_doc:
+                self.network.note_their_state(self, doc_id, doc, frame.payload[2:])
             if reply is not None:
-                await self.send(wire.sync(doc_id, reply))
+                await self.send(wire.sync_step(doc_id, reply))
             if doc_id == "manifest":
                 # The manifest is how a peer learns which files exist, so a
                 # change to it is the moment to ask about the ones that were
                 # not there a second ago.
                 self.network.mirror_members()
                 await self.send_documents()
+        elif frame.kind == wire.MERGED:
+            doc_id = str(frame.header.get("doc", ""))
+            file_id = doc_id[len("text/"):] if doc_id.startswith("text/") else ""
+            if file_id in store.held:
+                self.holding.discard(file_id)
+                store.release(file_id)
+                self.network.say_merged(
+                    file_id, int(frame.header.get("conflicts") or 0),
+                    self.network.name_of(self), str(frame.header.get("sibling") or ""),
+                )
         elif frame.kind == wire.AWARE:
             hub = self.network.hub
             if hub is not None:
                 hub.from_peer(frame.header.get("doc", ""), frame.payload)
         elif frame.kind == wire.WELCOME:
+            if "merge-1" in (frame.header.get("can") or ()):
+                self.can_merge = True
             # Only ever *learned*, never overwritten.
             #
             # A joiner has no share id until somebody welcomes them, and this
@@ -797,6 +842,9 @@ class PeerNetwork:
         self._nudging: set[str] = set()
         self._nudge: asyncio.Task | None = None
         self._marks_save: asyncio.Task | None = None
+        #: What each peer and this install last agreed each document said.
+        self.agreed = Agreed(store.project.state_dir / "collab")
+        self._agreeing: asyncio.Task | None = None
 
     # --- identity ---------------------------------------------------------
 
@@ -827,6 +875,7 @@ class PeerNetwork:
         self._teach_history()
         self.transport = self._make_transport()
         await self.transport.start(self._accept)
+        self._begin_agreeing()
         self.store.listeners.append(self._document_changed)
         if self.hub is not None:
             # Cursors, outward. Without this the collaborator strip and the
@@ -846,10 +895,11 @@ class PeerNetwork:
 
         return IrohTransport(identity.secret_key())
 
-    def _spawn(self, coroutine) -> None:
+    def _spawn(self, coroutine) -> asyncio.Task:
         task = asyncio.create_task(coroutine)
         self._tasks.add(task)
         task.add_done_callback(self._tasks.discard)
+        return task
 
     # --- sharing and joining ---------------------------------------------
 
@@ -1153,6 +1203,7 @@ class PeerNetwork:
         self._teach_history()
         self.transport = self.transport or self._make_transport()
         await self.transport.start(self._accept)
+        self._begin_agreeing()
         self.store.listeners.append(self._document_changed)
         if self.hub is not None:
             self.hub.on_awareness = self._awareness_changed
@@ -1206,6 +1257,7 @@ class PeerNetwork:
         self._teach_history()
         self.transport = self.transport or self._make_transport()
         await self.transport.start(self._accept)
+        self._begin_agreeing()
         if self._document_changed not in self.store.listeners:
             self.store.listeners.append(self._document_changed)
         dialled = 0
@@ -1264,6 +1316,7 @@ class PeerNetwork:
         link.name = frame.header.get("name", "")
         link.colour = frame.header.get("colour", "")
         link.address = frame.header.get("address", "")
+        link.can_merge = "merge-1" in (frame.header.get("can") or ())
         self.note_address(peer_id, link.address, link.name)
         if not self.adopt_link(link):
             # Crossed with our own dial to them, which both ends keep.
@@ -1380,9 +1433,163 @@ class PeerNetwork:
         return True
 
     def dropped(self, link: PeerLink) -> None:
+        for file_id in list(link.holding):
+            self.store.release(file_id)
+        link.holding.clear()
         if self.links.get(link.peer_id) is link:
             self.links.pop(link.peer_id, None)
             self._announce_peers()
+
+    # --- the paragraph merge ---------------------------------------------
+    #
+    # Live typing between two connected installs is merged a character at a
+    # time, which is right while each can see the other's caret. A link that
+    # dropped and came back is different: whatever both sides wrote in the
+    # meantime was written blind, so the answer to the opening step 1 is
+    # read against the state both last agreed on, and a paragraph changed on
+    # both sides keeps both versions (`paragraphs.merge`). Exactly one
+    # install writes that repair, since two identical inserts in a CRDT are
+    # two inserts; the other keeps the document off its disk until it hears
+    # MERGED, so the mixed paragraph in between never reaches a file.
+
+    def step_one(self, link: PeerLink, doc_id: str, doc) -> bytes:
+        """The opening step 1 for a document: against the state last agreed
+        with this peer when there is one, so the answer is exactly what
+        they did since, and against ours otherwise."""
+        base = self.agreed.get(link.peer_id, doc_id)
+        if base is None:
+            return create_sync_message(doc)
+        agreed = Doc()
+        try:
+            agreed.apply_update(base)
+        except Exception:
+            return create_sync_message(doc)
+        link.from_base[doc_id] = base
+        return create_sync_step1_message(agreed.get_state())
+
+    def note_their_state(self, link: PeerLink, doc_id: str, doc, message: bytes) -> None:
+        """A peer's state vector names exactly what we hold: that is a
+        state the two of us agree on, and the base for the next merge."""
+        try:
+            theirs = state_of(read_message(message))
+        except Exception:
+            return
+        if theirs == state_of(doc.get_state()):
+            if self.agreed.save(link.peer_id, doc_id, doc.get_update()):
+                # Only the side that hears a matching state knows the two
+                # match; ours goes back so theirs can note it as well. Two
+                # at most, since the second finds it noted already.
+                link.enqueue(wire.sync_step(doc_id, create_sync_message(doc)))
+
+    def _begin_agreeing(self) -> None:
+        if self._agreeing is None or self._agreeing.done():
+            self.agreed.keep_only(
+                set(self.share.members),
+                {f"text/{file_id}" for file_id in list(self.store.files)},
+            )
+            self._agreeing = self._spawn(self._keep_agreeing())
+
+    async def _keep_agreeing(self) -> None:
+        """Every few seconds, tell each peer our state for the documents
+        that moved, so each side can note what the two agree on."""
+        while not self._closed:
+            await asyncio.sleep(AGREE_EVERY)
+            for link in list(self.links.values()):
+                if not (link.alive and link.can_merge and link.to_agree):
+                    continue
+                docs, link.to_agree = link.to_agree, set()
+                for doc_id in docs:
+                    if doc_id in link.from_base:
+                        # Its opening step 1 is still unanswered, and the
+                        # answer to this one must not be taken for it.
+                        link.to_agree.add(doc_id)
+                        continue
+                    doc = self.store.document(doc_id)
+                    if doc is not None:
+                        link.enqueue(wire.sync_step(doc_id, create_sync_message(doc)))
+
+    def resolves_with(self, link: PeerLink) -> bool:
+        """Whether this install writes the merge: the lowest id among this
+        one and every connected install that can."""
+        ids = {self.peer_id}
+        ids |= {other.peer_id for other in self.links.values() if other.alive and other.can_merge}
+        if link.can_merge:
+            ids.add(link.peer_id)
+        return min(ids) == self.peer_id
+
+    def name_of(self, link: PeerLink) -> str:
+        return (link.name or (self.share.members.get(link.peer_id) or {}).get("name")
+                or "a collaborator")
+
+    def my_name(self) -> str:
+        return (self.share.members.get(self.peer_id) or {}).get("name") or "this copy"
+
+    def after_reconnect(self, link: PeerLink, doc_id: str, doc, base: bytes,
+                        before: str, message: bytes) -> None:
+        """The answer to our opening step 1 has been applied; if both sides
+        wrote while apart, merge by paragraph or wait for whoever will."""
+        store = self.store
+        file_id = doc_id[len("text/"):]
+        after = str(doc.get("text", type=Text))
+        if after == before:
+            return
+        try:
+            update = read_message(message)
+            agreed = Doc()
+            agreed.apply_update(base)
+            base_text = str(agreed.get("text", type=Text))
+            if update != b"\x00\x00":
+                agreed.apply_update(update)
+            theirs = str(agreed.get("text", type=Text))
+        except Exception:
+            log.warning("could not read what %s wrote apart in %s", link.peer_id[:8], doc_id)
+            return
+        if before == base_text or theirs == base_text or theirs == before:
+            return
+        other = self.name_of(link)
+        record = store.files.get(file_id)
+        relative = str(record.get("path") or "") if record is not None else ""
+        store.keep_version(file_id, before, f"Before merging with {other}")
+        if not self.resolves_with(link):
+            link.holding.add(file_id)
+            store.hold(file_id, MERGE_HOLD)
+            return
+        mine = self.my_name()
+        if mine == other:
+            mine, other = f"{mine} (this copy)", f"{other} (the other copy)"
+        result = paragraphs.merge(base_text, before, theirs, mine, other, relative)
+        sibling = self._keep_beside(relative, theirs) if result.commentless else ""
+        if result.text != after:
+            store.rewrite(file_id, result.text)
+        self.say_merged(file_id, result.conflicts, self.name_of(link), sibling)
+        frame = wire.merged(doc_id, result.conflicts, sibling)
+        for each in list(self.links.values()):
+            if each.alive and each.can_merge:
+                each.enqueue(frame)
+
+    def _keep_beside(self, relative: str, text: str) -> str:
+        """The other side's whole file, beside ours, for a file type with no
+        comment to mark two versions with."""
+        store = self.store
+        taken = {str(record.get("path") or "") for record in store.files.values()}
+        sibling = _kept_both(relative, taken)
+        try:
+            target = store.project.resolve_for_write(sibling)
+            target.parent.mkdir(parents=True, exist_ok=True)
+            write_atomically(target, text)
+            store.ingest(sibling, text)
+        except (PermissionError, OSError, ValueError):
+            return ""
+        return sibling
+
+    def say_merged(self, file_id: str, conflicts: int, other: str, sibling: str) -> None:
+        if not conflicts and not sibling:
+            return
+        noted = getattr(self.session, "note_merged", None)
+        record = self.store.files.get(file_id)
+        if noted is None or record is None:
+            return
+        noted(str(record.get("path") or ""), conflicts, other, sibling)
 
     # --- documents --------------------------------------------------------
 
@@ -1408,8 +1615,11 @@ class PeerNetwork:
         from pycrdt import create_update_message
 
         message = wire.sync(doc_id, create_update_message(update))
+        text_doc = doc_id.startswith("text/")
         source = self.applying
         for link in list(self.links.values()):
+            if text_doc:
+                link.to_agree.add(doc_id)
             if link is source or not link.alive:
                 continue
             link.enqueue(message)

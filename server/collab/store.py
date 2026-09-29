@@ -86,8 +86,7 @@ from nexttex.atomic import read_text, write_atomically
 from nexttex.history import slug_for
 from nexttex.project import TEXT_SUFFIXES, Project
 
-from . import persist
-from .merge import merge as merge_three
+from . import paragraphs, persist
 
 
 def _kept_both(path: str, taken: set[str]) -> str:
@@ -425,6 +424,10 @@ class CollabStore:
         #: written by the store's own timer, over a file the writer had
         #: not yet agreed to replace.
         self.holding = False
+        #: Documents held back from the disk one at a time, file id to the
+        #: timer that lets each go: a peer's paragraph merge is on its way,
+        #: and the raw merge it will replace is not a text to write out.
+        self.held: dict[str, asyncio.TimerHandle | None] = {}
         #: Set when `_settle_gone` has held a batch back once to look at
         #: the root again before calling any of it deleted.
         self._gone_deferred = False
@@ -819,7 +822,10 @@ class CollabStore:
                 why=self.outside_why, source=self.outside_source,
             )
 
-    def _keep_what_the_editor_held(self, relative: str, current: str) -> None:
+    def _keep_what_the_editor_held(
+        self, relative: str, current: str,
+        why: str = "What the editor held when the file on disk won",
+    ) -> None:
         """A version of the document's text, before a file with no record
         of this install's writing it wins over it."""
         recorder = getattr(self.session, "record_version", None)
@@ -831,9 +837,65 @@ class CollabStore:
             return
         recorder(
             path, current, by="you",
-            why="What the editor held when the file on disk won",
+            why=why,
             source=self.outside_source,
         )
+
+    # --- the paragraph merge ---------------------------------------------
+
+    def hold(self, file_id: str, seconds: float) -> None:
+        """Keep one document off the disk until `release`, or `seconds`."""
+        previous = self.held.get(file_id)
+        if previous is not None:
+            previous.cancel()
+        try:
+            timer = asyncio.get_running_loop().call_later(seconds, self.release, file_id)
+        except RuntimeError:
+            timer = None
+        self.held[file_id] = timer
+
+    def release(self, file_id: str) -> None:
+        if file_id not in self.held:
+            return
+        timer = self.held.pop(file_id)
+        if timer is not None:
+            timer.cancel()
+        self._dirty.add(file_id)
+        self._schedule()
+
+    def rewrite(self, file_id: str, target: str) -> bool:
+        """Make a document say `target`, as an edit made here, so it reaches
+        every peer the way typing does. Whether anything changed."""
+        text = self.body(file_id)
+        doc = self.texts.get(file_id)
+        if text is None or doc is None:
+            return False
+        before = str(text)
+        spans = edits_for(before, target)
+        if not spans:
+            return False
+        with doc.transaction():
+            splice(text, before, spans)
+        if str(text) != target:
+            with doc.transaction():
+                del text[0:len(text)]
+                text += target
+        return True
+
+    def keep_version(self, file_id: str, content: str, why: str) -> None:
+        """A version of a file's text, named, before a merge changes it."""
+        recorder = getattr(self.session, "record_version", None)
+        record = self.files.get(file_id)
+        if recorder is None or record is None:
+            return
+        relative = str(record.get("path") or "")
+        try:
+            path = self.project.resolve(relative)
+        except (PermissionError, OSError, ValueError):
+            return
+        # "import", as the rejoin's own record is, so the save that follows
+        # does not fold it away as one more keystroke of a burst.
+        recorder(path, content, by="you", why=why, op="import")
 
     def _watcher_for(self, file_id: str) -> Callable:
         def observed(event) -> None:
@@ -1117,6 +1179,16 @@ class CollabStore:
         if conflicts == 0:
             item["outcome"] = "merged"
             item["merged"] = merged
+            return
+        # Where git's merge conflicts, the paragraph merge keeps both
+        # versions between comment lines, which compile, where git's markers
+        # would not; a file type with no comments stays `differs`.
+        kept = paragraphs.merge(
+            base, local, shared, "this folder", "the shared copy", item["path"],
+        )
+        if not kept.commentless:
+            item["outcome"] = "merged"
+            item["merged"] = kept.text
 
     def reconcile_apply(self, plan: list[dict], *, history, trash,
                         peer: str = "", who: str = "") -> None:
@@ -1456,15 +1528,26 @@ class CollabStore:
         # has moved on from it, typing inside the flush's debounce or a
         # collaborator's edit not yet written out, holds changes the file
         # does not, and a two-way diff read each of them as a deletion made
-        # on disk and deleted it. So the fold is a merge; where both
-        # changed the same words the file wins, the writer's rule, and the
-        # document's text is kept as a version first.
+        # on disk and deleted it. So the fold is a merge, by paragraph, the
+        # same rule two installs that wrote apart are merged by: where both
+        # changed one paragraph, both versions stay between comment lines
+        # and the writer keeps one, and the document's text is kept as a
+        # version first. A file type with no comments takes the disk's side
+        # there, which was the rule for every file before.
         target = after
         base = self.last_projected.get(file_id)
         if base is not None and base != before and base != after and before != after:
-            merged = merge_three(base, before, after, edits_for)
-            if merged.clashed:
-                self._keep_what_the_editor_held(relative, before)
+            merged = paragraphs.merge(
+                base, after, before, "the file on disk", "the editor", relative,
+            )
+            if merged.conflicts:
+                self._keep_what_the_editor_held(
+                    relative, before,
+                    "What the editor held before the file on disk was merged in",
+                )
+                noted = getattr(self.session, "note_merged", None)
+                if noted is not None and not merged.commentless:
+                    noted(relative, merged.conflicts, "", "")
             target = merged.text
         spans = edits_for(before, target)
         if not spans:
@@ -1969,6 +2052,9 @@ class CollabStore:
             self._part_clashes()
             self.settle_paths()
         pending, self._dirty = self._dirty, set()
+        waiting = pending & self.held.keys()
+        pending -= waiting
+        self._dirty |= waiting
         failed: set[str] = set()
         for file_id in pending:
             try:

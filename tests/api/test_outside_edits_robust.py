@@ -77,7 +77,9 @@ def test_typing_not_yet_on_disk_survives_an_outside_edit_elsewhere(client, opene
     assert now.endswith("Appended by git.\n")
 
 
-def test_a_clash_goes_to_the_disk_and_keeps_the_editors_text(client, opened, project_dir):
+def test_a_clash_keeps_both_versions_and_the_editors_text(client, opened, project_dir):
+    """Typing and an outside save changed one paragraph: both stay, between
+    comment lines, and what the editor held is a version as well."""
     project_id = opened["id"]
     main = project_dir / "main.tex"
     main.write_text("One sentence.\n", encoding="utf-8")
@@ -93,11 +95,56 @@ def test_a_clash_goes_to_the_disk_and_keeps_the_editors_text(client, opened, pro
         await server_main._fold_tick(session, {"main.tex"})
 
     client.portal.call(clash)
-    assert text_of(client, project_id) == "One sentence, as saved in vim.\n"
+    now = text_of(client, project_id)
+    assert "% Version from the file on disk {nexttex-conflict" in now
+    assert "% Version from the editor {nexttex-conflict" in now
+    assert now.count("One sentence, as saved in vim.") == 1
+    assert now.count("One sentence, as typed.") == 1
+    assert now.index("as saved in vim") < now.index("as typed")
     versions = versions_of(client, project_id, "main.tex")
-    kept = [v for v in versions if v["why"] == "What the editor held when the file on disk won"]
+    why = "What the editor held before the file on disk was merged in"
+    kept = [v for v in versions if v["why"] == why]
     assert kept and kept[-1]["by"] == "you"
-    assert versions[-1]["by"] == "outside"
+
+
+def test_a_git_pull_that_clashes_with_typing_keeps_both(client, opened, project_dir):
+    """The same through real git: a commit elsewhere changed the paragraph
+    being typed in, and `git pull` brings it in."""
+    import subprocess
+
+    project_id = opened["id"]
+    main = project_dir / "main.tex"
+    env = {"PATH": "/usr/bin:/bin", "HOME": str(project_dir),
+           "GIT_AUTHOR_NAME": "A Test", "GIT_AUTHOR_EMAIL": "t@example.invalid",
+           "GIT_COMMITTER_NAME": "A Test", "GIT_COMMITTER_EMAIL": "t@example.invalid"}
+
+    def git(*arguments, cwd=project_dir):
+        subprocess.run(["git", *arguments], cwd=cwd, check=True, capture_output=True, env=env)
+
+    main.write_text("Intro.\n\nThe paragraph.\n", encoding="utf-8")
+    fold(client, project_id, "main.tex")
+    settled(client, project_id)
+    git("init", "-q", "-b", "main")
+    git("add", "main.tex")
+    git("commit", "-q", "-m", "base")
+    other = project_dir.parent / (project_dir.name + "-elsewhere")
+    git("clone", "-q", str(project_dir), str(other), cwd=project_dir.parent)
+    (other / "main.tex").write_text("Intro.\n\nThe paragraph, from the other machine.\n")
+    git("commit", "-q", "-am", "theirs", cwd=other)
+    session = session_of(project_id)
+
+    async def type_then_pull():
+        text = session.collab.body(session.collab.file_id_for("main.tex"))
+        text.insert(len(str(text)) - 1, " Typed here.")
+        git("pull", "-q", str(other), "main")
+        await server_main._fold_tick(session, {"main.tex"})
+
+    client.portal.call(type_then_pull)
+    now = text_of(client, project_id)
+    assert now.startswith("Intro.\n\n")
+    assert now.count("The paragraph, from the other machine.") == 1
+    assert now.count("The paragraph. Typed here.") == 1
+    assert "{nexttex-conflict" in now and "<<<<" not in now
 
 
 def test_a_truncate_then_write_save_never_blanks_the_document(client, opened, project_dir):

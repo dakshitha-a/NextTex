@@ -1202,6 +1202,15 @@ are both back, the two sets of edits are merged rather than one of them
 being refused. That is true of an afternoon apart as much as of a second,
 and it needs nothing switched on.
 
+If you both rewrote the same paragraph while apart, NextTex does not stitch
+the two together. It keeps both versions, one after the other, and a small
+bar above them lets you keep the one you want, or both, with one click. A
+paragraph only one of you touched is simply taken. The two versions sit
+between `%` comment lines, so the document still builds while you decide,
+and your text from before the merge is in History either way. The same
+happens when a file changes on disk, from a `git pull` or another editor,
+while you are typing in that paragraph.
+
 The thing keeping in touch is the NextTex on each machine, not the browser
 tab. So a collaborator's work arrives while your tab is closed, and a shared
 project picks its peers back up when the server starts, so you do not have to

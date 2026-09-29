@@ -50,6 +50,12 @@ BLOB_MISS = 12       # I do not have the bytes with this sha256
 FILE_WANT = 13       # send me the file the manifest lists under this id
 FILE_HAVE = 14       # here it is, with its path and its bytes
 FILE_MISS = 15       # I do not have that file
+MERGED = 16          # the paragraph merge for this document is written
+
+#: What this install can do beyond the frames every version knows, said in
+#: HELLO, WELCOME and each sync step so the other end learns it whichever
+#: arrives first. "merge-1" is the paragraph merge on reconnecting.
+CAN = ["merge-1"]
 
 #: An unknown kind falls off the end of the handler's chain without a word,
 #: so a frame added here is safe to send to an install that predates it.
@@ -96,12 +102,12 @@ def hello(share_id: str, name: str, colour: str, address: str,
           secret: str = "") -> bytes:
     return Frame(HELLO, {
         "share": share_id, "name": name, "colour": colour,
-        "address": address, "secret": secret,
+        "address": address, "secret": secret, "can": CAN,
     }).encode()
 
 
 def welcome(share_id: str, members: dict) -> bytes:
-    return Frame(WELCOME, {"share": share_id, "members": members}).encode()
+    return Frame(WELCOME, {"share": share_id, "members": members, "can": CAN}).encode()
 
 
 def denied(reason: str) -> bytes:
@@ -110,6 +116,17 @@ def denied(reason: str) -> bytes:
 
 def sync(doc_id: str, message: bytes) -> bytes:
     return Frame(SYNC, {"doc": doc_id}, message).encode()
+
+
+def sync_step(doc_id: str, message: bytes) -> bytes:
+    """A sync step 1 or 2, which says what this install can do: those are
+    the frames the paragraph merge reads, and an update per keystroke is
+    left as small as it was."""
+    return Frame(SYNC, {"doc": doc_id, "can": CAN}, message).encode()
+
+
+def merged(doc_id: str, conflicts: int, sibling: str = "") -> bytes:
+    return Frame(MERGED, {"doc": doc_id, "conflicts": conflicts, "sibling": sibling}).encode()
 
 
 def aware(doc_id: str, message: bytes) -> bytes:

@@ -3378,6 +3378,9 @@ three heavier, and the second is the one the budget is about.
 
 Two agents editing the same paragraph at once converge syntactically and not
 semantically: the text will be valid LaTeX and may not be sensible prose.
+That is still true of two installs typing into one paragraph while both are
+connected, and it stopped being true of two that wrote it apart when
+section 88 made the paragraph the unit of an offline merge.
 
 `git pull` replaces a whole file, so it wins against a collaborator's
 untouched paragraphs in the same file. Committing and pushing are safe; the
@@ -10613,7 +10616,7 @@ it lost work and one way it misnamed it.
   on either side that do not touch are both kept, and where both changed
   the same words the file wins, the rule the writer set for a file and a
   document that disagree, with the document's text kept as a version
-  first.
+  first. Section 88 replaced that rule: both versions are kept now.
 - **An empty read waits.** An editor that truncates before writing can
   be read in between; a file read empty over a document that is not is
   read again 300 ms later, and folded empty only if it still is.
@@ -11271,3 +11274,49 @@ token, and `kit-rule.test.ts` fails on one that spells it out.
 a fold and an unfold, checks that reading mode moves the source and the
 Claude column in the same frames, and that under reduced motion a fold
 has no frame in between.
+
+## 88. Two versions of a paragraph, chosen in place
+
+The writer asked on 29 September 2026 for a better offline merge, having
+seen block-level editors treat a paragraph as a unit with an id, and
+proposed that two people's changes to one paragraph be kept side by side
+for them to choose from rather than stitched together by the CRDT. A
+block data model was weighed and set aside: a `.tex` file is edited
+outside the app, by git and by other editors, where no block id can
+live, the editor binds one flat text per file, and the block editors'
+rule that a deletion wins throws away an afternoon's rewrite without a
+word. The paragraph became the unit of conflict instead, and the
+document stays flat.
+
+The rule, per paragraph, against the text both sides last agreed on:
+changed on one side, that side's version; changed the same way on both,
+once; new on both at one place, both, since neither replaces anything;
+changed differently on both, or changed on one and deleted on the other,
+both versions between comment lines that name where each came from, so
+the file still compiles and both appear in the PDF until somebody
+chooses. It applies to two installs that come back together after
+writing apart, to a file changed on disk while it was being typed in,
+which had been "the file wins", and to a rejoin whose git merge
+conflicts. Live typing between two connected installs stays character
+level, since each writer sees the other's caret and the mixing happens
+in front of them.
+
+In the editor the comment lines are drawn as a bar, as the direction
+page's "Two versions of a paragraph" section shows: a row in the second
+ink saying what happened, with Keep both; a row per version in the third
+ink, "Version from Alice", with Keep this one; the closing line hidden;
+and a 2 px rule in `--line` down the region's left edge, the one edge
+here that is information. A click is one change to the buffer, which
+the shared document carries to everyone. The words stay plain comments
+in the file, so a writer in another editor can choose by deleting lines.
+One notice per merge says what happened and where, never one per
+paragraph. Before any merge each side's own text is saved as a version.
+
+Only one install writes the merge, since the same repair made twice is
+two repairs; the other keeps the file off its disk until the repair
+arrives, though its editor may show the mixed paragraph for that moment.
+With three installs and no host, they can disagree about which of them
+is to write it while their links come back, and the merge then stays
+the character-level one. The always-on host, part B of the same run, is
+the answer to that: it is there, and it writes it.
+

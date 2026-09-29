@@ -2217,6 +2217,13 @@ button.nx-reads-x[data-always]:hover { color: var(--pen); }
    not: the contrast sweep measured it under 4.5:1. */
 .nx-after-end, .nx-after-end * { color: var(--ink-3) !important; }
 .nx-after-end-note { padding: 2px 0 6px; font-family: var(--font-sans); font-size: 12.5px; line-height: 17px; color: var(--ink-3); }
+/* Two versions of a paragraph, kept by a merge (conflicts.ts): the marker
+   lines drawn as a quiet bar, and a rule down the region's left edge,
+   which is information, the extent of the choice. */
+.nx-conflict-line { box-shadow: inset 2px 0 0 var(--line); }
+.nx-conflict-head, .nx-conflict-version { display: flex; align-items: center; gap: 12px; padding-left: 12px; box-shadow: inset 2px 0 0 var(--line); font-family: var(--font-sans); font-size: 12px; line-height: 16px; }
+.nx-conflict-head { min-height: 28px; color: var(--ink-2); }
+.nx-conflict-version { min-height: 24px; color: var(--ink-3); }
 .nx-math-tooltip {
   max-width: 480px;
   color: var(--ink);

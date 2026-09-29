@@ -890,6 +890,38 @@ class ProjectSession:
 
         spawn(announce(), "announcing a file kept beside another")
 
+    def note_merged(self, path: str, conflicts: int, other: str, sibling: str) -> None:
+        """A merge kept two versions of some paragraphs, or of a whole file
+        with no comments to mark them. Said once per merge, not once per
+        paragraph; the editor marks each place itself. `other` is empty for
+        a file changed on disk while it was being typed in."""
+        places = "1 paragraph" if conflicts == 1 else f"{conflicts} paragraphs"
+        if sibling:
+            message = (
+                f"{path} was changed here and by {other or 'another program'} "
+                f"at once. Their copy is kept beside it as {sibling}."
+            )
+        elif other:
+            message = (
+                f"You and {other} both changed {places} of {path} while apart. "
+                "Both versions are kept in the file; keep the one you want."
+            )
+        else:
+            message = (
+                f"{path} changed on disk while you were typing in the same "
+                f"{'paragraph' if conflicts == 1 else 'paragraphs'}. Both "
+                "versions are kept in the file; keep the one you want."
+            )
+
+        async def announce() -> None:
+            await self.events.publish({"type": "file_notice", "message": message})
+            if sibling:
+                await self.events.publish(
+                    {"type": "files_changed", "paths": [path, sibling], "structural": True}
+                )
+
+        spawn(announce(), "announcing a merge that kept two versions")
+
     def note_trashed(self, was: str) -> None:
         """A file a peer deleted has just been moved into this trash, or
         one the watcher saw go has just been called deleted.

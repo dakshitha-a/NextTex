@@ -227,6 +227,13 @@ else.
   pixels lands off by the factor. It lives inside the pane it belongs to,
   never over a neighbour. A card below the text puts its button row on
   its top edge, nearest the text.
+- Text in the editor that asks the writer to choose is drawn in place,
+  never in a card over it: a merge's two versions of a paragraph show as
+  a bar of `t-meta` rows, the sentence in the second ink with Keep both,
+  each version's name in the third ink with Keep this one, the kit's
+  quiet inline button in each, and a 2 px `--line` rule down the
+  region's left edge (`.nx-conflict-head`, `.nx-conflict-version`,
+  `.nx-conflict-line`, drawn by `frontend/src/panes/conflicts.ts`).
 - A second press on the active bar icon folds the drawer; the drawer
   swap is a cut.
 - A reply in the Claude column is marked by its pen rule alone, with no

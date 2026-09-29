@@ -24,7 +24,13 @@ things go to be forgotten rather than a list anybody reads.
 
 ## In hand
 
-Nothing is in hand. Torn build files closed on 28 September 2026 at
+The collaboration merge and host run, since 29 September 2026: paragraph
+merges for two installs that wrote apart and for outside edits, with a
+bar in the editor to choose a version, then an always-on host install
+that keeps shared projects in step. Its tracker page is
+https://claude.ai/artifact/SKmTRSrLXXe2BYXDT6Peyd.
+
+Before it, nothing was in hand. Torn build files closed on 28 September 2026 at
 4.6.0, from a writing agent's report of a cut-short `.aux`, an empty
 `.bbl` and an `.aux` full of NUL bytes: a cancelled build puts back what
 it touched, a cancelled task no longer leaves an engine running beside

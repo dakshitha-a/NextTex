@@ -86,6 +86,9 @@ class Peer:
     def note_clash(self, path: str, parted: str) -> None:
         self.notices.append(f"{path} {parted}")
 
+    def note_merged(self, path: str, conflicts: int, other: str, sibling: str) -> None:
+        self.notices.append(f"merged {path} {conflicts} {other} {sibling}".rstrip())
+
     def be(self, identity: str) -> "Peer":
         """Take an identity, the way a real install takes one from its key."""
         self.network._me = identity

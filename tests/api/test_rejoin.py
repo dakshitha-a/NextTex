@@ -350,7 +350,9 @@ def test_a_checkout_with_an_uncommitted_edit_merges_it_in(client, them, tmp_path
     assert "Before rejoining" in [v.get("label") for v in versions]
 
 
-def test_a_checkout_with_a_conflicting_edit_keeps_the_shared_text(client, them, tmp_path):
+def test_a_checkout_with_a_conflicting_edit_keeps_both_versions(client, them, tmp_path):
+    """Git's merge conflicts, so the paragraph merge keeps both between
+    comment lines, which compile where git's markers would not."""
     copy = tmp_path / "my-clone"
     copy.mkdir()
     _checkout(copy, {"main.tex": (them["root"] / "main.tex").read_text(),
@@ -363,11 +365,13 @@ def test_a_checkout_with_a_conflicting_edit_keeps_the_shared_text(client, them, 
     body = client.post("/api/collab/rejoin",
                        json={"share": them["share"], "path": str(copy)}).json()
     outcomes = {f["path"]: f["outcome"] for f in body["files"]}
-    assert outcomes["notes.tex"] == "differs"
+    assert outcomes["notes.tex"] == "merged"
     accepted = client.post("/api/collab/join/accept", json={"token": body["token"]}).json()
     text = (copy / "notes.tex").read_text()
-    assert text == "Notes., theirs\n" or text == "Notes, theirs.\n"
     assert "<<<<" not in text
+    assert "% Version from this folder {nexttex-conflict" in text
+    assert "% Version from the shared copy {nexttex-conflict" in text
+    assert "Notes, mine." in text and ("Notes., theirs" in text or "Notes, theirs." in text)
     versions = client.get(f"/api/projects/{accepted['project']['id']}/history",
                           params={"path": "notes.tex"}).json()["versions"]
     assert "Before rejoining" in [v.get("label") for v in versions]
