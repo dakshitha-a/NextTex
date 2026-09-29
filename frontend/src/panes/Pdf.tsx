@@ -133,7 +133,18 @@ function flash(
 
 type PageView = {
   container: HTMLDivElement;
+  /** The picture on screen: the canvas and, over a dark page, the figures'
+   *  canvas, together in one layer.  A redraw paints a new layer out of
+   *  sight and fades it in over this one, so the canvas the reader sees is
+   *  never cleared, resized or half painted (the black frame after every
+   *  build), and a dark page is never shown before it is darkened (the
+   *  white one). */
+  layer: HTMLDivElement;
   canvas: HTMLCanvasElement;
+  /** Whether the layer on screen holds a picture.  A page with nothing on
+   *  it yet shows its ground, and a new picture simply appears there
+   *  rather than fading in over nothing. */
+  painted: boolean;
   /** The selectable text over the picture.  A canvas is an image of a
    *  page: it cannot be selected, searched or copied out of, which for a
    *  document somebody is quoting from is most of what a PDF is for. */
@@ -160,6 +171,57 @@ type PageView = {
   naturalHeight: number;
   rotation: Rotation;
 };
+
+/** How long a new picture takes to fade in over the old one: the swap
+ *  token in styles.css, read once, so the stylesheet is the one place it
+ *  is set. */
+let swapMs = -1;
+function swapDuration(): number {
+  if (swapMs < 0) {
+    const raw = typeof window === "undefined"
+      ? ""
+      : window.getComputedStyle(window.document.documentElement).getPropertyValue("--dur-swap");
+    const parsed = parseFloat(raw);
+    swapMs = Number.isFinite(parsed) ? parsed : 140;
+  }
+  return swapMs;
+}
+
+/** Put a finished layer on screen.  Over a page that already shows a
+ *  picture it fades in for the swap's duration, and the old picture is
+ *  taken away once it is covered; over a page with nothing on it yet, it
+ *  is simply there.  Any older layer still fading out goes at once, so a
+ *  page never holds more than the two pictures of one swap. */
+function show(
+  view: PageView,
+  layer: HTMLDivElement,
+  canvas: HTMLCanvasElement,
+  figures: HTMLCanvasElement | null,
+) {
+  const old = view.layer;
+  const fade = view.painted && old.isConnected;
+  view.layer = layer;
+  view.canvas = canvas;
+  view.figures = figures;
+  view.painted = true;
+  for (const other of Array.from(view.container.querySelectorAll(".nx-page-layer"))) {
+    if (other !== layer && other !== old) other.remove();
+  }
+  if (!fade) {
+    delete layer.dataset.incoming;
+    old.remove();
+    return;
+  }
+  // Read a size so the layer's hidden state is laid out before it changes,
+  // or the browser merges the two and there is no fade to see.
+  void layer.offsetWidth;
+  delete layer.dataset.incoming;
+  const done = () => {
+    if (old !== view.layer) old.remove();
+  };
+  layer.addEventListener("transitionend", done, { once: true });
+  window.setTimeout(done, swapDuration() + 60);
+}
 
 /** pdf.js's numbers for the operators the figure walk reads. */
 const FIGURE_OPS = {
@@ -283,6 +345,10 @@ export default function Pdf({
   });
   const darkRef = useRef(dark);
   darkRef.current = dark;
+  // The ground under a dark page not drawn yet: the surface the dark
+  // filter paints the paper as, so a page arriving on a dark sheet is the
+  // colour it is about to be and never flashes the paper's white.
+  const [darkGround] = useState(() => `rgb(${darkColours().surface.join(", ")})`);
   const spreadRef = useRef(spread);
   spreadRef.current = spread;
   const rotationRef = useRef(rotation);
@@ -463,18 +529,14 @@ export default function Pdf({
   const darken = useCallback(
     async (
       page: pdfjs.PDFPageProxy,
-      view: PageView,
+      canvas: HTMLCanvasElement,
+      layer: HTMLDivElement,
       viewport: pdfjs.PageViewport,
       context: CanvasRenderingContext2D,
-    ) => {
-      const canvas = view.canvas;
-      let overlay = view.figures;
-      if (!overlay) {
-        overlay = window.document.createElement("canvas");
-        overlay.className = "nx-figures";
-        canvas.after(overlay);
-        view.figures = overlay;
-      }
+    ): Promise<HTMLCanvasElement> => {
+      const overlay = window.document.createElement("canvas");
+      overlay.className = "nx-figures";
+      layer.appendChild(overlay);
       overlay.width = canvas.width;
       overlay.height = canvas.height;
       const paint = overlay.getContext("2d");
@@ -496,6 +558,7 @@ export default function Pdf({
       context.globalCompositeOperation = "copy";
       context.drawImage(canvas, 0, 0);
       context.restore();
+      return overlay;
     },
     [],
   );
@@ -507,6 +570,7 @@ export default function Pdf({
     if (view.drawnFor === generation.current) return;   // already current
     if (view.task) return;                              // in flight
     const mine = generation.current;
+    let fresh: HTMLDivElement | null = null;
     try {
       const page = await document.getPage(index + 1);
       if (mine !== generation.current) return;
@@ -521,7 +585,6 @@ export default function Pdf({
       //
       // Measured from the element rather than by subtracting a border, so a
       // later change to the page's frame cannot quietly bring this back.
-      const canvas = view.canvas;
       // The container's content box, which is what the canvas fills: the
       // border is outside it.  Read from the container rather than the canvas
       // because the canvas keeps `width: 100%`, and it has to: the pinch
@@ -540,27 +603,38 @@ export default function Pdf({
       const viewport = page.getViewport({ scale: backing.width / natural.width, rotation: turn });
       const width = Math.floor(viewport.width);
       const height = Math.floor(viewport.height);
-      // Both dimensions, and together: the height used to be assigned only
-      // when the width happened to change, so a page that grew taller at the
-      // same width kept a stale backing store.
-      if (canvas.width !== width || canvas.height !== height) {
-        canvas.width = width;
-        canvas.height = height;
-      }
+      // A new layer, sized once and never on screen until it is finished.
+      // Hidden by opacity rather than taken out of the document, because
+      // the dark page's filter is an SVG filter in this document, and a
+      // canvas outside it cannot find it.
+      fresh = window.document.createElement("div");
+      fresh.className = "nx-page-layer";
+      fresh.dataset.incoming = "";
+      const canvas = window.document.createElement("canvas");
+      canvas.width = width;
+      canvas.height = height;
+      fresh.appendChild(canvas);
+      view.container.insertBefore(fresh, view.text);
       const context = canvas.getContext("2d", { alpha: false });
       if (!context) return;
-      view.drawnAt = rasterKey(width / boxWidth);
+      const drawnAt = rasterKey(width / boxWidth);
       // `canvas: null` keeps the context above, which is opaque; pdf.js 6
       // would otherwise make its own from the canvas.
       view.task = page.render({ canvas: null, canvasContext: context, viewport });
       await view.task.promise;
       if (mine !== generation.current) return;
-      if (darkRef.current) await darken(page, view, viewport, context);
+      const figures = darkRef.current ? await darken(page, canvas, fresh, viewport, context) : null;
+      if (mine !== generation.current) return;
+      show(view, fresh, canvas, figures);
+      fresh = null;
+      view.drawnAt = drawnAt;
       if (mine === generation.current) view.drawnFor = mine;
     } catch {
       /* superseded, or the page went away with the document */
     } finally {
       view.task = null;
+      // A layer that was never shown goes with the render that made it.
+      fresh?.remove();
     }
   }, [darken]);
 
@@ -568,15 +642,19 @@ export default function Pdf({
    *  store. Its box keeps its size, so nothing moves, and the page is drawn
    *  again when it comes near. */
   const release = (view: PageView) => {
-    if (view.drawnFor === -1 && !view.task && view.canvas.width === 0) return;
+    if (view.drawnFor === -1 && !view.task && !view.painted) return;
     view.task?.cancel();
     view.task = null;
+    for (const layer of Array.from(view.container.querySelectorAll(".nx-page-layer"))) {
+      if (layer !== view.layer) layer.remove();
+    }
     view.canvas.width = 0;
     view.canvas.height = 0;
     if (view.figures) {
       view.figures.width = 0;
       view.figures.height = 0;
     }
+    view.painted = false;
     view.drawnFor = -1;
     view.drawnAt = 0;
   };
@@ -778,16 +856,18 @@ export default function Pdf({
         element.className = "nx-page";
         element.style.width = `${width}px`;
         element.style.height = `${height}px`;
+        const layer = window.document.createElement("div");
+        layer.className = "nx-page-layer";
         const canvas = window.document.createElement("canvas");
-        canvas.style.width = "100%";
-        canvas.style.height = "100%";
-        canvas.style.display = "block";
-        element.appendChild(canvas);
+        canvas.width = 0;
+        canvas.height = 0;
+        layer.appendChild(canvas);
+        element.appendChild(layer);
         const text = window.document.createElement("div");
         text.className = "nx-text-layer";
         element.appendChild(text);
         views.push({
-          container: element, canvas, text, width, height,
+          container: element, layer, canvas, painted: false, text, width, height,
           scale: effective, drawnFor: -1, drawnAt: 0, textFor: -1, textScale: 0, task: null,
           figures: null, naturalWidth: upright.width, naturalHeight: upright.height, rotation: turn,
         });
@@ -796,17 +876,67 @@ export default function Pdf({
       pages.current = views;
       setPageCount(count);
 
+      // A new page count means new page elements, which have nothing drawn
+      // on them.  The old pages are lifted into a still copy of the view,
+      // held over the new ones until the pages in view are drawn, and then
+      // faded away, so a rebuild that adds a page is the same quiet swap
+      // as one that does not.
+      let ghost: HTMLDivElement | null = null;
       if (!reusable) {
         for (const view of pages.current) view.task?.cancel();
+        const root = scroller.current;
+        const was = root ? { top: root.scrollTop, left: root.scrollLeft } : null;
+        if (root && was && container.childElementCount) {
+          ghost = window.document.createElement("div");
+          ghost.className = "nx-sheet-ghost";
+          ghost.setAttribute("aria-hidden", "true");
+          const copy = container.cloneNode(false) as HTMLDivElement;
+          copy.removeAttribute("data-testid");
+          copy.style.position = "absolute";
+          copy.style.width = `${container.offsetWidth}px`;
+          copy.style.left = `${container.offsetLeft - was.left}px`;
+          copy.style.top = `${container.offsetTop - was.top}px`;
+          copy.append(...Array.from(container.children));
+          ghost.appendChild(copy);
+        }
         const fragment = window.document.createDocumentFragment();
         for (const view of views) fragment.appendChild(view.container);
         container.replaceChildren(fragment);
       }
       applyMode(modeRef.current);
       restore(position);
-      // The canvases still hold the previous render until this resolves, so
-      // the pane shows the old page rather than a blank one.
-      await renderPage(Math.min(position.index, count - 1));
+      const root = scroller.current;
+      if (ghost && root) {
+        ghost.style.top = `${root.scrollTop}px`;
+        ghost.style.left = `${root.scrollLeft}px`;
+        ghost.style.width = `${root.clientWidth}px`;
+        ghost.style.height = `${root.clientHeight}px`;
+        root.appendChild(ghost);
+      }
+      try {
+        // The canvases still hold the previous render until this resolves, so
+        // the pane shows the old page rather than a blank one.
+        await renderPage(Math.min(position.index, count - 1));
+        if (ghost && root) {
+          const top = root.scrollTop;
+          const bottom = top + root.clientHeight;
+          await Promise.all(
+            views.map((view, index) => {
+              const start = view.container.offsetTop;
+              const end = start + view.container.offsetHeight;
+              return end < top || start > bottom ? null : renderPage(index);
+            }),
+          );
+        }
+      } finally {
+        if (ghost) {
+          const leaving = ghost;
+          leaving.dataset.leaving = "";
+          const gone = () => leaving.remove();
+          leaving.addEventListener("transitionend", gone, { once: true });
+          window.setTimeout(gone, swapDuration() + 60);
+        }
+      }
       if (superseded()) return;
       drawVisible();
     },
@@ -1492,7 +1622,7 @@ export default function Pdf({
       ) : null}
       <div
         ref={scroller}
-        className="min-h-0 flex-1 overflow-auto"
+        className="relative min-h-0 flex-1 overflow-auto"
         onScroll={mode === "scroll" ? onScroll : undefined}
         onDoubleClick={onDoubleClick}
         tabIndex={0}
@@ -1609,7 +1739,10 @@ export default function Pdf({
               ? "flex w-full flex-row flex-wrap content-start justify-center gap-4 px-6 py-4"
               : "flex w-fit min-w-full flex-col items-center gap-4 px-6 py-4"
           }
-          style={spread ? undefined : { justifyContent: "safe center" }}
+          style={{
+            ...(spread ? {} : { justifyContent: "safe center" }),
+            ["--dark-page-ground" as string]: darkGround,
+          }}
         />
         {dark ? <DarkPageFilter /> : null}
       </div>

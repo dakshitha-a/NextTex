@@ -11213,3 +11213,31 @@ on the direction page first, as they asked, and approved it as drawn.
 `e2e/specs/projects-states.spec.ts` finds both links on a list with nothing
 put away, opens the empty Archived view from one, and finds no line under
 the list once a project has been archived and another trashed.
+
+## 86. The preview fades to the new page, in its own ground
+
+The writer said on 28 September 2026 that the preview flashes after each
+build: on a white page the pane went black for a frame before the page
+appeared, and with Dark page on it went white. Both came from drawing each
+page straight into the canvas on screen. The canvas's context is opaque,
+so resizing it cleared it to black, and pdf.js paints in stages into
+whatever canvas it is given. A dark page was painted in the paper's own
+colours first and darkened afterwards, so for a moment it was white. A
+rebuild that added or removed a page was worse: the pages were replaced
+with new ones that had nothing drawn on them yet.
+
+Now a page's new picture is drawn out of sight, darkened there when the
+page is dark, and faded in over the old one in 140 ms, the motion
+language's swap. A page that has nothing on it yet shows the ground it is
+about to have, the paper or the dark page's surface, never the other. When
+the page count changes, the old pages are held still over the new ones
+until the pages in view are drawn, and then fade away. Turning Dark page
+on or off fades each page from one to the other the same way. The drawing
+is in the direction page's Motion section, with a Replay that shows the
+old flash beside the fade.
+
+`e2e/specs/preview-swap.spec.ts` reads what the reader sees at one point
+of the first page's margin on every frame through three rebuilds, one with
+a new page, on a white page and a dark one. Run against the code before
+the change, it caught a frame of black on the white page and two of white
+on the dark one.

@@ -219,6 +219,13 @@
      as lifted rather than as a patch of the pane it covers. */
   --float-ground: #FFFFFF;
   --ease: cubic-bezier(0.22, 0.61, 0.36, 1);
+  /* Motion: five durations, each with one job, on the one curve above.
+     docs/style-guide.md, "Motion", says which is for what. */
+  --dur-quick: 90ms;
+  --dur-arrive: 120ms;
+  --dur-swap: 140ms;
+  --dur-move: 180ms;
+  --dur-leave: 140ms;
   color-scheme: light;
 }
 
@@ -2108,10 +2115,24 @@ button.nx-reads-x[data-always]:hover { color: var(--pen); }
   border: 1px solid var(--line);
   box-shadow: var(--page-shadow);
 }
+/* A page's picture, in a layer of its own.  A redraw paints a new layer
+   hidden above the old one and fades it in over the swap's duration, so
+   the canvas on screen is never cleared or half painted.  Under the
+   layers the page's ground is the colour the picture will have: the
+   paper, or on a dark page the dark surface the filter paints, which the
+   pane sets as --dark-page-ground; a page not drawn yet never shows the
+   other one. */
+.nx-page-layer { position: absolute; inset: 0; transition: opacity var(--dur-swap) var(--ease); }
+.nx-page-layer[data-incoming] { opacity: 0; transition: none; }
+.nx-page-layer > canvas { display: block; width: 100%; height: 100%; }
+[data-dark-page] .nx-page { background: var(--dark-page-ground, var(--paper)); }
+/* The old pages, held still over the new ones while a rebuild that
+   changed the page count draws the pages in view, then faded away. */
+.nx-sheet-ghost { position: absolute; overflow: hidden; pointer-events: none; z-index: 1; transition: opacity var(--dur-swap) var(--ease); }
+.nx-sheet-ghost[data-leaving] { opacity: 0; }
 /* The dark page's figures, copied in their own colours over the page drawn
-   dark; shown only while the page is dark. */
-.nx-page .nx-figures { position: absolute; inset: 0; width: 100%; height: 100%; display: none; pointer-events: none; }
-[data-dark-page] .nx-page .nx-figures { display: block; }
+   dark.  Only a layer drawn dark has them. */
+.nx-page .nx-figures { position: absolute; inset: 0; pointer-events: none; }
 .nx-flash {
   position: absolute;
   background: var(--pen-wash);
