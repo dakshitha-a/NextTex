@@ -44,6 +44,9 @@ COMMENTS: dict[str, tuple[str, str]] = {
 TAG = re.compile(r"\{nexttex-conflict ([0-9a-f]+)(?: (\d+|end))?\}")
 
 _TEX = {".tex", ".ltx", ".sty", ".cls"}
+#: Environments that hold a document's body rather than a piece of it, and
+#: so never join their paragraphs into one.
+WHOLE = {"document"}
 _COMMENT = re.compile(r"(?<!\\)%.*")
 
 
@@ -90,6 +93,11 @@ def blocks(text: str, path: str = "") -> list[str]:
         if tex:
             code = _COMMENT.sub("", line)
             for match in re.finditer(r"\\(begin|end)\s*\{([^}]*)\}", code):
+                if match.group(2) in WHOLE:
+                    # The document itself: widening for it made the whole
+                    # body one paragraph, so any clash kept two copies of
+                    # the entire file.
+                    continue
                 if match.group(1) == "begin":
                     open_envs.append(match.group(2))
                 elif match.group(2) in open_envs:

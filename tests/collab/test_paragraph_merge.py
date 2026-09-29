@@ -91,6 +91,11 @@ def test_an_environment_with_blank_lines_inside_is_one_paragraph():
         "\\begin{proof}\nStep one.\n\nStep two.\n\\end{proof}\n\n",
         "After.\n",
     ]
+    # The document environment holds the body; it joins nothing.
+    body = "\\documentclass{article}\n\\begin{document}\n\nOne.\n\nTwo.\n\n\\end{document}\n"
+    assert blocks(body, "a.tex") == [
+        "\\documentclass{article}\n\\begin{document}\n\n", "One.\n\n", "Two.\n\n", "\\end{document}\n",
+    ]
     # A commented \begin does not open anything.
     assert len(blocks("% \\begin{x}\nA.\n\nB.\n", "a.tex")) == 2
     # A missing \end does not swallow the rest of an unrelated environment.
@@ -148,6 +153,9 @@ def test_a_document_with_two_versions_still_compiles(tmp_path):
     theirs = base.replace("The cat sat on the mat.", "A dog lay on the rug.")
     result = merge(base, ours, theirs, "Alice", "Bob", "main.tex")
     assert result.conflicts == 1
+    # Only the paragraph is doubled, never the preamble or the body around it.
+    assert result.text.count("\\documentclass") == 1
+    assert result.text.count("\\end{document}") == 1
     (tmp_path / "main.tex").write_text(result.text)
     done = subprocess.run(
         ["pdflatex", "-interaction=nonstopmode", "-halt-on-error", "main.tex"],
