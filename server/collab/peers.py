@@ -1099,6 +1099,14 @@ class PeerNetwork:
         for peer_id, record in members.items():
             entry = {k: v for k, v in dict(record).items() if v is not None}
             known = self.share.members.get(peer_id)
+            # The address is this install's own note of how the peer was
+            # last reachable (`note_address`), not part of the shared
+            # record, so it is kept. Replacing the entry whole dropped it on
+            # the first manifest sync, and every later dial went by key
+            # alone, which iroh's discovery could not always answer: two
+            # installs whose link dropped never found each other again.
+            if known and known.get("address") and "address" not in entry:
+                entry["address"] = known["address"]
             if known != entry:
                 self.share.members[peer_id] = entry
                 changed = True
