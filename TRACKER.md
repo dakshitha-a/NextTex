@@ -25,12 +25,14 @@ things go to be forgotten rather than a list anybody reads.
 ## In hand
 
 Nothing is in hand. The collaboration merge and host run closed on 29
-September 2026 at 4.10.0: two versions of a paragraph written apart are
+September 2026 at 4.10.2: two versions of a paragraph written apart are
 kept and chosen in place, an outside edit or pull that clashes with typing
 keeps both, and an install can be an always-on host that keeps its
 writers' shared projects. It turned up and fixed two shared projects on
-one install answering for each other, and fields for invites, keys and
-paths drawn in the sans. Its tracker page is
+one install answering for each other, fields for invites, keys and paths
+drawn in the sans, and, in a check between two real installs, peers that
+forgot each other's address and never reconnected, and a merge that
+doubled a whole document rather than its paragraph. Its tracker page is
 https://claude.ai/artifact/SKmTRSrLXXe2BYXDT6Peyd.
 
 Torn build files closed on 28 September 2026 at
