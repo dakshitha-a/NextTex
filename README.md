@@ -161,9 +161,9 @@ close the tab. No database, no Docker, no nginx.
   other's cursors, and anything either of you wrote offline is merged rather
   than fought over when you reconnect.
 - **Share, archive and trash from the list.** A project's row offers all
-  three without opening it. Archived projects and the trash are two views
-  under the list, and Restore brings one back; NextTex never deletes a
-  folder.
+  three without opening it. Archived and Trash, beside the Projects
+  heading, open the two views, and Restore brings one back; NextTex never
+  deletes a folder.
 - **Losing your folder is not losing your place.** Delete or move your copy
   and nobody else is touched; rejoin from your collaborators with no new
   invite, into an empty folder or a copy you already have.
@@ -567,12 +567,12 @@ history and a GitHub backup, is in
 
 <picture>
   <source media="(prefers-color-scheme: dark)" srcset="docs/screenshot-projects-dark.png">
-  <img alt="The projects screen: an app bar with the writing agent, the update, report and help buttons, the lock that says there is no password yet, and Settings; the list of projects with the find field, New project and Other ways in above it; a row under the pointer showing Share and a More button; and a quiet line under the list counting one archived project and one in the trash." src="docs/screenshot-projects-light.png">
+  <img alt="The projects screen: an app bar with the writing agent, the update, report and help buttons, the lock that says there is no password yet, and Settings; the list of projects with the find field, New project and Other ways in above it; Archived and Trash as quiet links beside the Projects heading; and a row under the pointer showing Share and a More button." src="docs/screenshot-projects-light.png">
 </picture>
 
 *The projects screen. A row under the pointer shows what can be done to it
-without opening it; the line under the list is where the archived ones and
-the trash are.*
+without opening it; Archived and Trash, beside the heading, are where the
+projects you put away are.*
 
 ## How it works
 
@@ -1576,8 +1576,9 @@ project's.
 A project is registered, not imported, so NextTex never deletes a folder.
 A row's **Archive** puts a project that is finished, a thesis submitted or
 an application sent, out of the way and keeps it; **Trash** puts one on
-the way out. A quiet line under the list counts both and opens their
-views, where **Restore** brings a project back, opening one makes it
+the way out. **Archived** and **Trash**, two quiet links beside the
+Projects heading, open their views, always there whether or not anything
+is in them, where **Restore** brings a project back, opening one makes it
 active again, and **Delete** in the trash, or **Empty the trash**, forgets
 the entry and leaves the files exactly where they are.
 

@@ -663,6 +663,11 @@ export default function Projects({
             <h2 className="t-display text-ink">
               {view === "active" ? "Projects" : view === "archived" ? "Archived" : "Trash"}
             </h2>
+            {/* The way between the three views, beside the heading in
+                every one of them.  Archived and Trash are always here,
+                empty or not: a way in that appears only once something
+                has been put away is one nobody has learned by then, and a
+                line under the list is out of sight on a long one. */}
             {view !== "active" ? (
               <Pressable
                 type="button"
@@ -672,7 +677,26 @@ export default function Projects({
               >
                 Back to projects
               </Pressable>
-            ) : null}
+            ) : (
+              <>
+                <Pressable
+                  type="button"
+                  className="nx-projects-link"
+                  data-testid="view-archived"
+                  onClick={() => setView("archived")}
+                >
+                  Archived
+                </Pressable>
+                <Pressable
+                  type="button"
+                  className="nx-projects-link"
+                  data-testid="view-trash"
+                  onClick={() => setView("trashed")}
+                >
+                  Trash
+                </Pressable>
+              </>
+            )}
             <span className="flex-1" />
             <Field
               ref={filterBox}
@@ -1139,24 +1163,8 @@ export default function Projects({
               )}
             </div>
           ))}
-          {/* Under the projects, only when there is something in it: the
-              counts, each the way to its view.  Under the trash, the one
-              way to empty it, with the same confirm every row has. */}
-          {loaded && view === "active" && (counts.archived || counts.trashed) ? (
-            <div className="nx-projects-under" data-testid="projects-under">
-              {counts.archived ? (
-                <Pressable type="button" className="nx-projects-link" data-testid="view-archived" onClick={() => setView("archived")}>
-                  {counts.archived} archived
-                </Pressable>
-              ) : null}
-              {counts.archived && counts.trashed ? " · " : null}
-              {counts.trashed ? (
-                <Pressable type="button" className="nx-projects-link" data-testid="view-trash" onClick={() => setView("trashed")}>
-                  {counts.trashed} in the trash
-                </Pressable>
-              ) : null}
-            </div>
-          ) : null}
+          {/* Under the trash, the one way to empty it, with the same
+              confirm every row has. */}
           {loaded && view === "trashed" && counts.trashed ? (
             <div className="nx-projects-under" data-testid="projects-under">
               {emptying ? (

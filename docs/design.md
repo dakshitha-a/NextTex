@@ -9478,8 +9478,11 @@ route.
 **Screen.** As drawn on version 19 of the direction page and agreed. A
 row's actions are Open, Share, Zip, PDF, Archive and Trash; "Remove from
 NextTex" with its confirm is gone, since both new states are reversible and
-need none. Under the list a quiet line appears only when there is something
-in it, "2 archived · 1 in the trash", each count a link to its view. The
+need none. Beside the heading two quiet links, Archived and Trash, open the
+two views; until 4.7.0 the way in was a line under the list, "2 archived · 1
+in the trash", shown only when there was something in it, which left an
+install with nothing put away no way in at all (see the section on the way
+to Archived and Trash below). The
 Archived view has the heading "Archived" with "Back to projects" beside it
 and rows offering Open, Restore and Trash; the Trash view has the heading
 "Trash", rows offering Restore and Delete in the error colour, Delete
@@ -11186,3 +11189,27 @@ engine in the build directory is how such files get damaged.
 file kept, presses Rebuild everything and finds it gone with another
 document's file untouched, then fills the `.aux` with NUL bytes and
 builds past it with Rebuild everything.
+
+## 85. The way to Archived and Trash is always beside the heading
+
+The writer asked on 28 September 2026 how to see archived and trashed
+projects, since the projects screen showed no button for them. The way in
+was a quiet line under the list, "2 archived · 1 in the trash", drawn only
+when one of the two held something. On an install where nothing had been
+put away there was no way in at all, and on a long list the line sat below
+the last row, out of sight until the list was scrolled to its end. A way in
+that appears only once it is needed is one nobody has learned by then,
+which is the reason the find field and the sort are always drawn.
+
+Now two quiet links, Archived and Trash, sit beside the Projects heading
+in every state of the list. They are the link "Back to projects" already
+was in those two views, in the same place and style, so the heading row
+reads the same in all three. They carry no count; each view's own line
+says how many it holds, and a view with nothing in it opens to its one
+sentence with Back to projects. The line under the list is gone; under the
+trash the same line still holds Empty the trash. The writer saw the drawing
+on the direction page first, as they asked, and approved it as drawn.
+
+`e2e/specs/projects-states.spec.ts` finds both links on a list with nothing
+put away, opens the empty Archived view from one, and finds no line under
+the list once a project has been archived and another trashed.

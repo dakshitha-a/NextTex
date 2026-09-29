@@ -1329,13 +1329,14 @@ input, textarea { font: inherit; color: inherit; background: transparent; }
 .nx-project-where { grid-area: where; color: var(--ink-3); font-size: 13px; line-height: 18px; min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
 .nx-project-tail { grid-area: tail; justify-self: end; }
 .nx-project-form { grid-area: form; margin-top: 8px; }
-/* The quiet line under the list: the counts of the other two views,
-   each a link; under the trash, "Empty the trash".  The way back from a
-   view is the same link beside the heading. */
+/* The quiet links beside the heading: Archived and Trash on the
+   projects, "Back to projects" in either of those views.  The line under
+   the trash holds "Empty the trash". */
 .nx-projects-under { padding: 6px 14px 12px; color: var(--ink-3); font-size: 13px; line-height: 18px; }
 .nx-projects-link { color: var(--ink-2); font-size: 13px; line-height: 18px; border-radius: var(--nx-radius-control); }
 .nx-projects-link:hover, .nx-projects-link:focus-visible { color: var(--ink); }
 .nx-projects-head .nx-projects-link { margin-left: -6px; align-self: end; padding-bottom: 3px; }
+.nx-projects-head .nx-projects-link + .nx-projects-link { margin-left: 0; }
 /* The stamp after the path in the Archived and Trash views: the tail
    says it at rest, and it reappears here while the pointer takes the
    tail for the actions, so it is never lost.  A screen with nothing to

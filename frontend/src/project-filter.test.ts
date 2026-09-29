@@ -101,7 +101,7 @@ describe("the three views", () => {
     expect(visibleProjects(rows, "aims", "name").map((r) => r.name)).toEqual([]);
   });
 
-  it("count each view for the quiet line under the list", () => {
+  it("count each view for its own header line", () => {
     expect(viewCounts(rows)).toEqual({ active: 1, archived: 2, trashed: 1 });
     expect(viewCounts([])).toEqual({ active: 0, archived: 0, trashed: 0 });
   });

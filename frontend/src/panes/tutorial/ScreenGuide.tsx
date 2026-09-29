@@ -92,7 +92,7 @@ const ROWS: [string, string][] = [
   ],
   [
     "Point at a row",
-    "Share, and More: a zip or the PDF, Archive, and Move to the trash. Share gives you an invite without opening the project. Archive keeps a finished project out of the way; the trash puts one on the way out. The line under the list opens either view, where Restore brings a project back and Delete forgets it.",
+    "Share, and More: a zip or the PDF, Archive, and Move to the trash. Share gives you an invite without opening the project. Archive keeps a finished project out of the way; the trash puts one on the way out. Archived and Trash beside the heading open either view, where Restore brings a project back and Delete forgets it.",
   ],
   [
     "The bar",

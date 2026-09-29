@@ -121,7 +121,7 @@ test("a row says when it was opened, and its actions are there without a hover",
   await expect(actions).toHaveCSS("opacity", "1");
   await menu.getByRole("menuitem", { name: "Archive" }).click();
   // Archiving asks nothing: it is reversible.  The row leaves the list
-  // and the quiet line under it says where it went.
+  // and Archived beside the heading is the way to it.
   await expect(page.getByTestId("project-row")).toHaveCount(0);
   await page.getByTestId("view-archived").click();
   await expect(page.getByRole("heading", { name: "Archived" })).toBeVisible();

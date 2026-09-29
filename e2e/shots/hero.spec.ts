@@ -169,7 +169,7 @@ async function toProjects(tab: Page, app: Instance, home: string) {
   }
   await tab.getByTestId("switch-project").click();
   await tab.getByText("Projects", { exact: true }).waitFor();
-  await tab.getByTestId("projects-under").waitFor();
+  await tab.getByTestId("view-archived").waitFor();
   await tab.waitForTimeout(300);
 }
 

@@ -15,7 +15,7 @@ async function land(app: { base: string; token: string }, page: import("@playwri
   await page.getByRole("heading", { name: "Projects" }).waitFor();
 }
 
-test("Archive and Trash move a row to its view, Restore brings it back, and the quiet line counts", async ({
+test("Archive and Trash move a row to its view, Restore brings it back, and the heading always offers both views", async ({
   app,
   page,
 }) => {
@@ -24,8 +24,14 @@ test("Archive and Trash move a row to its view, Restore brings it back, and the 
   await seedProject(app, "scratch");
   await land(app, page);
   await expect(page.getByTestId("project-row")).toHaveCount(3);
-  // Nothing under the list while nothing is archived or in the trash.
+  // The way to either view is beside the heading even while both are
+  // empty, and nothing sits under the list.
+  await expect(page.getByTestId("view-archived")).toHaveText("Archived");
+  await expect(page.getByTestId("view-trash")).toHaveText("Trash");
   await expect(page.getByTestId("projects-under")).toHaveCount(0);
+  await page.getByTestId("view-archived").click();
+  await expect(page.getByTestId("view-empty")).toContainText("Nothing is archived.");
+  await page.getByTestId("view-back").click();
 
   const rowNamed = (name: string) =>
     page.getByTestId("project-row").filter({ hasText: name });
@@ -38,8 +44,7 @@ test("Archive and Trash move a row to its view, Restore brings it back, and the 
   await page.getByTestId("row-trash").click();
   await expect(page.getByTestId("project-row")).toHaveCount(1);
   await expect(page.getByTestId("project-count")).toHaveText("1 project");
-  const under = page.getByTestId("projects-under");
-  await expect(under).toHaveText("1 archived · 1 in the trash");
+  await expect(page.getByTestId("projects-under")).toHaveCount(0);
 
   // The Archived view: the heading, the way back, the same rows with
   // the state after the path, and Open, Restore and Trash on hover.
@@ -82,7 +87,7 @@ test("Archive and Trash move a row to its view, Restore brings it back, and the 
   await expect(page.getByTestId("view-empty")).toContainText("The trash is empty.");
   await page.getByTestId("view-back").click();
   await expect(page.getByTestId("project-row")).toHaveCount(2);
-  await expect(under).toHaveText("1 archived");
+  await expect(page.getByTestId("view-archived")).toBeVisible();
 });
 
 test("Delete in the trash forgets the entry after asking, and Empty the trash forgets them all", async ({
@@ -122,7 +127,7 @@ test("Delete in the trash forgets the entry after asking, and Empty the trash fo
   await page.getByTestId("view-back").click();
   await expect(page.getByTestId("project-row")).toHaveCount(1);
   await expect(page.getByTestId("project-row")).toContainText("kept");
-  await expect(page.getByTestId("projects-under")).toHaveCount(0);
+  await expect(page.getByTestId("view-trash")).toBeVisible();
 
   // The files were never touched.
   const listed = await (await page.request.get(`${app.base}/api/projects`)).json();
@@ -146,7 +151,8 @@ test("opening an archived project makes it active again", async ({ app, page }) 
   await page.getByTestId("switch-project").click();
   await page.getByRole("heading", { name: "Projects" }).waitFor();
   await expect(page.getByTestId("project-row")).toHaveCount(1);
-  await expect(page.getByTestId("projects-under")).toHaveCount(0);
+  await page.getByTestId("view-archived").click();
+  await expect(page.getByTestId("view-empty")).toContainText("Nothing is archived.");
   const listed = await (await page.request.get(`${app.base}/api/projects`)).json();
   expect(listed.projects[0].state).toBe("active");
 });

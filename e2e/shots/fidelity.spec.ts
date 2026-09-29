@@ -598,16 +598,16 @@ const SURFACES: Record<string, Surface> = {
       await tab.locator(".cm-editor").waitFor({ timeout: 30_000 });
     },
   },
-  /* The two views and the quiet line under the list.  The harness has
-     one project; a second, archived or trashed through the route, is
-     copied beside it so the list has a row in each state. */
-  "projects-under": {
+  /* The projects with the way to the two views beside the heading.  The
+     harness has one project; a second, archived or trashed through the
+     route, is copied beside it so the list has a row in each state. */
+  "projects-views": {
     open: async (tab) => {
       await seedState(tab, "archived", "thesis-2025");
       await seedState(tab, "trashed", "aims-2023");
       await tab.getByTestId("switch-project").click();
       await tab.getByText("Projects", { exact: true }).waitFor();
-      await tab.getByTestId("projects-under").waitFor();
+      await tab.getByTestId("view-archived").waitFor();
       return tab.locator(".nx-projects");
     },
     close: async (tab) => {
