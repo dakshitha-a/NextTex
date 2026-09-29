@@ -36,7 +36,12 @@ changed `frontend/` or a route the browser exercises.
 starts one NextTex per worker, reused by every test the worker runs, and
 checked before each test so a server that fell over is replaced rather
 than failing the rest. A test still seeds a project of its own under a
-unique name and still gets a fresh browser context. A spec that changes
+unique name and still gets a fresh browser context, and its project is
+forgotten when it ends, which closes its session: the server keeps an idle
+project open for half an hour, so without that a worker's server held
+every project its earlier tests had opened, with their watchers and
+builds, and five specs whose waits were sound on an idle server ran out
+of time late in a run. A spec that changes
 what the whole install holds, the agent provider, the writer's name, or
 that counts, audits or deletes the projects screen's rows, which on a
 shared server lists every other test's projects too, sets

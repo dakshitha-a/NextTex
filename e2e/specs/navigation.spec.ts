@@ -17,6 +17,9 @@ test("double-clicking the page jumps to the line that set it", async ({ tab }) =
   // Somewhere in the body of the first page rather than a margin: the
   // abstract sits well inside it in every template build.
   const canvas = tab.locator("canvas").first();
+  // A page's picture arrives in a layer faded in over the one before, which
+  // is then taken away, so the box is read from a canvas still there.
+  await expect.poll(async () => (await canvas.boundingBox())?.width ?? 0, { timeout: 15_000 }).toBeGreaterThan(0);
   const box = (await canvas.boundingBox())!;
   await tab.mouse.dblclick(box.x + box.width / 2, box.y + box.height * 0.35);
 

@@ -37,6 +37,13 @@ async function pinch(page: Page, deltaY: number, at: { x: number; y: number }) {
 
 async function ready(page: Page) {
   await expect(page.locator("canvas").first()).toBeVisible({ timeout: 45_000 });
+  // A page's picture arrives in a layer faded in over the one before, and
+  // the one before is then taken away, so the first canvas can be gone
+  // between being seen and being measured; this waits for one that has a
+  // box to measure.
+  await expect
+    .poll(async () => (await page.locator("canvas").first().boundingBox())?.width ?? 0, { timeout: 15_000 })
+    .toBeGreaterThan(0);
   await expect(page.getByTestId("zoom")).toBeVisible();
 }
 

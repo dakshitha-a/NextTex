@@ -50,8 +50,21 @@ export const test = base.extend<Fixtures, WorkerFixtures>({
     }
     await use(shared.current);
   },
-  project: async ({ app }, use, info) => {
-    await use(await seedProject(app, `p${info.workerIndex}-${Date.now()}`));
+  project: async ({ app, ownServer }, use, info) => {
+    const project = await seedProject(app, `p${info.workerIndex}-${Date.now()}`);
+    await use(project);
+    // On a shared server the project is forgotten once its test is over,
+    // which closes its session.  Left open, as the server keeps an idle
+    // project for half an hour, a worker's server was holding every
+    // project its earlier tests had opened, each with its watcher and
+    // its builds, and by the end of a run an outside write took longer
+    // than a spec's wait to be noticed.
+    if (!ownServer && app.alive()) {
+      await fetch(`${app.base}/api/projects/${project.id}`, {
+        method: "DELETE",
+        headers: { "x-nexttex-token": app.token },
+      }).catch(() => undefined);
+    }
   },
   tab: async ({ app, project, page }, use) => {
     // The token in the query string is how a first visit authenticates; the

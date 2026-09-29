@@ -80,16 +80,6 @@ OpenAI provider against OpenAI itself.
 
 ### Known gaps, with a cost somebody will eventually pay
 
-- [ ] **Five browser specs needed a retry at six workers.** On the first
-      full run at six workers sharing a server each, 29 September 2026,
-      `latex-links` (a citation's hover card), `outside-utf8`, `pdf-zoom`
-      (the wheel zoom), `sections` (a section typed now is listed) and
-      `spelling` (the underline once the checker is on) each failed once
-      and passed on the retry. None reads anything the shared server
-      changed, so the likely cause is a wait tuned for two workers meeting
-      the load of six; each is worth reading for a wait on a clock, and
-      fixing, before the retries hide a real failure behind them.
-
 - [ ] **A citation list that spans lines is not completed.** The
       completion source reads the current line, so a `\cite{` whose keys
       run onto the next line offers nothing there. Rare, since a list is
