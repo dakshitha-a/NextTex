@@ -69,7 +69,7 @@ from nexttex.atomic import write_atomically
 from nexttex.history import now_ms
 from nexttex.project import shares_home
 
-from . import history_sync, identity, paragraphs, transport, wire
+from . import endpoint, history_sync, identity, paragraphs, transport, wire
 from .agreed import Agreed, state_of
 from .store import ARRIVED_LIMIT, _kept_both, _WELL_FORMED_ID as _WELL_FORMED_ID_RE
 
@@ -889,11 +889,18 @@ class PeerNetwork:
                 self.dial_later(peer_id)
 
     def _make_transport(self) -> transport.Transport:
-        if transport.wanted() == "loopback":
-            return transport.LoopbackTransport(self.peer_id)
-        from .iroh_transport import IrohTransport
+        """This project's share of the install's one endpoint; see
+        `endpoint.py` for why there is only one."""
+        peer_id = self.peer_id
 
-        return IrohTransport(identity.secret_key())
+        def make():
+            if transport.wanted() == "loopback":
+                return transport.LoopbackTransport(peer_id)
+            from .iroh_transport import IrohTransport
+
+            return IrohTransport(identity.secret_key())
+
+        return endpoint.Attached(peer_id, self.share.share_id, make)
 
     def _spawn(self, coroutine) -> asyncio.Task:
         task = asyncio.create_task(coroutine)

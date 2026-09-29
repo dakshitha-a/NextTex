@@ -35,7 +35,7 @@ if "XDG_DATA_HOME" not in os.environ:
 from nexttex.history import History                              # noqa: E402
 from nexttex.trash import Trash                                  # noqa: E402
 from nexttex.project import Project                              # noqa: E402
-from server.collab import transport                              # noqa: E402
+from server.collab import endpoint, transport                    # noqa: E402
 from server.collab.peers import PeerNetwork                      # noqa: E402
 from server.collab.store import CollabStore                      # noqa: E402
 
@@ -43,8 +43,10 @@ from server.collab.store import CollabStore                      # noqa: E402
 @pytest.fixture(autouse=True)
 def _clean_hub():
     transport.HUB.clear()
+    endpoint.ENDPOINTS.clear()
     yield
     transport.HUB.clear()
+    endpoint.ENDPOINTS.clear()
 
 
 class Peer:
