@@ -163,6 +163,9 @@ test("the preview quality setting changes what a page is drawn with", async ({
   await canvas.waitFor({ timeout: 30_000 });
   const width = async () =>
     canvas.evaluate((el) => (el as HTMLCanvasElement).width);
+  // A page's canvas is empty until its first picture is drawn into it, so
+  // the baseline waits for a drawn one rather than reading a zero.
+  await expect.poll(width, { timeout: 15_000 }).toBeGreaterThan(0);
   const balanced = await width();
 
   await open(tab);
