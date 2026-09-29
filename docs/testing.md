@@ -50,7 +50,7 @@ spec that calls `startServer` with its own environment is unchanged.
 `NEXTTEX_E2E_WORKERS` sets another number of workers for a busy or smaller
 machine.
 
-If the Node on your PATH is older than 20, point `NEXTTEX_NODE_BIN` at a
+If the Node on your PATH is older than 22.13, point `NEXTTEX_NODE_BIN` at a
 newer one rather than changing the system's.
 
 `scripts/dev.sh` is not a check: it runs the server from `.venv` with
@@ -140,7 +140,13 @@ finding the maths under the pointer, where a diff begins, which completion
 list belongs at the cursor, plus a contrast check that parses the palette
 out of `styles.css` and measures every text-on-surface pairing the app uses,
 in both themes. It found the readability problem that had already been
-caught by eye twice.
+caught by eye twice. Two more read the source rather than run it:
+`frontend/src/kit-rule.test.ts` holds every component to the style guide's
+rule of no raw control and no literal size or colour, with no allowance
+left for any file, and fails on a transition that spells out one of the
+motion tokens' values; and `frontend/src/motion.test.ts` holds
+`milliseconds`, which reads a duration token back in whichever unit the
+minifier wrote it.
 
 `bench/` is not part of any tier. It builds a project shaped like a thesis,
 forty source files, two megabytes of LaTeX, a populated build directory, a

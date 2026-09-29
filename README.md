@@ -271,8 +271,9 @@ something you are told rather than something you wait three minutes to
 discover.
 
 **The plan.** A virtual environment and the Python dependencies, with `iroh`
-tried separately so a platform it has no build for loses sharing rather than
-the install. TinyTeX if you want one, or MiKTeX on Windows, and `tlmgr` to
+and `resvg` tried separately, from wheels only, so a platform with no build
+for one loses sharing, or SVG figures drawn as pictures in a Word download,
+rather than the install; the survey says which. TinyTeX if you want one, or MiKTeX on Windows, and `tlmgr` to
 add whichever of the five tools are missing. The TeX it installs is the
 one NextTex builds with afterwards, even on a machine that already had
 another: the installer writes it down in the install's `config.json` as
@@ -1101,8 +1102,14 @@ of it like dragging a file into a notebook cell's output rather than into
 the notebook's folder. The agent cannot read a Word, Excel or PowerPoint
 file as it is, so NextTex writes its text beside it, and a picture in a
 format the agent cannot open, such as TIFF or HEIC, gets a PNG copy where
-this machine can make one. Nothing about any of it goes anywhere your
-question was not already going.
+this machine can make one, with ImageMagick. Nothing about any of it goes
+anywhere your question was not already going.
+
+The box grows with what you type, so a long question can be read back
+whole, until it is half the column; then it scrolls. And when the agent
+starts a turn you did not ask for, a message from another Claude session,
+an idle notice or a scheduled prompt, the turn shows live like any other,
+under one line saying where it came from.
 
 ### A review in two voices, and a prompt is a file
 
@@ -1431,6 +1438,8 @@ install it and run the installer again.
 | `gh`, signed in | Only for *Back this up to GitHub* | no |
 | `tailscale` | Only to reach this install from another machine | **named** |
 | iroh | Only to share a project with another writer | yes, with the Python dependencies |
+| resvg | Only to turn an SVG figure into a picture for a Word download; `rsvg-convert` or Inkscape do instead | yes, with the Python dependencies, where a wheel exists |
+| ImageMagick (`magick`) | Only to make a PNG of a TIFF, BMP or HEIC picture you attach for the agent | **named** |
 
 Nothing in the bottom half of that table is needed to write and typeset.
 
