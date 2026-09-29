@@ -761,11 +761,13 @@ export default function App() {
   }, [openDrawer]);
   const drawerWantsFocus = useRef(false);
   const drawerEl = useRef<HTMLDivElement | null>(null);
+  // Kept until the drawer is there to take it: the drawer mounts when its
+  // slide begins, one render after the state that opened it.
   useEffect(() => {
-    if (!drawerWantsFocus.current) return;
+    if (!drawerWantsFocus.current || !drawerEl.current) return;
     drawerWantsFocus.current = false;
-    drawerEl.current?.focus({ preventScroll: true });
-  }, [drawerId, railHidden, folded.rail]);
+    drawerEl.current.focus({ preventScroll: true });
+  }, [drawerId, railHidden, folded.rail, drawerFold]);
 
   /** Go to a heading in the Sections list.  A row standing for an
    *  `\include` opens the file it names; every other row moves the caret

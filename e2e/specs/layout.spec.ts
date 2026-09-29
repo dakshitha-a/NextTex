@@ -77,9 +77,13 @@ test("below 1100 the drawer folds away and the bar stays to bring it back", asyn
   // column the width cannot spare.
   await tab.getByTestId("bar-files").click();
   await expect(railFolded(tab)).toBeVisible();
-  const drawer = (await railFolded(tab).boundingBox())!;
-  const editor = (await tab.locator(".cm-editor").boundingBox())!;
-  expect(drawer.x + drawer.width).toBeGreaterThan(editor.x + 1);
+  // Polled: the overlay slides in from under the bar, so its box is read
+  // once it has arrived rather than part of the way.
+  await expect.poll(async () => {
+    const drawer = (await railFolded(tab).boundingBox())!;
+    const editor = (await tab.locator(".cm-editor").boundingBox())!;
+    return drawer.x + drawer.width - (editor.x + 1);
+  }).toBeGreaterThan(0);
 });
 
 /** How much of the interface is off the right hand edge, in pixels. */
