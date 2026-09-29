@@ -103,6 +103,8 @@ def test_a_kept_project_arrives_on_the_host_with_nobody_looking(client, hosting,
     # The writer's record says the host joined as a host.
     member = writer["network"].share.members[identity.peer_id()]
     assert member.get("role") == "host"
+    # The name it paired under is the name it joins under.
+    assert member.get("name") == server_main._host_name() == answer["name"]
     # Kept quietly: it builds nothing until somebody here opens it.
     session = server_main.SESSIONS[state["kept"][0]["id"]]
     assert session.quiet

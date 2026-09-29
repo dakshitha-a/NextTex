@@ -1570,7 +1570,10 @@ async def join_share(
     network = PeerNetwork(store)
     return await _hold_join(
         target, project, store, network,
-        network.join(invite, SETTINGS.display_name or "Unnamed"), made=made,
+        # A host with no name of its own joins as what it called itself when
+        # it paired, so a writer sees one name for it, not "Unnamed".
+        network.join(invite, SETTINGS.display_name or (_host_name() if SETTINGS.host else "Unnamed")),
+        made=made,
     )
 
 
