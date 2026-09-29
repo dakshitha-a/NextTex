@@ -59,6 +59,10 @@ test("the upload sheet names the folder a drop went into", async ({ tab, project
   writeFileSync(join(project.root, "figures", "plot.png"), "old");
   await readyMain(tab);
   await openFolders(tab, "figures/plot.png");
+  // The sheet opens only for a name the tree already holds, so the drop
+  // waits for the file written above to be listed; dropped before, it went
+  // straight in and there was no sheet to read.
+  await tab.locator('[role="tree"] [data-path="figures/plot.png"]').waitFor();
   const folder = tab.locator('[role="tree"] [data-path="figures"]');
   const buffer = await tab.evaluateHandle(() => {
     const data = new DataTransfer();
