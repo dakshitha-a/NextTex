@@ -159,6 +159,22 @@ def _unwrap(invite: str) -> dict:
 #: What a share id looks like: `token_hex(16)` from `begin_sharing`.  A
 #: joiner takes its id from an invite, so it is checked against this before
 #: it names a file anywhere.
+def maker(peer_id: str):
+    """How the install's endpoint is made, for `endpoint.py` to call once."""
+    def make():
+        if transport.wanted() == "loopback":
+            return transport.LoopbackTransport(peer_id)
+        from .iroh_transport import IrohTransport
+
+        return IrohTransport(identity.secret_key())
+
+    return make
+
+
+#: Set by the server while this install is an always-on host: it says so in
+#: HELLO, and it is the install that writes a paragraph merge when present.
+HOSTING = False
+
 #: How often the documents that moved are compared with each peer's, to
 #: note a state both agree on.
 AGREE_EVERY = 3.0
@@ -844,6 +860,10 @@ class PeerNetwork:
         self._marks_save: asyncio.Task | None = None
         #: What each peer and this install last agreed each document said.
         self.agreed = Agreed(store.project.state_dir / "collab")
+        #: Document id to the name of whoever wrote what a reconnect last
+        #: brought in unopposed, so a later merge names them for it rather
+        #: than this install: a host passes on its writers' words.
+        self._came_from: dict[str, str] = {}
         self._agreeing: asyncio.Task | None = None
 
     # --- identity ---------------------------------------------------------
@@ -891,16 +911,7 @@ class PeerNetwork:
     def _make_transport(self) -> transport.Transport:
         """This project's share of the install's one endpoint; see
         `endpoint.py` for why there is only one."""
-        peer_id = self.peer_id
-
-        def make():
-            if transport.wanted() == "loopback":
-                return transport.LoopbackTransport(peer_id)
-            from .iroh_transport import IrohTransport
-
-            return IrohTransport(identity.secret_key())
-
-        return endpoint.Attached(peer_id, self.share.share_id, make)
+        return endpoint.Attached(self.peer_id, self.share.share_id, maker(self.peer_id))
 
     def _spawn(self, coroutine) -> asyncio.Task:
         task = asyncio.create_task(coroutine)
@@ -1018,7 +1029,8 @@ class PeerNetwork:
             "secret": secret,
         })
 
-    def _write_member(self, peer_id: str, name: str, colour: str = "") -> None:
+    def _write_member(self, peer_id: str, name: str, colour: str = "",
+                      role: str = "") -> None:
         members = self.store.manifest.get("members", type=Map) \
             if "members" in self.store.manifest else None
         if members is None:
@@ -1040,10 +1052,10 @@ class PeerNetwork:
                 existing["name"] = name
             return
 
-        members[peer_id] = Map({
-            "name": name, "colour": colour,
-            "added_by": self.peer_id, "at": time.time(),
-        })
+        record = {"name": name, "colour": colour, "added_by": self.peer_id, "at": time.time()}
+        if role:
+            record["role"] = role
+        members[peer_id] = Map(record)
 
     def note_address(self, peer_id: str, address: str, name: str = "") -> None:
         """Remember how a peer was reachable when it last called.
@@ -1224,6 +1236,7 @@ class PeerNetwork:
         self._spawn(link.run())
         await link.send(wire.hello(
             share_id, name, "", self.address(), secret,
+            role="host" if HOSTING else "",
         ))
         # And keep it up afterwards. Without this a joiner that lost its
         # first connection sat there until the server was restarted: the
@@ -1316,9 +1329,12 @@ class PeerNetwork:
                 "added_by": self.peer_id,
                 "at": time.time(),
             }
+            if frame.header.get("role") == "host":
+                self.share.members[peer_id]["role"] = "host"
             self.share.save()
             self._write_member(peer_id, frame.header.get("name", ""),
-                               frame.header.get("colour", ""))
+                               frame.header.get("colour", ""),
+                               "host" if frame.header.get("role") == "host" else "")
 
         link.name = frame.header.get("name", "")
         link.colour = frame.header.get("colour", "")
@@ -1373,6 +1389,7 @@ class PeerNetwork:
             name = (self.share.members.get(self.peer_id) or {}).get("name", "")
             await link.send(wire.hello(
                 self.share.share_id, name, "", self.address(),
+                role="host" if HOSTING else "",
             ))
             await link.send_documents()
             await asyncio.sleep(2)
@@ -1515,9 +1532,27 @@ class PeerNetwork:
                     if doc is not None:
                         link.enqueue(wire.sync_step(doc_id, create_sync_message(doc)))
 
+    def is_host(self, peer_id: str) -> bool:
+        """Read from the manifest, the authority on members, since
+        `share.json` mirrors it only when a peer's copy arrives."""
+        manifest = self.store.manifest
+        if "members" in manifest:
+            record = manifest.get("members", type=Map).get(peer_id)
+            if record is not None:
+                return record.get("role") == "host"
+        return (self.share.members.get(peer_id) or {}).get("role") == "host"
+
     def resolves_with(self, link: PeerLink) -> bool:
-        """Whether this install writes the merge: the lowest id among this
-        one and every connected install that can."""
+        """Whether this install writes the merge: a host when one is here,
+        since every writer syncs through it, and otherwise the lowest id
+        among this one and every connected install that can."""
+        if self.is_host(self.peer_id):
+            return True
+        live = [other for other in self.links.values() if other.alive and other.can_merge]
+        if link.can_merge:
+            live.append(link)
+        if any(self.is_host(other.peer_id) for other in live):
+            return False
         ids = {self.peer_id}
         ids |= {other.peer_id for other in self.links.values() if other.alive and other.can_merge}
         if link.can_merge:
@@ -1551,9 +1586,14 @@ class PeerNetwork:
         except Exception:
             log.warning("could not read what %s wrote apart in %s", link.peer_id[:8], doc_id)
             return
-        if before == base_text or theirs == base_text or theirs == before:
-            return
         other = self.name_of(link)
+        if before == base_text:
+            # Only they wrote since: nothing to merge, and what this
+            # document now says beyond the base is theirs.
+            self._came_from[doc_id] = other
+            return
+        if theirs == base_text or theirs == before:
+            return
         record = store.files.get(file_id)
         relative = str(record.get("path") or "") if record is not None else ""
         store.keep_version(file_id, before, f"Before merging with {other}")
@@ -1561,7 +1601,7 @@ class PeerNetwork:
             link.holding.add(file_id)
             store.hold(file_id, MERGE_HOLD)
             return
-        mine = self.my_name()
+        mine = self._came_from.pop(doc_id, "") or self.my_name()
         if mine == other:
             mine, other = f"{mine} (this copy)", f"{other} (the other copy)"
         result = paragraphs.merge(base_text, before, theirs, mine, other, relative)
@@ -1837,6 +1877,7 @@ class PeerNetwork:
                     "name": record.get("name", ""),
                     "connected": peer_id in self.links and self.links[peer_id].alive,
                     "removed": bool(record.get("removed_at")),
+                    "role": record.get("role", ""),
                 }
                 for peer_id, record in self.share.members.items()
             ],

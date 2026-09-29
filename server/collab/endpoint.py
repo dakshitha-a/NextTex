@@ -72,6 +72,9 @@ class Endpoint:
         self.transport = None
         #: Share id to the project that answers for it.
         self.handlers: dict[str, Handler] = {}
+        #: Who answers a connection that opens with HOST_KEEP: this
+        #: install's host service, while host mode is on.
+        self.host: Handler | None = None
         self._lock = asyncio.Lock()
 
     async def attach(self, share_id: str, on_stream: Handler) -> None:
@@ -86,13 +89,38 @@ class Endpoint:
         async with self._lock:
             if self.handlers.get(share_id) == on_stream:
                 del self.handlers[share_id]
-            if self.handlers or self.transport is None:
+            if self.handlers or self.host is not None or self.transport is None:
                 return
             # Kept in ENDPOINTS with no transport, so the next project to
             # attach starts this one again rather than a second beside it.
             made, self.transport = self.transport, None
         with contextlib.suppress(Exception):
             await made.close()
+
+    async def serve_host(self, handler: Handler | None) -> None:
+        """Answer HOST_KEEP with `handler`, or stop with None; the endpoint
+        runs while a host needs it even with no project attached."""
+        async with self._lock:
+            self.host = handler
+            if handler is not None and self.transport is None:
+                made = self._make()
+                await made.start(self._dispatch)
+                self.transport = made
+            if handler is not None or self.handlers or self.transport is None:
+                return
+            made, self.transport = self.transport, None
+        with contextlib.suppress(Exception):
+            await made.close()
+
+    async def dial(self, address: str):
+        """A connection out that belongs to no project: a writer asking its
+        host. The endpoint is started for it if nothing else has."""
+        async with self._lock:
+            if self.transport is None:
+                made = self._make()
+                await made.start(self._dispatch)
+                self.transport = made
+        return await self.transport.connect(address)
 
     async def _dispatch(self, stream) -> None:
         try:
@@ -103,7 +131,14 @@ class Endpoint:
                 await stream.close()
             return
         share_id = str(frame.header.get("share", "")) if frame.kind == wire.HELLO else ""
-        handler = self.handlers.get(share_id)
+        handler = self.handlers.get(share_id) if frame.kind == wire.HELLO else None
+        if frame.kind == wire.HOST_KEEP:
+            handler = self.host
+            if handler is None:
+                with contextlib.suppress(Exception):
+                    await stream.send(wire.host_kept(False, "This install is not a host."))
+                    await stream.close()
+                return
         if handler is None:
             with contextlib.suppress(Exception):
                 if frame.kind == wire.HELLO:
@@ -126,10 +161,7 @@ class Attached:
     def __init__(self, peer_id: str, share_id: str, make: Callable[[], object]) -> None:
         self.peer_id = peer_id
         self.share_id = share_id
-        endpoint = ENDPOINTS.get(peer_id)
-        if endpoint is None:
-            endpoint = ENDPOINTS[peer_id] = Endpoint(peer_id, make)
-        self.endpoint = endpoint
+        self.endpoint = endpoint_for(peer_id, make)
         self._on: Handler | None = None
 
     async def start(self, on_stream: Handler) -> None:
@@ -149,3 +181,10 @@ class Attached:
         if self._on is not None:
             on, self._on = self._on, None
             await self.endpoint.detach(self.share_id, on)
+
+
+def endpoint_for(peer_id: str, make: Callable[[], object]) -> Endpoint:
+    endpoint = ENDPOINTS.get(peer_id)
+    if endpoint is None:
+        endpoint = ENDPOINTS[peer_id] = Endpoint(peer_id, make)
+    return endpoint

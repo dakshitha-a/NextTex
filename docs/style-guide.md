@@ -234,6 +234,11 @@ else.
   quiet inline button in each, and a 2 px `--line` rule down the
   region's left edge (`.nx-conflict-head`, `.nx-conflict-version`,
   `.nx-conflict-line`, drawn by `frontend/src/panes/conflicts.ts`).
+- A paired install, a host or a writer a host keeps projects for, is a
+  kit `Row` whose tail says whether a link to it is up, in the third ink
+  with a 7 px `--ok` dot when it is, and trades that for Remove under the
+  pointer (`.nx-paired`); an always-on host in the People drawer sits
+  under its own label with `HostIcon` and no presence dot.
 - A second press on the active bar icon folds the drawer; the drawer
   swap is a cut.
 - A reply in the Claude column is marked by its pen rule alone, with no

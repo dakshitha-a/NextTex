@@ -167,3 +167,40 @@ def register_task_argv(root: Path, instance: str) -> list:
         "-Instance",
         instance,
     ]
+
+
+def lingering(user: str) -> bool | None:
+    """Whether systemd starts this user's services at boot, with nobody
+    logged in; None where there is no `loginctl` to ask."""
+    try:
+        done = subprocess.run(["loginctl", "show-user", user, "--property=Linger"],
+                              capture_output=True, text=True, timeout=10, check=False)
+    except (OSError, subprocess.SubprocessError):
+        return None
+    if done.returncode != 0:
+        return None
+    return done.stdout.strip() == "Linger=yes"
+
+
+def start_at_boot(user: str) -> str:
+    """Ask systemd to start this user's services at boot, which is what an
+    always-on host needs on Linux: the user unit is `WantedBy` the user's
+    own manager, and lingering starts that manager with the machine.
+
+    Returns a sentence for the writer: done, already so, or the command to
+    run where this user may not change it."""
+    already = lingering(user)
+    if already is None:
+        return ""
+    if already:
+        return "This machine already starts NextTex when it boots."
+    try:
+        done = subprocess.run(["loginctl", "enable-linger", user],
+                              capture_output=True, text=True, timeout=30, check=False)
+    except (OSError, subprocess.SubprocessError):
+        done = None
+    if done is not None and done.returncode == 0 and lingering(user):
+        return "This machine now starts NextTex when it boots, with nobody logged in."
+    return (f"To start NextTex when this machine boots, with nobody logged in, "
+            f"run: sudo loginctl enable-linger {user}")
+

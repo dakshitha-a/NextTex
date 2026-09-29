@@ -11320,3 +11320,44 @@ is to write it while their links come back, and the merge then stays
 the character-level one. The always-on host, part B of the same run, is
 the answer to that: it is there, and it writes it.
 
+## 89. An always-on host, for a lab or a spare machine
+
+In the same conversation the writer asked for a "server mode": an
+install that stays on so its peers can always sync to it, keeping every
+active project in step without anybody opening it, on a home device, a
+cloud server, or a lab node hosting a lab's research writing. Much of it
+was there already, since every running install opens its shared projects
+at start and never closes them for being idle. What was missing was a
+way to be that install without being a writer in every project, a way
+in with nobody at the keyboard, a machine that starts it at boot, and a
+way for the others to tell it from a person.
+
+A host is an ordinary install with one switch on, in Settings, This
+install, as the direction page's "The always-on host, in settings" draws
+it: the switch, the pairing code with Copy, a Start at boot row where
+the machine does not already start NextTex at boot, the paired installs
+with Remove under the pointer, and how many projects it keeps and where.
+There are no accounts. A writer pastes the code once under Hosts, Add a
+host, and from then on every project they share is kept on that host,
+with a "Keep on my host" switch in the People drawer to turn it off for
+one project. In the People drawer the host is apart from the people,
+under "Always on", with a glyph of its own, its connection and no
+presence dot; it is never in the strip of who is here, and it never
+types. On the lab node, where the writer also writes, their own row
+reads "You" with "host" after it.
+
+Several people on one install was considered and set aside: one password,
+one Claude account, one author on every version, and every agent command
+run as one user who can read every project. The host is the lab's answer
+instead: each researcher runs their own install, and the lab's node keeps
+their shared projects in step.
+
+The host is also the answer to section 88's gap: when it is linked, it
+writes the paragraph merge, and it names each writer for their own
+version rather than itself. It builds nothing for a project nobody has
+opened on it; opening one there wakes it into an ordinary project.
+
+One thing could not be drawn from the app in the browser tier: the
+"Always on" row needs two installs, and that tier runs one. The Python
+tests pair two and check the record the row is drawn from.
+

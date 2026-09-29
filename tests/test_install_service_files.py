@@ -146,3 +146,34 @@ def test_nothing_is_written_by_importing_any_of_this(tmp_path):
     service.launchd_plist(tmp_path, tmp_path, tmp_path, "")
     service.register_task_argv(tmp_path, "")
     assert set(tmp_path.rglob("*")) == before
+
+
+def test_a_host_on_windows_can_ask_for_a_start_at_boot_by_name():
+    text = (Path(__file__).resolve().parent.parent / "scripts"
+            / "register-task.ps1").read_text(encoding="utf-8")
+    assert "[switch]$AtStartup" in text
+    assert "New-ScheduledTaskTrigger -AtStartup" in text
+    assert "-LogonType S4U" in text
+
+
+def test_start_at_boot_says_what_to_run_where_it_cannot(monkeypatch):
+    from nexttex.install import service
+
+    calls = []
+
+    class Done:
+        def __init__(self, code, out=""):
+            self.returncode, self.stdout = code, out
+
+    def run(argv, **kw):
+        calls.append(argv)
+        if argv[:2] == ["loginctl", "show-user"]:
+            return Done(0, "Linger=no\n")
+        return Done(1)
+
+    monkeypatch.setattr(service.subprocess, "run", run)
+    said = service.start_at_boot("writer")
+    assert said == "To start NextTex when this machine boots, with nobody logged in, run: sudo loginctl enable-linger writer"
+    assert ["loginctl", "enable-linger", "writer"] in calls
+    monkeypatch.setattr(service.subprocess, "run", lambda argv, **kw: Done(0, "Linger=yes\n"))
+    assert service.start_at_boot("writer") == "This machine already starts NextTex when it boots."

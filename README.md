@@ -49,6 +49,7 @@ close the tab. No database, no Docker, no nginx.
   - [Both of you keep a whole copy](#both-of-you-keep-a-whole-copy)
   - [You can see where they are](#you-can-see-where-they-are)
   - [You can leave a note on the text](#you-can-leave-a-note-on-the-text)
+  - [An always-on host](#an-always-on-host)
   - [A collaborator is a public key](#a-collaborator-is-a-public-key)
   - [Nobody owns it, and anyone can leave](#nobody-owns-it-and-anyone-can-leave)
   - [Losing your folder is not losing your place](#losing-your-folder-is-not-losing-your-place)
@@ -1253,6 +1254,29 @@ yours beside them, and where the thread would say *Resolve* it says
 *Accept*, which makes the change as an ordinary edit, with a version of
 its own in History, and closes the thread. It is the way to say "here is
 how I would put it, your call" without writing over their sentence.
+
+### An always-on host
+
+If your collaborators are rarely online at the same time, one install can
+stay on and keep everybody's shared projects in step. It is an ordinary
+NextTex with one switch on: *Settings*, *This install*, *Always-on host*.
+It shows a pairing code; each writer pastes it once under *Hosts*, *Add a
+host*, and from then on every project they share is kept on the host too,
+so their work reaches the others through it whenever either side is
+online. Nobody has to open anything on the host, and it builds no PDFs
+for projects nobody opens there.
+
+It suits a spare machine at home, a small cloud server, or a lab's shared
+node: each researcher runs their own NextTex on their own machine, with
+their own name and their own Claude, and the lab's node keeps the lab's
+shared writing in step. There are no accounts to manage; removing an
+install from the host's paired list stops it keeping anything new.
+
+A host should start when its machine does. On Linux, the host's settings
+offer *Start at boot*, which asks `loginctl` for it, or tells you the one
+`sudo` command to run. On Windows, run the installer's task helper with
+`-AtStartup` from an administrator's PowerShell. A Mac only starts
+NextTex once somebody logs in.
 
 ### A collaborator is a public key
 

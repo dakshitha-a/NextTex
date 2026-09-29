@@ -1,7 +1,8 @@
 import { useEffect, useRef } from "react";
 import { useStore } from "../store";
 import { Button } from "../ui/Button";
-import { Empty } from "../ui/controls";
+import { Empty, Switch, useLabelId } from "../ui/controls";
+import { HostIcon } from "../ui/icons";
 import {
   InviteField, LeaveConfirm, RemoveConfirm, ShareWords, useSharing,
 } from "./SharePanel";
@@ -82,9 +83,10 @@ export default function PeoplePanel({ inviteNonce, onLeft }: {
             <li className="nx-person" style={{ color: "var(--ink-3)" }}>
               <span className="nx-person-dot" data-in="true" aria-hidden="true" />
               <span className="nx-person-name">You</span>
+              {state.hosting ? <span className="nx-person-tag t-micro" data-testid="you-host">host</span> : null}
               <span className="nx-person-what">{activePath ? shortPath(activePath) : "not in a file"}</span>
             </li>
-            {sharing.others.map((member) => {
+            {sharing.people.map((member) => {
               const live = collaborators.find((person) => person.name === member.name);
               // A cursor is the stronger evidence: it says where they are.
               const what = live
@@ -115,6 +117,30 @@ export default function PeoplePanel({ inviteNonce, onLeft }: {
               );
             })}
           </ul>
+          {sharing.hosts.length ? (
+            <>
+              <div className="nx-drawer-label">Always on</div>
+              <ul className="nx-people" data-testid="host-list">
+                {sharing.hosts.map((member) => (
+                  <li key={member.peer} className="nx-person nx-person-host" data-testid="host-member-row">
+                    <span className="nx-person-icon" aria-hidden="true"><HostIcon /></span>
+                    <span className="nx-person-name">{member.name || "A host"}</span>
+                    <span className="nx-person-what">{member.connected ? "connected" : "not connected"}</span>
+                  </li>
+                ))}
+              </ul>
+            </>
+          ) : null}
+          {(state.hosts ?? []).map((host) => (
+            <KeepOnHost
+              key={host.peer}
+              name={host.name}
+              only={(state.hosts ?? []).length === 1}
+              keeping={host.keeping}
+              busy={busy}
+              onChange={(on) => void sharing.keepOnHost(host.peer, on)}
+            />
+          ))}
           {invite ? (
             <>
               <div className="nx-drawer-label">An invite for one person, usable once</div>
@@ -183,4 +209,25 @@ export default function PeoplePanel({ inviteNonce, onLeft }: {
 function shortPath(path: string): string {
   const cut = path.lastIndexOf("/");
   return cut === -1 ? path : path.slice(cut + 1);
+}
+
+/** "Keep on my host": whether a paired host keeps this project. Named for
+ *  the host when there is more than one. */
+function KeepOnHost({ name, only, keeping, busy, onChange }: {
+  name: string;
+  only: boolean;
+  keeping: boolean;
+  busy: boolean;
+  onChange: (on: boolean) => void;
+}) {
+  const id = useLabelId();
+  return (
+    <div className="nx-keep-host" data-testid="keep-on-host">
+      <div className="nx-keep-host-text">
+        <span id={id}>{only ? "Keep on my host" : `Keep on ${name || "a host"}`}</span>
+        <small>{name || "The host"} keeps this project in step while you are away.</small>
+      </div>
+      <Switch checked={keeping} disabled={busy} aria-labelledby={id} onChange={onChange} data-testid="keep-on-host-switch" />
+    </div>
+  );
 }

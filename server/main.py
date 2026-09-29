@@ -50,6 +50,9 @@ from nexttex import (
 from nexttex.version import VERSION
 from server.collab import identity as collab_identity
 from server.collab import transport as collab_transport
+from server.collab import endpoint as collab_endpoint
+from server.collab import host as collab_host
+from server.collab import peers as collab_peers
 from server.collab.peers import PeerNetwork, WELL_FORMED_SHARE_ID
 from server.collab.store import CollabStore
 from nexttex.history import REPLACE as history_replace
@@ -149,6 +152,8 @@ async def lifespan(app: FastAPI):
         print(f"  missing    {item}")
     watcher = asyncio.create_task(_watch_projects())
     reaper = asyncio.create_task(_reap_idle())
+    if SETTINGS.host:
+        await _serve_host(True)
     rejoin = asyncio.create_task(_rejoin_shared_projects())
     warm = asyncio.create_task(_warm_the_agent())
     settled = asyncio.create_task(_settle_an_update())
@@ -230,7 +235,7 @@ async def _rejoin_shared_projects() -> None:
         if not (root / ".nexttex" / "collab" / "share.json").is_file():
             continue
         try:
-            session_for(Project.open(root).id)
+            session_for(Project.open(root).id, quiet=_is_kept(root))
         except Exception:
             # A project that has been moved or deleted since. The projects
             # screen already says so; this is not the place to complain.
@@ -1216,8 +1221,7 @@ def _sign_in_page() -> str:
 @app.get("/api/projects/{project_id}/collab")
 async def collab_state(project_id: str):
     """Whether this project is shared, with whom, and whether they are here."""
-    session = session_for(project_id)
-    return session.peers.state()
+    return _collab_state(session_for(project_id))
 
 
 @app.post("/api/projects/{project_id}/collab/share")
@@ -1235,9 +1239,271 @@ async def start_sharing(project_id: str, name: str = Body("", embed=True)):
             "iroh publishes no wheel for it yet.",
         )
     session = session_for(project_id)
+    newly = not session.peers.share.shared
     session.peers.begin_sharing(name or SETTINGS.display_name or "Unnamed")
     await session.peers.start()
-    return session.peers.state()
+    if newly:
+        # "Keep on my host" is on by default: a writer who paired with a
+        # host did it so their shared projects would be kept there.
+        for kept in list(SETTINGS.hosts):
+            spawn(_keep_on(session, kept), "asking the host to keep a project")
+    return _collab_state(session)
+
+
+# ---------------------------------------------------------------------------
+# The always-on host
+
+
+def _install_endpoint() -> collab_endpoint.Endpoint:
+    me = collab_identity.peer_id()
+    return collab_endpoint.endpoint_for(me, collab_peers.maker(me))
+
+
+def _host_name() -> str:
+    return SETTINGS.display_name or "An always-on host"
+
+
+def _is_kept(root: Path) -> bool:
+    """Whether a folder is one a host keeps for its writers."""
+    try:
+        return Path(root).resolve().parent == SETTINGS.kept_root().resolve()
+    except OSError:
+        return False
+
+
+def _kept_projects() -> list[dict]:
+    out = []
+    for entry in REGISTRY.list():
+        root = Path(entry["path"])
+        if _is_kept(root):
+            out.append({"id": entry.get("id", ""), "name": root.name,
+                        "missing": bool(entry.get("missing"))})
+    return out
+
+
+def _share_is_kept(share_id: str) -> bool:
+    for entry in REGISTRY.list():
+        root = Path(entry["path"])
+        if not _is_kept(root):
+            continue
+        try:
+            data = json.loads((root / ".nexttex" / "collab" / "share.json").read_text())
+        except (OSError, ValueError):
+            continue
+        if data.get("share_id") == share_id:
+            return True
+    return False
+
+
+async def _keep_for_host(invite: str, project: str) -> str:
+    """Join a writer's invite into a folder of the host's own and accept it
+    with nobody asked, since nobody is here to look at an offer card."""
+    share = str(_unwrap_invite(invite).get("share") or "")
+    if not WELL_FORMED_SHARE_ID.fullmatch(share):
+        return "That invite could not be read."
+    if _share_is_kept(share):
+        return ""
+    root = SETTINGS.kept_root()
+    try:
+        root.mkdir(parents=True, exist_ok=True)
+        target = collab_host.folder_for(root, project)
+    except (PermissionError, OSError) as error:
+        return str(error)
+    try:
+        offered = await join_share(invite=invite, path=str(target))
+        await accept_join(token=offered["token"])
+    except HTTPException as error:
+        return str(error.detail)
+    except Exception:
+        log.exception("a host could not keep a project")
+        return "The host could not take the project."
+    return ""
+
+
+HOST_SERVICE = collab_host.HostService(
+    settings=lambda: SETTINGS, save=lambda: _save_settings(),
+    keep=_keep_for_host, name=_host_name,
+)
+
+
+async def _serve_host(on: bool) -> None:
+    collab_peers.HOSTING = on
+    if on and not SETTINGS.host_secret:
+        SETTINGS.host_secret = collab_host.make_secret()
+        _save_settings()
+    if not collab_transport.available():
+        return
+    await _install_endpoint().serve_host(HOST_SERVICE.handle if on else None)
+
+
+def _host_state() -> dict:
+    endpoint = _install_endpoint()
+    address = endpoint.transport.address() if endpoint.transport is not None else ""
+    # Connected is a live link in any open project; there is no link to a
+    # host or a writer outside one.
+    linked = {
+        peer for session in list(SESSIONS.values())
+        for peer, link in list(session.peers.links.items()) if link.alive
+    }
+    return {
+        "host": SETTINGS.host,
+        "code": collab_host.make_code(address, SETTINGS.host_secret)
+        if SETTINGS.host and address and SETTINGS.host_secret else "",
+        "root": str(SETTINGS.kept_root()),
+        "paired": [{"peer": p.get("peer", ""), "name": p.get("name", ""),
+                    "connected": p.get("peer", "") in linked} for p in SETTINGS.host_paired],
+        "kept": _kept_projects(),
+        "hosts": [{"peer": h.get("peer", ""), "name": h.get("name", ""),
+                   "connected": h.get("peer", "") in linked} for h in SETTINGS.hosts],
+        "boot": _boot_state() if SETTINGS.host else "",
+    }
+
+
+def _boot_state() -> str:
+    """"yes" when this machine starts NextTex at boot with nobody logged
+    in, "no" when it could and does not, "" where that cannot be told."""
+    if not sys.platform.startswith("linux"):
+        return ""
+    from nexttex.install import service
+
+    answer = service.lingering(_boot_user())
+    return "" if answer is None else ("yes" if answer else "no")
+
+
+@app.get("/api/host")
+async def host_state():
+    """This install as a host, and the hosts it is paired with."""
+    return _host_state()
+
+
+@app.post("/api/host")
+async def set_host(on: bool = Body(..., embed=True)):
+    """Turn host mode on or off. Off keeps the kept projects and the
+    pairings; it stops answering new writers and building nothing changes."""
+    if on and not collab_transport.available():
+        raise HTTPException(501, "Not available on this platform.")
+    SETTINGS.host = on
+    _save_settings()
+    await _serve_host(on)
+    return _host_state()
+
+
+def _boot_user() -> str:
+    import getpass
+
+    return os.environ.get("USER") or getpass.getuser()
+
+
+@app.post("/api/host/boot")
+async def host_starts_at_boot():
+    """Ask the machine to start NextTex when it boots, with nobody logged
+    in, which a host needs to be always on. Linux only: its answer is one
+    `loginctl` away. Asked in a thread, since that may wait on polkit."""
+    if not sys.platform.startswith("linux"):
+        raise HTTPException(501, "Only Linux can be asked from here; see the README for Windows.")
+    from nexttex.install import service
+
+    said = await asyncio.to_thread(service.start_at_boot, _boot_user())
+    state = _host_state()
+    state["said"] = said
+    return state
+
+
+@app.post("/api/host/code")
+async def new_host_code():
+    """A new pairing code. Installs already paired stay paired."""
+    SETTINGS.host_secret = collab_host.make_secret()
+    _save_settings()
+    return _host_state()
+
+
+@app.delete("/api/host/paired/{peer}")
+async def unpair_writer(peer: str):
+    """Stop keeping new projects for an install. What it already shared
+    stays, since the host is a member of those shares like anybody."""
+    SETTINGS.host_paired = [p for p in SETTINGS.host_paired if p.get("peer") != peer]
+    _save_settings()
+    return _host_state()
+
+
+@app.post("/api/hosts")
+async def pair_with_host(code: str = Body(..., embed=True)):
+    """Pair with a host by its code: it is asked, once, and remembered."""
+    if not collab_transport.available():
+        raise HTTPException(501, "Not available on this platform.")
+    read = collab_host.read_code(code)
+    if read is None:
+        raise HTTPException(400, "That does not look like a pairing code.")
+    answer = await collab_host.ask(
+        _install_endpoint(), read["address"], read["secret"],
+        SETTINGS.display_name or "Unnamed",
+    )
+    if not answer["ok"]:
+        raise HTTPException(400, answer["reason"] or "The host said no.")
+    if answer["peer"] == collab_identity.peer_id():
+        raise HTTPException(400, "That is this install's own code.")
+    SETTINGS.hosts = [h for h in SETTINGS.hosts if h.get("peer") != answer["peer"]] + [{
+        "peer": answer["peer"], "name": answer["name"] or "A host",
+        "address": read["address"], "secret": read["secret"],
+    }]
+    _save_settings()
+    return _host_state()
+
+
+@app.delete("/api/hosts/{peer}")
+async def unpair_host(peer: str):
+    SETTINGS.hosts = [h for h in SETTINGS.hosts if h.get("peer") != peer]
+    _save_settings()
+    return _host_state()
+
+
+async def _keep_on(session: ProjectSession, kept: dict) -> str:
+    """Ask a paired host to keep this shared project: an invite, handed to
+    it with the pairing secret and the project's name."""
+    network = session.peers
+    invite = network.invite(SETTINGS.display_name or "Unnamed")
+    answer = await collab_host.ask(
+        _install_endpoint(), kept.get("address", ""), kept.get("secret", ""),
+        SETTINGS.display_name or "Unnamed", invite=invite,
+        project=Path(session.project.root).name,
+    )
+    if not answer["ok"]:
+        log.warning("the host %s did not keep %s: %s",
+                    kept.get("name", ""), session.project.root, answer["reason"])
+        network.last_error = answer["reason"]
+    return "" if answer["ok"] else answer["reason"]
+
+
+def _collab_state(session: ProjectSession) -> dict:
+    state = session.peers.state()
+    members = {m["peer"]: m for m in state["members"]}
+    state["hosts"] = [
+        {"peer": h.get("peer", ""), "name": h.get("name", ""),
+         "keeping": bool(members.get(h.get("peer", "")))
+         and not members[h.get("peer", "")]["removed"]}
+        for h in SETTINGS.hosts
+    ]
+    state["hosting"] = SETTINGS.host
+    return state
+
+
+@app.post("/api/projects/{project_id}/collab/host")
+async def keep_on_host(project_id: str, peer: str = Body(..., embed=True),
+                       on: bool = Body(..., embed=True)):
+    """Keep this shared project on a paired host, or stop."""
+    session = session_for(project_id)
+    kept = next((h for h in SETTINGS.hosts if h.get("peer") == peer), None)
+    if kept is None:
+        raise HTTPException(404, "That host is not paired with this install.")
+    if not session.peers.share.shared:
+        raise HTTPException(400, "Share the project first.")
+    if on:
+        reason = await _keep_on(session, kept)
+        if reason:
+            raise HTTPException(502, reason)
+    elif session.peers.share.allows(peer):
+        session.peers.remove(peer)
+    return _collab_state(session)
 
 
 @app.post("/api/projects/{project_id}/collab/invite")
@@ -1753,7 +2019,7 @@ async def accept_join(token: str = Body(..., embed=True)):
     # itself on accepting; a script using the routes alone did not, and
     # the cross-machine check found the desktop unable to connect to a
     # freshly rejoined laptop until somebody opened the project there.
-    session_for(project.id)
+    session_for(project.id, quiet=_is_kept(pending.target))
     _restart_watch()
     return {
         "ok": True,
@@ -2067,7 +2333,7 @@ async def _fetch_missing_blob(session, sha: str, seconds: float = 6.0) -> None:
             return
 
 
-def _open_session(project: Project) -> ProjectSession:
+def _open_session(project: Project, quiet: bool = False) -> ProjectSession:
     """Build a session for a project and put it in service."""
     session = ProjectSession(
         project,
@@ -2079,6 +2345,7 @@ def _open_session(project: Project) -> ProjectSession:
         # through a route reaches the next build without a restart.
         settings=lambda: SETTINGS,
     )
+    session.quiet = quiet
     SESSIONS[project.id] = session
     session.start_agent_pump()
 
@@ -2099,8 +2366,11 @@ def _open_session(project: Project) -> ProjectSession:
     return session
 
 
-def session_for(project_id: str) -> ProjectSession:
+def session_for(project_id: str, quiet: bool = False) -> ProjectSession:
     """The session for a project, opening it if it is not open yet.
+
+    `quiet` is for the server's own openings of a project an always-on host
+    keeps; any other asking, which is somebody here looking, wakes it.
 
     "Open" is a thing the user does to a window, not a precondition the
     server keeps.  While it was one, restarting the server 404'd every route
@@ -2123,11 +2393,13 @@ def session_for(project_id: str) -> ProjectSession:
     session = SESSIONS.get(project_id)
     if session is not None:
         session.touched = time.monotonic()
+        if not quiet:
+            session.wake()
         return session
     project = REGISTRY.find(project_id)
     if project is None:
         raise HTTPException(404, "unknown project")
-    return _open_session(project)
+    return _open_session(project, quiet=quiet)
 
 
 def _tag(text: str | None) -> str:

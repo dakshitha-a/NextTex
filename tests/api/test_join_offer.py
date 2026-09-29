@@ -146,7 +146,7 @@ def test_accepting_writes_every_document_and_only_then(client, tmp_path, monkeyp
     pending = Pending(tmp_path)
     monkeypatch.setitem(server_main.PENDING_JOINS, "tok", pending)
     monkeypatch.setattr(server_main.REGISTRY, "add", lambda path: pending.project)
-    monkeypatch.setattr(server_main, "session_for", lambda project_id: None)
+    monkeypatch.setattr(server_main, "session_for", lambda project_id, quiet=False: None)
     monkeypatch.setattr(server_main, "_restart_watch", lambda: None)
 
     response = client.post("/api/collab/join/accept", json={"token": "tok"})

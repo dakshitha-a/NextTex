@@ -313,6 +313,9 @@ class ProjectSession:
         #: be rebuilt from disk, so this is not state, it is a hint about
         #: whether holding it open is still earning its memory.
         self.touched = time.monotonic()
+        #: A project an always-on host keeps and nobody here has opened: it
+        #: syncs and keeps its history, and builds nothing, until `wake`.
+        self.quiet = False
         #: Set once the project's folder has been found missing, and set
         #: while the session is being closed, so the folder going away
         #: during the close does not start a second one.
@@ -1365,6 +1368,13 @@ class ProjectSession:
             return True
         return state.compiler.needs_full
 
+    def wake(self) -> None:
+        """Somebody here opened a project a host was keeping quietly: from
+        now on it builds like any other."""
+        if self.quiet:
+            self.quiet = False
+            self.schedule_compile()
+
     def schedule_compile(self) -> None:
         """Build once typing has settled, replacing any pending build.
 
@@ -1382,6 +1392,13 @@ class ProjectSession:
         restore -- and everything registered is rebuilt.
         """
         if not self.project.config.autocompile:
+            return
+        if self.quiet:
+            # A host keeping this project for its writers, with nobody
+            # looking at it here: the writers build their own PDFs, and a
+            # host building every project on every keystroke of every
+            # collaborator is the cost host mode must not have.
+            self._dirty = set()
             return
         if not self._dirty and self._read_by_none:
             # Every edit since the last build was to a file no document

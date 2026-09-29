@@ -224,7 +224,7 @@ async def test_sharing_again_after_leaving_starts_a_fresh_share(tmp_path):
     assert bob.network.share.share_id and bob.network.share.share_id != old
     assert list(bob.network.share.members) == [B]
     assert bob.network.state()["members"] == [
-        {"peer": B, "name": "Bob", "connected": False, "removed": False},
+        {"peer": B, "name": "Bob", "connected": False, "removed": False, "role": ""},
     ]
     await alice.close()
     await bob.close()

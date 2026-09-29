@@ -1848,6 +1848,27 @@ button.nx-reads-x[data-always]:hover { color: var(--pen); }
 /* A row whose control is a run of chips: the title on its own line and the
    chips in one line under it, wrapping only when the sheet is narrow. */
 .nx-settings-row[data-stack] { flex-direction: column; align-items: stretch; gap: 8px; padding: 10px 0; }
+/* The always-on host's rows (HostSettings.tsx): a label over a list of
+   paired installs, each saying whether a link to it is up and trading that
+   for Remove under the pointer, and the field a host's code is pasted in. */
+.nx-settings-list { display: flex; flex-direction: column; padding: 6px 0; border-top: 1px solid color-mix(in oklab, var(--ink-3) 16%, transparent); }
+.nx-settings-label { font-size: 12px; line-height: 16px; color: var(--ink-3); padding: 4px 0 2px; }
+.nx-settings-add { display: flex; align-items: center; gap: 6px; padding: 0 0 10px; }
+.nx-person-tag { color: var(--ink-3); margin-left: 6px; }
+.nx-person-host { color: var(--ink-3); }
+.nx-person-host .nx-person-name { color: var(--ink); }
+.nx-person-icon { display: inline-flex; width: 16px; justify-content: center; color: var(--ink-3); }
+.nx-keep-host { display: flex; align-items: flex-start; gap: 12px; padding: 10px 16px 4px; }
+.nx-keep-host-text { flex: 1; min-width: 0; font-size: 14px; line-height: 20px; color: var(--ink); }
+.nx-keep-host-text small { display: block; color: var(--ink-2); font-size: 12.5px; line-height: 17px; }
+.nx-paired { margin: 0 -8px; }
+.nx-paired-icon { display: inline-flex; color: var(--ink-3); }
+.nx-paired-state { display: inline-flex; align-items: center; gap: 6px; font-size: 12px; color: var(--ink-3); }
+.nx-paired-state[data-connected]::before { content: ""; width: 7px; height: 7px; border-radius: 50%; background: var(--ok); }
+.nx-paired .nx-paired-remove { display: none; }
+.nx-paired:hover .nx-paired-remove, .nx-paired:focus-within .nx-paired-remove { display: inline-flex; }
+.nx-paired:hover .nx-paired-state, .nx-paired:focus-within .nx-paired-state { display: none; }
+@media (hover: none), (pointer: coarse) { .nx-paired .nx-paired-remove { display: inline-flex; } }
 .nx-settings-chips { display: flex; flex-wrap: wrap; gap: 6px; }
 .nx-settings-foot { margin-top: auto; padding-top: 18px; }
 .nx-stepper { display: inline-flex; align-items: center; }

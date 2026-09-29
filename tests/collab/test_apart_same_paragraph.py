@@ -79,6 +79,21 @@ async def back(listeners, *everyone):
         await settle(0.3)
 
 
+def make_host(host: Peer, *others: Peer) -> None:
+    """Record one install's role the way its HELLO does: in the shared
+    manifest's member record, which every other install mirrors."""
+    from pycrdt import Map
+
+    members = host.store.manifest.get("members", type=Map)
+    members.get(host.me)["role"] = "host"
+
+
+async def is_host_everywhere(host: Peer, *others: Peer) -> bool:
+    return await until(lambda: all(
+        p.network.is_host(host.me) for p in (host, *others)
+    ), 6.0)
+
+
 def tags(text: str) -> list:
     return [TAG.search(line).group(2) for line in text.splitlines() if TAG.search(line)]
 
@@ -224,3 +239,59 @@ async def test_coming_back_again_after_a_merge_does_not_merge_it_twice(tmp_path)
     assert tags(merged) == [None, "1", "2", "end"]
     await alice.close()
     await bob.close()
+
+
+@pytest.mark.asyncio
+async def test_with_a_host_present_the_host_writes_the_one_repair(tmp_path):
+    """Carol's is the highest id, and a host: she writes it, not Alice."""
+    alice, bob, carol = await together(tmp_path, "alice", "bob", "carol")
+    make_host(carol, alice, bob)
+    assert await is_host_everywhere(carol, alice, bob)
+    down = await apart()
+    edit(alice, "The cat sat on the mat.", "The cat sat quietly on the mat.")
+    edit(bob, "The cat sat on the mat.", "A dog lay on the rug.")
+    await back(down, alice, bob, carol)
+    texts = [text_of(p) for p in (alice, bob, carol)]
+    assert texts[0] == texts[1] == texts[2]
+    assert tags(texts[0]) == [None, "1", "2", "end"], texts[0]
+    for peer in (alice, bob, carol):
+        await peer.close()
+
+
+@pytest.mark.asyncio
+async def test_writers_who_meet_only_through_the_host_are_merged_by_it(tmp_path, monkeypatch):
+    """The shape a host is for: the two writers never reach each other, so
+    the host is the one that sees both and writes the merge, naming each
+    writer for their own version rather than itself."""
+    alice, bob, carol = await together(tmp_path, "alice", "bob", "carol")
+    make_host(carol, alice, bob)
+    assert await is_host_everywhere(carol, alice, bob)
+    dial = transport.HUB.dial
+    apart_pair = {alice.me, bob.me}
+
+    async def only_through_the_host(caller, callee):
+        if {caller, callee} == apart_pair:
+            raise ConnectionError("no route")
+        return await dial(caller, callee)
+
+    monkeypatch.setattr(transport.HUB, "dial", only_through_the_host)
+    down = await apart()
+    edit(alice, "The cat sat on the mat.", "The cat sat quietly on the mat.")
+    edit(bob, "The cat sat on the mat.", "A dog lay on the rug.")
+    transport.HUB.listeners.update(down)
+    assert await until(lambda: all(
+        any(l.alive for l in p.network.links.values()) for p in (alice, bob)
+    ), 8.0)
+    await settle(2.0)
+    for _ in range(3):
+        for peer in (alice, bob, carol):
+            peer.store.flush()
+        await settle(0.3)
+    texts = [text_of(p) for p in (alice, bob, carol)]
+    assert texts[0] == texts[1] == texts[2], texts
+    assert tags(texts[0]) == [None, "1", "2", "end"], texts[0]
+    assert "Version from Alice" in texts[0] and "Version from Bob" in texts[0], texts[0]
+    assert "Carol" not in texts[0]
+    assert any(n.startswith("merged") for n in carol.notices), carol.notices
+    for peer in (alice, bob, carol):
+        await peer.close()

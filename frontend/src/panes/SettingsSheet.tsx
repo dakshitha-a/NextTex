@@ -23,6 +23,7 @@ import { Button, IconButton } from "../ui/Button";
 import { Chip, ChipToggle, Heading, Pressable, Segmented, Switch, useLabelId } from "../ui/controls";
 import { Sheet } from "../ui/Sheet";
 import { CloseIcon } from "../ui/icons";
+import HostSettings from "./HostSettings";
 
 /** Everything the writer gets to choose, in one sheet, master-detail.
  *
@@ -569,6 +570,7 @@ export default function SettingsSheet({
                 </Button>
               </SRow>
             ) : null}
+            <HostSettings />
           </>
         ) : null}
 

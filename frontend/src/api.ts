@@ -480,6 +480,30 @@ export type Member = {
   name: string;
   connected: boolean;
   removed: boolean;
+  /** "host" for an always-on install that keeps the project; "" for a
+   *  person. */
+  role?: string;
+};
+
+/** A paired install, from either side: a writer a host keeps projects
+ *  for, or a host a writer keeps projects on. */
+export type PairedInstall = { peer: string; name: string; connected: boolean };
+
+/** This install as an always-on host, and the hosts it is paired with. */
+export type HostState = {
+  host: boolean;
+  /** The pairing code, while host mode is on and the install can be
+   *  reached. */
+  code: string;
+  root: string;
+  paired: PairedInstall[];
+  kept: { id: string; name: string; missing: boolean }[];
+  hosts: PairedInstall[];
+  /** Whether the machine starts NextTex at boot with nobody logged in:
+   *  "yes", "no", or "" where that cannot be told. */
+  boot: "yes" | "no" | "";
+  /** What asking to start at boot came to. */
+  said?: string;
 };
 
 /** One file the other end has offered, before any of it is written. */
@@ -531,6 +555,11 @@ export type CollabState = {
   removedBy: string;
   members: Member[];
   error: string;
+  /** The hosts this install is paired with, and whether each is keeping
+   *  this project. */
+  hosts?: { peer: string; name: string; keeping: boolean }[];
+  /** This install is itself an always-on host. */
+  hosting?: boolean;
 };
 
 export type AuthState = {
@@ -739,6 +768,15 @@ const api = {
     ),
   discardJoin: (token: string) =>
     request<{ ok: true }>("/collab/join/discard", json({ token })),
+  host: () => request<HostState>("/host"),
+  setHost: (on: boolean) => request<HostState>("/host", json({ on })),
+  newHostCode: () => request<HostState>("/host/code", json({})),
+  hostStartsAtBoot: () => request<HostState>("/host/boot", json({})),
+  unpairWriter: (peer: string) => request<HostState>(`/host/paired/${peer}`, { method: "DELETE" }),
+  pairHost: (code: string) => request<HostState>("/hosts", json({ code })),
+  unpairHost: (peer: string) => request<HostState>(`/hosts/${peer}`, { method: "DELETE" }),
+  keepOnHost: (id: string, peer: string, on: boolean) =>
+    request<CollabState>(`/projects/${id}/collab/host`, json({ peer, on })),
   removeMember: (id: string, peer: string) =>
     request<CollabState>(`/projects/${id}/collab/member/${peer}`, {
       method: "DELETE",

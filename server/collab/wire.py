@@ -51,6 +51,8 @@ FILE_WANT = 13       # send me the file the manifest lists under this id
 FILE_HAVE = 14       # here it is, with its path and its bytes
 FILE_MISS = 15       # I do not have that file
 MERGED = 16          # the paragraph merge for this document is written
+HOST_KEEP = 17       # to a host: here is my pairing, and a project to keep
+HOST_KEPT = 18       # from a host: what came of it
 
 #: What this install can do beyond the frames every version knows, said in
 #: HELLO, WELCOME and each sync step so the other end learns it whichever
@@ -99,11 +101,16 @@ class Frame:
 
 
 def hello(share_id: str, name: str, colour: str, address: str,
-          secret: str = "") -> bytes:
-    return Frame(HELLO, {
+          secret: str = "", role: str = "") -> bytes:
+    head = {
         "share": share_id, "name": name, "colour": colour,
         "address": address, "secret": secret, "can": CAN,
-    }).encode()
+    }
+    if role:
+        # "host" for an always-on install that keeps the project rather
+        # than writes it; absent for everybody else.
+        head["role"] = role
+    return Frame(HELLO, head).encode()
 
 
 def welcome(share_id: str, members: dict) -> bytes:
@@ -199,3 +206,14 @@ def file_have(file_id: str, path: str, data: bytes) -> bytes:
 
 def file_miss(file_id: str) -> bytes:
     return Frame(FILE_MISS, {"id": file_id}).encode()
+
+
+def host_keep(secret: str, name: str, invite: str = "", project: str = "") -> bytes:
+    """To a host. Without an invite it only pairs, or checks the pairing."""
+    return Frame(HOST_KEEP, {
+        "secret": secret, "name": name, "invite": invite, "project": project,
+    }).encode()
+
+
+def host_kept(ok: bool, reason: str = "", name: str = "", folder: str = "") -> bytes:
+    return Frame(HOST_KEPT, {"ok": ok, "reason": reason, "name": name, "folder": folder}).encode()

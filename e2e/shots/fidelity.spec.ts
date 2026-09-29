@@ -198,6 +198,51 @@ async function labelKnown(tab: Page, name: string) {
 }
 
 const SURFACES: Record<string, Surface> = {
+  "host-settings": {
+    // "This install" with host mode on, as the direction page's "The
+    // always-on host, in settings" draws it.
+    open: async (tab) => {
+      if (ctx) {
+        await fetch(`${ctx.base}/api/host`, {
+          method: "POST",
+          headers: { "content-type": "application/json", "x-nexttex-token": ctx.token },
+          body: JSON.stringify({ on: true }),
+        });
+      }
+      const cog = tab.getByTestId("appearance").first();
+      if ((await cog.getAttribute("aria-expanded")) !== "true") await cog.click();
+      await tab.getByTestId("settings-group-install").click();
+      await tab.getByTestId("host-code").waitFor({ timeout: 15_000 });
+      return tab.getByTestId("settings-sheet");
+    },
+    close: async (tab) => {
+      if (ctx) {
+        await fetch(`${ctx.base}/api/host`, {
+          method: "POST",
+          headers: { "content-type": "application/json", "x-nexttex-token": ctx.token },
+          body: JSON.stringify({ on: false }),
+        });
+      }
+      await tab.keyboard.press("Escape");
+    },
+  },
+  "host-people": {
+    // The People drawer on an install that is itself the host.
+    open: async (tab) => {
+      if (ctx) {
+        for (const [route, body] of [["/api/host", { on: true }], [`/api/projects/${ctx.id}/collab/share`, { name: "Lab node" }]] as const) {
+          await fetch(`${ctx.base}${route}`, {
+            method: "POST",
+            headers: { "content-type": "application/json", "x-nexttex-token": ctx.token },
+            body: JSON.stringify(body),
+          });
+        }
+      }
+      await showDrawer(tab, "people");
+      await tab.getByTestId("you-host").waitFor({ timeout: 15_000 });
+      return tab.getByTestId("drawer");
+    },
+  },
   "merge-conflict": {
     // Two versions of a paragraph kept by a merge, as the direction
     // page's "Two versions of a paragraph" draws them: written from

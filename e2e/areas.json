@@ -59,8 +59,8 @@
     },
     {
       "name": "collaboration",
-      "sources": ["server/collab/**", "frontend/src/collab.ts", "frontend/src/panes/Collaborators.tsx", "frontend/src/panes/peer-standing.ts"],
-      "specs": ["share-panel", "share-from-list", "two-tabs", "comments", "moved-project", "merge-conflict"]
+      "sources": ["server/collab/**", "frontend/src/collab.ts", "frontend/src/panes/Collaborators.tsx", "frontend/src/panes/peer-standing.ts", "frontend/src/panes/HostSettings.tsx"],
+      "specs": ["share-panel", "share-from-list", "two-tabs", "comments", "moved-project", "merge-conflict", "host"]
     }
   ]
 }

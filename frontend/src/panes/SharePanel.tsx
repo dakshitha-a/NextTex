@@ -138,6 +138,23 @@ export function useSharing(projectId: string, onLeft?: () => void, onClosed?: ()
   const others: Member[] = (state?.members ?? []).filter(
     (member) => member.peer !== state?.me && !member.removed,
   );
+  /** The people, and apart from them the always-on hosts, which keep the
+   *  project and write nothing, so are never in "who is here". */
+  const people = others.filter((member) => member.role !== "host");
+  const hosts = others.filter((member) => member.role === "host");
+
+  /** Keep this project on one of this install's paired hosts, or stop. */
+  const keepOnHost = async (peer: string, on: boolean) => {
+    setBusy(true);
+    setError("");
+    try {
+      setState(await api.keepOnHost(projectId, peer, on));
+    } catch (caught: any) {
+      setError(caught?.message || "The host did not answer.");
+    } finally {
+      setBusy(false);
+    }
+  };
   const sharing = Boolean(state && state.available && state.shared && state.member && !state.removed);
   const ordinary = Boolean(state && state.available && (!state.shared || sharing));
   /** One word for the layouts' `data-state`: reading, shared, private, or
@@ -147,7 +164,8 @@ export function useSharing(projectId: string, onLeft?: () => void, onClosed?: ()
   return {
     state, me, invite, busy, error, copied, confirming, setConfirming,
     leaving, setLeaving, deleteCopy, setDeleteCopy,
-    copy, makeInvite, remove, leave, others, sharing, ordinary, standing,
+    copy, makeInvite, remove, leave, others, people, hosts, keepOnHost,
+    sharing, ordinary, standing,
   } as const;
 }
 

@@ -33,6 +33,10 @@ param(
   [string]$Name = 'nexttex',
   [string]$Instance = '',
   [switch]$Elevated,
+  # For an always-on host: start at boot, whether or not anybody is logged
+  # on. Registering that wants an administrator's shell, so it is asked for
+  # by name and never taken by the installer on its own.
+  [switch]$AtStartup,
   [string]$ForUser = '',
   [string]$Report = ''
 )
@@ -107,13 +111,25 @@ try {
   $again = New-ScheduledTaskTrigger -Once -At (Get-Date).AddMinutes(5) `
     -RepetitionInterval (New-TimeSpan -Minutes 5)
   $trigger = @($logon, $again)
+  $principal = $null
+  if ($AtStartup) {
+    # S4U runs the task as this user with nobody logged on and no password
+    # stored; the server needs the network, not the user's file shares.
+    $trigger = @((New-ScheduledTaskTrigger -AtStartup), $logon, $again)
+    $principal = New-ScheduledTaskPrincipal -UserId $env:USERNAME -LogonType S4U
+  }
   $settings = New-ScheduledTaskSettingsSet -AllowStartIfOnBatteries `
     -DontStopIfGoingOnBatteries -StartWhenAvailable `
     -MultipleInstances IgnoreNew `
     -RestartCount 3 -RestartInterval (New-TimeSpan -Minutes 1)
   Unregister-ScheduledTask -TaskName $Name -Confirm:$false -ErrorAction SilentlyContinue
-  Register-ScheduledTask -TaskName $Name -Action $action -Trigger $trigger `
-    -Settings $settings -Description 'NextTex LaTeX editor' -ErrorAction Stop | Out-Null
+  if ($principal) {
+    Register-ScheduledTask -TaskName $Name -Action $action -Trigger $trigger `
+      -Settings $settings -Principal $principal -Description 'NextTex LaTeX editor' -ErrorAction Stop | Out-Null
+  } else {
+    Register-ScheduledTask -TaskName $Name -Action $action -Trigger $trigger `
+      -Settings $settings -Description 'NextTex LaTeX editor' -ErrorAction Stop | Out-Null
+  }
   $registered = $true
   # The task branch had the race the Startup branch was cured of on 23
   # September: it started the task whatever was already serving. Found by

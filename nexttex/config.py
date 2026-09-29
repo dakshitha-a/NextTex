@@ -112,6 +112,22 @@ class Settings:
     # after installing that TeX, and read by `recorded_tex_dir` ahead of the
     # fixed list of places TeX usually lands. Empty, the list decides.
     tex: str = ""
+    # The always-on host (server/collab/host.py). `host` is the switch;
+    # `host_secret` is the half of the pairing code a writer proves; the
+    # keys that have proved it, with the names they gave, are
+    # `host_paired`; and `host_root` is where kept projects go, empty for
+    # a folder under the install's state directory.
+    host: bool = False
+    host_secret: str = ""
+    host_paired: list = field(default_factory=list)
+    host_root: str = ""
+    # The other side: the hosts this install has paired with, each with the
+    # key its connection proved, the name it gave, its address and secret.
+    hosts: list = field(default_factory=list)
+
+    def kept_root(self) -> Path:
+        """Where a host keeps the projects its writers share with it."""
+        return Path(self.host_root).expanduser() if self.host_root else state_home() / "host"
 
     @classmethod
     def path(cls) -> Path:
