@@ -1803,7 +1803,7 @@ function Permission({ item }: { item: Extract<ChatItem, { kind: "permission" }> 
       // card whose whole point is a --warn gate says "Claude is talking" at
       // the moment it should say "this needs an answer".
       className="stream-indent permission-card flex rounded-card bg-surface"
-      style={{ animation: "permission-in 90ms var(--ease)" }}
+      style={{ animation: "permission-in var(--dur-quick) var(--ease)" }}
       onKeyDown={(event) => {
         if (event.key === "a" && !event.shiftKey) decide("allow");
         if (event.key === "A" && event.shiftKey && item.rule) decide("always");
@@ -1838,7 +1838,7 @@ function Permission({ item }: { item: Extract<ChatItem, { kind: "permission" }> 
           // cursor that was reaching for them -- and moving away shrank it
           // again, so the pointer oscillated between the two.
           <div
-            className={`t-micro mt-2 truncate text-ink-3 transition-opacity duration-[90ms] ${
+            className={`t-micro mt-2 truncate text-ink-3 transition-opacity duration-[var(--dur-quick)] ${
               scope ? "opacity-100" : "opacity-0"
             }`}
             // Shortened from the front, never the end.  A rule scoped to a

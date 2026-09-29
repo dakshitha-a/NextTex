@@ -726,7 +726,7 @@ button { font: inherit; color: inherit; }
    dimmest ink up on that plane, `.nx-on-surround`, went with the sheet it
    served. */
 
-.nx-handle { background: transparent; transition: background-color 90ms var(--ease); }
+.nx-handle { background: transparent; transition: background-color var(--dur-quick) var(--ease); }
 .nx-handle:hover, .nx-handle[data-dragging], .nx-handle:focus-visible { background: var(--hint); }
 /* A focused divider shows the line a drag shows, and no ring of its own:
    the line is the ring (Q-053). */
@@ -1239,7 +1239,7 @@ input, textarea { font: inherit; color: inherit; background: transparent; }
 .nx-row-tail { display: grid; align-items: center; }
 .nx-row-tail > * { grid-area: 1 / 1; justify-self: end; }
 .nx-row-actions,
-.nx-row-when { transition: opacity 90ms var(--ease); }
+.nx-row-when { transition: opacity var(--dur-quick) var(--ease); }
 /* Positioned, so the buttons paint above the time whatever their
    opacity: an element with opacity below 1 is its own stacking context
    and paints after the ordinary flow, so a faded time was landing on top
@@ -1327,7 +1327,7 @@ input, textarea { font: inherit; color: inherit; background: transparent; }
   display: grid; grid-template-columns: minmax(0, 1fr) auto; grid-template-areas: "name tail" "where tail" "form form";
   gap: 0 16px; align-items: center; padding: 12px 14px; margin-bottom: 6px;
   border-radius: var(--nx-radius-card); background: var(--surface);
-  transition: background-color 90ms var(--ease);
+  transition: background-color var(--dur-quick) var(--ease);
 }
 .nx-project-card:hover, .nx-project-card:focus-within { background: var(--surface-3); }
 .nx-project-card:focus-visible { outline: 2px solid var(--hint); outline-offset: 2px; }
@@ -1394,7 +1394,7 @@ input, textarea { font: inherit; color: inherit; background: transparent; }
   border-radius: var(--nx-radius-control);
   font-size: 13px; line-height: 1; font-weight: 500; white-space: nowrap;
   color: var(--ink-2);
-  transition: background-color 90ms var(--ease), color 90ms var(--ease), box-shadow 90ms var(--ease);
+  transition: background-color var(--dur-quick) var(--ease), color var(--dur-quick) var(--ease), box-shadow var(--dur-quick) var(--ease);
 }
 .nx-button[data-size="md"] { height: var(--nx-row); padding: 0 12px; font-size: 14px; }
 .nx-button[data-size="inline"] { height: 24px; padding: 0 8px; font-size: 12.5px; }
@@ -1420,7 +1420,7 @@ input, textarea { font: inherit; color: inherit; background: transparent; }
   width: var(--nx-control); height: var(--nx-control);
   border-radius: var(--nx-radius-control);
   color: var(--ink-3);
-  transition: background-color 90ms var(--ease), color 90ms var(--ease);
+  transition: background-color var(--dur-quick) var(--ease), color var(--dur-quick) var(--ease);
 }
 .nx-icon-button[data-size="md"] { width: var(--nx-row); height: var(--nx-row); }
 .nx-icon-button:hover:not(:disabled) { color: var(--ink); }
@@ -1534,7 +1534,7 @@ button.nx-row { width: 100%; text-align: left; }
 }
 .nx-member:hover, .nx-member:focus-within { background: var(--wash); }
 .nx-member-tail { display: inline-flex; align-items: center; gap: 8px; margin-left: auto; color: var(--ink-3); font-size: 12.5px; }
-.nx-member-remove { opacity: 0; transition: opacity 90ms var(--ease); }
+.nx-member-remove { opacity: 0; transition: opacity var(--dur-quick) var(--ease); }
 .nx-member:hover .nx-member-remove, .nx-member:focus-within .nx-member-remove { opacity: 1; }
 @media (hover: none) { .nx-member-remove { opacity: 1; } }
 
@@ -1548,7 +1548,7 @@ button.nx-row { width: 100%; text-align: left; }
   border-radius: var(--nx-radius-card);
   background: var(--surface); color: var(--ink);
   box-shadow: var(--float);
-  transition: background-color 90ms var(--ease), color 90ms var(--ease);
+  transition: background-color var(--dur-quick) var(--ease), color var(--dur-quick) var(--ease);
 }
 .nx-agent-button:hover { background: var(--surface-2); }
 .nx-agent-button .nx-agent-working { animation: nx-working 1400ms var(--ease) infinite; }
@@ -1561,7 +1561,7 @@ button.nx-row { width: 100%; text-align: left; }
 .nx-tutorial-head { display: flex; align-items: center; gap: 2px; padding: 10px 8px 6px 16px; flex: none; }
 .nx-tutorial-head > h2 { flex: 1; }
 .nx-tutorial-contents { padding: 0 8px 6px; }
-.nx-tutorial-row { padding: 0 8px; border-radius: var(--nx-radius-control); color: var(--ink); transition: background-color 90ms var(--ease); }
+.nx-tutorial-row { padding: 0 8px; border-radius: var(--nx-radius-control); color: var(--ink); transition: background-color var(--dur-quick) var(--ease); }
 .nx-tutorial-row:hover, .nx-tutorial-row:focus-visible { background: var(--wash); }
 .nx-tutorial-list { padding: 2px 0; }
 .nx-tutorial-body { padding: 10px 16px 16px; }
@@ -1599,7 +1599,7 @@ button.nx-row { width: 100%; text-align: left; }
 /* The column's name is the way to the sheet from inside a project: the
    same control the app bar has, with its chevron on hover. */
 .nx-column-agent { display: inline-flex; align-items: center; gap: 4px; margin-right: 8px; padding: 0 6px 0 0; border-radius: var(--nx-radius-control); color: var(--ink); }
-.nx-column-agent > svg { color: var(--ink-3); opacity: 0; transition: opacity 90ms var(--ease); }
+.nx-column-agent > svg { color: var(--ink-3); opacity: 0; transition: opacity var(--dur-quick) var(--ease); }
 .nx-column-agent:hover > svg, .nx-column-agent:focus-visible > svg { opacity: 1; }
 @media (hover: none) { .nx-column-agent > svg { opacity: 1; } }
 .nx-row > svg { flex: none; color: var(--ink-3); }
@@ -1750,7 +1750,7 @@ button.nx-reads-x[data-always]:hover { color: var(--pen); }
 .nx-mode-chip {
   display: inline-flex; align-items: center; gap: 5px; max-width: 100%; height: 26px; padding: 0 8px;
   border-radius: var(--nx-radius-control); color: var(--ink-3); font-size: 12.5px; white-space: nowrap;
-  transition: background-color 90ms var(--ease), color 90ms var(--ease);
+  transition: background-color var(--dur-quick) var(--ease), color var(--dur-quick) var(--ease);
 }
 .nx-mode-chip > svg { flex: none; }
 .nx-mode-chip:hover, .nx-mode-chip[data-on] { background: var(--wash); color: var(--ink); }
@@ -1759,13 +1759,13 @@ button.nx-reads-x[data-always]:hover { color: var(--pen); }
   width: 28px; height: 28px; flex: none; border-radius: 14px;
   background: var(--pen); color: var(--on-pen);
   display: inline-flex; align-items: center; justify-content: center;
-  transition: background-color 90ms var(--ease), color 90ms var(--ease);
+  transition: background-color var(--dur-quick) var(--ease), color var(--dur-quick) var(--ease);
 }
 .nx-send:disabled { background: var(--surface-3); color: var(--ink-3); }
 .nx-welcome-card {
   display: flex; flex-direction: column; text-align: left; width: 100%;
   padding: 8px 12px; border-radius: var(--nx-radius-card); background: var(--surface);
-  transition: background-color 90ms var(--ease);
+  transition: background-color var(--dur-quick) var(--ease);
 }
 .nx-welcome-card b { font-weight: 500; color: var(--ink); }
 .nx-welcome-card span { color: var(--ink-3); font-size: 12.5px; line-height: 17px; }
@@ -1825,7 +1825,7 @@ button.nx-reads-x[data-always]:hover { color: var(--pen); }
 .nx-settings-tab {
   display: flex; flex-direction: column; align-items: flex-start; text-align: left;
   padding: 7px 10px; border-radius: var(--nx-radius-control); color: var(--ink-2);
-  transition: background-color 90ms var(--ease), color 90ms var(--ease);
+  transition: background-color var(--dur-quick) var(--ease), color var(--dur-quick) var(--ease);
 }
 .nx-settings-tab small { color: var(--ink-3); font-size: 12px; line-height: 15px; }
 .nx-settings-tab:hover { color: var(--ink); }
@@ -1904,7 +1904,7 @@ button.nx-reads-x[data-always]:hover { color: var(--pen); }
   border-radius: var(--nx-radius-control);
   background: var(--surface-2); color: var(--ink-3);
   box-shadow: inset 0 0 0 1px var(--line);
-  transition: box-shadow 90ms var(--ease);
+  transition: box-shadow var(--dur-quick) var(--ease);
 }
 .nx-field:focus-within { box-shadow: inset 0 0 0 1px var(--hint), 0 0 0 2px var(--hint-wash); }
 .nx-field > svg { flex: none; }
@@ -1922,13 +1922,13 @@ button.nx-reads-x[data-always]:hover { color: var(--pen); }
   background: var(--surface-2); color: var(--ink-2); font-size: 12.5px; white-space: nowrap;
 }
 .nx-chip-mono { font-family: var(--font-mono); font-size: 12px; }
-.nx-chip-button { transition: background-color 90ms var(--ease), color 90ms var(--ease); }
+.nx-chip-button { transition: background-color var(--dur-quick) var(--ease), color var(--dur-quick) var(--ease); }
 .nx-chip-button[data-tone="surface"] { background: var(--surface); }
 .nx-chip-button:not(:disabled):hover, .nx-chip-button:focus-visible { background: var(--wash); color: var(--ink); }
 .nx-chip-button:disabled { background: transparent; box-shadow: inset 0 0 0 1px var(--line); color: var(--ink-3); cursor: default; }
 /* The toggle chip: on is the chip's shape in the ink at weight 500, off is
    hollow in the third ink, and the pointer's wash sits on either. */
-.nx-chip-toggle { color: var(--ink); font-weight: 500; transition: background-color 90ms var(--ease), color 90ms var(--ease), box-shadow 90ms var(--ease); }
+.nx-chip-toggle { color: var(--ink); font-weight: 500; transition: background-color var(--dur-quick) var(--ease), color var(--dur-quick) var(--ease), box-shadow var(--dur-quick) var(--ease); }
 .nx-chip-toggle[aria-pressed="false"] { background: transparent; box-shadow: inset 0 0 0 1px var(--line); color: var(--ink-3); font-weight: 400; }
 .nx-chip-toggle:hover, .nx-chip-toggle:focus-visible { background: var(--wash); color: var(--ink); }
 .nx-chip-remove { display: inline-flex; color: var(--ink-3); border-radius: 2px; }
@@ -1937,12 +1937,12 @@ button.nx-reads-x[data-always]:hover { color: var(--pen); }
 .nx-switch {
   position: relative; width: 34px; height: 20px; flex: none;
   border-radius: 10px; background: var(--surface-3);
-  transition: background-color 120ms var(--ease);
+  transition: background-color var(--dur-arrive) var(--ease);
 }
 .nx-switch-knob {
   position: absolute; top: 3px; left: 3px; width: 14px; height: 14px;
   border-radius: 50%; background: var(--ink-3);
-  transition: transform 120ms var(--ease), background-color 120ms var(--ease);
+  transition: transform var(--dur-arrive) var(--ease), background-color var(--dur-arrive) var(--ease);
 }
 .nx-switch[aria-checked="true"] { background: var(--hint); }
 .nx-switch[aria-checked="true"] .nx-switch-knob { transform: translateX(14px); background: var(--surface); }
@@ -1951,7 +1951,7 @@ button.nx-reads-x[data-always]:hover { color: var(--pen); }
 .nx-segment {
   height: 24px; padding: 0 10px; border-radius: 3px;
   color: var(--ink-2); font-size: 13px; line-height: 24px; white-space: nowrap;
-  transition: background-color 90ms var(--ease), color 90ms var(--ease);
+  transition: background-color var(--dur-quick) var(--ease), color var(--dur-quick) var(--ease);
 }
 .nx-segment:hover:not([aria-pressed="true"]) { color: var(--ink); }
 .nx-segment[aria-pressed="true"] { background: var(--surface); color: var(--ink); font-weight: 500; }
@@ -2040,20 +2040,32 @@ button.nx-reads-x[data-always]:hover { color: var(--pen); }
    Everything here is a hint, not decoration: it tells the eye that a thing
    is interactive, that something arrived, or that a panel went somewhere
    rather than vanishing.  Nothing exceeds 180 ms. */
-.nx-hover { transition: background-color 90ms var(--ease), color 90ms var(--ease); }
-.nx-press { transition: transform 90ms var(--ease); }
+.nx-hover { transition: background-color var(--dur-quick) var(--ease), color var(--dur-quick) var(--ease); }
+.nx-press { transition: transform var(--dur-quick) var(--ease); }
 .nx-press:active { transform: translateY(1px); }
-.nx-pane { transition: flex-basis 180ms var(--ease), width 180ms var(--ease); }
+.nx-pane { transition: flex-basis var(--dur-move) var(--ease), width var(--dur-move) var(--ease); }
 
 @keyframes arrive { from { opacity: 0; transform: translateY(3px); } to { opacity: 1; transform: none; } }
-.nx-arrive { animation: arrive 120ms var(--ease); }
+.nx-arrive { animation: arrive var(--dur-arrive) var(--ease); }
+/* Leaving is the arrival backwards, as quick: a notice dismissed fades
+   and settles the 3 px it rose. */
+@keyframes leave { to { opacity: 0; transform: translateY(3px); } }
+.nx-leave { animation: leave var(--dur-arrive) var(--ease) forwards; pointer-events: none; }
+/* A sheet's scrim darkens in with the sheet rather than landing at once. */
+@keyframes scrim-in { from { background-color: transparent; } }
+.nx-scrim { animation: scrim-in var(--dur-arrive) var(--ease); }
+/* A panel that comes in beside another, the tutorial beside the Claude
+   column: a short slide from its outer side with a fade, a move rather
+   than a popup, so it takes --dur-move. */
+@keyframes slide-in { from { opacity: 0; transform: translateX(24px); } to { opacity: 1; transform: none; } }
+.nx-slide-in { animation: slide-in var(--dur-move) var(--ease); }
 
 @media (prefers-reduced-motion: reduce) {
   *,
   *::before,
   *::after {
     animation: none !important;
-    transition-duration: 90ms !important;
+    transition-duration: var(--dur-quick) !important;
     transition-property: opacity, background-color, color !important;
   }
   /* Without its sweep the update indicator would disappear entirely, so it

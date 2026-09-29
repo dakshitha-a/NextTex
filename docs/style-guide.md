@@ -266,11 +266,9 @@ else.
   move changed nothing a writer sees.
 - A menu is short. Conditional items are present only when they apply,
   never disabled in place; the destructive item is last, after a rule.
-- Motion answers the writer: `.nx-arrive` (120 ms, opacity and a 0.98
-  scale) on menus, cards and sheets only; a 90 ms colour transition on
-  rows and buttons; nothing moves on its own; an animation that changes
-  a control's box (a pulse that scales the button) is a defect, since it
-  moves under the pointer reaching for it. Reduced motion is respected.
+- Motion follows the language in "Motion" below. An animation that
+  changes a control's box, such as a pulse that scales the button, is a
+  defect, since it moves under the pointer reaching for it.
 - A control that a strip cannot hold is dropped at the width it
   measures, through a container query, never wrapped or clipped.
 - The project's name in the name row, when it does not fit, fades out
@@ -286,6 +284,60 @@ else.
   button names its verb; a control keeps the same name through the flow;
   errors say what went wrong and what to do, without apology; no em dash
   anywhere.
+
+## Motion
+
+Motion answers the writer. It is one language of five durations and one
+curve, so a pane, a menu and the preview all move alike. The durations
+are tokens in `frontend/src/styles.css`, beside `--ease`, the one curve,
+`cubic-bezier(0.22, 0.61, 0.36, 1)`, a deceleration. Code that needs a
+duration as a number reads the token through `duration()` in
+`frontend/src/motion.ts`; it is never written twice.
+
+| Token | Value | What it is for |
+|---|---|---|
+| `--dur-quick` | 90 ms | Colour and ground on hover and press, on rows and buttons. |
+| `--dur-arrive` | 120 ms | A popup arriving, `.nx-arrive`: opacity and a 3 px rise, on menus, cards, sheets and notices. A dismissed notice leaves the same way backwards, `.nx-leave`, and a sheet's scrim darkens in over the same time. |
+| `--dur-swap` | 140 ms | Content that replaced itself crossfades: the preview's new page over the old one after a build. |
+| `--dur-move` | 180 ms | Something that changes place or size: a pane, the drawer, the Claude column, the tutorial panel, opening. |
+| `--dur-leave` | 140 ms | The same things closing, a little quicker than they came, so a closed pane is out of the way sooner. |
+
+The rules:
+
+- **Only what the writer asked for moves.** The one exception is the
+  preview, which replaces itself after a build, so it fades rather than
+  cuts. Nothing loops except a sign that work is in progress. A layout
+  put back rather than changed, as a project opening with the panes it
+  was left with, is placed, not moved.
+- **Switching what a pane shows is instant.** A tab, a drawer's
+  instrument, a file, and the narrow window's source and preview toggle
+  change at once, because the writer is already looking where the
+  result will be.
+- **A pane slides; it never squeezes.** A closing pane keeps its width
+  and slides off its outer edge, and its neighbour takes up the space as
+  it goes. The drawer is clipped by its column narrowing, since the bar
+  beside it stays. An overlay, the Claude column or the drawer below
+  their breakpoints, slides by a transform. A panel that opens beside
+  another, the tutorial, slides 24 px in from its outer side as it fades,
+  `.nx-slide-in`. `useFold` in
+  `frontend/src/motion.ts` gives each pane its phase.
+- **Panes that move together move as one.** Reading and writing modes
+  fold several panes in one render, so their moves share one timeline.
+- **The preview keeps its ground.** A new page is drawn out of sight,
+  darkened first when Dark page is on, and faded in. A page not drawn
+  yet shows the ground it will have, the paper or the dark page's
+  surface, never a black or white frame.
+- **Reduced motion.** Slides and moves are instant, and every remaining
+  transition is a `--dur-quick` change of opacity or colour.
+- **Marks keep their own time.** A few fades are marks that say where
+  something happened, not motion answering a press: the highlight after
+  a jump from the page to the source, a line that has just arrived from
+  the agent, the name gliding under the pointer. They keep the longer
+  durations written beside them.
+
+`frontend/src/kit-rule.test.ts` fails on a transition, an animation or a
+Tailwind duration that spells out one of the token values instead of
+naming the token.
 
 ## The contract every change ships with
 

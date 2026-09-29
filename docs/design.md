@@ -11241,3 +11241,33 @@ of the first page's margin on every frame through three rebuilds, one with
 a new page, on a white page and a dark one. Run against the code before
 the change, it caught a frame of black on the white page and two of white
 on the dark one.
+
+## 87. Panes slide, and the app moves in one language
+
+The writer found panes opening and closing "a bit aggressive", reading
+and writing modes most of all, and asked on 28 September 2026 for sliding
+that still feels fast, like the Claude column's slide as an overlay, with
+one consistent language across the app written into the style guide. The
+design was left to me, drawn in the direction page's Motion section with
+demos to replay, and built as drawn.
+
+The language is five durations and one curve, the tokens `--dur-quick`,
+`--dur-arrive`, `--dur-swap`, `--dur-move` and `--dur-leave`, and the
+style guide's new Motion section gives each its job. A folding pane keeps
+its width and slides off its outer edge in 140 ms while its neighbour
+takes the space; it comes back in 180 ms. The drawer is clipped by its
+column narrowing, since the bar stays. Reading and writing modes move
+their panes in one timeline. While the preview's width moves, its pages
+follow it frame by frame, where they had kept the old size and jumped at
+the end. The Collapsed strip a folded pane leaves arrives with the popup
+fade once the pane has gone. A sheet's scrim darkens in with the sheet, a
+dismissed notice fades out rather than vanishing, and the tutorial panel
+slides 24 px in as it fades. A project that opens with folded panes is
+placed as it was left, not slid into, and under reduced motion nothing
+slides. Every transition that used one of the token values now names the
+token, and `kit-rule.test.ts` fails on one that spells it out.
+
+`e2e/specs/motion.spec.ts` reads the pane's margin on every frame through
+a fold and an unfold, checks that reading mode moves the source and the
+Claude column in the same frames, and that under reduced motion a fold
+has no frame in between.

@@ -154,7 +154,7 @@ export default function TabStrip({
               data-active={tab.active ? "true" : undefined}
               className={[
                 "nx-tab group relative flex h-9 min-w-18 max-w-50 basis-auto shrink items-center",
-                "gap-1.5 pr-2 transition-colors duration-[90ms]",
+                "gap-1.5 pr-2 transition-colors duration-[var(--dur-quick)]",
                 handle ? "cursor-pointer" : "",
               ].join(" ")}
               title={handle ? headerTitle : undefined}
@@ -242,7 +242,7 @@ export default function TabStrip({
             front is a handle as well. */}
         <div
           className={[
-            "flex-1 transition-colors duration-[90ms]",
+            "flex-1 transition-colors duration-[var(--dur-quick)]",
             onHeaderClick ? "cursor-pointer hover:bg-wash" : "",
           ].join(" ")}
           data-testid={blankTestId}

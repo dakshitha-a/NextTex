@@ -51,3 +51,28 @@ describe("the kit is the only source of controls", () => {
     expect(count()).toEqual({});
   });
 });
+
+/** The motion language's rule, held: a duration that is one of the five
+ *  tokens is written as the token (docs/style-guide.md, "Motion").  The
+ *  stylesheet and every component are read for a transition, an animation
+ *  or a Tailwind duration that spells one of the token values out.  The
+ *  longer fades, a jump's highlight, a line's arrival, the name's glide,
+ *  are marks with their own schedule and are not token values. */
+describe("motion", () => {
+  const TOKEN_VALUES = /(?<![\d.])(90|120|140|180)ms\b/;
+  const MOTION = /\b(transition|animation|duration-\[)/;
+  test("durations that are tokens are written as the tokens", () => {
+    const offenders: string[] = [];
+    const files = [join(HERE, "styles.css"), ...components(HERE)];
+    for (const path of files) {
+      readFileSync(path, "utf8").split("\n").forEach((line, index) => {
+        const trimmed = line.trim();
+        if (trimmed.startsWith("//") || trimmed.startsWith("*") || trimmed.startsWith("/*")) return;
+        if (MOTION.test(line) && TOKEN_VALUES.test(line)) {
+          offenders.push(`${relative(HERE, path)}:${index + 1}: ${trimmed}`);
+        }
+      });
+    }
+    expect(offenders).toEqual([]);
+  });
+});

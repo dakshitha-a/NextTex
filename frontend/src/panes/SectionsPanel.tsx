@@ -106,7 +106,7 @@ export default function SectionsPanel({
     >
       {drawer ? null : (
         <Pressable
-          className="flex h-6.5 w-full shrink-0 items-center justify-between px-2.5 transition-colors duration-[90ms] hover:bg-surface-2"
+          className="flex h-6.5 w-full shrink-0 items-center justify-between px-2.5 transition-colors duration-[var(--dur-quick)] hover:bg-surface-2"
           aria-expanded={open}
           data-testid="sections-toggle"
           onClick={onToggle}

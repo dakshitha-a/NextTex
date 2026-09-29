@@ -41,6 +41,7 @@ import {
   nextFolded,
   type Widths,
 } from "./layout";
+import { away, duration, foldTransition, moving, reducedMotion, shown, useFold, type Fold } from "./motion";
 import Boundary from "./Boundary";
 import {
   connect,
@@ -299,6 +300,30 @@ export default function App() {
   });
   // History is a drawer: open means the drawer is showing it.
   const historyOpen = drawerId === "history" && !railHidden && !folded.rail;
+  // Each pane's fold as a phase, so it can slide rather than snap; used
+  // where the panes are drawn, and here, above every early return, because
+  // they are hooks.
+  // Set while a project's remembered layout is put back, so it is placed
+  // rather than slid into.
+  const stillLayout = useRef(false);
+  // A notice leaves the way it came, a short fade, rather than vanishing
+  // under the pointer that dismissed it.
+  const [leavingNotices, setLeavingNotices] = useState<number[]>([]);
+  const letNoticeGo = useCallback((id: number) => {
+    if (reducedMotion()) {
+      dismissNotice(id);
+      return;
+    }
+    setLeavingNotices((leaving) => [...leaving, id]);
+    window.setTimeout(() => {
+      dismissNotice(id);
+      setLeavingNotices((leaving) => leaving.filter((other) => other !== id));
+    }, duration("arrive"));
+  }, []);
+  const drawerFold = useFold(!(railHidden || folded.rail), stillLayout);
+  const editorFold = useFold(!folded.editor, stillLayout);
+  const pdfFold = useFold(!folded.pdf, stillLayout);
+  const chatFold = useFold(!folded.chat, stillLayout);
   // Reading mode and writing mode: one pane with the window to itself.
   const [focus, setFocus] = useState<"editor" | "pdf" | null>(null);
   const beforeFocus = useRef<{
@@ -368,6 +393,10 @@ export default function App() {
   const shell = useRef<HTMLDivElement | null>(null);
   const editorPane = useRef<HTMLDivElement | null>(null);
   const pdfPane = useRef<HTMLDivElement | null>(null);
+  // The width each of the two panes last had on screen, which is the width
+  // it keeps while it slides.
+  const editorLast = useRef(0);
+  const pdfLast = useRef(0);
 
   const projectId = useStore((s) => s.projectId);
   /** Letters typed after the search chord, held while the drawer's code
@@ -594,6 +623,12 @@ export default function App() {
     const remembered = recall(`nexttex.drawer.${id}`, { open: DRAWER_DEFAULT }).open;
     setDrawerId(
       BAR_ITEMS.some((item) => item.id === remembered) ? remembered : DRAWER_DEFAULT,
+    );
+    stillLayout.current = true;
+    window.requestAnimationFrame(() =>
+      window.requestAnimationFrame(() => {
+        stillLayout.current = false;
+      }),
     );
     setFolded((current) => recall(`nexttex.folded.${id}`, current));
     setWidths(recall(`nexttex.widths.${id}`, DEFAULTS));
@@ -2216,6 +2251,30 @@ export default function App() {
   const drawerShown = !(railHidden || folded.rail);
   const drawerOver = width < BREAKPOINTS.rail;
 
+  // Panes slide rather than snap (docs/style-guide.md, "Motion").  Each
+  // pane's fold has a phase; while one moves it keeps the width it had and
+  // slides off its outer edge, by a negative margin, and its neighbour
+  // takes up the space as it goes, so the content moves with the pane
+  // rather than being squeezed.  The drawer is clipped by its column
+  // narrowing instead, since the bar stays.  Reading and writing modes set
+  // every fold in one render, so their panes move as one.
+  const drawerOn = shown(drawerFold);
+  // The width a moving pane keeps: the one it last had on screen, or, for a
+  // pane that has not been on screen yet, its share of the row.
+  const paneWidth = (element: HTMLElement | null, last: { current: number }, share: number) => {
+    // Read from the page as it stands: a pane that is starting to close is
+    // still at its full width, and one that is moving keeps that width.
+    if (element && element.offsetWidth > 0) last.current = element.offsetWidth;
+    if (last.current > 0) return last.current;
+    const row = element?.parentElement?.clientWidth ?? width;
+    return Math.max(320, Math.round(row * share));
+  };
+  const slide = (phase: Fold, side: "left" | "right", size: number): React.CSSProperties => ({
+    flex: `0 0 ${size}px`,
+    [side === "left" ? "marginLeft" : "marginRight"]: away(phase) ? -size : 0,
+    transition: foldTransition(phase, side === "left" ? "margin-left" : "margin-right"),
+  });
+
   return (
     // Two elements rather than one, and which is which matters.  `nx-frame`
     // is the scroll port, so a window narrower than the layout's stated
@@ -2241,11 +2300,15 @@ export default function App() {
       <div
         className="nx-left flex shrink-0 flex-col"
         data-testid="left-column"
-        style={{ width: drawerShown && !drawerOver ? 44 + widths.rail + 1 : 44 }}
+        style={{
+          width: drawerOn && !drawerOver && !away(drawerFold) ? 44 + widths.rail + 1 : 44,
+          transition: drawerOver ? undefined : foldTransition(drawerFold, "width"),
+          overflow: moving(drawerFold) && !drawerOver ? "hidden" : undefined,
+        }}
       >
         <div className="nx-name-row nx-band flex h-9 w-full shrink-0 items-center" data-testid="title-bar">
           <Pressable
-            className="flex h-full min-w-0 flex-1 items-center pr-2 transition-colors duration-[90ms] hover:text-hint"
+            className="flex h-full min-w-0 flex-1 items-center pr-2 transition-colors duration-[var(--dur-quick)] hover:text-hint"
             data-testid="switch-project"
             onClick={leaveProject}
             title={`${projectName}: switch project`}
@@ -2255,7 +2318,7 @@ export default function App() {
                 sit over the two columns they head; the chevron at the
                 row's end, past the well the name fades in. */}
             <span className="flex w-11 shrink-0 justify-center"><Logo size={18} /></span>
-            {drawerShown && !drawerOver ? (
+            {drawerOn && !drawerOver ? (
               <>
                 <NameWell name={projectName} />
                 <span className="ml-1 shrink-0 text-ink-3"><Chevron direction="down" /></span>
@@ -2313,7 +2376,7 @@ export default function App() {
           />
         </div>
       </nav>
-      {drawerShown ? (
+      {drawerOn ? (
         <>
           <div
             className={
@@ -2321,7 +2384,15 @@ export default function App() {
                 ? "nx-pane absolute left-11 top-9 z-30 flex h-[calc(100%-36px)] flex-col bg-surface-2 shadow-float outline-none"
                 : "nx-pane flex min-h-0 shrink-0 flex-col bg-surface-2 outline-none"
             }
-            style={{ width: widths.rail }}
+            style={{
+              width: widths.rail,
+              // Over the panes it slides out from under the bar, as the
+              // Claude column does over them from the right.
+              transform: drawerOver && away(drawerFold) ? "translateX(-100%)" : undefined,
+              transition: drawerOver ? foldTransition(drawerFold, "transform") : undefined,
+            }}
+            inert={drawerFold === "closing"}
+            aria-hidden={drawerFold === "closing" || undefined}
             data-testid="drawer"
             data-drawer={drawerId}
             ref={drawerEl}
@@ -2485,7 +2556,7 @@ export default function App() {
               </Pressable>
             </div>
           </div>
-          {drawerOver ? null : (
+          {drawerOver || !drawerShown ? null : (
             <Handle
               onPointerDown={startDrag("rail")}
             onNudge={nudge("rail")}
@@ -2499,8 +2570,8 @@ export default function App() {
         </div>
       </div>
 
-      <div className="flex min-w-0 flex-1">
-        {folded.editor && !tight ? (
+      <div className={`flex min-w-0 flex-1 ${moving(editorFold) || moving(pdfFold) ? "overflow-clip" : ""}`}>
+        {editorFold === "closed" && !tight ? (
           <Collapsed label="Source" side="left" onExpand={() => fold("editor")} />
         ) : null}
         <div
@@ -2511,15 +2582,18 @@ export default function App() {
               ? showing === "source"
                 ? "flex-1"
                 : "hidden"
-              : folded.editor
+              : !shown(editorFold)
                 ? "hidden"
-                : "min-w-105"
+                : moving(editorFold) ? "" : "min-w-105"
           }`}
           style={
-            tight || folded.editor
+            tight || !shown(editorFold)
               ? undefined
-              : { flex: `${folded.pdf ? 1 : editorFraction} 1 0` }
+              : moving(editorFold)
+                ? slide(editorFold, "left", paneWidth(editorPane.current, editorLast, folded.pdf ? 1 : editorFraction))
+                : { flex: `${folded.pdf ? 1 : editorFraction} 1 0` }
           }
+          inert={!tight && editorFold === "closing"}
         >
           <SourceHeader
             onSelect={(path) => {
@@ -2717,17 +2791,20 @@ export default function App() {
               ? showing === "preview"
                 ? "flex-1"
                 : "hidden"
-              : folded.pdf
+              : !shown(pdfFold)
                 ? "hidden"
-                : "min-w-80"
+                : moving(pdfFold) ? "" : "min-w-80"
           }`}
+          inert={!tight && pdfFold === "closing"}
           // Grow factors are two halves of one whole.  Against Tailwind's
           // flex-1 (grow: 1) an editor at 0.5 takes a third, not a half,
           // which is how the PDF ended up filling its pane edge to edge.
           style={
-            tight || folded.pdf
+            tight || !shown(pdfFold)
               ? undefined
-              : { flex: `${folded.editor ? 1 : 1 - editorFraction} 1 0` }
+              : moving(pdfFold)
+                ? slide(pdfFold, "right", paneWidth(pdfPane.current, pdfLast, folded.editor ? 1 : 1 - editorFraction))
+                : { flex: `${folded.editor ? 1 : 1 - editorFraction} 1 0` }
           }
         >
           {!tight || showing === "preview" ? (
@@ -2851,7 +2928,7 @@ export default function App() {
           </Suspense>
           </Boundary>
         </div>
-        {folded.pdf && !tight ? (
+        {pdfFold === "closed" && !tight ? (
           <Collapsed label="Preview" side="right" onExpand={() => fold("pdf")} />
         ) : null}
       </div>
@@ -2891,7 +2968,7 @@ export default function App() {
       {/* Docked and folded, the column leaves a strip behind like the
           Source and Preview panes do, carrying the agent's state dot so
           that "waiting for you" survives the fold. */}
-      {!noAgent && !chatOver && folded.chat ? (
+      {!noAgent && !chatOver && chatFold === "closed" ? (
         <Collapsed
           label="Claude"
           shows="Claude"
@@ -2905,12 +2982,20 @@ export default function App() {
         className={
           chatOver
             ? "absolute right-0 top-0 z-30 h-full shadow-float"
-            : folded.chat
+            : !shown(chatFold)
               ? "hidden"
               : "nx-pane min-h-0 shrink-0"
         }
         style={{
           width: widths.chat,
+          // Docked, it slides off the right edge the way it does as an
+          // overlay, and the panes to its left take up the space.
+          ...(!chatOver && moving(chatFold)
+            ? {
+                marginRight: away(chatFold) ? -widths.chat : 0,
+                transition: foldTransition(chatFold, "margin-right"),
+              }
+            : {}),
           transform: chatOver && !chatOpen ? "translateX(100%)" : undefined,
           // Hidden once it has finished sliding out.  A transform leaves it
           // laid out and hit-testable, so a click could land in a panel
@@ -2919,11 +3004,13 @@ export default function App() {
           // keeps the slide visible: on the way out visibility waits for
           // the transform, on the way in it applies at once.
           visibility: chatOver && !chatOpen ? "hidden" : undefined,
-          transition: chatOver
-            ? `transform 180ms var(--ease), visibility 0s linear ${
-                chatOpen ? "0s" : "180ms"
-              }`
-            : undefined,
+          ...(chatOver
+            ? {
+                transition: chatOpen
+                  ? "transform var(--dur-move) var(--ease), visibility 0s linear 0s"
+                  : "transform var(--dur-leave) var(--ease), visibility 0s linear var(--dur-leave)",
+              }
+            : {}),
         }}
         aria-hidden={chatOver && !chatOpen}
         // `inert` as well as `aria-hidden`, and this is not belt and
@@ -2935,7 +3022,7 @@ export default function App() {
         // width -- the rail off the screen and the editor's text clipped at
         // x=0.  `aria-hidden` says "do not announce this"; only `inert`
         // says "this cannot be reached".
-        inert={chatOver && !chatOpen}
+        inert={(chatOver && !chatOpen) || (!chatOver && chatFold === "closing")}
         // Read by the Escape handler, which has to tell the panel's own
         // composer from every other box on screen.
         data-nx-chat=""
@@ -3005,9 +3092,12 @@ export default function App() {
         data-testid="notices"
       >
         {notices.map((notice) => (
-          <div key={notice.id} className={`nx-notice nx-arrive pointer-events-auto ${shellTheme()}`}>
+          <div
+            key={notice.id}
+            className={`nx-notice ${leavingNotices.includes(notice.id) ? "nx-leave" : "nx-arrive"} pointer-events-auto ${shellTheme()}`}
+          >
             <span>{notice.text}</span>
-            <Button onClick={() => dismissNotice(notice.id)} aria-label={`Dismiss: ${notice.text}`}>
+            <Button onClick={() => letNoticeGo(notice.id)} aria-label={`Dismiss: ${notice.text}`}>
               Dismiss
             </Button>
           </div>

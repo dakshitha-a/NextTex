@@ -39,7 +39,8 @@ type Fault = {
 };
 
 async function settled(page: any, label: string, faults: Fault[]) {
-  // Past the 180ms slide, so an animation in flight is not read as a fault.
+  // Past the slide, --dur-move in styles.css (180 ms), with room to spare,
+  // so an animation in flight is not read as a fault.
   await page.waitForTimeout(420);
   const info = await page.evaluate(() => {
     const panel = document.querySelector("[data-testid=chat-panel]") as HTMLElement | null;

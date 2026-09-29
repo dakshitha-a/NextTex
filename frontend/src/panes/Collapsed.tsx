@@ -28,7 +28,7 @@ export default function Collapsed({
     <Pressable
       // A strip on the second surface with no hairline, the kit's plane;
       // the chevron points at the pane it would bring back.
-      className={`group flex w-7 shrink-0 flex-col items-center gap-2 bg-surface-2 pt-2.5 transition-colors duration-[90ms] hover:bg-surface-3`}
+      className={`nx-arrive group flex w-7 shrink-0 flex-col items-center gap-2 bg-surface-2 pt-2.5 transition-colors duration-[var(--dur-quick)] hover:bg-surface-3`}
       onClick={onExpand}
       data-testid={`collapsed-${label.toLowerCase()}`}
       title={`Show ${shows}`}

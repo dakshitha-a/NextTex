@@ -1,4 +1,5 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
+import { duration } from "../motion";
 import * as pdfjs from "pdfjs-dist";
 import { headingHint, isBoldFont, tagSpans } from "./pdf-heading";
 import workerUrl from "pdfjs-dist/build/pdf.worker.min.mjs?url";
@@ -173,19 +174,8 @@ type PageView = {
 };
 
 /** How long a new picture takes to fade in over the old one: the swap
- *  token in styles.css, read once, so the stylesheet is the one place it
- *  is set. */
-let swapMs = -1;
-function swapDuration(): number {
-  if (swapMs < 0) {
-    const raw = typeof window === "undefined"
-      ? ""
-      : window.getComputedStyle(window.document.documentElement).getPropertyValue("--dur-swap");
-    const parsed = parseFloat(raw);
-    swapMs = Number.isFinite(parsed) ? parsed : 140;
-  }
-  return swapMs;
-}
+ *  token in styles.css, so the stylesheet is the one place it is set. */
+const swapDuration = () => duration("swap");
 
 /** Put a finished layer on screen.  Over a page that already shows a
  *  picture it fades in for the swap's duration, and the old picture is
@@ -782,6 +772,14 @@ export default function Pdf({
     });
   }, [drawVisible]);
 
+  // The width the pages were last fitted to, and the width a page gets from
+  // a pane that wide: two pages side by side share it, less the gap.
+  const fittedFor = useRef(0);
+  const widthFor = (pane: number) => {
+    const across = spreadRef.current ? 2 : 1;
+    return (pane - 48 - (across - 1) * 16) / across;
+  };
+
   // ---- laying the document out ------------------------------------------
   const layout = useCallback(
     async (document: pdfjs.PDFDocumentProxy, keep: boolean) => {
@@ -803,9 +801,8 @@ export default function Pdf({
       const turn = rotationRef.current;
       const natural = first.getViewport({ scale: 1, rotation: (first.rotate + turn) % 360 });
       const measured = scroller.current?.clientWidth ?? 0;
-      // Two pages side by side share the width, less the gap between them.
-      const across = spreadRef.current ? 2 : 1;
-      const available = ((measured > 80 ? measured : 900) - 48 - (across - 1) * 16) / across;
+      const available = widthFor(measured > 80 ? measured : 900);
+      fittedFor.current = measured > 80 ? measured : 900;
       const fit = Math.max(0.2, +(available / natural.width).toFixed(3));
       setFitScale(fit);
       // A writer checking whether a figure has pushed a heading onto the
@@ -1061,6 +1058,11 @@ export default function Pdf({
   }, [current, applyMode, renderPage]);
 
   // A pane that changes width has to re-fit, or the page stops filling it.
+  // While the width is moving, as it does through a pane's slide, the pages
+  // follow it frame by frame the way a pinch resizes them, by their boxes,
+  // with what is drawn stretched to fit; the crisp re-fit comes once the
+  // width has settled.  Without that the page kept the old width's size
+  // for the whole slide and jumped at the end.
   useEffect(() => {
     const root = scroller.current;
     if (!root) return;
@@ -1068,7 +1070,17 @@ export default function Pdf({
     const observer = new ResizeObserver((entries) => {
       // A pane that has just been collapsed reports zero width; re-fitting
       // to that would leave a page 35% wide when it comes back.
-      if ((entries[0]?.contentRect.width ?? 0) < 80) return;
+      const now = entries[0]?.contentRect.width ?? 0;
+      if (now < 80) return;
+      if (!scale && fittedFor.current > 80 && drawn.current) {
+        const live = drawn.current * (widthFor(now) / widthFor(fittedFor.current));
+        for (const view of pages.current) {
+          if (!view.scale) continue;
+          view.container.style.width = `${Math.floor((view.width / view.scale) * live)}px`;
+          view.container.style.height = `${Math.floor((view.height / view.scale) * live)}px`;
+          view.text.style.transform = `scale(${live / view.scale})`;
+        }
+      }
       window.clearTimeout(timer);
       timer = window.setTimeout(() => {
         if (doc.current && !scale) {
