@@ -1137,6 +1137,11 @@ test("a table in an answer is drawn as a table, and a wide one scrolls in its ow
   // and a path broken at every hyphen: one row is one line of 20 px.
   const row = await wide.locator("tbody tr").first().evaluate((el) => el.getBoundingClientRect().height);
   expect(row).toBeLessThan(40);
+  // A sentence in a cell wraps, but no narrower than 12 rem.
+  const sentence = await wide
+    .locator("td", { hasText: "Low resolution" })
+    .evaluate((el) => el.getBoundingClientRect().width);
+  expect(sentence).toBeGreaterThanOrEqual(192);
   const stream = tab.getByTestId("chat-stream");
   const spill = await stream.evaluate((el) => el.scrollWidth - el.clientWidth);
   expect(spill).toBeLessThanOrEqual(0);
