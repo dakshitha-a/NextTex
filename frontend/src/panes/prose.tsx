@@ -3,7 +3,7 @@ import { Button } from "../ui/Button";
 
 /** Just enough Markdown for what an agent writes about a document.
  *
- *  A library would be 40 KB to render six constructs, and would bring its
+ *  A library would be 40 KB to render seven constructs, and would bring its
  *  own opinions about typography into a column whose type is the app's
  *  own.  Anything not handled here is left as the literal text the model
  *  wrote, which is the honest failure mode.
@@ -13,13 +13,64 @@ import { Button } from "../ui/Button";
  *  a list carries one per item.  The chat never reads them; the Markdown
  *  pane does, so a double-click on the rendering can say which line of
  *  the file it landed on, the way SyncTeX does for the page.  A code
- *  block's line is its opening fence, so its text begins one below. */
+ *  block's line is its opening fence, so its text begins one below.
+ *  A table's line is its header's, and its body rows carry one each. */
 export type Block =
   | { kind: "paragraph"; text: string; line: number }
   | { kind: "code"; text: string; language: string; line: number }
   | { kind: "heading"; text: string; level: number; line: number }
   | { kind: "list"; items: string[]; lines: number[]; ordered: boolean; line: number }
-  | { kind: "quote"; text: string; line: number };
+  | { kind: "quote"; text: string; line: number }
+  | TableBlock;
+
+/** A column's alignment, from the colons on the delimiter row; `null`
+ *  when there are none, which draws as the start of the line. */
+export type Align = "left" | "center" | "right" | null;
+
+export type TableBlock = {
+  kind: "table";
+  header: string[];
+  align: Align[];
+  rows: string[][];
+  lines: number[];
+  line: number;
+};
+
+/** The row under a table's header: dashes, optionally colons, cells
+ *  parted by pipes.  A pipe is required, since a line of dashes alone
+ *  under text is how Markdown writes a heading or a rule. */
+const DELIMITER = /^\s*\|?\s*:?-+:?\s*(\|\s*:?-+:?\s*)*\|?\s*$/;
+
+/** A row's cells: split on the pipes that are not escaped, with the
+ *  outer pipes a row may start and end with dropped, and `\|` kept as
+ *  the pipe it stands for. */
+export function splitRow(line: string): string[] {
+  let text = line.trim();
+  if (text.startsWith("|")) text = text.slice(1);
+  if (text.endsWith("|") && !text.endsWith("\\|")) text = text.slice(0, -1);
+  return text.split(/(?<!\\)\|/).map((cell) => cell.trim().replace(/\\\|/g, "|"));
+}
+
+/** Whether a table starts at this line: a row with a pipe, and under it
+ *  a delimiter row with as many cells.  The count is what keeps a
+ *  sentence that happens to hold a pipe from becoming a table, and it
+ *  is also why a table still streaming in reads as a paragraph until
+ *  its delimiter row is whole. */
+function tableAt(lines: string[], index: number): boolean {
+  const next = lines[index + 1];
+  if (next === undefined || !lines[index].includes("|")) return false;
+  if (!next.includes("|") || !DELIMITER.test(next)) return false;
+  return splitRow(lines[index]).length === splitRow(next).length;
+}
+
+function alignOf(cell: string): Align {
+  const left = cell.startsWith(":");
+  const right = cell.endsWith(":");
+  if (left && right) return "center";
+  if (right) return "right";
+  if (left) return "left";
+  return null;
+}
 
 export function parseBlocks(source: string): Block[] {
   const lines = source.replace(/\r\n/g, "\n").split("\n");
@@ -52,6 +103,25 @@ export function parseBlocks(source: string): Block[] {
         line: at,
       });
       index += 1;
+      continue;
+    }
+
+    if (tableAt(lines, index)) {
+      const header = splitRow(line);
+      const align = splitRow(lines[index + 1]).map(alignOf);
+      const rows: string[][] = [];
+      const rowLines: number[] = [];
+      index += 2;
+      while (index < lines.length && lines[index].trim() && lines[index].includes("|")) {
+        // A row with too few cells is padded and one with too many is
+        // cut, so every row has the header's columns.
+        const cells = splitRow(lines[index]).slice(0, header.length);
+        while (cells.length < header.length) cells.push("");
+        rows.push(cells);
+        rowLines.push(index + 1);
+        index += 1;
+      }
+      blocks.push({ kind: "table", header, align, rows, lines: rowLines, line: at });
       continue;
     }
 
@@ -89,7 +159,10 @@ export function parseBlocks(source: string): Block[] {
       lines[index].trim() &&
       !lines[index].startsWith("```") &&
       !/^(#{1,4})\s/.test(lines[index]) &&
-      !/^\s*([-*+]|\d+[.)])\s+/.test(lines[index])
+      !/^\s*([-*+]|\d+[.)])\s+/.test(lines[index]) &&
+      // A table may follow a sentence with no blank line between, as a
+      // model often writes "Here they are:" straight above one.
+      !tableAt(lines, index)
     ) {
       body.push(lines[index]);
       index += 1;
@@ -174,7 +247,77 @@ export function same(before: { block: Block }, after: { block: Block }): boolean
   if (one.kind === "code" && two.kind === "code") {
     return one.language === two.language && one.text === two.text;
   }
+  if (one.kind === "table" && two.kind === "table") {
+    const cells = (a: string[], b: string[]) =>
+      a.length === b.length && a.every((cell, at) => cell === b[at]);
+    return (
+      cells(one.header, two.header)
+      && one.align.every((side, at) => side === two.align[at])
+      && one.rows.length === two.rows.length
+      && one.rows.every((row, at) => cells(row, two.rows[at]))
+    );
+  }
   return "text" in one && "text" in two && one.text === two.text;
+}
+
+const alignClass = (side: Align) =>
+  side === "center" ? "text-center" : side === "right" ? "text-right" : "text-left";
+
+/** How a cell takes a narrow column.  Left to the browser, a table in
+ *  the Claude column shrank every cell to its longest word, so "Figure
+ *  1" and "212 KB" stood on two lines and a path broke at each hyphen.
+ *  A short cell, or one with no space in it such as a path, keeps its
+ *  line and the box scrolls instead; a sentence wraps, but no narrower
+ *  than 12 rem. */
+const fitCell = (cell: string) =>
+  cell.length > 40 && /\s/.test(cell.trim()) ? "min-w-48" : "whitespace-nowrap";
+
+/** A table, as the table hover card draws a LaTeX one: the header at
+ *  600 with the one hairline under it, no rules between rows, air
+ *  instead, figures tabular so a column of numbers lines up.  At the
+ *  interface size rather than the prose's, since a table is read across
+ *  and down.  A table wider than its column scrolls inside its own box,
+ *  which in the Claude column is most tables of five columns or more.
+ *
+ *  `withLines` writes the source line of the table and of each row into
+ *  `data-line`, which the Markdown pane reads on a double-click and the
+ *  chat has no use for. */
+export function Table(
+  { block, id, withLines = false }: { block: TableBlock; id: string; withLines?: boolean },
+) {
+  const line = (at: number) => (withLines ? at : undefined);
+  return (
+    <div className="overflow-x-auto" data-testid="prose-table" data-line={line(block.line)}>
+      <table className="t-ui border-collapse tabular-nums">
+        <thead>
+          <tr data-line={line(block.line)}>
+            {block.header.map((cell, column) => (
+              <th
+                key={column}
+                className={`border-b border-line py-1 pr-4 align-top font-semibold last:pr-0 ${alignClass(block.align[column])} ${fitCell(cell)}`}
+              >
+                {inline(cell, `${id}-h${column}`)}
+              </th>
+            ))}
+          </tr>
+        </thead>
+        <tbody>
+          {block.rows.map((row, at) => (
+            <tr key={at} data-line={line(block.lines[at])}>
+              {row.map((cell, column) => (
+                <td
+                  key={column}
+                  className={`py-1 pr-4 align-top last:pr-0 ${alignClass(block.align[column])} ${fitCell(cell)}`}
+                >
+                  {inline(cell, `${id}-${at}-${column}`)}
+                </td>
+              ))}
+            </tr>
+          ))}
+        </tbody>
+      </table>
+    </div>
+  );
 }
 
 const Rendered = memo(function Rendered(
@@ -216,6 +359,7 @@ const Rendered = memo(function Rendered(
       </blockquote>
     );
   }
+  if (block.kind === "table") return <Table block={block} id={key} />;
   return <p className="whitespace-pre-wrap">{inline(block.text, key)}</p>;
 }, same);
 

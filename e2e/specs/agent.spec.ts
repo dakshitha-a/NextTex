@@ -1106,6 +1106,42 @@ test("a code block in an answer can be copied", async ({ tab, context }) => {
   expect(pasted).toContain("\\usepackage{siunitx}");
 });
 
+test("a table in an answer is drawn as a table, and a wide one scrolls in its own box", async ({
+  tab,
+}) => {
+  // The agent often answers with a pipe table, and the column showed it
+  // as lines of pipes and dashes: the parser knew no tables.
+  await ask(tab, "table", "Put the three fits side by side.");
+  const tables = tab.getByTestId("prose-table");
+  await expect(tables).toHaveCount(2, { timeout: 20_000 });
+
+  const fits = tables.first();
+  await expect(fits.locator("th")).toHaveText(["Solvent", "ε", "τ₁ (fs)", "τ₂ (ps)"]);
+  await expect(fits.locator("tbody tr")).toHaveCount(3);
+  // Inline Markdown inside a cell, and the colons' alignment.
+  await expect(fits.locator("td strong")).toHaveText("158");
+  const side = (cell: string) =>
+    fits.locator("td", { hasText: cell }).evaluate((el) => getComputedStyle(el).textAlign);
+  expect(await side("Hexane")).toBe("left");
+  expect(await side("12.4")).toBe("right");
+  // The sentence written straight above the header stayed a sentence.
+  await expect(tab.getByText("The lifetimes by solvent, from the three fits:")).toBeVisible();
+  await expect(tab.getByText(/\|---/)).toHaveCount(0);
+
+  // Six columns do not fit the column: the table scrolls, and the reply
+  // around it keeps the column's width.
+  const wide = tables.nth(1);
+  const box = await wide.evaluate((el) => ({ scroll: el.scrollWidth, client: el.clientWidth }));
+  expect(box.scroll).toBeGreaterThan(box.client);
+  // And its short cells keep their line, rather than "Figure" over "1"
+  // and a path broken at every hyphen: one row is one line of 20 px.
+  const row = await wide.locator("tbody tr").first().evaluate((el) => el.getBoundingClientRect().height);
+  expect(row).toBeLessThan(40);
+  const stream = tab.getByTestId("chat-stream");
+  const spill = await stream.evaluate((el) => el.scrollWidth - el.clientWidth);
+  expect(spill).toBeLessThanOrEqual(0);
+});
+
 test("a conversation that was filed away can be read, and not acted on", async ({
   tab,
 }) => {

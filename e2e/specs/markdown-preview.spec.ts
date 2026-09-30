@@ -24,6 +24,11 @@ Some *emphasis*, some **weight**, and a \`command\`.
 \`\`\`tex
 \\section{Not rendered, shown}
 \`\`\`
+
+| Solvent | Lifetime |
+|---|--:|
+| Hexane | 182 fs |
+| Water | 158 fs |
 `;
 
 test("opening a Markdown file renders it beside the editor, live", async ({
@@ -47,6 +52,12 @@ test("opening a Markdown file renders it beside the editor, live", async ({
   await expect(view.locator("li")).toHaveCount(2);
   await expect(view.locator("blockquote")).toContainText("A quoted remark.");
   await expect(view.locator("pre")).toContainText("\\section{Not rendered, shown}");
+  // A pipe table is a table, aligned as its colons say.
+  await expect(view.locator("th")).toHaveText(["Solvent", "Lifetime"]);
+  await expect(view.locator("tbody tr")).toHaveCount(2);
+  expect(
+    await view.locator("td", { hasText: "158 fs" }).evaluate((el) => getComputedStyle(el).textAlign),
+  ).toBe("right");
   // The page is behind it, not gone.
   await expect(page.getByTestId("page-behind-script")).toHaveClass(/hidden/);
 
@@ -151,9 +162,10 @@ test("double-clicking the rendering puts the caret on that word in the source", 
   app, project, page,
 }) => {
   // The page has SyncTeX for this; the rendering knows its lines itself.
-  // NOTES puts "weight" on line 3 at column 25, "another" on line 6 and
-  // the code on line 11, so the claim can be exact where the page's
-  // spec, which depends on the typesetting, cannot.
+  // NOTES puts "weight" on line 3 at column 25, "another" on line 6,
+  // the code on line 11 and the table's Water row on line 17, so the
+  // claim can be exact where the page's spec, which depends on the
+  // typesetting, cannot.
   writeFileSync(join(project.root, "notes.md"), NOTES);
   await page.goto(`${app.base}/?token=${app.token}`);
   await page.getByText("Projects", { exact: false }).first().waitFor();
@@ -172,6 +184,10 @@ test("double-clicking the rendering puts the caret on that word in the source", 
 
   await view.locator("pre").dblclick();
   await expect.poll(caret).toMatch(/^Ln 11, Col \d+$/);
+
+  // A table row, like a list item, knows its own line.
+  await view.locator("td", { hasText: "Water" }).dblclick();
+  await expect.poll(caret).toMatch(/^Ln 17, Col \d+$/);
 
   // The caret is in the editor now, on the word, and the file is still
   // the one in front: nothing else moved.

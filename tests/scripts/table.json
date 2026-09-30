@@ -1,0 +1,3 @@
+[
+  {"kind": "text", "text": "The lifetimes by solvent, from the three fits:\n| Solvent | ε | τ₁ (fs) | τ₂ (ps) |\n|---|--:|--:|--:|\n| Hexane | 1.9 | 182 | 12.4 |\n| Acetonitrile | 37.5 | 176 | 3.1 |\n| Water | 80.1 | **158** | 2.1 |\n\nAnd every figure the two documents use:\n\n| Figure | File | Format | Size | Used in | State |\n|---|---|---|--:|---|---|\n| Figure 1 | `figures/setup-of-the-pump-probe-experiment.pdf` | PDF | 212 KB | main.tex | Ready |\n| Figure 2 | `figures/decay-fit-in-three-solvents.png` | PNG | 145 KB | main.tex | Low resolution: it is 96 dpi, and the journal asks for 300 |\n\nFigure 2 is 96 dpi; the journal asks for 300.", "pieces": 4}
+]

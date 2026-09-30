@@ -3,7 +3,7 @@ import { get, useStore } from "../store";
 import { busyTyping } from "../timing";
 import type { WordHint } from "./locate-word";
 import { lineOf, sameWithLines } from "./markdown-source";
-import { inline, parseBlocks, type Block } from "./prose";
+import { inline, parseBlocks, Table, type Block } from "./prose";
 
 /** A Markdown file, rendered as it is typed.
  *
@@ -16,14 +16,14 @@ import { inline, parseBlocks, type Block } from "./prose";
  *  the same place it publishes the section list, so a version being
  *  viewed from History renders that version.
  *
- *  The renderer is the chat's own, `parseBlocks` and `inline` from
- *  `prose.tsx`: headings, paragraphs, lists, fenced code, quotes, and
- *  code, bold and italic within them.  Deliberately not a library, for
- *  the reason that file gives, and deliberately not more than it does: a
- *  writer who needs tables and images in a README has a renderer on the
- *  other end of the push, and what is wanted here is to see the shape of
- *  the prose while writing it.  What the parser does not know it leaves
- *  as the literal text, which is the honest failure.
+ *  The renderer is the chat's own, `parseBlocks`, `inline` and `Table`
+ *  from `prose.tsx`: headings, paragraphs, lists, fenced code, quotes,
+ *  pipe tables, and code, bold and italic within them.  Deliberately not
+ *  a library, for the reason that file gives, and deliberately not more
+ *  than it does: a writer who needs images in a README has a renderer on
+ *  the other end of the push, and what is wanted here is to see the
+ *  shape of the prose while writing it.  What the parser does not know
+ *  it leaves as the literal text, which is the honest failure.
  *
  *  On paper, like the typeset page and a figure, with a measure of about
  *  seventy characters: it is a page being read, not a panel.  Unlike the chat's rendering the headings keep their
@@ -32,9 +32,9 @@ import { inline, parseBlocks, type Block } from "./prose";
  *  And like the page, a double-click on it goes to the source.  The page
  *  asks SyncTeX; this pane asks nobody, because the parser read the
  *  file's lines itself and every block carries the one it starts on, in
- *  `data-line`, with each list item carrying its own.  The word the
- *  second click selected says which line of a paragraph the click was
- *  on, and the editor puts the caret on that word.
+ *  `data-line`, with each list item and table row carrying its own.  The
+ *  word the second click selected says which line of a paragraph the
+ *  click was on, and the editor puts the caret on that word.
  */
 
 const HEADING = [
@@ -87,6 +87,7 @@ const Rendered = memo(function Rendered({ block, id }: { block: Block; id: strin
       </blockquote>
     );
   }
+  if (block.kind === "table") return <Table block={block} id={id} withLines />;
   return (
     <p className="whitespace-pre-wrap" data-line={block.line}>
       {inline(block.text, id)}
@@ -144,9 +145,11 @@ export default function Markdown({
     const word = String(window.getSelection() ?? "");
     const line = Number(target.dataset.line);
     if (!Number.isFinite(line) || line < 1) return;
-    // The list item's line is its own; every other element's is its
-    // block's first, and the word picks the line inside the block.
-    const block = target.tagName === "LI" ? undefined : blocks.find((b) => b.line === line);
+    // A list item's line and a table row's are their own; every other
+    // element's is its block's first, and the word picks the line
+    // inside the block.
+    const own = target.tagName === "LI" || target.tagName === "TR";
+    const block = own ? undefined : blocks.find((b) => b.line === line);
     onNavigate(tab.path, block ? lineOf(block, word) : line, { word, plain: true });
   };
 

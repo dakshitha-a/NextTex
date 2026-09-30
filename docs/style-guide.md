@@ -131,6 +131,17 @@ carried by size and weight, never by a change of face. Source Code Pro
 is for literal strings only, never for labels. Sentence case
 everywhere; no tracked capitals, no eyebrow labels.
 
+A table set in prose, a reply's in the Claude column or a README's in
+the Markdown preview, is `Table` in `frontend/src/panes/prose.tsx`, in
+the shape the table hover card gives a LaTeX table: the cells in `t-ui`
+with tabular figures, a step under the prose because a table is read
+across and down; the header at 600 with one `--line` hairline under it;
+no rule between rows, and air instead; each column aligned as the
+source's colons say. A table wider than its column scrolls inside its
+own box, so the prose around it keeps the column's width. A short cell,
+or one with no space in it such as a path, keeps its line; a cell long
+enough to be a sentence wraps, but no narrower than 12 rem.
+
 A menu item that is on and off, such as the preview's *Dark page*, is a
 `MenuItem` with `role="menuitemcheckbox"`, `aria-checked`, and
 `CheckIcon`, the same stroke as Submit's, in its icon column when it is

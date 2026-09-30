@@ -20,8 +20,9 @@ export function lineOf(block: Block, word: string): number {
   const clean = normaliseWord(word);
   // A list item is one line; the block's line is its first item's, and
   // the item that was clicked is decided by the caller from its `<li>`.
+  // A table's rows are the same, from their `<tr>`.
   const first = block.kind === "code" ? block.line + 1 : block.line;
-  if (!clean || block.kind === "list") return first;
+  if (!clean || block.kind === "list" || block.kind === "table") return first;
   const pattern = new RegExp(
     `(?<![\\p{L}\\p{N}])${clean.replace(/[.*+?^${}()|[\]\\]/g, "\\$&")}(?![\\p{L}\\p{N}])`,
     "iu",
@@ -45,7 +46,7 @@ export function sameWithLines(
   const one = before.block;
   const two = after.block;
   if (one.line !== two.line) return false;
-  if (one.kind === "list" && two.kind === "list") {
+  if ((one.kind === "list" && two.kind === "list") || (one.kind === "table" && two.kind === "table")) {
     return one.lines.every((line, at) => line === two.lines[at]);
   }
   return true;

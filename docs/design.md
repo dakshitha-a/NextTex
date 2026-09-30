@@ -11426,3 +11426,47 @@ direction page's "Right-click menus" section draws each one.
   changed in one moment has neither and keeps the browser's menu. Escape
   in the menu closes the menu and leaves the panel open; the panel's own
   Escape now yields to a key a menu inside it has claimed.
+
+## 91. A table in a reply is a table
+
+The writer found that the agent often answers with a table and the
+Claude column showed it as lines of pipes and dashes. The column's
+Markdown, `parseBlocks` in `frontend/src/panes/prose.tsx`, knew
+headings, paragraphs, lists, quotes and fenced code, and a pipe table
+fell through as a paragraph kept literally. The Markdown preview reads
+with the same parser, so a README's tables showed the same way there,
+and section 39's sentence that the parser deliberately knows no more
+than headings, lists, code and quotes no longer holds for tables.
+
+A table starts at a line with a pipe when the line under it is a
+delimiter row, dashes and optional colons parted by pipes, with as many
+cells as the header. The count is what keeps a sentence holding a pipe,
+or text underlined with dashes, from becoming a table. A table may sit
+straight under a sentence with no blank line between, as a model writes
+"Here they are:" above one, so a paragraph ends where a table starts.
+Its rows run to a blank line or a line with no pipe; a short row is
+padded and a long one cut to the header's columns, and an escaped pipe
+stays in its cell.
+
+It is drawn by `Table`, in the shape the table hover card gives a LaTeX
+table: the cells in `t-ui` with tabular figures, the header at 600 with
+one hairline in `--line` under it, no rules between rows, and each
+column aligned as the colons say. Code, bold and italic in a cell are
+drawn as in a sentence. A table wider than its column scrolls inside its
+own box, so in the narrow Claude column a table of five or six columns
+keeps its columns and the reply around it keeps the column's width. The
+first render showed why that needs a rule of its own: left to the
+browser, a table in the narrow column shrank every cell to its longest
+word, so "Figure 1" stood on two lines and a path broke at each hyphen.
+A cell of forty characters or fewer, or one with no space in it, keeps
+its line and the box scrolls; a longer cell with spaces is a sentence,
+and wraps no narrower than 12 rem. The style guide carries the rule, and
+the direction page's "Tables in the chat and the Markdown preview" draws
+it.
+
+While an answer streams in, the table arrives a line at a time. Until
+its delimiter row is whole it reads as a paragraph and then becomes a
+table; `same` compares a table's cells, so every table but the one still
+growing is left alone by React, as the other blocks are. In the Markdown
+preview each body row carries its source line, and a double-click on a
+row goes to that row's line, as a list item does.

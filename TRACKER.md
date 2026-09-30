@@ -106,6 +106,14 @@ OpenAI provider against OpenAI itself.
       other surfaces share; the menus are the kit's and their own specs
       open them, so the risk is a drawer-specific style, which neither has.
 
+- [ ] **A link in a reply is shown as its Markdown.** `inline` in
+      `frontend/src/panes/prose.tsx` knows code, bold and italic, so an
+      agent's `[the paper](https://...)` reads as brackets and a bare URL
+      in the Claude column and the Markdown preview. Found while adding
+      tables; left because a link that opens from the chat needs a
+      decision about where it opens, which the page's links already
+      took and this should follow.
+
 - [ ] **A citation list that spans lines is not completed.** The
       completion source reads the current line, so a `\cite{` whose keys
       run onto the next line offers nothing there. Rare, since a list is

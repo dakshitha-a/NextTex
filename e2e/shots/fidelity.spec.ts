@@ -1329,6 +1329,39 @@ const SURFACES: Record<string, Surface> = {
     },
     close: async (tab) => { await tab.getByTestId("past-back").click(); },
   },
+  "claude-table": {
+    // A reply with a narrow table and a six-column one that scrolls.
+    open: async (tab) => {
+      const composer = tab.locator("textarea");
+      await composer.click();
+      await composer.fill("#script:table\nPut the three fits side by side.");
+      await composer.press("Enter");
+      await tab.getByTestId("prose-table").nth(1).waitFor({ timeout: 20_000 });
+      return tab.getByTestId("chat");
+    },
+    close: async (tab) => {
+      await tab.getByTestId("clear-chat").click();
+      await tab.getByTestId("clear-confirm").click();
+    },
+  },
+  "markdown-table": {
+    // The Markdown preview with a table on its paper.
+    open: async (tab) => {
+      fs.writeFileSync(
+        path.join(ctx!.root, "notes.md"),
+        "# Notes on the fits\n\nThe three solvents, side by side.\n\n"
+          + "| Solvent | ε | τ₁ (fs) | τ₂ (ps) |\n|---|--:|--:|--:|\n"
+          + "| Hexane | 1.9 | 182 | 12.4 |\n| Acetonitrile | 37.5 | 176 | 3.1 |\n"
+          + "| Water | 80.1 | **158** | 2.1 |\n\nThe lifetimes are in Table 2 of the manuscript.\n",
+      );
+      await tab.locator('[role="tree"] [data-path="notes.md"]').click();
+      await tab.getByTestId("markdown-view").locator("table").waitFor({ timeout: 15_000 });
+      return tab.getByTestId("markdown-view");
+    },
+    close: async (tab) => {
+      await tab.getByTestId("preview-strip").getByRole("button", { name: "Close notes.md" }).click();
+    },
+  },
   "claude-reads": {
     open: async (tab) => {
       await tab.getByTestId("context-open").click();
