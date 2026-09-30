@@ -327,11 +327,13 @@ The rules:
   result will be.
 - **A pane slides; it never squeezes.** A closing pane keeps its width
   and slides off its outer edge, and its neighbour takes up the space as
-  it goes. The drawer is clipped by its column narrowing, since the bar
-  beside it stays. An overlay, the Claude column or the drawer below
-  their breakpoints, slides by a transform. A panel that opens beside
-  another, the tutorial, slides 24 px in from its outer side as it fades,
-  `.nx-slide-in`. `useFold` in
+  it goes. Its width holds through the move and the arrival at rest: a
+  zoomed page inside it never stretches it, and it never overshoots
+  where it settles. The drawer is clipped by its column narrowing,
+  since the bar beside it stays. An overlay, the Claude column or the
+  drawer below their breakpoints, slides by a transform. A panel that
+  opens beside another, the tutorial, slides 24 px in from its outer
+  side as it fades, `.nx-slide-in`. `useFold` in
   `frontend/src/motion.ts` gives each pane its phase.
 - **Panes that move together move as one.** Reading and writing modes
   fold several panes in one render, so their moves share one timeline.

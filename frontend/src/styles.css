@@ -2069,7 +2069,10 @@ button.nx-reads-x[data-always]:hover { color: var(--pen); }
 .nx-hover { transition: background-color var(--dur-quick) var(--ease), color var(--dur-quick) var(--ease); }
 .nx-press { transition: transform var(--dur-quick) var(--ease); }
 .nx-press:active { transform: translateY(1px); }
-.nx-pane { transition: flex-basis var(--dur-move) var(--ease), width var(--dur-move) var(--ease); }
+/* Width only.  A pane's basis changes only where a slide hands over to
+   its resting share, and animating it there made the pane overshoot that
+   share and ease back. */
+.nx-pane { transition: width var(--dur-move) var(--ease); }
 
 @keyframes arrive { from { opacity: 0; transform: translateY(3px); } to { opacity: 1; transform: none; } }
 .nx-arrive { animation: arrive var(--dur-arrive) var(--ease); }

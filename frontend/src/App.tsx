@@ -2269,6 +2269,11 @@ export default function App() {
   // rather than being squeezed.  The drawer is clipped by its column
   // narrowing instead, since the bar stays.  Reading and writing modes set
   // every fold in one render, so their panes move as one.
+  //
+  // A pane's share of the row follows its neighbour's phase, not its
+  // neighbour's fold.  The fold flips a render before the phase does, and
+  // a share taken from the fold squeezed the neighbour to its minimum in
+  // that render, just as its width was about to be read for the slide.
   const drawerOn = shown(drawerFold);
   // The width a moving pane keeps: the one it last had on screen, or, for a
   // pane that has not been on screen yet, its share of the row.
@@ -2282,6 +2287,10 @@ export default function App() {
   };
   const slide = (phase: Fold, side: "left" | "right", size: number): React.CSSProperties => ({
     flex: `0 0 ${size}px`,
+    // Its resting minimum is dropped while it moves, and `auto` in its
+    // place is the width of its content: a page zoomed past the pane
+    // stretched the pane to the page for the length of the slide.
+    minWidth: 0,
     [side === "left" ? "marginLeft" : "marginRight"]: away(phase) ? -size : 0,
     transition: foldTransition(phase, side === "left" ? "margin-left" : "margin-right"),
   });
@@ -2601,8 +2610,8 @@ export default function App() {
             tight || !shown(editorFold)
               ? undefined
               : moving(editorFold)
-                ? slide(editorFold, "left", paneWidth(editorPane.current, editorLast, folded.pdf ? 1 : editorFraction))
-                : { flex: `${folded.pdf ? 1 : editorFraction} 1 0` }
+                ? slide(editorFold, "left", paneWidth(editorPane.current, editorLast, pdfFold === "open" ? editorFraction : 1))
+                : { flex: `${pdfFold === "open" ? editorFraction : 1} 1 0` }
           }
           inert={!tight && editorFold === "closing"}
         >
@@ -2814,8 +2823,8 @@ export default function App() {
             tight || !shown(pdfFold)
               ? undefined
               : moving(pdfFold)
-                ? slide(pdfFold, "right", paneWidth(pdfPane.current, pdfLast, folded.editor ? 1 : 1 - editorFraction))
-                : { flex: `${folded.editor ? 1 : 1 - editorFraction} 1 0` }
+                ? slide(pdfFold, "right", paneWidth(pdfPane.current, pdfLast, editorFold === "open" ? 1 - editorFraction : 1))
+                : { flex: `${editorFold === "open" ? 1 - editorFraction : 1} 1 0` }
           }
         >
           {!tight || showing === "preview" ? (

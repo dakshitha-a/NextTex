@@ -106,3 +106,98 @@ test("under reduced motion a pane folds at once", async ({ tab }) => {
   expect(between(frames), `margins ${frames.join(",")}`).toHaveLength(0);
   await expect(tab.getByTestId("editor-pane")).toBeHidden();
 });
+
+/** Records, every frame, a pane's width, how far it is off its edge, and
+ *  the width of its neighbour, until the returned function is called. */
+async function widths(tab: Page, testid: string, side: "left" | "right", other: string) {
+  await tab.evaluate(({ testid, side, other }) => {
+    const frames: { width: number; margin: number; other: number }[] = [];
+    let running = true;
+    const tick = () => {
+      if (!running) return;
+      const element = document.querySelector(`[data-testid="${testid}"]`) as HTMLElement | null;
+      const neighbour = document.querySelector(`[data-testid="${other}"]`) as HTMLElement | null;
+      const style = element ? getComputedStyle(element) : null;
+      if (element && style && style.display !== "none") {
+        frames.push({
+          width: element.offsetWidth,
+          margin: parseFloat(side === "left" ? style.marginLeft : style.marginRight),
+          other: neighbour?.offsetWidth ?? 0,
+        });
+      }
+      requestAnimationFrame(tick);
+    };
+    requestAnimationFrame(tick);
+    (window as unknown as { __widths: () => typeof frames }).__widths = () => {
+      running = false;
+      return frames;
+    };
+  }, { testid, side, other });
+  return async () => {
+    await tab.waitForTimeout(700);
+    return tab.evaluate(() =>
+      (window as unknown as { __widths: () => { width: number; margin: number; other: number }[] }).__widths(),
+    );
+  };
+}
+
+/** The writer saw the preview open a little past where it settles and then
+ *  draw back, which made the panes feel jittery.  There were three causes,
+ *  shared by the source pane: a transition on the pane's basis that
+ *  overshot the hand over to its resting share, a width read after the
+ *  neighbour had already squeezed it, and a zoomed page stretching the pane
+ *  while its minimum was off.  Across a fold and an unfold the pane keeps
+ *  one width, slides the whole of it, and its neighbour takes exactly the
+ *  room it gives up. */
+const PANES = {
+  preview: {
+    testid: "preview-pane", side: "right", other: "editor-pane",
+    fold: (tab: Page) => tab.getByLabel("Fold the preview away").click(),
+    unfold: (tab: Page) => tab.getByTestId("collapsed-preview").click(),
+  },
+  source: {
+    testid: "editor-pane", side: "left", other: "preview-pane",
+    fold: (tab: Page) => tab.getByTestId("tabs-blank").click(),
+    unfold: (tab: Page) => tab.getByTestId("collapsed-source").click(),
+  },
+} as const;
+
+async function holdsItsWidth(tab: Page, which: keyof typeof PANES, zoom: string) {
+  const { testid, side, other, fold, unfold } = PANES[which];
+  await tab.evaluate((zoom) => localStorage.setItem("nexttex.pdf.zoom", zoom), zoom);
+  await tab.reload();
+  await expect(tab.locator(".cm-editor")).toBeVisible({ timeout: 30_000 });
+  await expect(tab.locator('[data-testid="preview-pane"] canvas').first()).toBeVisible({ timeout: 30_000 });
+  const pane = tab.getByTestId(testid);
+  const rest = await pane.evaluate((e) => (e as HTMLElement).offsetWidth);
+  const row = await pane.evaluate((e, other) => (e as HTMLElement).offsetWidth
+    + (document.querySelector(`[data-testid="${other}"]`) as HTMLElement).offsetWidth, other);
+
+  for (const act of [fold, unfold]) {
+    const stop = await widths(tab, testid, side, other);
+    await act(tab);
+    const frames = await stop();
+    const shown = frames.map((f) => `${f.width}/${f.margin}/${f.other}`).join(" ");
+    expect(frames.length, shown).toBeGreaterThan(3);
+    // Never wider or narrower than it rests.
+    expect(frames.filter((f) => Math.abs(f.width - rest) > 1), shown).toHaveLength(0);
+    // The slide covers the whole pane, so nothing is left to snap away.
+    // Nearly, not exactly: under load the last frame of the slide can be
+    // dropped.  The fault this guards against stopped at two thirds.
+    expect(Math.min(...frames.map((f) => f.margin)), shown).toBeLessThanOrEqual(-rest * 0.9);
+    // The neighbour takes up exactly what the pane gives up.
+    expect(frames.filter((f) => Math.abs(f.width + f.margin + f.other - row) > 2), shown).toHaveLength(0);
+  }
+  await expect(pane).toBeVisible();
+  await expect.poll(() => pane.evaluate((e) => (e as HTMLElement).offsetWidth)).toBe(rest);
+}
+
+for (const zoom of ["0", "2.5"]) {
+  test(`the preview keeps its width through a fold and back, at zoom ${zoom}`, async ({ tab }) => {
+    await holdsItsWidth(tab, "preview", zoom);
+  });
+}
+
+test("the source keeps its width through a fold and back", async ({ tab }) => {
+  await holdsItsWidth(tab, "source", "0");
+});
