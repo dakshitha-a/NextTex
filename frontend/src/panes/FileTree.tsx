@@ -2,7 +2,7 @@ import {
   Suspense, lazy, useCallback, useEffect, useMemo, useRef, useState,
 } from "react";
 import { toShell, viewportHeight, viewportWidth } from "../viewport";
-import { type Wanted } from "../place-menu";
+import { atPointer, claimsRightClick, type Wanted, under } from "../place-menu";
 import { useDismiss } from "../useDismiss";
 import { FileIcon, FolderIcon } from "./FileIcon";
 import { Button, IconButton } from "../ui/Button";
@@ -46,6 +46,9 @@ const CARD_DELAY = 400;
 /** 13px is the width of a Source Sans lowercase n at 13px, so indentation
  *  reads as a typographic quad rather than an arbitrary gap. */
 const INDENT = 16;
+/** How far left of its ⋯ button the row menu starts, the shell pixels
+ *  `under` takes as the menu's width when it right-aligns it. */
+const KEBAB_REACH = 184;
 
 /** The drop target that is not a row.  The project root has no node of its
  *  own, which is also why nothing could be created there until now. */
@@ -157,6 +160,9 @@ export default function FileTree({
     };
   }, [card]);
   const [menuAt, setMenuAt] = useState<Wanted | null>(null);
+  /** Where the root's menu is open, from a right-click on the drawer's
+   *  empty space, or null.  Never open with a row's `menu`. */
+  const [rootMenuAt, setRootMenuAt] = useState<Wanted | null>(null);
   const [creating, setCreating] = useState<
     { parent: string; directory: boolean; fromBar?: boolean } | null
   >(null);
@@ -208,6 +214,9 @@ export default function FileTree({
   const wantsCaret = useRef(false);
   const [query, setQuery] = useState("");
   const searchInput = useRef<HTMLInputElement | null>(null);
+  /** The heading's Upload button: where focus goes back to after the
+   *  root menu's Upload files, and where that menu hangs from the keyboard. */
+  const uploadButton = useRef<HTMLButtonElement | null>(null);
   // The ref is read synchronously while a drag is over a row, where React
   // state would be a frame behind; the state exists only to fade the row
   // being dragged, which a ref cannot do because it does not re-render.
@@ -708,6 +717,28 @@ export default function FileTree({
           if (isDirectory) toggle(node.path);
           else onOpen(node.path);
         }}
+        onContextMenu={(event) => {
+          // The row's own menu, the one its ⋯ button opens, at the
+          // pointer.  Not inside that menu, which is a child of the row
+          // and would otherwise reopen itself somewhere else, and not in
+          // the rename box, whose text keeps the browser's Cut and Paste.
+          const target = event.target as HTMLElement;
+          if (target.closest('[data-testid="file-menu"]') || target.tagName === "INPUT") return;
+          if (renaming === node.path || !claimsRightClick(event)) return;
+          event.preventDefault();
+          event.stopPropagation();
+          moveFocus(node.path);
+          setRootMenuAt(null);
+          setMenuAt(
+            atPointer(
+              event,
+              event.currentTarget.querySelector<HTMLElement>('[aria-label^="Actions for"]'),
+              KEBAB_REACH,
+            ),
+          );
+          setMenu(node.path);
+          setPurging(null);
+        }}
         onFocus={(event) => {
           setFocusPath(node.path);
           if (event.target === event.currentTarget) armCard(node, event.currentTarget);
@@ -824,22 +855,13 @@ export default function FileTree({
             aria-expanded={menu === node.path}
             onClick={(event) => {
               event.stopPropagation();
-              // `getBoundingClientRect` answers in viewport pixels even
-              // inside the zoomed shell, and everything downstream -- the
-              // widths below, the `style.left` this ends up in -- is in the
-              // shell's own pixels.  Convert here, once, so nothing further
-              // down has to know.
-              //
               // Where it wants to be: under the button, right-aligned to
               // it.  Where it ends up is `useOnScreen`'s decision once it
               // has been measured, which is what keeps it on the screen
-              // from a row near the foot of a short window.
-              const box = (event.target as HTMLElement).getBoundingClientRect();
-              setMenuAt({
-                left: toShell(box.right) - 184,
-                top: toShell(box.bottom) + 4,
-                flip: toShell(box.top) - 4,
-              });
+              // from a row near the foot of a short window.  A right-click
+              // on the row, from the keyboard, hangs it in the same place.
+              setMenuAt(under(event.currentTarget, KEBAB_REACH, "right"));
+              setRootMenuAt(null);
               setMenu(menu === node.path ? null : node.path);
               setPurging(null);
             }}
@@ -1133,6 +1155,31 @@ export default function FileTree({
     return "";
   };
 
+  /** Open the find field and put the caret in it.  Through `wantsCaret`
+   *  rather than a `focus()`, so the field takes the caret as it arrives,
+   *  after any menu that asked for it has closed and let go of focus. */
+  const openSearch = () => {
+    wantsCaret.current = true;
+    setSearching(true);
+  };
+
+  /** What the root menu's items do: the heading row's four buttons, aimed
+   *  at the project's root rather than at the folder in focus, since the
+   *  empty space that was right-clicked is the root. */
+  const actAtRoot = (action: "newfile" | "newfolder" | "upload" | "search") => {
+    setRootMenuAt(null);
+    if (action === "search") {
+      openSearch();
+    } else if (action === "upload") {
+      uploadTo.current = "";
+      uploadAsked.current = false;
+      uploadFrom.current = uploadButton.current;
+      uploadInput.current?.click();
+    } else {
+      setCreating({ parent: "", directory: action === "newfolder" });
+    }
+  };
+
   const startCreate = (directory: boolean) => {
     // Wherever the writer is looking, or the root.  "New file here" on a
     // row means beside that file; from the bar it means the folder the
@@ -1163,7 +1210,21 @@ export default function FileTree({
     // nothing inside it is drawn outside it.  The floor is what keeps the
     // toolbar and a couple of rows visible; past that the panel stack
     // scrolls, which is where the height has to come from.
-    <div className="flex min-h-26 flex-1 flex-col overflow-hidden">
+    <div
+      className="flex min-h-26 flex-1 flex-col overflow-hidden"
+      onContextMenu={(event) => {
+        // The drawer's empty space stands for the project's root, and a
+        // right-click there offers what the heading row's four buttons
+        // do, at the root.  A row, a control or an open menu answers its
+        // own right-click, or leaves it to the browser.
+        const target = event.target as HTMLElement;
+        if (target.closest('[role="treeitem"], button, input, textarea, [role="menu"], [data-testid$="-menu"]')) return;
+        if (!claimsRightClick(event)) return;
+        event.preventDefault();
+        closeMenu();
+        setRootMenuAt(atPointer(event, uploadButton.current, 232));
+      }}
+    >
       {/* The drawer's heading row, drawn here rather than by the drawer
           because its four buttons are this tree's: New file, New folder,
           Upload and Find a file, as the page draws them, with the count
@@ -1193,6 +1254,7 @@ export default function FileTree({
           <FolderGlyph />
         </IconButton>
         <IconButton
+          ref={uploadButton}
           label="Upload"
           title="Upload files into the project"
           data-testid="upload"
@@ -1217,8 +1279,7 @@ export default function FileTree({
               setQuery("");
               return;
             }
-            setSearching(true);
-            window.requestAnimationFrame(() => searchInput.current?.focus());
+            openSearch();
           }}
         >
           <SearchIcon />
@@ -1330,6 +1391,24 @@ export default function FileTree({
         <p className="nx-note shrink-0" data-testid="drop-note">
           Drop to add them to the project, or onto a folder to put them there.
         </p>
+      ) : null}
+      {rootMenuAt ? (
+        <Menu
+          open
+          wanted={rootMenuAt}
+          testid="tree-root-menu"
+          role="none"
+          width={232}
+          onClose={() => setRootMenuAt(null)}
+        >
+          {/* The heading row's buttons in the heading row's order, with the
+              one that finds rather than adds after a rule. */}
+          <MenuItem role="none" onClick={() => actAtRoot("newfile")}>New file</MenuItem>
+          <MenuItem role="none" onClick={() => actAtRoot("newfolder")}>New folder</MenuItem>
+          <MenuItem role="none" onClick={() => actAtRoot("upload")}>Upload files</MenuItem>
+          <MenuDivider />
+          <MenuItem role="none" onClick={() => actAtRoot("search")}>Find a file</MenuItem>
+        </Menu>
       ) : null}
       {/* Named, because it is no longer the only file input in the app: the
           agent panel has one for attaching an image, and a spec reaching

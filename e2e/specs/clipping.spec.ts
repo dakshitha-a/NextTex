@@ -129,6 +129,26 @@ const OPENED: {
     },
   },
   {
+    name: "tree-root-menu",
+    open: async (tab) => {
+      const tree = tab.locator('[role="tree"]');
+      if (!(await tree.count()) || !(await tree.isVisible())) return false;
+      // Its foot, under the last row, which is the empty space.
+      const box = await tree.boundingBox();
+      if (!box) return false;
+      await tree
+        .click({ button: "right", position: { x: 20, y: box.height - 8 } })
+        .catch(() => undefined);
+      return tab
+        .getByTestId("tree-root-menu")
+        .isVisible()
+        .catch(() => false);
+    },
+    close: async (tab) => {
+      await tab.keyboard.press("Escape");
+    },
+  },
+  {
     name: "diagnostics",
     open: async (tab) => {
       const drawer = tab.getByTestId("status");
@@ -239,6 +259,6 @@ test("no surface clips text without saying so, at any width", async ({
   // run, so if one stops opening the locator has rotted rather than the
   // surface having become clean.
   expect([...visited].sort()).toEqual([
-    "agent-sheet", "diagnostics", "row-menu", "settings",
+    "agent-sheet", "diagnostics", "row-menu", "settings", "tree-root-menu",
   ]);
 });

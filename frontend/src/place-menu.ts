@@ -97,3 +97,36 @@ export function under(
   const left = align === "right" ? toShell(box.right) - width : toShell(box.left);
   return { left, top: toShell(box.bottom) + gap, flip: toShell(box.top) - gap };
 }
+
+/** Where a right-click's menu wants to be, in shell pixels.
+ *
+ *  At the pointer for a pointer, with the pointer as the flip edge too, so
+ *  a right-click near the foot of the window gets its menu above it.  A
+ *  `contextmenu` from the keyboard, Shift-F10 or the Menu key, carries no
+ *  pointer: Chrome reports it at 0,0, which would open the menu in the
+ *  window's corner, far from what it is about.  That one hangs under
+ *  `fallback` instead, the button the same menu opens from by a click, the
+ *  way the editor's spelling menu goes to the caret. */
+export function atPointer(
+  event: { clientX: number; clientY: number },
+  fallback: HTMLElement | null,
+  width: number,
+): Wanted {
+  if (event.clientX === 0 && event.clientY === 0) {
+    return under(fallback, width, "right") ?? { left: 120, top: 120 };
+  }
+  const left = toShell(event.clientX);
+  const top = toShell(event.clientY);
+  return { left, top, flip: top };
+}
+
+/** Whether a right-click is the app's to answer.
+ *
+ *  Shift with a right-click is always the browser's, on every surface that
+ *  has a menu of its own, so the browser's menu (Inspect, Save image, the
+ *  extensions' items) is one modifier away wherever the app took the plain
+ *  right-click.  One already answered by something nearer the target is
+ *  left to it. */
+export function claimsRightClick(event: { shiftKey: boolean; defaultPrevented: boolean }): boolean {
+  return !event.shiftKey && !event.defaultPrevented;
+}

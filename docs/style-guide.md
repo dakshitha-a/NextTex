@@ -278,6 +278,12 @@ else.
   move changed nothing a writer sees.
 - A menu is short. Conditional items are present only when they apply,
   never disabled in place; the destructive item is last, after a rule.
+- A right-click menu opens only where the target already has two or
+  more actions and no selectable text the browser's menu serves; it
+  repeats those actions and adds none. It is placed with `atPointer` and
+  gated with `claimsRightClick` from `frontend/src/place-menu.ts`, so
+  Shift with a right-click stays the browser's and the keyboard's menu
+  key hangs it under its button. `docs/design.md` section 90 lists where.
 - Motion follows the language in "Motion" below. An animation that
   changes a control's box, such as a pulse that scales the button, is a
   defect, since it moves under the pointer reaching for it.

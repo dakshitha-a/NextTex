@@ -426,6 +426,8 @@ unbuilt, by which time it was built, on the tab strip's menu rather than in the 
 `POST /duplicate`, with `docs/architecture.md` describing it at length. And the list it gave omitted *delete
 version history*, which is the one item on that menu a writer cannot undo.) **Rename is inline**: the label becomes an input in place, same font, same
 position, 1 px `--pen` underline, Enter commits, Escape reverts. Never a modal.
+A right-click on the row opens the same menu at the pointer, and Shift-F10 or the Menu
+key opens it under the `⋯`; section 90 has the rule.
 
 Drag-drop upload highlights the target folder row only, never the whole panel. The project
 root has no row, so a drop aimed at it, on the empty area below the tree, or on the Files
@@ -11361,3 +11363,26 @@ One thing could not be drawn from the app in the browser tier: the
 "Always on" row needs two installs, and that tier runs one. The Python
 tests pair two and check the record the row is drawn from.
 
+## 90. Right-click menus
+
+A right-click menu opens where the thing under the pointer already has
+two or more actions of its own and no selectable text or link the
+browser's menu serves. It repeats those actions and never holds one found
+nowhere else, so nothing is learned only by right-clicking. Shift with a
+right-click is always the browser's, on every surface, so its menu is one
+modifier away wherever the app took the plain right-click. A
+`contextmenu` from the keyboard, Shift-F10 or the Menu key, carries no
+pointer, and its menu hangs under the button the same menu opens from by
+a click. `atPointer` and `claimsRightClick` in
+`frontend/src/place-menu.ts` answer both once for every surface; the
+direction page's "Right-click menus" section draws each one.
+
+- **A file tree row** opens its `⋯` menu at the pointer. Not while the
+  row is being renamed, whose field keeps the browser's Cut and Paste,
+  and not inside the menu itself, which is the row's child and would
+  otherwise reopen somewhere else. Only one row menu is ever open.
+- **The drawer's empty space**, under the rows or in the heading row
+  around its buttons, stands for the project's root, and opens a menu of
+  the heading row's four buttons: New file, New folder, Upload files and
+  Find a file. From here they act at the root, since that is what was
+  right-clicked, rather than at the folder in focus as the buttons do.

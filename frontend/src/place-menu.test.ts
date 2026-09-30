@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { placeMenu, under } from "./place-menu";
+import { atPointer, claimsRightClick, placeMenu, under } from "./place-menu";
 
 const viewport = { width: 1600, height: 600 };
 const menu = { width: 184, height: 306 };
@@ -59,5 +59,32 @@ describe("under", () => {
 
   it("is nothing without a button", () => {
     expect(under(null, 232)).toBeNull();
+  });
+});
+
+describe("atPointer", () => {
+  const button = { getBoundingClientRect: () => ({ left: 100, right: 124, top: 40, bottom: 66 }) } as unknown as HTMLElement;
+
+  it("opens at the pointer, flipping above it near the foot of the window", () => {
+    expect(atPointer({ clientX: 300, clientY: 200 }, button, 232)).toEqual({ left: 300, top: 200, flip: 200 });
+  });
+
+  it("hangs under the button when the keyboard asked, which reports no pointer", () => {
+    expect(atPointer({ clientX: 0, clientY: 0 }, button, 232)).toEqual({ left: 124 - 232, top: 70, flip: 36 });
+  });
+
+  it("still opens somewhere on the screen from the keyboard with no button", () => {
+    expect(atPointer({ clientX: 0, clientY: 0 }, null, 232)).toEqual({ left: 120, top: 120 });
+  });
+});
+
+describe("claimsRightClick", () => {
+  it("takes a plain right-click and leaves Shift with one to the browser", () => {
+    expect(claimsRightClick({ shiftKey: false, defaultPrevented: false })).toBe(true);
+    expect(claimsRightClick({ shiftKey: true, defaultPrevented: false })).toBe(false);
+  });
+
+  it("leaves one that something nearer the target already answered", () => {
+    expect(claimsRightClick({ shiftKey: false, defaultPrevented: true })).toBe(false);
   });
 });

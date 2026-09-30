@@ -131,6 +131,17 @@ const SURFACES: Surface[] = [
     open: async (tab) => rowMenu(tab, "main.tex"),
   },
   {
+    name: "the tree's root menu",
+    open: async (tab) => {
+      await filesDrawer(tab);
+      // Its foot, under the last row, which is the empty space.
+      const tree = tab.locator('[role="tree"]');
+      const box = (await tree.boundingBox())!;
+      await tree.click({ button: "right", position: { x: 40, y: box.height - 8 } });
+      return tab.getByTestId("tree-root-menu");
+    },
+  },
+  {
     name: "the file row menu, asking about deleting history",
     open: async (tab) => {
       await rowMenu(tab, "main.tex", "Delete version history…");
