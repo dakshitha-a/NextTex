@@ -6266,7 +6266,7 @@ for a project with one document, so a listener attached at mount was
 attached to nothing.
 
 The preview tabs got the source tabs' right-click menu too, on the tab in
-front only and for the same reason, with *Duplicate* left out and
+front only and for the same reason, until 4.11.0 gave it to every tab (§90), with *Duplicate* left out and
 *Download PDF* put in; the download route learned `document`, a registry
 key and never a path, and names the file after the document rather than
 the project, because a supplementary document sent to a supervisor under
@@ -10449,8 +10449,9 @@ comment on one word is ordinary, so a shorter selection gets a toolbar
 with Comment alone, unless it was a double-click: a word double-clicked
 while reading still brings up nothing, which `agent.spec.ts` holds, and
 a word selected on purpose, by keyboard or by a drag, gets Comment. The
-editor has no menu of its own on a right click
-and none was added, since the browser's is where copy and paste live.
+editor's right-click stays the browser's, apart from the spelling menu
+on a marked word, and nothing was added to it, since the browser's menu
+is where copy and paste live.
 
 **The gutter takes no room until it has an icon.** A file with no
 threads keeps the width it always had; the text moves over by the
@@ -10536,8 +10537,9 @@ the build with the switch and the rows as they came out.
 The roadmap's fifth item: an equation typeset on its own and handed back
 as SVG or PNG, for a slide or a message. It lives on the formula card,
 which already stays for the pointer and already carries buttons on its
-neighbours, because the editor has no right-click menu of its own and
-adding one would take the browser's copy and paste away. Two quiet
+neighbours, because the editor's right-click is the browser's, apart
+from the spelling menu on a marked word, and taking more of it would take
+the browser's copy and paste away. Two quiet
 buttons, Copy as SVG and Save as PNG, and under them one line that says
 what happened: copied, saved, or what TeX said when the equation did not
 build. SVG goes on the clipboard because a slide editor and most message
@@ -10565,7 +10567,7 @@ to, so a writer reads one kind of patch in one place. *The line you are
 on* follows the caret and says which commit last touched that line and
 who made it. It is a block in the drawer and not a gutter, which would
 be on all the time for something asked about rarely, and not a
-right-click, which the editor does not have. It asks git about the
+right-click, which in the editor is the browser's. It asks git about the
 editor's own text rather than the file on disk, so a line typed a moment
 ago says "Not committed yet" instead of naming whatever commit held that
 line number. An author is a plain name, "You" when the email is this
