@@ -10,12 +10,12 @@ import { Button, IconButton } from "../ui/Button";
 import { Field, Input, Pressable, Segmented } from "../ui/controls";
 import { CheckIcon, ChevronDownIcon, ChevronLeftIcon, ChevronRightIcon, ChevronUpIcon, CloseIcon, SearchIcon } from "../ui/icons";
 import { Menu, MenuDivider, MenuItem } from "../ui/Menu";
-import { under } from "../place-menu";
+import { atPointer, claimsRightClick, under, type Wanted } from "../place-menu";
 import {
   boxOnTurned, darkTransfer, figureBoxes, fromTurned, nextRotation, onCanvas, parseColour,
   type Rotation,
 } from "./pdf-view";
-import { uiScale } from "../viewport";
+import { toShell, uiScale } from "../viewport";
 import { absenceFrom, type Absence } from "./pdf-absence";
 import type { WordHint } from "./locate-word";
 import { findIn, spanFor, textOf, type PageHit } from "./pdf-find";
@@ -62,6 +62,10 @@ const KEEP_SCREENS = 3;
 
 /** The range the zoom controls and the wheel share, so a pinch cannot
  *  reach a scale the buttons will not admit to. */
+/** Where on a page something asked about, in viewport pixels: a
+ *  double-click, or the right-click the page menu was opened with. */
+type PagePoint = { target: EventTarget; clientX: number; clientY: number };
+
 const MIN_ZOOM = 0.25;
 const MAX_ZOOM = 3;
 
@@ -345,6 +349,10 @@ export default function Pdf({
   rotationRef.current = rotation;
   const [viewMenu, setViewMenu] = useState<{ left: number; top: number; flip: number } | null>(null);
   const viewButton = useRef<HTMLButtonElement | null>(null);
+  /** The page's right-click menu: where it is open, and the point on a
+   *  page it was opened at, for Show this in the source.  No point when
+   *  the keyboard opened it, or when it was not over a page. */
+  const [pageMenu, setPageMenu] = useState<{ at: Wanted; point: PagePoint | null } | null>(null);
   // What the footer shows.  Written to the node rather than held in state:
   // the committed `scale` only catches up when the pinch stops, and a
   // percentage frozen at the old number for the whole gesture reads as
@@ -1303,7 +1311,7 @@ export default function Pdf({
 
   // ---- SyncTeX ----------------------------------------------------------
   const onDoubleClick = useCallback(
-    async (event: React.MouseEvent) => {
+    async (event: PagePoint) => {
       const projectId = get().projectId;
       if (!projectId) return;
       // A figure has no source file behind it, so there is nothing to jump
@@ -1474,6 +1482,25 @@ export default function Pdf({
     [goTo],
   );
 
+  /** The footer's minus and plus, and the page menu's Zoom out and in. */
+  const zoomBy = (delta: number) =>
+    setScale((value) =>
+      Math.min(
+        MAX_ZOOM,
+        Math.max(MIN_ZOOM, +((value === -1 ? pageFitScale : value || fitScale) + delta).toFixed(2)),
+      ),
+    );
+
+  /** The footer's Download and the page menu's Download PDF. */
+  const savePdf = () => {
+    if (!projectId) return;
+    void download(
+      api.pdfUrl(projectId, showing, stamp),
+      showing ? `${stemOf(showing)}.pdf` : "document.pdf",
+      "the PDF",
+    );
+  };
+
   /** Go to one hit: the page first, then the mark once the layer is there. */
   const showHit = useCallback((index: number, list: PageHit[], needle: string) => {
     const hit = list[index];
@@ -1637,6 +1664,27 @@ export default function Pdf({
         className="relative min-h-0 flex-1 overflow-auto"
         onScroll={mode === "scroll" ? onScroll : undefined}
         onDoubleClick={onDoubleClick}
+        onContextMenu={(event) => {
+          // The footer's controls at the pointer, and the double-click's
+          // jump to the source.  Not over a selection, whose Copy is the
+          // browser's menu's, and not before there is a page to act on.
+          if (!pageCount || !claimsRightClick(event)) return;
+          const selection = window.getSelection();
+          if (selection && !selection.isCollapsed && scroller.current?.contains(selection.anchorNode)) return;
+          event.preventDefault();
+          const keyboard = event.clientX === 0 && event.clientY === 0;
+          const box = scroller.current?.getBoundingClientRect();
+          setPageMenu({
+            // From the keyboard there is no pointer: the menu opens near
+            // the page's top corner rather than the window's.
+            at: keyboard && box
+              ? { left: toShell(box.left) + 24, top: toShell(box.top) + 24 }
+              : atPointer(event, null, 230),
+            point: !keyboard && (event.target as HTMLElement).closest(".nx-page")
+              ? { target: event.target, clientX: event.clientX, clientY: event.clientY }
+              : null,
+          });
+        }}
         tabIndex={0}
         onKeyDown={(event) => {
           // Before the mode gate below, or the bar never opens in the
@@ -1759,6 +1807,96 @@ export default function Pdf({
         {dark ? <DarkPageFilter /> : null}
       </div>
 
+      {/* The page's right-click menu: the footer's controls, grouped as the
+          footer groups them, so every one of them is in reach at a pane
+          width where the footer has dropped it, with the double-click's
+          jump to the source first.  A choice the footer shows as a
+          segmented pair is a pair of checked rows here, as the View menu
+          draws its switches. */}
+      <Menu
+        open={pageMenu !== null}
+        onClose={() => setPageMenu(null)}
+        wanted={pageMenu?.at ?? null}
+        label="The page"
+        testid="pdf-context-menu"
+        width={230}
+      >
+        {pageMenu ? (() => {
+          const run = (fn: () => void) => () => {
+            setPageMenu(null);
+            fn();
+          };
+          const mark = (on: boolean) => (on ? <CheckIcon size={14} /> : <span className="inline-block w-3.5" />);
+          const point = pageMenu.point;
+          const fit = scale === 0 ? "width" : scale === -1 ? "page" : "free";
+          return (
+            <>
+              {point && !source ? (
+                <>
+                  <MenuItem icon={<span className="inline-block w-3.5" />} onClick={run(() => void onDoubleClick(point))}>
+                    Show this in the source
+                  </MenuItem>
+                  <MenuDivider />
+                </>
+              ) : null}
+              {mode === "page" ? (
+                <>
+                  <MenuItem icon={<span className="inline-block w-3.5" />} disabled={current <= 1} onClick={run(() => step(-1))}>
+                    Previous page
+                  </MenuItem>
+                  <MenuItem icon={<span className="inline-block w-3.5" />} disabled={current >= pageCount} onClick={run(() => step(1))}>
+                    Next page
+                  </MenuItem>
+                  <MenuDivider />
+                </>
+              ) : null}
+              <MenuItem icon={<span className="inline-block w-3.5" />} onClick={run(() => zoomBy(0.15))}>Zoom in</MenuItem>
+              <MenuItem icon={<span className="inline-block w-3.5" />} onClick={run(() => zoomBy(-0.15))}>Zoom out</MenuItem>
+              <MenuItem role="menuitemradio" aria-checked={fit === "width"} icon={mark(fit === "width")}
+                onClick={run(() => setScale(0))}>
+                Fit width
+              </MenuItem>
+              <MenuItem role="menuitemradio" aria-checked={fit === "page"} icon={mark(fit === "page")}
+                onClick={run(() => setScale(-1))}>
+                Fit page
+              </MenuItem>
+              <MenuDivider />
+              <MenuItem role="menuitemradio" aria-checked={mode === "scroll"} icon={mark(mode === "scroll")}
+                onClick={run(() => setMode("scroll"))}>
+                Scroll
+              </MenuItem>
+              <MenuItem role="menuitemradio" aria-checked={mode === "page"} icon={mark(mode === "page")}
+                onClick={run(() => setMode("page"))}>
+                One page at a time
+              </MenuItem>
+              <MenuDivider />
+              <MenuItem role="menuitemcheckbox" aria-checked={dark} icon={mark(dark)} onClick={run(() => setDark(!dark))}>
+                Dark page
+              </MenuItem>
+              <MenuItem role="menuitemcheckbox" aria-checked={spread} icon={mark(spread)} onClick={run(() => setSpread(!spread))}>
+                Two pages side by side
+              </MenuItem>
+              <MenuItem icon={<span className="inline-block w-3.5" />} onClick={run(() => setRotation(nextRotation(rotation)))}>
+                Rotate a quarter turn
+              </MenuItem>
+              {rotation !== 0 ? (
+                <MenuItem icon={<span className="inline-block w-3.5" />} onClick={run(() => setRotation(0))}>Back upright</MenuItem>
+              ) : null}
+              <MenuDivider />
+              <MenuItem icon={<span className="inline-block w-3.5" />} onClick={run(() => {
+                setFinding(true);
+                findBox.current?.select();
+              })}>
+                Find in the preview
+              </MenuItem>
+              {projectId ? (
+                <MenuItem icon={<span className="inline-block w-3.5" />} onClick={run(savePdf)}>Download PDF</MenuItem>
+              ) : null}
+            </>
+          );
+        })() : null}
+      </Menu>
+
       {/* The strip under the preview: 28 px on the second surface with no
           rule above it, like the status strip it sits beside, so the two
           read as one edge along the bottom of the window.  Scroll and Page
@@ -1836,11 +1974,7 @@ export default function Pdf({
         <span className="flex shrink-0 items-center gap-1">
           <Pressable
             className="nx-tap [--nx-tap-y:28px] flex h-5 w-5 items-center justify-center text-ink-2 hover:text-ink"
-            onClick={() =>
-              setScale((value) =>
-                Math.max(MIN_ZOOM, +((value === -1 ? pageFitScale : value || fitScale) - 0.15).toFixed(2)),
-              )
-            }
+            onClick={() => zoomBy(-0.15)}
             aria-label="Zoom out"
           >
             −
@@ -1848,11 +1982,7 @@ export default function Pdf({
           <span ref={zoomText} className="nx-strip-field w-11" data-testid="zoom" />
           <Pressable
             className="nx-tap [--nx-tap-y:28px] flex h-5 w-5 items-center justify-center text-ink-2 hover:text-ink"
-            onClick={() =>
-              setScale((value) =>
-                Math.min(MAX_ZOOM, +((value === -1 ? pageFitScale : value || fitScale) + 0.15).toFixed(2)),
-              )
-            }
+            onClick={() => zoomBy(0.15)}
             aria-label="Zoom in"
           >
             +
@@ -1964,13 +2094,7 @@ export default function Pdf({
           <Pressable
             type="button"
             className="hidden shrink-0 whitespace-nowrap hover:text-ink @[440px]:block"
-            onClick={() =>
-              void download(
-                api.pdfUrl(projectId, showing, stamp),
-                showing ? `${stemOf(showing)}.pdf` : "document.pdf",
-                "the PDF",
-              )
-            }
+            onClick={savePdf}
             data-testid="save-pdf"
             title="Save this PDF as it stands, without rebuilding it"
           >

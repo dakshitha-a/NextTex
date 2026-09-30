@@ -131,6 +131,16 @@ const SURFACES: Surface[] = [
     open: async (tab) => rowMenu(tab, "main.tex"),
   },
   {
+    name: "the typeset page's menu",
+    open: async (tab) => {
+      const canvas = tab.locator(".nx-page canvas:visible").first();
+      await canvas.waitFor({ timeout: 45_000 });
+      const box = (await canvas.boundingBox())!;
+      await tab.mouse.click(box.x + box.width / 2, box.y + box.height * 0.35, { button: "right" });
+      return tab.getByTestId("pdf-context-menu");
+    },
+  },
+  {
     name: "the tree's root menu",
     open: async (tab) => {
       await filesDrawer(tab);

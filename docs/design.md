@@ -11396,3 +11396,19 @@ direction page's "Right-click menus" section draws each one.
   row, Restore and Delete…, which asks on the row as its button does. The
   row's path field and its buttons keep their own right-click.
 
+- **The typeset page** opens the preview footer's controls at the
+  pointer, grouped as the footer groups them: Show this in the source,
+  which is the double-click's jump asked at the point right-clicked;
+  Previous page and Next page in the one-page mode, where the footer's
+  arrows are the way to turn; Zoom in, Zoom out, Fit width and Fit page;
+  Scroll and One page at a time; the View menu's Dark page, Two pages side
+  by side, Rotate a quarter turn and, when turned, Back upright; Find in
+  the preview; and Download PDF. A choice the footer shows as a segmented
+  pair is a checked row here, as the View menu draws its switches. The
+  footer drops controls as the pane narrows, and the menu never does, so
+  it is also the way to them in a narrow pane. Over a text selection the
+  right-click stays the browser's, for Copy, and before there is a page
+  there is nothing to offer. A figure's preview has no source to jump to
+  and leaves that first item out, as its double-click does nothing. The
+  Markdown and script previews are other components without this footer,
+  and keep the browser's menu.

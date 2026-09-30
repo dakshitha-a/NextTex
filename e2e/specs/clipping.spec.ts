@@ -129,6 +129,23 @@ const OPENED: {
     },
   },
   {
+    name: "pdf-context-menu",
+    open: async (tab) => {
+      const canvas = tab.locator(".nx-page canvas:visible").first();
+      if (!(await canvas.count())) return false;
+      const box = await canvas.boundingBox();
+      if (!box) return false;
+      await tab.mouse.click(box.x + box.width / 2, box.y + box.height * 0.35, { button: "right" });
+      return tab
+        .getByTestId("pdf-context-menu")
+        .isVisible()
+        .catch(() => false);
+    },
+    close: async (tab) => {
+      await tab.keyboard.press("Escape");
+    },
+  },
+  {
     name: "tree-root-menu",
     open: async (tab) => {
       const tree = tab.locator('[role="tree"]');
@@ -259,6 +276,6 @@ test("no surface clips text without saying so, at any width", async ({
   // run, so if one stops opening the locator has rotted rather than the
   // surface having become clean.
   expect([...visited].sort()).toEqual([
-    "agent-sheet", "diagnostics", "row-menu", "settings", "tree-root-menu",
+    "agent-sheet", "diagnostics", "pdf-context-menu", "row-menu", "settings", "tree-root-menu",
   ]);
 });
