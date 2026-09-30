@@ -550,6 +550,114 @@ const SURFACES: Record<string, Surface> = {
     },
     close: escape,
   },
+  // The right-click menus, each opened at the pointer as the direction
+  // page's "Right-click menus" section draws it, and photographed with the
+  // window around it so the menu is seen where it opened.
+  "rc-tree-row": {
+    open: async (tab) => {
+      await showDrawer(tab, "files");
+      const row = tab.locator('[role="tree"] [data-path="main.tex"]');
+      const box = (await row.boundingBox())!;
+      await tab.mouse.click(box.x + 60, box.y + box.height / 2, { button: "right" });
+      await tab.getByTestId("file-menu").waitFor();
+      return tab.locator(".nx-shell");
+    },
+    close: escape,
+  },
+  "rc-tree-root": {
+    open: async (tab) => {
+      await showDrawer(tab, "files");
+      const tree = tab.locator('[role="tree"]');
+      const box = (await tree.boundingBox())!;
+      await tab.mouse.click(box.x + 60, box.y + box.height - 120, { button: "right" });
+      await tab.getByTestId("tree-root-menu").waitFor();
+      return tab.locator(".nx-shell");
+    },
+    close: escape,
+  },
+  "rc-tab-background": {
+    open: async (tab) => {
+      await showDrawer(tab, "files");
+      await tab.locator('[role="tree"] [data-path="supplement.tex"]').click();
+      await tab.locator('[role="tree"] [data-path="main.tex"]').click();
+      await tab.locator('[data-tab][data-path="supplement.tex"]').click({ button: "right" });
+      await tab.getByTestId("tab-menu").waitFor();
+      return tab.locator(".nx-shell");
+    },
+    close: escape,
+  },
+  "rc-projects-row": {
+    open: async (tab) => {
+      await tab.getByTestId("switch-project").click();
+      await tab.getByText("Projects", { exact: true }).waitFor();
+      const row = tab.getByTestId("project-row").first();
+      const box = (await row.boundingBox())!;
+      await tab.mouse.click(box.x + 120, box.y + box.height / 2, { button: "right" });
+      await tab.getByTestId("row-menu").waitFor();
+      return tab.locator(".nx-projects");
+    },
+    close: async (tab) => {
+      await escape(tab);
+      await tab.getByTestId("project-row").first().click();
+      await tab.locator(".cm-editor").waitFor({ timeout: 30_000 });
+    },
+  },
+  "rc-page": {
+    open: async (tab) => {
+      const canvas = tab.locator(".nx-page canvas:visible").first();
+      await canvas.waitFor({ timeout: 45_000 });
+      const box = (await canvas.boundingBox())!;
+      await tab.mouse.click(box.x + box.width / 2, box.y + box.height * 0.3, { button: "right" });
+      await tab.getByTestId("pdf-context-menu").waitFor();
+      return tab.locator(".nx-shell");
+    },
+    close: escape,
+  },
+  "rc-comment-row": {
+    open: async (tab) => {
+      await aComment(tab);
+      await showDrawer(tab, "comments");
+      await tab.getByTestId("comment-row-open").first().click({ button: "right" });
+      await tab.getByTestId("comment-row-menu").waitFor();
+      return tab.locator(".nx-shell");
+    },
+    close: escape,
+  },
+  "rc-trash-row": {
+    open: async (tab) => {
+      await showDrawer(tab, "files");
+      await tab.getByLabel("Actions for appendix.tex").click({ force: true });
+      await tab.getByRole("tree").getByRole("button", { name: "Move to trash", exact: true }).click();
+      await showDrawer(tab, "trash");
+      const entry = tab.getByTestId("trash-entry").first();
+      await entry.waitFor({ timeout: 10_000 });
+      await entry.click({ button: "right", position: { x: 60, y: 10 } });
+      await tab.getByTestId("trash-row-menu").waitFor();
+      return tab.locator(".nx-shell");
+    },
+    close: escape,
+  },
+  "rc-version-row": {
+    open: async (tab) => {
+      // A typed change, so there is a version to right-click.
+      await tab.locator(".cm-content").click();
+      await tab.keyboard.press("Control+Home");
+      await tab.keyboard.press("End");
+      await tab.keyboard.type(" Revised.");
+      await tab.waitForTimeout(2500);
+      await tab.getByLabel("Actions for main.tex").click({ force: true });
+      await tab.getByRole("tree").getByRole("button", { name: "History", exact: true }).click();
+      const row = tab.getByTestId("version").first();
+      await row.waitFor({ timeout: 20_000 });
+      await row.click({ button: "right", position: { x: 60, y: 10 } });
+      await tab.getByTestId("version-row-menu").waitFor();
+      return tab.locator(".nx-shell");
+    },
+    close: async (tab) => {
+      await escape(tab);
+      await tab.getByLabel("Close the history").click().catch(() => undefined);
+    },
+  },
   "papers-chooser": {
     open: async (tab) => {
       await tab.getByLabel("Actions for references.bib").click({ force: true });
