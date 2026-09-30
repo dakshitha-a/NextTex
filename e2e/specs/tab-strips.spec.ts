@@ -123,14 +123,17 @@ test("a wheel over the preview header scrolls across its tabs", async ({
   expect(await inside(page, `[data-preview-tab][data-path="${last}"]`, PREVIEW_STRIP)).toBe(false);
 });
 
-test("the preview tab in front has a menu, and the others keep the browser's", async ({
+test("every preview tab has a menu, and one behind the front names its document", async ({
   app, project, page,
 }) => {
   const DOCS = await withPreviews({ app, project, page }, 4);
   // Adding brought the last one in front.
   const front = DOCS[DOCS.length - 1];
   await page.locator(`[data-preview-tab][data-path="main.tex"]`).click({ button: "right" });
-  await expect(page.getByTestId("preview-tab-menu")).toHaveCount(0);
+  const behind = page.getByTestId("preview-tab-menu");
+  await expect(behind.locator(".nx-menu-header")).toHaveText("main.tex");
+  await page.keyboard.press("Escape");
+  await expect(behind).toHaveCount(0);
 
   await page.locator(`[data-preview-tab][data-path="${front}"]`).click({ button: "right" });
   const menu = page.getByTestId("preview-tab-menu");
