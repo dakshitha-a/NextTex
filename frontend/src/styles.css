@@ -1665,6 +1665,10 @@ button.nx-row { width: 100%; text-align: left; }
 }
 .nx-menu-item[role="menuitemradio"][data-note]::before { margin-top: 3px; }
 .nx-menu-item[role="menuitemradio"][aria-checked="true"]::before { box-shadow: inset 0 0 0 4px var(--hint); }
+/* A menu that mixes radio rows with rows carrying a 14 px icon, as the
+   typeset page's right-click menu does: the radio's own 4 px margin
+   would set its label 4 px right of theirs, so it goes. */
+.nx-menu-mixed .nx-menu-item[role="menuitemradio"]::before { margin-right: 0; }
 
 .nx-card {
   border-radius: var(--nx-radius-card);

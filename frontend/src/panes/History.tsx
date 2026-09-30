@@ -5,7 +5,7 @@ import { download } from "../chrome";
 import { Button, IconButton } from "../ui/Button";
 import { Input, Pressable, Segmented } from "../ui/controls";
 import { ChevronDownIcon, ChevronRightIcon } from "../ui/icons";
-import { Menu, MenuItem } from "../ui/Menu";
+import { Menu, MenuDivider, MenuItem } from "../ui/Menu";
 import { atPointer, claimsRightClick, type Wanted } from "../place-menu";
 import { isRenderable, isText, isViewable } from "./file-kinds";
 import { sizeOf } from "../size";
@@ -414,7 +414,7 @@ export default function History({
                 }`}
                 onClick={() => choose(version, selected)}
                 onContextMenu={(event) => {
-                  // The row's Compare and Name it at the pointer.  Not on a
+                  // The row's click, Compare and Name it at the pointer.  Not on a
                   // tick for several files, which has neither, and not in
                   // the naming field, which keeps its Cut and Paste.
                   if (folded || !claimsRightClick(event)) return;
@@ -435,6 +435,19 @@ export default function History({
                       testid="version-row-menu"
                       width={200}
                     >
+                      {/* What a click on the row does, first, so the menu
+                          always holds the row's two things to do rather
+                          than Name it alone when there is nothing to
+                          compare with. */}
+                      <MenuItem
+                        onClick={() => {
+                          setRowMenu(null);
+                          void choose(version, selected);
+                        }}
+                      >
+                        {selected ? "Back to now" : "Show this version"}
+                      </MenuItem>
+                      <MenuDivider />
                       {comparable ? (
                         <MenuItem
                           onClick={() => {

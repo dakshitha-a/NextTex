@@ -1811,10 +1811,13 @@ export default function Pdf({
           footer groups them, so every one of them is in reach at a pane
           width where the footer has dropped it, with the double-click's
           jump to the source first.  A choice the footer shows as a
-          segmented pair is a pair of checked rows here, as the View menu
-          draws its switches. */}
+          segmented pair is a pair of the kit's radio rows here, as the
+          composer's model menu draws a one-of choice; the View menu's
+          switches keep their checks.  `nx-menu-mixed` lines the radio
+          rows' labels up with the rows that carry an icon. */}
       <Menu
         open={pageMenu !== null}
+        className="nx-menu-mixed"
         onClose={() => setPageMenu(null)}
         wanted={pageMenu?.at ?? null}
         label="The page"
@@ -1852,20 +1855,20 @@ export default function Pdf({
               ) : null}
               <MenuItem icon={<span className="inline-block w-3.5" />} onClick={run(() => zoomBy(0.15))}>Zoom in</MenuItem>
               <MenuItem icon={<span className="inline-block w-3.5" />} onClick={run(() => zoomBy(-0.15))}>Zoom out</MenuItem>
-              <MenuItem role="menuitemradio" aria-checked={fit === "width"} icon={mark(fit === "width")}
+              <MenuItem role="menuitemradio" aria-checked={fit === "width"}
                 onClick={run(() => setScale(0))}>
                 Fit width
               </MenuItem>
-              <MenuItem role="menuitemradio" aria-checked={fit === "page"} icon={mark(fit === "page")}
+              <MenuItem role="menuitemradio" aria-checked={fit === "page"}
                 onClick={run(() => setScale(-1))}>
                 Fit page
               </MenuItem>
               <MenuDivider />
-              <MenuItem role="menuitemradio" aria-checked={mode === "scroll"} icon={mark(mode === "scroll")}
+              <MenuItem role="menuitemradio" aria-checked={mode === "scroll"}
                 onClick={run(() => setMode("scroll"))}>
                 Scroll
               </MenuItem>
-              <MenuItem role="menuitemradio" aria-checked={mode === "page"} icon={mark(mode === "page")}
+              <MenuItem role="menuitemradio" aria-checked={mode === "page"}
                 onClick={run(() => setMode("page"))}>
                 One page at a time
               </MenuItem>
@@ -1890,7 +1893,10 @@ export default function Pdf({
                 Find in the preview
               </MenuItem>
               {projectId ? (
-                <MenuItem icon={<span className="inline-block w-3.5" />} onClick={run(savePdf)}>Download PDF</MenuItem>
+                <>
+                  <MenuDivider />
+                  <MenuItem icon={<span className="inline-block w-3.5" />} onClick={run(savePdf)}>Download PDF</MenuItem>
+                </>
               ) : null}
             </>
           );

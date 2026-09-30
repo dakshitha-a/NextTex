@@ -284,6 +284,10 @@ else.
   gated with `claimsRightClick` from `frontend/src/place-menu.ts`, so
   Shift with a right-click stays the browser's and the keyboard's menu
   key hangs it under its button. `docs/design.md` section 90 lists where.
+- A one-of choice in a menu is the kit's radio row, `role="menuitemradio"`,
+  which draws its own ring; an on-or-off switch is a checkbox row with the
+  check icon, as the preview's View menu has it. A menu holding both
+  takes the `nx-menu-mixed` class, so the two kinds' labels line up.
 - Motion follows the language in "Motion" below. An animation that
   changes a control's box, such as a pulse that scales the button, is a
   defect, since it moves under the pointer reaching for it.

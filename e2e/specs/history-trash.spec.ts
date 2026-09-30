@@ -474,13 +474,13 @@ test("a deleted file's row offers Restore and Delete on a right-click", async ({
   await expect(tab.getByTestId("trash-entry")).toHaveCount(0, { timeout: 15_000 });
 });
 
-test("a version's row offers Name it on a right-click", async ({ tab, app, project }) => {
+test("a version's row offers Show this version and Name it on a right-click", async ({ tab, app, project }) => {
   await typeAndSave(tab, "a draft worth keeping", app, project);
   await openHistory(tab);
   const row = tab.getByTestId("version").first();
   await row.click({ button: "right", position: { x: 40, y: 10 } });
   const menu = tab.getByTestId("version-row-menu");
-  await expect(menu).toBeVisible();
+  await expect(menu.getByRole("menuitem")).toHaveText(["Show this version", "Name it"]);
   await menu.getByRole("menuitem", { name: "Name it" }).click();
   await expect(menu).toHaveCount(0);
   await expect(tab.getByPlaceholder("Name this version")).toBeVisible();

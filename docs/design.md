@@ -11419,8 +11419,10 @@ direction page's "Right-click menus" section draws each one.
   row's own Delete does.
 - **A deleted file's row in Deleted** opens Restore and Delete…, which
   asks "For good?" on the row.
-- **A version's row in History** opens Compare, where the row offers it,
-  and Name it, or Rename once named. A row that stands for several files
+- **A version's row in History** opens Show this version, or Back to now
+  when it is the one on screen, which is what a click on the row does;
+  then Compare, where the row offers it, and Name it, or Rename once
+  named. A row that stands for several files
   changed in one moment has neither and keeps the browser's menu. Escape
   in the menu closes the menu and leaves the panel open; the panel's own
   Escape now yields to a key a menu inside it has claimed.
