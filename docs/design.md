@@ -605,12 +605,13 @@ box of its own. The preview's tabs carry their build dot before the name, 6 px i
 while compiling and a hollow ring while stale. The empty run and the tab in front remain
 the pane's handle.
 
-**Right-clicking the tab in front opens a menu**: *Close the others*, *Close all to the
-right*, *Close all*, a rule, then *Duplicate* and *Download* (§39). Only the tab in front,
-because the items are about the file being written and a menu on any other tab would have
-to say which file it meant; a right-click anywhere else in the strip is left entirely
-alone, browser menu and all, since taking that away without putting something in its place
-is a loss for nothing. *Close the others* is disabled rather than absent when it is the
+**Right-clicking a tab opens a menu**: *Close the others*, *Close all to the
+right*, *Close all*, a rule, then *Duplicate* and *Download* (§39), each acting on the tab
+that was right-clicked. It was the tab in front only for a long time, on the reasoning
+that a menu on any other tab would have to say which file it meant; since 4.11.0 it does
+say, in a header line naming the file, and every tab has it (§90). A right-click on the
+empty run is left entirely alone, browser menu and all, since taking that away without
+putting something in its place is a loss for nothing. *Close the others* is disabled rather than absent when it is the
 only tab open, and *Close all to the right* when the tab is the last; the panel is
 `position: fixed`, not absolute, because the strip is a horizontal scroll box and would
 clip it, which is the same bug the file tree's row menu hit inside its own.
@@ -11386,3 +11387,7 @@ direction page's "Right-click menus" section draws each one.
   the heading row's four buttons: New file, New folder, Upload files and
   Find a file. From here they act at the root, since that is what was
   right-clicked, rather than at the folder in focus as the buttons do.
+- **Every tab** opens its strip's menu, acting on that tab. A tab that is
+  not in front names its file in the menu's first line, in the kit's
+  `MenuHeader`, so the menu says which file it means (section 5's tab
+  menu used to refuse any tab but the front one for want of that line).

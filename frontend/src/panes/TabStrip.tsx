@@ -1,6 +1,6 @@
-import { type ReactNode, useCallback, useEffect, useMemo, useRef, useState } from "react";
-import { toShell } from "../viewport";
-import { Menu, MenuDivider, MenuItem as Item } from "../ui/Menu";
+import { type ReactNode, useCallback, useEffect, useRef, useState } from "react";
+import { atPointer, claimsRightClick, type Wanted } from "../place-menu";
+import { Menu, MenuDivider, MenuHeader, MenuItem as Item } from "../ui/Menu";
 import { CloseIcon } from "../ui/icons";
 import {
   HiddenTabs, useFollowActive, useHiddenTabs, useWheelScroll,
@@ -85,9 +85,9 @@ export default function TabStrip({
   hiddenName: (path: string) => string;
   onSelect: (path: string) => void;
   onClose: (path: string) => void;
-  /** The right-click menu for the tab in front, or nothing.  Only ever the
-   *  tab in front: its items are about the thing being worked on, and a
-   *  menu on a tab that is not in front would have to say which one. */
+  /** The right-click menu for a tab, or nothing.  Any tab: the items act
+   *  on the tab that was right-clicked, and a menu on a tab that is not in
+   *  front names its file first, so it says which one it means. */
   menuFor?: (path: string) => MenuItem[];
   menuTestId?: string;
   /** A click on the header: the tab in front or the empty run.  Absent
@@ -103,14 +103,11 @@ export default function TabStrip({
   useWheelScroll(strip, tabs.length);
   useFollowActive(strip, active);
 
-  const [menu, setMenu] = useState<{ path: string; x: number; y: number } | null>(null);
+  const [menu, setMenu] = useState<{ path: string; at: Wanted } | null>(null);
   const closeMenu = useCallback(() => setMenu(null), []);
   // Where the pointer was is where it wants to be; where it fits is the
   // kit's Menu's to decide once it has measured itself.
-  const wanted = useMemo(
-    () => (menu ? { left: menu.x, top: menu.y, flip: menu.y } : null),
-    [menu],
-  );
+  const wanted = menu?.at ?? null;
   // A menu can outlive the tab it was opened on: the file is renamed
   // underneath it, or another window closes it.  Leaving it up would leave
   // a column of items pointing at nothing.
@@ -121,6 +118,7 @@ export default function TabStrip({
   const dataAttribute = kind === "source" ? "data-tab" : "data-preview-tab";
   const blankTestId = kind === "source" ? "tabs-blank" : "preview-blank";
   const items = menu && menuFor ? menuFor(menu.path) : [];
+  const menuWidth = kind === "source" ? 200 : 232;
 
   return (
     <div className="relative flex h-9 shrink-0">
@@ -166,20 +164,14 @@ export default function TabStrip({
                 }
               }}
               onContextMenu={(event) => {
-                // Only the tab in front.  A right-click on any other one is
-                // left entirely alone, browser menu and all: taking that
-                // away without putting something in its place is a loss.
-                if (!tab.active || !menuFor) return;
-                event.preventDefault();
-                // `clientX` is a viewport pixel and `style.left` is read in
-                // the zoomed shell's own, so both go through `toShell`.
+                // Any tab, each about its own file; the one that is not in
+                // front says whose menu it is in the menu's first line.
                 // Keeping it on screen is `useOnScreen`'s job, from the
-                // menu's measured size rather than a guess at it.
-                setMenu({
-                  path: tab.path,
-                  x: toShell(event.clientX),
-                  y: toShell(event.clientY),
-                });
+                // menu's measured size rather than a guess at it; from the
+                // keyboard it hangs under the tab.
+                if (!menuFor || !claimsRightClick(event)) return;
+                event.preventDefault();
+                setMenu({ path: tab.path, at: atPointer(event, event.currentTarget, menuWidth) });
               }}
             >
               <Pressable
@@ -266,8 +258,11 @@ export default function TabStrip({
         onClose={closeMenu}
         wanted={wanted}
         testid={menuTestId}
-        width={kind === "source" ? 200 : 232}
+        width={menuWidth}
       >
+        {menu && menu.path !== active ? (
+          <MenuHeader>{menu.path.split("/").pop()}</MenuHeader>
+        ) : null}
         {items.map((item) =>
           "rule" in item ? (
             // Two subjects in one column read as two ways of doing one

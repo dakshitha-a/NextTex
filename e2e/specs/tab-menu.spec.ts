@@ -69,21 +69,35 @@ test("closing the tab in front shows the tab that takes its place", async ({
   await expect(tab.locator(".cm-content")).not.toContainText("notes to myself");
 });
 
-test("a tab that is not in front keeps its browser menu", async ({
+test("a tab that is not in front has a menu that names it and acts on it", async ({
   app, project, tab,
 }) => {
   await threeOpen(app, project, tab);
   await tab.locator('[data-tab][data-path="main.tex"]').click({ button: "right" });
+  const menu = tab.getByTestId("tab-menu");
+  await expect(menu).toBeVisible();
+  // Its first line says which file it is about, since it is not the one
+  // being written; the menu of the tab in front has no such line.
+  await expect(menu.locator(".nx-menu-header")).toHaveText("main.tex");
+  await tab.getByRole("menuitem", { name: "Close the others" }).click();
+  await expect(tab.locator("[data-tab]")).toHaveCount(1);
+  expect(await paths(tab)).toEqual(["main.tex"]);
+
+  await tab.locator('[data-tab][data-path="main.tex"]').click({ button: "right" });
+  await expect(menu.locator(".nx-menu-header")).toHaveCount(0);
+  await tab.keyboard.press("Escape");
+});
+
+test("Shift with a right-click on a tab is left to the browser", async ({
+  app, project, tab,
+}) => {
+  await threeOpen(app, project, tab);
+  await tab.locator('[data-tab][data-path="notes.tex"]').click({ button: "right", modifiers: ["Shift"] });
   // A count of nothing passes before anything could have been drawn, so the
-  // gesture that *does* open the menu is performed afterwards: it proves the
-  // selector is right and that a menu had time to appear, which is what
-  // makes the first assertion mean something.
+  // gesture that does open the menu follows, and proves there was time.
   await expect(tab.getByTestId("tab-menu")).toHaveCount(0);
   await tab.locator('[data-tab][data-path="notes.tex"]').click({ button: "right" });
   await expect(tab.getByTestId("tab-menu")).toBeVisible();
-  await expect(
-    tab.locator('[data-tab][data-path="main.tex"]'),
-  ).toBeVisible();
 });
 
 test("close all to the right keeps the target and what is before it", async ({
