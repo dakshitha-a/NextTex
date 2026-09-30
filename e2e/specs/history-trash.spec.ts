@@ -453,3 +453,43 @@ test("a deletion the writer did not make says so under the name", async ({ proje
   await expect(theirs).toContainText("A collaborator deleted it", { timeout: 10_000 });
   await expect(ordinary).not.toContainText("deleted it");
 });
+
+test("a deleted file's row offers Restore and Delete on a right-click", async ({ tab }) => {
+  await tab.getByLabel("Actions for references.bib").click();
+  await tab.getByRole("button", { name: "Move to trash" }).click();
+  await tab.getByTestId("bar-trash").click();
+  const entry = tab.getByTestId("trash-entry").first();
+  await expect(entry).toBeVisible({ timeout: 10_000 });
+
+  await entry.click({ button: "right", position: { x: 40, y: 10 } });
+  const menu = tab.getByTestId("trash-row-menu");
+  await expect(menu.getByRole("menuitem")).toHaveText(["Restore", "Delete…"]);
+  // Delete asks on the row, as the row's own button does.
+  await menu.getByRole("menuitem", { name: "Delete…" }).click();
+  await expect(entry.getByText("For good?")).toBeVisible();
+  await entry.getByRole("button", { name: "Keep" }).click();
+
+  await entry.click({ button: "right", position: { x: 40, y: 10 } });
+  await menu.getByRole("menuitem", { name: "Restore" }).click();
+  await expect(tab.getByTestId("trash-entry")).toHaveCount(0, { timeout: 15_000 });
+});
+
+test("a version's row offers Name it on a right-click", async ({ tab, app, project }) => {
+  await typeAndSave(tab, "a draft worth keeping", app, project);
+  await openHistory(tab);
+  const row = tab.getByTestId("version").first();
+  await row.click({ button: "right", position: { x: 40, y: 10 } });
+  const menu = tab.getByTestId("version-row-menu");
+  await expect(menu).toBeVisible();
+  await menu.getByRole("menuitem", { name: "Name it" }).click();
+  await expect(menu).toHaveCount(0);
+  await expect(tab.getByPlaceholder("Name this version")).toBeVisible();
+  await tab.keyboard.press("Escape");
+
+  // Escape closes the menu and only the menu: the panel stays open.
+  await row.click({ button: "right", position: { x: 40, y: 10 } });
+  await expect(menu).toBeVisible();
+  await tab.keyboard.press("Escape");
+  await expect(menu).toHaveCount(0);
+  await expect(tab.getByTestId("history-panel")).toBeVisible();
+});

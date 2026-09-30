@@ -5,6 +5,8 @@ import { download } from "../chrome";
 import { Button, IconButton } from "../ui/Button";
 import { Input, Pressable, Segmented } from "../ui/controls";
 import { ChevronDownIcon, ChevronRightIcon } from "../ui/icons";
+import { Menu, MenuItem } from "../ui/Menu";
+import { atPointer, claimsRightClick, type Wanted } from "../place-menu";
 import { isRenderable, isText, isViewable } from "./file-kinds";
 import { sizeOf } from "../size";
 
@@ -69,6 +71,8 @@ export default function History({
   const projectId = useStore((s) => s.projectId);
   const compile = useStore((s) => s.compile);
   const [labelling, setLabelling] = useState<string | null>(null);
+  /** A version row's right-click menu: which version, and where. */
+  const [rowMenu, setRowMenu] = useState<{ sha: string; at: Wanted } | null>(null);
   // A figure has no text to read, so selecting one of its versions opens
   // it in place here instead of parking the editor in a viewing mode that
   // would have nothing to show and nothing to diff.
@@ -249,8 +253,9 @@ export default function History({
         // screen: a version being viewed goes back to now first, which the
         // banner's own listener answers, and the next press closes the
         // panel.  The naming input stops its own Escape before it gets
-        // here, so cancelling a name does not close anything.
-        if (event.key !== "Escape" || viewing) return;
+        // here, so cancelling a name does not close anything, and so does
+        // a row's right-click menu, which marks the key as its own.
+        if (event.key !== "Escape" || viewing || event.defaultPrevented) return;
         event.preventDefault();
         onClose();
       }}
@@ -360,6 +365,16 @@ export default function History({
           const reveal = lit
             ? "flex"
             : "hidden group-hover:flex group-focus-within:flex";
+          // Compare is offered against the version on screen, of the same
+          // text file, and never on a tick that stands for several.
+          const comparable = Boolean(
+            !folded &&
+              onCompare &&
+              viewing?.version &&
+              viewing.version.sha !== version.sha &&
+              viewing.path === rowPath &&
+              !rowBinary,
+          );
           return (
             <div key={`${version.sha}-${version.at}`}>
               {first ? (
@@ -398,7 +413,49 @@ export default function History({
                   lit ? "bg-wash" : ""
                 }`}
                 onClick={() => choose(version, selected)}
+                onContextMenu={(event) => {
+                  // The row's Compare and Name it at the pointer.  Not on a
+                  // tick for several files, which has neither, and not in
+                  // the naming field, which keeps its Cut and Paste.
+                  if (folded || !claimsRightClick(event)) return;
+                  if ((event.target as HTMLElement).closest("input, button:not(.pointer-events-none)")) return;
+                  event.preventDefault();
+                  setRowMenu({ sha: version.sha, at: atPointer(event, event.currentTarget, 200) });
+                }}
               >
+                {rowMenu?.sha === version.sha ? (
+                  // A child of the row, so a press on an item is kept from
+                  // reaching the row's own click, which would choose it.
+                  <div onClick={(event) => event.stopPropagation()}>
+                    <Menu
+                      open
+                      wanted={rowMenu.at}
+                      onClose={() => setRowMenu(null)}
+                      label="Version"
+                      testid="version-row-menu"
+                      width={200}
+                    >
+                      {comparable ? (
+                        <MenuItem
+                          onClick={() => {
+                            setRowMenu(null);
+                            onCompare?.(version);
+                          }}
+                        >
+                          Compare
+                        </MenuItem>
+                      ) : null}
+                      <MenuItem
+                        onClick={() => {
+                          setRowMenu(null);
+                          setLabelling(version.sha);
+                        }}
+                      >
+                        {version.label ? "Rename" : "Name it"}
+                      </MenuItem>
+                    </Menu>
+                  </div>
+                ) : null}
                 {/* The keyboard's way in, and the row's accessible name.
                     `pointer-events-none` so a click is the row's, once:
                     the row above already answers the pointer, and a
@@ -449,19 +506,14 @@ export default function History({
                     {elsewhere ? "elsewhere" : size(version.bytes)}
                   </span>
                   <span className={`items-center gap-0.5 ${reveal}`}>
-                    {!folded &&
-                    onCompare &&
-                    viewing?.version &&
-                    viewing.version.sha !== version.sha &&
-                    viewing.path === rowPath &&
-                    !rowBinary ? (
+                    {comparable ? (
                       <Button
                         size="inline"
                         title="Show what changed between the version on screen and this one"
                         data-testid="version-compare"
                         onClick={(event) => {
                           event.stopPropagation();
-                          onCompare(version);
+                          onCompare?.(version);
                         }}
                       >
                         Compare

@@ -167,3 +167,23 @@ test("a reply from a second window arrives in the first while it is open", async
   await expect(tab.getByTestId("comment-thread")).toContainText("Agreed, cite it.");
   await other.close();
 });
+
+test("a comment's row in the drawer offers Resolve and Delete on a right-click", async ({ tab }) => {
+  await readyMain(tab);
+  await comment(tab, "Check the solvent.");
+  await tab.getByTestId("bar-comments").click();
+  const row = tab.getByTestId("comment-row").first();
+  await expect(row).toBeVisible();
+
+  await row.getByTestId("comment-row-open").click({ button: "right" });
+  const menu = tab.getByTestId("comment-row-menu");
+  await expect(menu.getByRole("menuitem")).toHaveText(["Resolve", "Delete…"]);
+  await menu.getByRole("menuitem", { name: "Delete…" }).click();
+  // It asks on the row, For everyone?, as the row's own Delete does.
+  await expect(row.getByTestId("comment-row-delete-confirm")).toBeVisible();
+  await row.getByRole("button", { name: "Keep" }).click();
+
+  await row.getByTestId("comment-row-open").click({ button: "right" });
+  await menu.getByRole("menuitem", { name: "Resolve" }).click();
+  await expect(tab.getByTestId("comments-resolved")).toBeVisible({ timeout: 10_000 });
+});

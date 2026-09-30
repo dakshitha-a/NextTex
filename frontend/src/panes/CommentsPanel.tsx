@@ -3,6 +3,8 @@ import api, { type CommentThread } from "../api";
 import { refreshComments, set, useStore } from "../store";
 import { Button } from "../ui/Button";
 import { Empty, Pressable } from "../ui/controls";
+import { Menu, MenuDivider, MenuItem } from "../ui/Menu";
+import { atPointer, claimsRightClick, type Wanted } from "../place-menu";
 import { ChevronDownIcon, ChevronRightIcon } from "../ui/icons";
 import { colourFor } from "../collab";
 import { openedFrom, repliesSaid, whenSaid } from "./CommentCards";
@@ -27,6 +29,8 @@ export default function CommentsPanel({
   const projectId = useStore((s) => s.projectId);
   const [showResolved, setShowResolved] = useState(false);
   const [asking, setAsking] = useState<string | null>(null);
+  /** A row's right-click menu: which thread, and where. */
+  const [menu, setMenu] = useState<{ id: string; at: Wanted } | null>(null);
 
   useEffect(() => {
     if (projectId) void refreshComments(projectId);
@@ -69,6 +73,14 @@ export default function CommentsPanel({
         data-thread={thread.id}
         data-detached={thread.detached || undefined}
         onClick={openThread}
+        onContextMenu={(event) => {
+          // The row's two buttons, Resolve or Reopen and Delete, at the
+          // pointer; a button keeps its own right-click.
+          if (!claimsRightClick(event)) return;
+          if ((event.target as HTMLElement).closest(".nx-row-actions")) return;
+          event.preventDefault();
+          setMenu({ id: thread.id, at: atPointer(event, event.currentTarget, 200) });
+        }}
       >
         <Pressable
           type="button"
@@ -176,6 +188,34 @@ export default function CommentsPanel({
           {showResolved ? resolved.map(row) : null}
         </section>
       ) : null}
+      {(() => {
+        const thread = menu ? threads.find((entry) => entry.id === menu.id) : undefined;
+        if (!menu || !thread) return null;
+        const done = Boolean(thread.resolved?.at);
+        return (
+          <Menu open wanted={menu.at} onClose={() => setMenu(null)} label="Comment" testid="comment-row-menu" width={200}>
+            <MenuItem
+              onClick={() => {
+                setMenu(null);
+                void act(done ? "reopen" : "resolve", thread);
+              }}
+            >
+              {done ? "Reopen" : "Resolve"}
+            </MenuItem>
+            <MenuDivider />
+            {/* Asks on the row, For everyone?, as the row's own Delete does. */}
+            <MenuItem
+              danger
+              onClick={() => {
+                setMenu(null);
+                setAsking(thread.id);
+              }}
+            >
+              Delete…
+            </MenuItem>
+          </Menu>
+        );
+      })()}
     </div>
   );
 }

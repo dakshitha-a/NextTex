@@ -256,6 +256,21 @@ const SURFACES: Surface[] = [
     },
   },
   {
+    name: "a version row's menu",
+    open: async (tab) => {
+      await rowMenu(tab, "main.tex", "History");
+      const row = tab.getByTestId("version").first();
+      await expect(row).toBeVisible({ timeout: 15_000 });
+      await row.click({ button: "right", position: { x: 40, y: 10 } });
+      return tab.getByTestId("version-row-menu");
+    },
+    close: async (tab) => {
+      await tab.keyboard.press("Escape");
+      await tab.getByLabel("Close the history").click();
+      await filesDrawer(tab);
+    },
+  },
+  {
     name: "the rename box",
     open: async (tab) => {
       await rowMenu(tab, "main.tex", "Rename");

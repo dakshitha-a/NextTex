@@ -3,6 +3,8 @@ import api from "../api";
 import { refreshTrash, set, useStore } from "../store";
 import { Button } from "../ui/Button";
 import { Empty, Row } from "../ui/controls";
+import { Menu, MenuDivider, MenuItem } from "../ui/Menu";
+import { atPointer, claimsRightClick, type Wanted } from "../place-menu";
 import { FileIcon, ImageIcon } from "../ui/icons";
 import { kindOf } from "./file-kinds";
 
@@ -18,6 +20,8 @@ export default function TrashPanel({ onRefresh }: { onRefresh: () => void }) {
   const projectId = useStore((s) => s.projectId);
   const [confirming, setConfirming] = useState<string | null>(null);
   const [busy, setBusy] = useState("");
+  /** A row's right-click menu: which entry, and where. */
+  const [menu, setMenu] = useState<{ id: string; at: Wanted } | null>(null);
   // The store's list starts empty and is filled by the first answer;
   // until it has come, an empty list means nothing is known yet, not that
   // nothing is deleted, so no empty state is drawn before it.
@@ -79,6 +83,14 @@ export default function TrashPanel({ onRefresh }: { onRefresh: () => void }) {
                 data-testid="trash-entry"
                 data-path={entry.path}
                 title={entry.path}
+                onContextMenu={(event) => {
+                  // The row's Restore and Delete at the pointer; a button
+                  // keeps its own right-click.
+                  if (!claimsRightClick(event)) return;
+                  if ((event.target as HTMLElement).closest("button")) return;
+                  event.preventDefault();
+                  setMenu({ id: entry.id, at: atPointer(event, event.currentTarget, 200) });
+                }}
                 leading={image ? <ImageIcon /> : <FileIcon />}
                 note={entry.source ? whyItWent(entry.why) : undefined}
                 trailingAlways
@@ -121,6 +133,30 @@ export default function TrashPanel({ onRefresh }: { onRefresh: () => void }) {
           })}
         </div>
       )}
+      {menu && entries.some((entry) => entry.id === menu.id) ? (
+        <Menu open wanted={menu.at} onClose={() => setMenu(null)} label="Deleted file" testid="trash-row-menu" width={200}>
+          <MenuItem
+            disabled={busy === menu.id}
+            onClick={() => {
+              setMenu(null);
+              void act("restore", menu.id);
+            }}
+          >
+            Restore
+          </MenuItem>
+          <MenuDivider />
+          {/* Asks on the row, For good?, as the row's own Delete does. */}
+          <MenuItem
+            danger
+            onClick={() => {
+              setMenu(null);
+              setConfirming(menu.id);
+            }}
+          >
+            Delete…
+          </MenuItem>
+        </Menu>
+      ) : null}
       {entries.length ? (
         <div className="nx-panel-foot">
           {confirming === "all" ? (

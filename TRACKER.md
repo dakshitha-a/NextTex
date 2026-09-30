@@ -24,7 +24,16 @@ things go to be forgotten rather than a list anybody reads.
 
 ## In hand
 
-Nothing is in hand. The collaboration merge and host run closed on 29
+Nothing is in hand. The right-click menus run closed on 30 September
+2026 at 4.11.0, at the writer's request: a file tree row, the tree's empty
+space, every tab, a projects row, the typeset page, and the rows of the
+Comments, Deleted and History drawers open their own actions on a
+right-click, by one rule in the style guide, and Shift with a right-click
+is always the browser's. It turned up and fixed History's Escape closing
+the panel under a menu that had already claimed the key. Its tracker page
+is https://claude.ai/artifact/XU4Kb38EP82iYRdXrBbvk6.
+
+The collaboration merge and host run closed on 29
 September 2026 at 4.10.2: two versions of a paragraph written apart are
 kept and chosen in place, an outside edit or pull that clashes with typing
 keeps both, and an install can be an always-on host that keeps its
@@ -90,6 +99,12 @@ OpenAI provider against OpenAI itself.
 ## Backlog
 
 ### Known gaps, with a cost somebody will eventually pay
+
+- [ ] **The Comments and Deleted row menus are not in the contrast
+      sweep.** Neither drawer is opened by `menus-contrast.spec.ts`, since
+      each needs a comment or a deleted file made first on a server the
+      other surfaces share; the menus are the kit's and their own specs
+      open them, so the risk is a drawer-specific style, which neither has.
 
 - [ ] **A citation list that spans lines is not completed.** The
       completion source reads the current line, so a `\cite{` whose keys
