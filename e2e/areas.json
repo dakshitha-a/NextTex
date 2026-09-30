@@ -4,7 +4,7 @@
   "areas": [
     {
       "name": "the preview",
-      "sources": ["frontend/src/panes/Pdf.tsx", "frontend/src/panes/pdf-*.ts", "frontend/src/panes/PageWindow.tsx", "frontend/src/panes/PreviewHeader.tsx", "frontend/src/page-window.ts", "frontend/src/follow-preview.ts", "nexttex/synctex.py"],
+      "sources": ["frontend/src/panes/Pdf.tsx", "frontend/src/panes/pdf-*.ts", "frontend/src/panes/PageWindow.tsx", "frontend/src/panes/PreviewHeader.tsx", "frontend/src/page-window.ts", "frontend/src/follow-preview.ts", "frontend/src/panes/Markdown.tsx", "frontend/src/panes/markdown-source.ts", "nexttex/synctex.py"],
       "specs": ["pdf-*", "preview-swap", "kept-pdf", "previews", "page-window", "appearance", "latex-links", "markdown-preview"]
     },
     {
@@ -29,8 +29,8 @@
     },
     {
       "name": "the Claude column",
-      "sources": ["frontend/src/panes/Chat.tsx", "frontend/src/panes/ComposerMenus.tsx", "frontend/src/panes/ContextPanel.tsx", "frontend/src/panes/PastConversation.tsx", "frontend/src/panes/tool-*.ts", "frontend/src/panes/composer-height.ts", "frontend/src/panes/slash-prompts.ts", "frontend/src/panes/column-header.tsx", "frontend/src/panes/AgentButton.tsx", "frontend/src/panes/AgentSheet.tsx", "frontend/src/agent-*.ts", "frontend/src/arrive-source.ts", "server/transcript.py", "nexttex/agent.py", "nexttex/scripted_agent.py", "nexttex/openai_agent.py", "nexttex/providers.py", "nexttex/tools.py", "nexttex/permission_gate.py", "nexttex/arrive.py", "nexttex/prompts/**"],
-      "specs": ["agent", "agent-sheet", "agent-comments", "slash-commands", "turn-name", "arrive", "chat-layout", "openai-*", "sign-in", "scripts"]
+      "sources": ["frontend/src/panes/Chat.tsx", "frontend/src/panes/prose.tsx", "frontend/src/panes/ComposerMenus.tsx", "frontend/src/panes/ContextPanel.tsx", "frontend/src/panes/PastConversation.tsx", "frontend/src/panes/tool-*.ts", "frontend/src/panes/composer-height.ts", "frontend/src/panes/slash-prompts.ts", "frontend/src/panes/column-header.tsx", "frontend/src/panes/AgentButton.tsx", "frontend/src/panes/AgentSheet.tsx", "frontend/src/agent-*.ts", "frontend/src/arrive-source.ts", "server/transcript.py", "nexttex/agent.py", "nexttex/scripted_agent.py", "nexttex/openai_agent.py", "nexttex/providers.py", "nexttex/tools.py", "nexttex/permission_gate.py", "nexttex/arrive.py", "nexttex/prompts/**"],
+      "specs": ["agent", "agent-sheet", "agent-comments", "slash-commands", "turn-name", "arrive", "chat-layout", "openai-*", "sign-in", "scripts", "markdown-preview"]
     },
     {
       "name": "the drawers",
