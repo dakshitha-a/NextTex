@@ -18,7 +18,7 @@ import { Sheet } from "../ui/Sheet";
 import {
   ChevronDownIcon, ChevronLeftIcon, HelpIcon, MoreIcon, PlusIcon, ReportIcon, SearchIcon, ShareIcon, SparkIcon, UpdateIcon,
 } from "../ui/icons";
-import { under, type Wanted } from "../place-menu";
+import { atPointer, claimsRightClick, under, type Wanted } from "../place-menu";
 import { toShell } from "../viewport";
 import type { UpdateState } from "./UpdateFooter";
 import { agentName } from "../agent-name";
@@ -896,6 +896,17 @@ export default function Projects({
                 if ((event.target as HTMLElement).closest("button, input")) return;
                 if (!project.missing) onOpen(project.id);
               }}
+              onContextMenu={(event) => {
+                // The row's own actions at the pointer: the More menu on the
+                // list, and the buttons an archived or trashed row carries.
+                // A control, the path's field or a link keeps its own.
+                if (locked || !claimsRightClick(event)) return;
+                if ((event.target as HTMLElement).closest("button, input, textarea, a")) return;
+                event.preventDefault();
+                const button = event.currentTarget.querySelector<HTMLElement>('[data-testid="row-more"]');
+                moreButton.current = button;
+                setMore({ id: project.id, at: atPointer(event, button ?? event.currentTarget, 220) });
+              }}
               onKeyDown={(event) => {
                 // As above: only keys aimed at the row, never at a control
                 // inside it.  The click handler already says the same thing.
@@ -1407,35 +1418,60 @@ export default function Projects({
             width={220}
             onClose={() => setMore(null)}
           >
-            {!project.missing ? (
+            {view === "active" ? (
               <>
-                <MenuItem
-                  data-testid="row-zip"
-                  onClick={act(() => void downloadZip(project.id, `${project.name}.zip`))}
-                >
-                  Download as a zip
+              {!project.missing ? (
+                <>
+                  <MenuItem
+                    data-testid="row-zip"
+                    onClick={act(() => void downloadZip(project.id, `${project.name}.zip`))}
+                  >
+                    Download as a zip
+                  </MenuItem>
+                  <MenuItem
+                    data-testid="row-pdf"
+                    disabled={busy === project.id}
+                    onClick={act(() => void takePdf(project))}
+                  >
+                    Download the PDF
+                  </MenuItem>
+                  {/* To start the next one from this one: a project per job
+                      application is what the template is made for (Q-047). */}
+                  <MenuItem data-testid="row-duplicate" onClick={act(() => void duplicate(project))}>
+                    Duplicate
+                  </MenuItem>
+                </>
+              ) : null}
+              <MenuDivider />
+              <MenuItem data-testid="row-archive" onClick={act(() => void setState(project, "archived"))}>
+                Archive
+              </MenuItem>
+              <MenuItem danger data-testid="row-trash" onClick={act(() => void setState(project, "trashed"))}>
+                Move to the trash
+              </MenuItem>
+              </>
+            ) : view === "archived" ? (
+              // The archived row's three buttons, in their order.
+              <>
+                <MenuItem disabled={project.missing} onClick={act(() => onOpen(project.id))}>
+                  Open
                 </MenuItem>
-                <MenuItem
-                  data-testid="row-pdf"
-                  disabled={busy === project.id}
-                  onClick={act(() => void takePdf(project))}
-                >
-                  Download the PDF
-                </MenuItem>
-                {/* To start the next one from this one: a project per job
-                    application is what the template is made for (Q-047). */}
-                <MenuItem data-testid="row-duplicate" onClick={act(() => void duplicate(project))}>
-                  Duplicate
+                <MenuItem onClick={act(() => void setState(project, "active"))}>Restore</MenuItem>
+                <MenuDivider />
+                <MenuItem danger onClick={act(() => void setState(project, "trashed"))}>
+                  Move to the trash
                 </MenuItem>
               </>
-            ) : null}
-            <MenuDivider />
-            <MenuItem data-testid="row-archive" onClick={act(() => void setState(project, "archived"))}>
-              Archive
-            </MenuItem>
-            <MenuItem danger data-testid="row-trash" onClick={act(() => void setState(project, "trashed"))}>
-              Move to the trash
-            </MenuItem>
+            ) : (
+              // The trashed row's two: Delete asks on the row, as its button does.
+              <>
+                <MenuItem onClick={act(() => void setState(project, "active"))}>Restore</MenuItem>
+                <MenuDivider />
+                <MenuItem danger onClick={act(() => setForgetting(project.path))}>
+                  Delete…
+                </MenuItem>
+              </>
+            )}
           </Menu>
         );
       })()}

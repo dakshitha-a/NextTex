@@ -160,3 +160,36 @@ test("opening an archived project makes it active again", async ({ app, page }) 
   const listed = await (await page.request.get(`${app.base}/api/projects`)).json();
   expect(listed.projects[0].state).toBe("active");
 });
+
+test("a right-click on a row offers what that row's buttons do, in every view", async ({ app, page }) => {
+  await seedProject(app, "thesis");
+  await seedProject(app, "aims");
+  await land(app, page);
+  const rowNamed = (name: string) =>
+    page.getByTestId("project-row").filter({ hasText: name });
+  const menu = page.getByTestId("row-menu");
+
+  // On the list: the More menu, at the pointer.
+  await rowNamed("aims").click({ button: "right", position: { x: 24, y: 12 } });
+  await expect(menu).toBeVisible();
+  await expect(menu.getByRole("menuitem")).toHaveText([
+    "Download as a zip", "Download the PDF", "Duplicate", "Archive", "Move to the trash",
+  ]);
+  await menu.getByRole("menuitem", { name: "Archive" }).click();
+  await expect(page.getByTestId("project-row")).toHaveCount(1);
+
+  // Archived: Open, Restore, and the trash.
+  await page.getByTestId("view-archived").click();
+  await rowNamed("aims").click({ button: "right", position: { x: 24, y: 12 } });
+  await expect(menu.getByRole("menuitem")).toHaveText(["Open", "Restore", "Move to the trash"]);
+  await menu.getByRole("menuitem", { name: "Move to the trash" }).click();
+  await expect(page.getByTestId("view-empty")).toContainText("Nothing is archived.");
+
+  // Trashed: Restore, and Delete, which asks on the row as its button does.
+  await page.getByTestId("view-back").click();
+  await page.getByTestId("view-trash").click();
+  await rowNamed("aims").click({ button: "right", position: { x: 24, y: 12 } });
+  await expect(menu.getByRole("menuitem")).toHaveText(["Restore", "Delete…"]);
+  await menu.getByRole("menuitem", { name: "Restore" }).click();
+  await expect(page.getByTestId("view-empty")).toContainText("The trash is empty.");
+});

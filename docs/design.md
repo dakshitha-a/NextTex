@@ -11391,3 +11391,8 @@ direction page's "Right-click menus" section draws each one.
   not in front names its file in the menu's first line, in the kit's
   `MenuHeader`, so the menu says which file it means (section 5's tab
   menu used to refuse any tab but the front one for want of that line).
+- **A projects row** opens what its own buttons do: on the list, the More
+  menu; an archived row, Open, Restore and Move to the trash; a trashed
+  row, Restore and Delete…, which asks on the row as its button does. The
+  row's path field and its buttons keep their own right-click.
+
