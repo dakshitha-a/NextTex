@@ -435,3 +435,37 @@ def test_output_git_did_not_mark_keeps_the_last_line():
 
 def test_nothing_at_all_falls_back():
     assert gitrepo.said_by("   \n\n  ", "git failed") == "git failed"
+
+
+def test_the_github_sign_in_is_asked_once_per_ten_minutes_after_a_yes(monkeypatch):
+    """The Git drawer's route runs after every build, and `gh auth status`
+    asks GitHub whether its token is still good: 379 ms and a request to
+    github.com per build. A yes is believed for ten minutes, a no for half
+    a minute, and a failed `gh repo create` forgets either."""
+    import time as clock
+
+    asked = []
+    answers = iter([(True, ""), (False, "not signed in"), (True, "")])
+    monkeypatch.setattr(gitrepo, "_ask_gh", lambda: asked.append(1) or next(answers))
+    now = [1000.0]
+    monkeypatch.setattr(clock, "monotonic", lambda: now[0])
+    gitrepo.forget_gh()
+
+    assert gitrepo.gh_available() == (True, "")
+    now[0] += gitrepo.GH_KNOWN_FOR - 1
+    assert gitrepo.gh_available() == (True, "")
+    assert len(asked) == 1
+
+    now[0] += 2
+    assert gitrepo.gh_available() == (False, "not signed in")
+    now[0] += gitrepo.GH_UNKNOWN_FOR - 1
+    assert gitrepo.gh_available()[0] is False
+    assert len(asked) == 2
+    now[0] += 2
+    assert gitrepo.gh_available() == (True, "")
+    assert len(asked) == 3
+
+    gitrepo.forget_gh()
+    with pytest.raises(StopIteration):
+        gitrepo.gh_available()
+    gitrepo.forget_gh()

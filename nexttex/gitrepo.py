@@ -390,8 +390,39 @@ def _who(root: Path) -> list[str]:
     return []
 
 
+# How long an answer from `gh auth status` is believed. The Git drawer's
+# route is asked after every build, and the command asks GitHub whether its
+# token is still good: 379 ms and a request to github.com per build, for an
+# answer that changes when somebody signs in or out in a terminal. A yes is
+# kept for ten minutes. A no is kept for half a minute, so somebody who has
+# just run `gh auth login` sees the drawer notice before they wonder why.
+GH_KNOWN_FOR = 600.0
+GH_UNKNOWN_FOR = 30.0
+_gh_answer: tuple[float, tuple[bool, str]] | None = None
+
+
 def gh_available() -> tuple[bool, str]:
     """Is the GitHub CLI here and signed in?"""
+    global _gh_answer
+    import time
+
+    now = time.monotonic()
+    if _gh_answer is not None:
+        at, answer = _gh_answer
+        if now - at < (GH_KNOWN_FOR if answer[0] else GH_UNKNOWN_FOR):
+            return answer
+    answer = _ask_gh()
+    _gh_answer = (now, answer)
+    return answer
+
+
+def forget_gh() -> None:
+    """Ask again next time, because something here has just used it."""
+    global _gh_answer
+    _gh_answer = None
+
+
+def _ask_gh() -> tuple[bool, str]:
     import shutil
 
     if not shutil.which("gh"):
@@ -432,6 +463,9 @@ def create_github(root: Path, name: str, private: bool = True) -> str:
         cwd=root, capture_output=True, text=True, timeout=TIMEOUT,
     )
     if result.returncode != 0:
+        # A remembered yes may be what let this through, and a token that
+        # has lapsed since is the likeliest reason it failed.
+        forget_gh()
         message = (result.stderr or result.stdout).strip()
         raise GitError(said_by(message, "gh failed"))
     return _run(root, "remote", "get-url", "origin", timeout=15).strip()
