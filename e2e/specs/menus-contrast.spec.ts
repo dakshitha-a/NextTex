@@ -68,6 +68,15 @@ async function filesDrawer(tab: Page) {
   await tab.locator('[role="tree"]').waitFor();
 }
 
+/** A drawer on the bar, opened whatever the drawer was showing, for the
+ *  same reason as `filesDrawer`. */
+async function drawer(tab: Page, id: string) {
+  const shown = tab.getByTestId("drawer");
+  const showing = (await shown.count()) > 0 && (await shown.getAttribute("data-drawer")) === id;
+  if (!showing) await tab.getByTestId(`bar-${id}`).click();
+  await expect(shown).toHaveAttribute("data-drawer", id);
+}
+
 async function rowMenu(tab: Page, path: string, item?: string): Promise<Locator> {
   await filesDrawer(tab);
   const menu = tab.getByTestId("file-menu");
@@ -496,6 +505,37 @@ const SURFACES: Surface[] = [
     },
   },
   {
+    // Each of these two needs something made first, a comment and a
+    // deleted file, which `prepare` makes; until it did, neither drawer's
+    // menu was measured.
+    name: "a comment row's menu",
+    open: async (tab) => {
+      await drawer(tab, "comments");
+      const row = tab.getByTestId("comment-row").first();
+      await expect(row).toBeVisible({ timeout: 10_000 });
+      await row.click({ button: "right", position: { x: 40, y: 10 } });
+      return tab.getByTestId("comment-row-menu");
+    },
+    close: async (tab) => {
+      await tab.keyboard.press("Escape");
+      await filesDrawer(tab);
+    },
+  },
+  {
+    name: "a deleted file's menu",
+    open: async (tab) => {
+      await drawer(tab, "trash");
+      const row = tab.getByTestId("trash-entry").first();
+      await expect(row).toBeVisible({ timeout: 10_000 });
+      await row.click({ button: "right", position: { x: 40, y: 10 } });
+      return tab.getByTestId("trash-row-menu");
+    },
+    close: async (tab) => {
+      await tab.keyboard.press("Escape");
+      await filesDrawer(tab);
+    },
+  },
+  {
     name: "the People drawer",
     open: async (tab) => {
       await tab.getByTestId("bar-people").click();
@@ -525,7 +565,8 @@ const SURFACES: Surface[] = [
 
 /** Put the project in the state the surfaces expect: a figure to collide
  *  with, a second document for the `+` menu, a misspelling for the
- *  spelling menu, and enough files to overflow the tab strip. */
+ *  spelling menu, enough files to overflow the tab strip, a comment for
+ *  the Comments drawer's row and a deleted file for the Deleted drawer's. */
 async function prepare(app: any, project: any, page: Page, pairing: Pairing) {
   mkdirSync(join(project.root, "figures"), { recursive: true });
   writeFileSync(join(project.root, "figures", "plot.png"), png(40, 30));
@@ -536,6 +577,7 @@ async function prepare(app: any, project: any, page: Page, pairing: Pairing) {
   for (let i = 0; i < 8; i += 1) {
     writeFileSync(join(project.root, `part${i}.tex`), `Part ${i}, recieved.\n`);
   }
+  writeFileSync(join(project.root, "old-draft.tex"), "An earlier draft.\n");
   writeFileSync(
     join(project.root, "notes.md"),
     "# Notes\n\nSome *prose*, a `command`, and **weight**.\n\n- one\n- two\n\n> quoted\n\n```tex\n\\section{x}\n```\n",
@@ -573,6 +615,33 @@ async function prepare(app: any, project: any, page: Page, pairing: Pairing) {
   await page.keyboard.press("End");
   await page.keyboard.type("\nThe results are recieved today.");
   await expect(page.locator(".nx-misspelled").first()).toBeVisible({ timeout: 20_000 });
+
+  // A comment, made the way a writer makes one: its anchors are positions
+  // in the shared document, which only the editor can write. On the last
+  // word of a sentence of its own, so the misspelling stays as it is.
+  await page.keyboard.press("Control+End");
+  await page.keyboard.press("Enter");
+  await page.keyboard.type("A sentence to comment on.");
+  await page.keyboard.press("ArrowLeft");
+  for (let i = 0; i < "on".length; i += 1) await page.keyboard.press("Shift+ArrowLeft");
+  const actions = page.getByTestId("selection-actions");
+  await expect(actions).toBeVisible({ timeout: 10_000 });
+  await actions.getByTestId("selection-comment").click();
+  const composer = page.getByTestId("comment-composer");
+  await composer.getByRole("textbox", { name: "Comment" }).fill("Is this the right word?");
+  await page.keyboard.press("Control+Enter");
+  await expect(composer).toHaveCount(0);
+  // Back to line 41, where the caret was: the editor draws only the lines
+  // near the screen, and the cross-reference card's recipe looks for one
+  // a little below it.
+  await page.keyboard.press("Control+Home");
+  for (let i = 0; i < 40; i += 1) await page.keyboard.press("ArrowDown");
+
+  // A file in the trash, put there the way the tree's Delete puts it.
+  const gone = await page.request.delete(
+    `${app.base}/api/projects/${project.id}/file?path=old-draft.tex`,
+  );
+  expect(gone.ok(), "the draft would not go to the trash").toBeTruthy();
   await openFolders(page, "figures/plot.png");
   await page.locator(".nx-page").first().waitFor({ timeout: 60_000 });
 }

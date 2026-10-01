@@ -111,12 +111,6 @@ OpenAI provider against OpenAI itself.
 
 ### Known gaps, with a cost somebody will eventually pay
 
-- [ ] **The Comments and Deleted row menus are not in the contrast
-      sweep.** Neither drawer is opened by `menus-contrast.spec.ts`, since
-      each needs a comment or a deleted file made first on a server the
-      other surfaces share; the menus are the kit's and their own specs
-      open them, so the risk is a drawer-specific style, which neither has.
-
 - [ ] **A link in a reply is shown as its Markdown.** `inline` in
       `frontend/src/panes/prose.tsx` knows code, bold and italic, so an
       agent's `[the paper](https://...)` reads as brackets and a bare URL

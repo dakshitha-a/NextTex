@@ -640,14 +640,19 @@ because the field only exists once Ctrl+F has been pressed.
 panel the way a person does and measures each with `e2e/contrast.ts`,
 which walks every run of text and every field inside an element and
 composites the colour actually painted behind it, blending the translucent
-washes on the way up to the first opaque ground. Four pairings, because the
+washes on the way up to the first opaque ground. Three pairings, because the
 shell's theme and the editor page's palette can be mixed and a surface
 inside the editor host takes the page's palette while one floating over it
-is furniture. A surface that cannot be opened is reported, not skipped: a
+is furniture; there were four while a light shell could hold a dark page.
+A surface that cannot be opened is reported, not skipped: a
 recipe that has silently stopped opening anything measures nothing and
 passes. What it found on its first run, beyond the field it was written
 for, was the completion list's matched letters on the selected row, the
-accent on a tint of itself at 3.6:1 in the light theme.
+accent on a tint of itself at 3.6:1 in the light theme. Its `prepare`
+makes a comment, through the editor since a comment's anchors are
+positions only the editor writes, and puts a file in the trash, so the
+Comments and Deleted drawers' row menus are measured with the rest; until
+1 October 2026 neither was.
 
 ## Two peers, in one process
 
