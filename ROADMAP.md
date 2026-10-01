@@ -39,28 +39,20 @@ roadmap run of 1 October 2026 builds the first eight, moving each to
 `TRACKER.md` as it starts. A new item goes here, in its place in the
 order, when somebody proposes it.
 
-1. **Retraction and published-version check.** A row in the submission
-   check says a cited DOI has been retracted, or that a cited preprint now
-   has a journal version, naming the journal's own DOI. Both answers come
-   from the publisher's record, which fits the rule that every reference
-   comes from one. Once per paper. Builds on `nexttex/library.py` and
-   `nexttex/vendor/verify_bib.py`, which already fetch that record per
-   DOI. It is the check's first network call, and the drawer says so.
-   Small to medium; *y*.
-2. **A submission source bundle.** One download with only the files the
+1. **A submission source bundle.** One download with only the files the
    document uses, paths intact, the `.bbl` included, the build folder and
    unused figures left out, and comments stripped on request: what a
    journal's or a preprint server's source upload wants. Once per paper,
    at the step writers dread. Builds on the project zip in
    `server/main.py`, the file graph in `nexttex/deps.py` and the build's
    `.bbl`. Medium; *y*.
-3. **Reply to reviewers.** A template with point and reply macros, and a
+2. **Reply to reviewers.** A template with point and reply macros, and a
    command that turns the open comment threads into points to answer, each
    linking back to its text, sent with the marked-up PDF History gives. Once per revision.
    Builds on `nexttex/templates`, `nexttex/comment_tools.py` and the agent
    answering comments, section 78 of `docs/design.md`. The template alone
    is small; the whole is medium; *y*.
-4. **Venue templates, and a browser to choose them in.** Today
+3. **Venue templates, and a browser to choose them in.** Today
    `nexttex/templates` holds five. Ship only templates whose licence allows
    it, and choose them in a template browser rather than the present short
    list, since names alone stop working past a dozen. For a template that
