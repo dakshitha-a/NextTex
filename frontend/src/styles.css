@@ -1618,6 +1618,20 @@ button.nx-row { width: 100%; text-align: left; }
 .nx-row:hover .nx-row-trailing, .nx-row:focus-within .nx-row-trailing, .nx-row-trailing-always { display: inline-flex; }
 /* Revealed on hover never means hidden on touch. */
 @media (pointer: coarse) { .nx-row-trailing { display: inline-flex; } }
+/* A Sections row is a plain row holding two buttons: the heading, which
+   jumps, filling the row, and at its end the word limit's control. A
+   limit set shows its count against the number, in the third ink and the
+   warning ink when over; a row with none offers Limit under the pointer;
+   being set, the end is a small field and the word "words". */
+.nx-section-jump { display: flex; flex: 1; align-items: center; gap: 8px; min-width: 0; align-self: stretch; color: inherit; text-align: left; }
+.nx-limit-count { flex: none; margin-left: auto; height: 24px; padding: 0 4px; border-radius: var(--nx-radius-control); color: var(--ink-3); font-size: 12px; font-variant-numeric: tabular-nums; white-space: nowrap; }
+.nx-limit-count:hover { color: var(--ink); }
+/* Over the limit: the warning ink, from the rule itself, since a utility
+   class on the element would lose to the rule above. */
+.nx-limit-count[data-over], .nx-limit-count[data-over]:hover { color: var(--warn); font-weight: 500; }
+.nx-limit-edit { flex: none; margin-left: auto; display: inline-flex; align-items: center; gap: 6px; color: var(--ink-3); font-size: 12px; }
+.nx-limit-field { width: 56px; height: 22px; padding: 0 6px; border-radius: var(--nx-radius-control); background: var(--surface); box-shadow: inset 0 0 0 1px var(--line); color: var(--ink); font: inherit; font-variant-numeric: tabular-nums; outline: none; }
+.nx-limit-field:focus { box-shadow: inset 0 0 0 1px var(--hint); }
 
 .nx-menu {
   position: fixed; z-index: 40;

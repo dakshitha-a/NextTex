@@ -35,7 +35,47 @@ export function rangeFor(
     }
   }
   if (!start) return null;
+  // An abstract ends at its \end, not at the heading after it: the title
+  // block between the two is in no section.
+  if (start.kind === "abstract" && start.end !== undefined) {
+    return cursorLine > start.end ? null : { first: start.line, last: start.end };
+  }
   return { first: start.line, last: next ? next.line - 1 : lines };
+}
+
+/** The lines a heading's limit is counted over: an abstract between its
+ *  `\begin` and `\end`, and a section from its heading to the next one
+ *  at its level or above, so its subsections count towards it. A section
+ *  that runs to the end of the file ends at `lines`. */
+export function limitSpan(
+  outline: Heading[],
+  index: number,
+  lines: number,
+): { first: number; last: number } {
+  const heading = outline[index];
+  if (heading.kind === "abstract" && heading.end !== undefined) {
+    return { first: heading.line, last: heading.end };
+  }
+  for (let i = index + 1; i < outline.length; i++) {
+    const next = outline[i];
+    if (next.kind === "file") continue;
+    if (next.kind === "abstract" || next.level <= heading.level) {
+      return { first: heading.line, last: next.line - 1 };
+    }
+  }
+  return { first: heading.line, last: lines };
+}
+
+/** Whether a row can carry a word limit: a heading or the abstract, not
+ *  an included file, whose words are its own outline's business. */
+export function limitable(heading: Heading): boolean {
+  return heading.kind !== "file";
+}
+
+/** What a limited row says at its end. */
+export function limitLabel(words: number | null, limit: number): string {
+  const of = limit.toLocaleString();
+  return words === null ? `\u2013 of ${of}` : `${words.toLocaleString()} of ${of}`;
 }
 
 /** The scopes in the order the control cycles them.

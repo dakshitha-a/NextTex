@@ -83,6 +83,11 @@ a **Tutorial** button at its foot, and the projects screen's app bar has an
   chapter takes without pushing the other out. People is who is in the
   project and the invite to send; Build is the errors, the log and
   Rebuild, and a double-click on its button rebuilds.
+- **Limits that stay in view.** Point at a heading or the abstract in
+  Sections and press *Limit* to give it a word limit; its row then ends
+  with "212 of 250", in the warning colour once it runs over. With a page
+  limit set in *Before you submit*, the strip under the source says "7 of
+  8 pages".
 - **Formulas, tables, figures and references render on hover.** Rest the
   pointer on a formula, a `tabular` or an `\includegraphics` in the
   source and it appears typeset, drawn, or as the picture with its size;
@@ -266,7 +271,8 @@ paragraph commented out and kept, a font that is not embedded and a
 figure at screen resolution, the last two through poppler's `pdffonts`
 and `pdfimages`, a PDF with no title or author in its own metadata, and
 a figure with no alt text. Type the venue's page limit and the count is
-checked against it; switch on *Blind review* and the author block, the
+checked against it, and the strip under the source keeps the last full
+build's pages beside it; switch on *Blind review* and the author block, the
 affiliations and the acknowledgements become rows; switch on *Wants
 PDF/A* and a preamble that does not ask for PDF/A becomes one. Every row that has a
 line goes to it, every row that has a page turns to it, and *Copy all*

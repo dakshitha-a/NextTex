@@ -143,6 +143,7 @@ def test_the_three_switches_round_trip(client, project_dir, opened):
         "blind": False,
         "pdfa": False,
         "language": "",
+        "wordLimits": {},
     }
 
     # Written, not just held in memory.  `save()` writes its optional fields
@@ -344,3 +345,32 @@ def test_a_count_of_unchanged_files_is_answered_without_texcount(
     os.utime(main, ns=(later, later))
     client.get(f"{base}?scope=document")
     assert count() == 5
+
+
+def test_word_limits_are_kept_with_the_project(client, project_dir, opened):
+    """The Sections drawer sends the whole table; it is written under
+    `[project.limits]`, comes back with the project, and a table holding
+    anything but titles and whole numbers is refused whole, since it goes
+    into a file the project carries to other machines."""
+    project_id = opened["id"]
+    limits = {"Abstract": 250, 'A "quoted" title': 1200}
+    response = client.post(
+        f"/api/projects/{project_id}/settings", json={"wordLimits": limits},
+    )
+    assert response.status_code == 200, response.text
+    assert response.json()["wordLimits"] == limits
+    written = (project_dir / "nexttex.toml").read_text(encoding="utf-8")
+    assert "[project.limits]" in written and '"Abstract" = 250' in written
+    reopened = client.post(f"/api/projects/{project_id}/open").json()
+    assert reopened["wordLimits"] == limits
+
+    for bad in ({"Abstract": 0}, {"Abstract": "250"}, {"": 10}, {"Abstract": True}, {"x" * 400: 5}):
+        refused = client.post(
+            f"/api/projects/{project_id}/settings", json={"wordLimits": bad},
+        )
+        assert refused.status_code == 400, bad
+    assert client.post(f"/api/projects/{project_id}/open").json()["wordLimits"] == limits
+
+    cleared = client.post(f"/api/projects/{project_id}/settings", json={"wordLimits": {}})
+    assert cleared.json()["wordLimits"] == {}
+    assert "limits" not in (project_dir / "nexttex.toml").read_text(encoding="utf-8")

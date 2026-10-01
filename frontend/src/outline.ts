@@ -16,6 +16,7 @@ export type HeadingKind =
   | "subsection"
   | "subsubsection"
   | "paragraph"
+  | "abstract"
   | "file";
 
 export type Heading = {
@@ -27,6 +28,9 @@ export type Heading = {
   line: number;
   /** Only on `file` entries: the .tex this row opens. */
   path?: string;
+  /** Only on `abstract`: the line of its `\end{abstract}`, since an
+   *  abstract ends there rather than at the next heading. */
+  end?: number;
 };
 
 /** Depth of each sectioning command, matching LaTeX's own order. */
@@ -147,6 +151,15 @@ export function outline(text: string): Heading[] {
       const open = argumentAt(text, after);
       const arg = open === null ? null : braced(text, open);
       if (arg && arg.body.trim() === "document") started = true;
+      // The abstract is a place in the document, and the one a word limit
+      // most often applies to, so it is a row; its level is set at the end,
+      // beside the shallowest heading the file has.
+      if (arg && arg.body.trim() === "abstract") {
+        const close = text.indexOf("\\end{abstract}", arg.end);
+        let end = line;
+        if (close !== -1) for (let j = i; j < close; j++) if (text[j] === "\n") end++;
+        found.push({ kind: "abstract", level: 0, title: "Abstract", line, end: close === -1 ? undefined : end });
+      }
       if (arg && VERBATIM.has(arg.body.trim())) {
         // Jump the whole block; anything inside it is not source.
         const close = text.indexOf(`\\end{${arg.body.trim()}}`, arg.end);
@@ -191,6 +204,10 @@ export function outline(text: string): Heading[] {
     i = arg.end;
   }
 
+  const levels = found.filter((h) => h.kind !== "abstract" && h.kind !== "file").map((h) => h.level);
+  const top = levels.length ? Math.min(...levels) : LEVELS.section;
+  for (const heading of found) if (heading.kind === "abstract") heading.level = top;
+
   // Only once the document is known to begin: otherwise every included
   // file in a chapter would be dropped.
   if (started && preamble.length) {
@@ -222,7 +239,8 @@ export function sameOutline(a: Heading[], b: Heading[]): boolean {
       a[i].line !== b[i].line ||
       a[i].title !== b[i].title ||
       a[i].kind !== b[i].kind ||
-      a[i].path !== b[i].path
+      a[i].path !== b[i].path ||
+      a[i].end !== b[i].end
     ) {
       return false;
     }

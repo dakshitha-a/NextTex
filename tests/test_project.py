@@ -229,6 +229,29 @@ def test_a_page_limit_that_is_not_a_count_reads_as_none(tmp_path, raw):
     assert config.page_limit == 0 and config.blind is False
 
 
+def test_word_limits_round_trip_beside_the_other_settings(tmp_path):
+    """A table under `[project]`, keyed by a heading's title, written after
+    every other field so the file stays one `[project]` table and one
+    `[project.limits]`; an entry that is not a title and a whole number is
+    dropped on reading, and the rest kept."""
+    (tmp_path / "nexttex.toml").write_text(
+        '[project]\nname = "T"\npage_limit = 8\nexclude = ["drafts"]\n'
+        '[project.limits]\nAbstract = 250\n"Results and discussion" = 3000\n'
+        'Bad = "many"\nZero = 0\nFlag = true\n',
+        encoding="utf-8",
+    )
+    config = ProjectConfig.load(tmp_path)
+    assert config.word_limits == {"Abstract": 250, "Results and discussion": 3000}
+    assert config.page_limit == 8 and config.exclude == ["drafts"]
+    config.save(tmp_path)
+    again = ProjectConfig.load(tmp_path)
+    assert again.word_limits == config.word_limits
+    assert again.page_limit == 8 and again.exclude == ["drafts"]
+    config.word_limits = {}
+    config.save(tmp_path)
+    assert "limits" not in (tmp_path / "nexttex.toml").read_text(encoding="utf-8")
+
+
 def test_projects_opened_in_the_same_moment_are_listed_by_name_then_path(tmp_path):
     """Most recently opened first, and a tie, which a seeded or hand-written
     registry can hold, by name and then by path: the order is a function

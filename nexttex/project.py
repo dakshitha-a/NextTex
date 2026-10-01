@@ -206,6 +206,33 @@ def _toml(value: str) -> str:
     return f'"{escaped}"'
 
 
+#: How many headings may carry a limit, and how long a title may be. A
+#: thesis has a few dozen sections; the bound is what a hand-edited
+#: `nexttex.toml`, which travels between machines, is held to.
+MAX_LIMITS = 200
+MAX_TITLE = 300
+
+
+def clean_limits(raw: object) -> dict[str, int] | None:
+    """`raw` as word limits, or None when it is not a table of them.
+
+    A title is a non-empty string of at most `MAX_TITLE` characters, and a
+    limit a whole number from 1 to 100,000; a pair that is not both is
+    dropped, and a table of more than `MAX_LIMITS` keeps the first."""
+    if not isinstance(raw, dict):
+        return None
+    kept: dict[str, int] = {}
+    for title, words in raw.items():
+        if len(kept) >= MAX_LIMITS:
+            break
+        if not isinstance(title, str) or not title.strip() or len(title) > MAX_TITLE:
+            continue
+        if isinstance(words, bool) or not isinstance(words, int) or not 0 < words <= 100_000:
+            continue
+        kept[title.strip()] = words
+    return kept
+
+
 @dataclass
 class ProjectConfig:
     """The contents of nexttex.toml, with defaults for everything."""
@@ -268,6 +295,13 @@ class ProjectConfig:
     #: `nexttex/dictionaries.py` fetches. Here because every collaborator
     #: needs the same answer.
     language: str = ""
+    #: Word limits by heading, `{"Abstract": 250}`: a section, or the
+    #: abstract, whose title is a key here shows its count against the
+    #: number in the Sections drawer. Keyed by the title as the outline
+    #: cleans it, since that is what the writer sees and what survives a
+    #: section moving; a table of its own, `[project.limits]`, which an
+    #: older NextTex reads past.
+    word_limits: dict[str, int] = field(default_factory=dict)
 
     @classmethod
     def load(cls, root: Path) -> "ProjectConfig":
@@ -299,7 +333,14 @@ class ProjectConfig:
             blind=section.get("blind") is True,
             pdfa=section.get("pdfa") is True,
             language=cls._language(section.get("language")),
+            word_limits=cls._limits(section.get("limits")),
         )
+
+    @staticmethod
+    def _limits(raw: object) -> dict[str, int]:
+        """The word limits a config holds, each a heading's title and a
+        whole number of words; anything else in the table is dropped."""
+        return clean_limits(raw) or {}
 
     @staticmethod
     def _language(raw: object) -> str:
@@ -390,6 +431,11 @@ class ProjectConfig:
         if self.exclude:
             listed = ", ".join(_toml(item) for item in self.exclude)
             lines.append(f"exclude = [{listed}]")
+        if self.word_limits:
+            lines.append("")
+            lines.append("[project.limits]")
+            for title, words in self.word_limits.items():
+                lines.append(f"{_toml(title)} = {int(words)}")
         # `main` and `previews` are not written.  A toml that still has them
         # loses them on its first save, after the session has read them
         # into `.nexttex/previews.json`; see `inherited_documents`.
@@ -593,6 +639,7 @@ class Project:
             "blind": self.config.blind,
             "pdfa": self.config.pdfa,
             "language": self.config.language,
+            "wordLimits": dict(self.config.word_limits),
         }
 
 

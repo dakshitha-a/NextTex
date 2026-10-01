@@ -11513,3 +11513,43 @@ address, are the kit's link now. The direction page's "Links in a
 reply" draws it; `prose-inline.test.tsx` holds the parser and
 `e2e/specs/reply-links.spec.ts` follows a link from a reply and from
 the preview into a new tab, and finds the `javascript:` one as text.
+
+## 93. Limits that stay in view
+
+The first item of the roadmap run of 1 October 2026. Every venue has
+limits and a writer checks them weekly while drafting, but the page
+limit lived in *Before you submit*, which says so only when it is run,
+and nothing knew a word limit at all.
+
+A section, or the abstract, can carry a word limit, set once on its row
+in the Sections drawer. A row with no limit offers *Limit* under the
+pointer and on focus, a quiet inline button; pressing it, or pressing a
+limit's count, turns the row's end into a small field followed by the
+word "words", where Enter keeps the number, Escape leaves things as they
+were, and an emptied field takes the limit away. A limited row ends with
+"212 of 250" in the meta size and the third ink, and in the warning ink
+at 500 once the section runs over. Nothing is counted for a row without
+a limit, so an outline with none asks for nothing.
+
+The abstract is a row of the outline now, at the level of the file's top
+headings, since it is a place in the document and the one a limit most
+often applies to. Its count runs from its `\begin` to its `\end`; a
+section's runs from its heading to the next one at its level or above,
+so its subsections count towards it. The count is texcount's, through
+the route the strip's count uses, asked again after each build.
+
+The row is a plain element holding two buttons, the heading's jump and
+the limit's control, rather than a button around a button. The list
+stays one tab stop: the limit's control on the row the arrows are on is
+the next stop, and no other row's is.
+
+When the project has a page limit, the strip under the source says
+"7 of 8 pages" beside the word count, in the warning ink when over,
+from the last build of the whole document, since a fast build's page
+count is its chapter's. The limit is the one *Before you submit* sets,
+and the segment drops before the word count on a narrow pane. Limits
+are kept with the project in `nexttex.toml`, so a co-author's install
+shows the same ones; a change to them alone does not mark the page out
+of date. The direction page's "Limits that stay in view" draws it, and
+`e2e/specs/limits.spec.ts` sets, counts, keeps and takes away a limit
+and reads the strip within and over a page limit.

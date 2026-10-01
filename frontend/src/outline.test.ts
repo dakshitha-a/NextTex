@@ -23,6 +23,24 @@ describe("outline", () => {
     expect(found.map((h) => h.level)).toEqual([0, 1, 2, 4]);
   });
 
+  it("lists the abstract at the level of the file's top headings, with its end", () => {
+    const found = outline(
+      [
+        "\\begin{document}",
+        "\\begin{abstract}",
+        "What we found.",
+        "\\end{abstract}",
+        "\\section{Introduction}",
+      ].join("\n"),
+    );
+    expect(found).toEqual([
+      { kind: "abstract", level: 2, title: "Abstract", line: 2, end: 4 },
+      { kind: "section", level: 2, title: "Introduction", line: 5 },
+    ]);
+    // In a book the abstract sits beside the chapters, not under them.
+    expect(outline("\\begin{abstract}x\\end{abstract}\n\\chapter{One}")[0].level).toBe(1);
+  });
+
   it("keeps starred headings, which are places even when unnumbered", () => {
     const found = outline("\\section*{Acknowledgments}");
     expect(found).toEqual([

@@ -78,7 +78,7 @@ from nexttex.trash import Trash
 from nexttex.project import (
     Project, ProjectConfig, Registry, id_for, instance_name, is_control_path,
     ignored_directory, is_ours, kind_of, under_ignored_directory,
-    PROJECT_STATES,
+    PROJECT_STATES, clean_limits,
 )
 from nexttex.symbols import walk_project
 from nexttex import bibcheck, deps, export, lint_explain, prompts, search, texstyles, updates, usage
@@ -5730,15 +5730,19 @@ async def set_project_settings(
     blind: bool | None = Body(None),
     pdfa: bool | None = Body(None),
     language: str | None = Body(None),
+    wordLimits: dict | None = Body(None),
 ):
-    """The three switches and the engine choice on the settings card, and
-    the two venue facts the submission panel sets.
+    """The three switches and the engine choice on the settings card, the
+    two venue facts the submission panel sets, and the word limits the
+    Sections drawer sets.
 
     Any subset: the card sends the one that changed.  The engine is one
     of `compile.ENGINES` or "" for the default; anything else is refused
     rather than written, since the value goes into a file the project
     carries to other machines.  A page limit is a whole number, 0 for
-    none, and is refused outside that rather than clamped.
+    none, and is refused outside that rather than clamped.  `wordLimits`
+    is the whole table, title to words, and replaces the one kept; a table
+    with a pair `project.clean_limits` would drop is refused whole.
     """
     session = session_for(project_id)
     config = session.project.config
@@ -5764,6 +5768,13 @@ async def set_project_settings(
         if language and language != "en" and language not in dictionaries.LANGUAGES:
             raise HTTPException(400, f"there is no word list for {language!r}")
         config.language = language
+    if wordLimits is not None:
+        kept = clean_limits(wordLimits)
+        if kept is None or len(kept) != len(wordLimits):
+            raise HTTPException(
+                400, "a word limit is a heading's title and a whole number of words",
+            )
+        config.word_limits = kept
     try:
         config.save(session.project.root)
     except OSError as error:

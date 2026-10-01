@@ -71,6 +71,18 @@ export function countOf(raw: unknown): number {
   return typeof raw === "number" && Number.isInteger(raw) && raw > 0 ? raw : 0;
 }
 
+/** Word limits as the project sends them, title to words; anything that
+ *  is not a whole number above nothing is left out. */
+export function limitsOf(raw: unknown): Record<string, number> {
+  const kept: Record<string, number> = {};
+  if (!raw || typeof raw !== "object" || Array.isArray(raw)) return kept;
+  for (const [title, words] of Object.entries(raw as Record<string, unknown>)) {
+    const count = countOf(words);
+    if (title && count) kept[title] = count;
+  }
+  return kept;
+}
+
 export type CompileResult = {
   outcome: "ok" | "errors" | "cancelled" | "timeout" | "failed" | "no_engine";
   scope: string;
@@ -1000,6 +1012,7 @@ const api = {
       blind: boolean;
       pdfa: boolean;
       language: string;
+      wordLimits: Record<string, number>;
     }>,
   ) =>
     request<{
@@ -1014,6 +1027,7 @@ const api = {
       blind: boolean;
       pdfa: boolean;
       language: string;
+      wordLimits: Record<string, number>;
     }>(`/projects/${id}/settings`, json(patch)),
   /** This machine's answer to a project that asks for shell escape. The
    *  project asks in its own toml; the answer is kept per project on the

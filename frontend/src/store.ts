@@ -12,6 +12,7 @@ import { renamePaths } from "./tabs";
 import api, {
   clientId,
   countOf,
+  limitsOf,
   engineOf,
   shellEscapeOf,
   type CompileResult,
@@ -355,6 +356,9 @@ export type State = {
     /** The spelling language: "" to follow the preamble, "en", or one of
      *  the four whose lists are fetched. */
     language: string;
+    /** Word limits by heading title, which the Sections drawer counts
+     *  against. */
+    wordLimits: Record<string, number>;
   };
   /** Which optional tools the machine has, fetched once per load; null
    *  until it answers.  The download menu and the submission panel read
@@ -486,7 +490,7 @@ const state: State = {
   contextStale: [],
   settings: {
     autocompile: true, markErrors: true, markWarnings: false, engine: "", shellEscape: "off",
-    pageLimit: 0, blind: false, pdfa: false, language: "",
+    pageLimit: 0, blind: false, pdfa: false, language: "", wordLimits: {},
   },
   tools: null,
   agent: null,
@@ -1343,22 +1347,30 @@ function receive(event: any) {
     case "project_changed":
       // A settings change invalidates the preview, and the three switches
       // ride on the same event so that nothing has to re-read the whole
-      // project to learn one boolean.
-      setStale();
+      // project to learn one boolean. A word limit changes nothing the
+      // build makes, so a change to the limits alone leaves the page as
+      // it is rather than marking it out of date.
       if (typeof event.autocompile === "boolean") {
-        set({
-          settings: {
-            autocompile: event.autocompile,
-            markErrors: event.markErrors,
-            markWarnings: event.markWarnings,
-            engine: engineOf(event.engine),
-            shellEscape: shellEscapeOf(event.shellEscape),
-            pageLimit: countOf(event.pageLimit),
-            blind: event.blind === true,
-            pdfa: event.pdfa === true,
-            language: typeof event.language === "string" ? event.language : "",
-          },
-        });
+        const settings = {
+          autocompile: event.autocompile,
+          markErrors: event.markErrors,
+          markWarnings: event.markWarnings,
+          engine: engineOf(event.engine),
+          shellEscape: shellEscapeOf(event.shellEscape),
+          pageLimit: countOf(event.pageLimit),
+          blind: event.blind === true,
+          pdfa: event.pdfa === true,
+          language: typeof event.language === "string" ? event.language : "",
+          wordLimits: limitsOf(event.wordLimits),
+        };
+        const was = state.settings as Record<string, unknown>;
+        const moved = (Object.keys(settings) as (keyof typeof settings)[]).some(
+          (key) => key !== "wordLimits" && was[key] !== settings[key],
+        );
+        if (moved) setStale();
+        set({ settings });
+      } else {
+        setStale();
       }
       break;
     case "turn_start": {

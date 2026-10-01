@@ -1512,6 +1512,39 @@ const SURFACES: Record<string, Surface> = {
     },
     close: async (tab) => { await showDrawer(tab, "files"); },
   },
+  "limits": {
+    // Three limits, one over and one being typed, and a row under the
+    // pointer offering Limit, as "Limits that stay in view" draws them.
+    open: async (tab) => {
+      await tab.route("**/words?*", (route) => {
+        const first = Number(new URL(route.request().url()).searchParams.get("first"));
+        route.fulfill({ json: { words: first < 40 ? 212 : 1240, scope: "section" } });
+      });
+      await tab.request.post(`${ctx!.base}/api/projects/${ctx!.id}/settings`, {
+        data: { wordLimits: { Abstract: 250, Discussion: 1200 } },
+      });
+      await showDrawer(tab, "sections");
+      await tab.getByTestId("section-limit").first().waitFor();
+      const results = tab.locator(".nx-section-row").filter({ hasText: "Results" });
+      await results.hover();
+      return tab.getByTestId("drawer");
+    },
+    close: async (tab) => {
+      await tab.request.post(`${ctx!.base}/api/projects/${ctx!.id}/settings`, { data: { wordLimits: {} } });
+      await showDrawer(tab, "files");
+    },
+  },
+  "page-count": {
+    open: async (tab) => {
+      await tab.request.post(`${ctx!.base}/api/projects/${ctx!.id}/settings`, { data: { pageLimit: 1 } });
+      await tab.locator("[data-testid='status-strip'] >> text=Rebuild").click({ modifiers: ["Shift"] });
+      await tab.getByTestId("page-count").waitFor({ timeout: 60_000 });
+      return tab.getByTestId("status-strip");
+    },
+    close: async (tab) => {
+      await tab.request.post(`${ctx!.base}/api/projects/${ctx!.id}/settings`, { data: { pageLimit: 0 } });
+    },
+  },
   "drawer-search": {
     open: async (tab) => {
       await showDrawer(tab, "search");

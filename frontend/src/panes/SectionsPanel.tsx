@@ -1,8 +1,16 @@
 import { useEffect, useMemo, useRef, useState } from "react";
 import { headingAt, type Heading } from "../outline";
-import { useStore } from "../store";
+import { get, set, useStore } from "../store";
 import { Chevron } from "../chrome";
-import { Empty, Pressable } from "../ui/controls";
+import api from "../api";
+import { limitable, limitLabel, limitSpan } from "../words";
+import { Button } from "../ui/Button";
+import { Empty, Input, Pressable } from "../ui/controls";
+
+/** Past the last line of any file: the last section's limit is counted to
+ *  the end of the file, and asking for the line count here would recount
+ *  on every newline typed. The server takes the lines that exist. */
+const TO_THE_END = 1_000_000;
 
 /** The indent step, matching the file tree above it: the width of a Source
  *  Sans lowercase n at 13px, so the two lists sit on one grid. */
@@ -44,6 +52,15 @@ export default function SectionsPanel({
   const activePath = useStore((s) => s.activePath);
   const tree = useStore((s) => s.tree);
   const viewing = useStore((s) => s.viewing);
+  const projectId = useStore((s) => s.projectId);
+  const limits = useStore((s) => s.settings.wordLimits);
+  const builtAt = useStore((s) => s.pdfStamp);
+  // The row whose limit is being typed, by its line, and what is typed.
+  const [editing, setEditing] = useState<number | null>(null);
+  const [draft, setDraft] = useState("");
+  // Counted words for each limited row, by its title; a row whose count
+  // has not come back yet shows a dash.
+  const [counts, setCounts] = useState<Record<string, number | null>>({});
   // A roving tabindex, as in the file tree beside it: the list is one tab
   // stop and the arrow keys move within it.  A chapter file has forty
   // headings, and forty tab stops between the tree and the trash is not a
@@ -57,7 +74,58 @@ export default function SectionsPanel({
   // fault as the file tree's, in the panel underneath it.
   const stop = headings.length ? Math.min(focused, headings.length - 1) : 0;
   useEffect(() => setFocused(0), [activePath]);
+  useEffect(() => setEditing(null), [activePath]);
   const list = useRef<HTMLDivElement | null>(null);
+
+  // Only rows with a limit are counted, by the counter the strip uses, and
+  // again after each build, which is when the strip counts too. A file
+  // with no limits asks for nothing.
+  const limited = useMemo(
+    () => headings
+      .map((heading, index) => ({ heading, index }))
+      .filter(({ heading }) => limitable(heading) && limits[heading.title]),
+    [headings, limits],
+  );
+  useEffect(() => {
+    if (!projectId || !activePath || viewing || !limited.length) {
+      setCounts({});
+      return;
+    }
+    let cancelled = false;
+    void Promise.all(
+      limited.map(async ({ heading, index }) => {
+        const span = limitSpan(headings, index, TO_THE_END);
+        try {
+          const result = await api.words(projectId, activePath, "section", span);
+          return [heading.title, result.words] as const;
+        } catch {
+          return [heading.title, null] as const;
+        }
+      }),
+    ).then((found) => {
+      if (!cancelled) setCounts(Object.fromEntries(found));
+    });
+    return () => {
+      cancelled = true;
+    };
+  }, [projectId, activePath, viewing, limited, headings, builtAt]);
+
+  // The whole table goes to the project, which keeps it in nexttex.toml
+  // and tells every window; this one takes it at once rather than after
+  // the round trip.
+  const keepLimit = (title: string, raw: string) => {
+    setEditing(null);
+    const words = Number.parseInt(raw.replace(/[^0-9]/g, ""), 10);
+    const next = { ...limits };
+    if (Number.isFinite(words) && words > 0) next[title] = Math.min(words, 100_000);
+    else delete next[title];
+    if (JSON.stringify(next) === JSON.stringify(limits) || !projectId) return;
+    const settings = get().settings;
+    set({ settings: { ...settings, wordLimits: next } });
+    void api.setProjectSettings(projectId, { wordLimits: next }).catch(() => {
+      set({ settings: { ...get().settings, wordLimits: limits } });
+    });
+  };
 
   // Where the caret is, which is what makes this navigation rather than a
   // list: the section being written is the one shown as current.
@@ -146,59 +214,123 @@ export default function SectionsPanel({
                 // wash under the pointer and the chosen one, 16 px per
                 // level, the pen dot on the heading under the caret, and a
                 // heading whose file is not in the project yet greyed with
-                // the reason as its tail.
-                <Pressable
+                // the reason as its tail. The row is a plain element with
+                // a button for its own act, the jump, and the limit's
+                // control beside it, so neither is inside the other.
+                <div
                   key={`${heading.line}:${heading.title}`}
-                  data-testid="section-row"
-                  aria-current={current ? "true" : undefined}
+                  className={`nx-row nx-section-row shrink-0 ${gone ? "!text-ink-3 hover:!bg-transparent" : ""}`}
                   data-selected={current || undefined}
-                  data-line={heading.line}
-                  data-kind={heading.kind}
-                  disabled={gone}
-                  tabIndex={index === stop ? 0 : -1}
-                  className={`nx-row shrink-0 ${gone ? "cursor-default !text-ink-3 hover:!bg-transparent" : ""}`}
                   style={{ paddingLeft: 8 + (heading.level - base) * INDENT }}
-                  title={
-                    heading.path
-                      ? gone
-                        ? `${heading.path} is not in this project yet`
-                        : `Open ${heading.path}`
-                      : `${heading.title}, line ${heading.line}`
-                  }
-                  onFocus={() => setFocused(index)}
-                  onClick={() => onJump(heading)}
-                  onKeyDown={(event) => {
-                    if (event.key === "ArrowDown") {
-                      event.preventDefault();
-                      moveFocus(index + 1);
-                    } else if (event.key === "ArrowUp") {
-                      event.preventDefault();
-                      moveFocus(index - 1);
-                    } else if (event.key === "Home") {
-                      event.preventDefault();
-                      moveFocus(0);
-                    } else if (event.key === "End") {
-                      event.preventDefault();
-                      moveFocus(headings.length - 1);
-                    }
-                  }}
                 >
-                  {/* A dot rather than a rule or a fill: the mark moves as
-                      the writer types, and anything that changed a row's
-                      size would shift every row below it several times a
-                      minute.  A fill would also take the row's own hover. */}
-                  <span
-                    className={`h-1.25 w-1.25 shrink-0 rounded-full ${
-                      current ? "bg-pen" : "bg-transparent"
-                    }`}
-                  />
-                  <span className={`nx-row-label ${weight}`}>{heading.title}</span>
-                  {gone ? (
-                    <span className="nx-row-trailing nx-row-trailing-always">not in the project yet</span>
-                  ) : mixed && heading.path ? (
-                    <span className="nx-row-trailing nx-row-trailing-always">file</span>
-                  ) : null}
-                </Pressable>
+                  <Pressable
+                    data-testid="section-row"
+                    aria-current={current ? "true" : undefined}
+                    data-line={heading.line}
+                    data-kind={heading.kind}
+                    disabled={gone}
+                    tabIndex={index === stop ? 0 : -1}
+                    className={`nx-section-jump ${gone ? "cursor-default" : ""}`}
+                    title={
+                      heading.path
+                        ? gone
+                          ? `${heading.path} is not in this project yet`
+                          : `Open ${heading.path}`
+                        : `${heading.title}, line ${heading.line}`
+                    }
+                    onFocus={() => setFocused(index)}
+                    onClick={() => onJump(heading)}
+                    onKeyDown={(event) => {
+                      if (event.key === "ArrowDown") {
+                        event.preventDefault();
+                        moveFocus(index + 1);
+                      } else if (event.key === "ArrowUp") {
+                        event.preventDefault();
+                        moveFocus(index - 1);
+                      } else if (event.key === "Home") {
+                        event.preventDefault();
+                        moveFocus(0);
+                      } else if (event.key === "End") {
+                        event.preventDefault();
+                        moveFocus(headings.length - 1);
+                      }
+                    }}
+                  >
+                    {/* A dot rather than a rule or a fill: the mark moves as
+                        the writer types, and anything that changed a row's
+                        size would shift every row below it several times a
+                        minute.  A fill would also take the row's own hover. */}
+                    <span
+                      className={`h-1.25 w-1.25 shrink-0 rounded-full ${
+                        current ? "bg-pen" : "bg-transparent"
+                      }`}
+                    />
+                    <span className={`nx-row-label ${weight}`}>{heading.title}</span>
+                    {gone ? (
+                      <span className="nx-row-trailing nx-row-trailing-always">not in the project yet</span>
+                    ) : mixed && heading.path ? (
+                      <span className="nx-row-trailing nx-row-trailing-always">file</span>
+                    ) : null}
+                  </Pressable>
+                  {gone || !limitable(heading) || viewing ? null : editing === heading.line ? (
+                    <span className="nx-limit-edit">
+                      <Input
+                        autoFocus
+                        inputMode="numeric"
+                        aria-label={`Word limit for ${heading.title}`}
+                        data-testid="section-limit-field"
+                        className="nx-limit-field"
+                        value={draft}
+                        placeholder="none"
+                        onChange={(event) => setDraft(event.target.value)}
+                        onKeyDown={(event) => {
+                          if (event.key === "Enter") {
+                            event.preventDefault();
+                            keepLimit(heading.title, draft);
+                          } else if (event.key === "Escape") {
+                            event.preventDefault();
+                            event.stopPropagation();
+                            setEditing(null);
+                          }
+                        }}
+                        onBlur={() => editing === heading.line && keepLimit(heading.title, draft)}
+                      />
+                      words
+                    </span>
+                  ) : limits[heading.title] ? (
+                    <Pressable
+                      data-testid="section-limit"
+                      tabIndex={index === stop ? 0 : -1}
+                      data-over={(counts[heading.title] ?? 0) > limits[heading.title] || undefined}
+                      className="nx-limit-count"
+                      title={`A limit of ${limits[heading.title].toLocaleString()} words. Press to change it.`}
+                      onClick={() => {
+                        setDraft(String(limits[heading.title]));
+                        setEditing(heading.line);
+                      }}
+                    >
+                      {limitLabel(counts[heading.title] ?? null, limits[heading.title])}
+                    </Pressable>
+                  ) : (
+                    <span className="nx-row-trailing">
+                      {/* Reached by Tab from its own row only: the list stays
+                          one stop, and the row being walked offers its
+                          limit as the next. */}
+                      <Button
+                        size="inline"
+                        tabIndex={index === stop ? 0 : -1}
+                        data-testid="section-limit-set"
+                        title={`Set a word limit for ${heading.title}`}
+                        onClick={() => {
+                          setDraft("");
+                          setEditing(heading.line);
+                        }}
+                      >
+                        Limit
+                      </Button>
+                    </span>
+                  )}
+                </div>
               );
             })
           )}

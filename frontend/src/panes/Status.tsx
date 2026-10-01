@@ -39,7 +39,19 @@ export default function Status({
   // A project asking for shell escape that this machine has not answered.
   // The question is drawn in the Build drawer, and the strip says so.
   const askShell = useStore((s) => s.settings.shellEscape) === "asked";
+  const pageLimit = useStore((s) => s.settings.pageLimit);
+  const projectId = useStore((s) => s.projectId);
   const [slow, setSlow] = useState(false);
+  // Pages from the last build of the whole document: a fast build typesets
+  // one chapter, and its page count is the chapter's, which against the
+  // venue's limit would read as room the paper does not have.
+  const [pages, setPages] = useState<number | null>(null);
+  useEffect(() => {
+    if (result && result.scope === "full" && typeof result.pages === "number") {
+      setPages(result.pages);
+    }
+  }, [result]);
+  useEffect(() => setPages(null), [projectId]);
 
   useEffect(() => {
     if (!compiling) {
@@ -191,6 +203,18 @@ export default function Status({
           </Pressable>
         ) : null}
       </span>
+      {/* Pages against the venue's limit, only once a limit is set, and
+          dropped before the word count, which a writer checks more often. */}
+      {pageLimit > 0 && pages !== null ? (
+        <span
+          className={`tnum hidden shrink-0 @[360px]:inline ${pages > pageLimit ? "font-medium text-warn" : ""}`}
+          data-testid="page-count"
+          data-over={pages > pageLimit || undefined}
+          title="Pages in the last full build, against the page limit in Before you submit"
+        >
+          {pages.toLocaleString()} of {pageLimit.toLocaleString()} {pageLimit === 1 ? "page" : "pages"}
+        </span>
+      ) : null}
       {/* Dropped like every other segment when the pane is narrow, rather
           than clipped: the strip never reflows; it drops. */}
       <Pressable

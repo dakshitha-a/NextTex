@@ -1011,6 +1011,7 @@ class ProjectSession:
             "blind": config.blind,
             "pdfa": config.pdfa,
             "language": config.language,
+            "wordLimits": dict(config.word_limits),
         }
 
     def documents_payload(self) -> dict:

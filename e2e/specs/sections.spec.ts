@@ -35,10 +35,13 @@ async function sections(tab: Page) {
 test("the rail lists the sections of the file in the editor", async ({ tab }) => {
   await sections(tab);
   const rows = tab.getByTestId("section-row");
-  await expect(rows).toHaveCount(3);
-  await expect(rows.nth(0)).toContainText("Introduction");
-  await expect(rows.nth(1)).toContainText("Results");
-  await expect(rows.nth(2)).toContainText("Discussion");
+  // The abstract is a place in the document too, and the row a word limit
+  // most often sits on.
+  await expect(rows).toHaveCount(4);
+  await expect(rows.nth(0)).toContainText("Abstract");
+  await expect(rows.nth(1)).toContainText("Introduction");
+  await expect(rows.nth(2)).toContainText("Results");
+  await expect(rows.nth(3)).toContainText("Discussion");
 });
 
 test("clicking a section puts the caret in it", async ({ tab }) => {
@@ -194,9 +197,9 @@ test("the sections list is one tab stop, walked with the arrows", async ({
   await tab.keyboard.press("ArrowDown");
   await expect(rows.nth(1)).toBeFocused();
   await tab.keyboard.press("End");
-  await expect(rows.nth(2)).toBeFocused();
+  await expect(rows.nth(3)).toBeFocused();
   await tab.keyboard.press("Enter");
-  await expect(rows.nth(2)).toHaveAttribute("aria-current", "true");
+  await expect(rows.nth(3)).toHaveAttribute("aria-current", "true");
 });
 
 test("an include for a file that is not there says so instead of doing nothing", async ({

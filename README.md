@@ -229,6 +229,8 @@ in the middle.
 
 - **Before you submit.** A checklist for undefined references, leftover TODOs,
   page limits and blind review.
+- **Limits in view.** A word limit on the abstract or a section, counted beside
+  it in the outline, and the pages against the page limit under the source.
 - **Spelling in five languages**, and grammar in English, all on your machine.
 - **Comments and suggested edits**, for co-authors or as notes to yourself.
 - **Several documents in one folder**, each with its own PDF. There is no main

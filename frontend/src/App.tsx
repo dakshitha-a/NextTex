@@ -3,7 +3,7 @@ import { shellTheme } from "./ui/FloatingCard";
 import { useCallback, useEffect, useRef, useMemo, useState, lazy, Suspense, type ReactNode } from "react";
 import type { WordHint } from "./panes/locate-word";
 import api, {
-  captureToken, countOf, engineOf, landingAfter, shellEscapeOf,
+  captureToken, countOf, engineOf, limitsOf, landingAfter, shellEscapeOf,
   type ScriptResult, type WordScope,
 } from "./api";
 import { Followed } from "./followed";
@@ -599,6 +599,7 @@ export default function App() {
         blind: project.blind === true,
         pdfa: project.pdfa === true,
         language: typeof project.language === "string" ? project.language : "",
+        wordLimits: limitsOf(project.wordLimits),
       },
       // The last project's import progress, which belongs to the last
       // project. It was left, so opening another one showed a papers
