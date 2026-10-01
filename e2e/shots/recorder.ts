@@ -2,18 +2,18 @@ import type { CDPSession, Locator, Page } from "@playwright/test";
 import { mkdirSync, rmSync, writeFileSync } from "node:fs";
 import { join } from "node:path";
 
-/** Frames for the README's GIFs, and where the camera should look.
+/** Frames for the README's animations, and where the camera should look.
  *
  *  The browser is filmed through the DevTools screencast, which sends a
  *  frame each time the page repaints, with the time it painted, so a
  *  scene that sits still costs nothing and one that types costs a frame a
  *  keystroke.  Every frame is the whole viewport at full resolution; the
  *  zooming is not done here.  The scene says what matters and when, with
- *  `focus` and `wide`, and `e2e/shots/gif.py` turns those marks into a
+ *  `focus` and `wide`, and `e2e/shots/animate.py` turns those marks into a
  *  camera that glides between them, cropping the full frames, so a zoomed
  *  view is as sharp as the screen was and never an enlarged thumbnail.
  *
- *  Headless Chromium draws no mouse pointer, and a GIF where things are
+ *  Headless Chromium draws no mouse pointer, and an animation where things are
  *  clicked by nobody is hard to follow, so `install` puts a drawn pointer
  *  on the page that follows the real one and pulses on a click. */
 
@@ -109,7 +109,7 @@ export class Recorder {
   }
 
   /** Wait for something slow, a build or a search, and play the wait
-   *  back faster, so the GIF spends its seconds on what happens rather
+   *  back faster, so the animation spends its seconds on what happens rather
    *  than on the wait for it. */
   async quickly<T>(wait: () => Promise<T>, speed = 5): Promise<T> {
     const from = this.now();

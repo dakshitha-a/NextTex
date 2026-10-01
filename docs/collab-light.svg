@@ -1,26 +1,27 @@
-<svg xmlns="http://www.w3.org/2000/svg" width="1040" height="330" viewBox="0 0 1040 330" role="img" aria-label="Two NextTex installs, each holding a whole copy of the project, connected directly and encrypted to the other's public key. A relay forwards ciphertext only when a direct route cannot be made. There is no server in the middle and no accounts.">
+<svg xmlns="http://www.w3.org/2000/svg" width="760" height="380" viewBox="0 0 760 380" role="img" aria-label="Two NextTex installs, each holding a whole copy of the project, connected directly and encrypted to the other's public key. A relay forwards ciphertext only when a direct route cannot be made. There is no server in the middle and no accounts.">
 <title>Writing it with somebody else</title>
-<rect width="1040" height="330" rx="10" fill="#E3E7E2"/>
-<text x="24" y="34" font-family="ui-sans-serif,system-ui,-apple-system,Segoe UI,Roboto,sans-serif" font-size="11" letter-spacing="1.6" fill="#4E534D">WRITING IT WITH SOMEBODY ELSE</text>
-<rect x="400" y="56" width="240" height="54" rx="5" fill="#FFFFFF" stroke="#B9BEB8" stroke-width="1" stroke-dasharray="5 4"/>
-<text x="416" y="80" font-family="ui-sans-serif,system-ui,-apple-system,Segoe UI,Roboto,sans-serif" font-size="13" font-weight="600" fill="#373B36">A relay, only if needed</text>
-<text x="416" y="98" font-family="ui-sans-serif,system-ui,-apple-system,Segoe UI,Roboto,sans-serif" font-size="11" fill="#4E534D">forwards ciphertext, sees nothing</text>
-<line x1="300" y1="176" x2="440" y2="110" stroke="#B9BEB8" stroke-width="1.5" stroke-dasharray="4 4"/>
-<line x1="740" y1="176" x2="600" y2="110" stroke="#B9BEB8" stroke-width="1.5" stroke-dasharray="4 4"/>
-<rect x="24" y="176" width="380" height="118" rx="5" fill="#FFFFFF" stroke="#B9BEB8" stroke-width="1"/>
-<text x="42" y="204" font-family="ui-sans-serif,system-ui,-apple-system,Segoe UI,Roboto,sans-serif" font-size="14" font-weight="600" fill="#141715">Your NextTex</text>
-<text x="42" y="228" font-family="ui-sans-serif,system-ui,-apple-system,Segoe UI,Roboto,sans-serif" font-size="11" fill="#4E534D">every file, and what they used to say</text>
-<text x="42" y="248" font-family="ui-sans-serif,system-ui,-apple-system,Segoe UI,Roboto,sans-serif" font-size="11" fill="#4E534D">its own history, its own trash</text>
-<text x="42" y="268" font-family="ui-sans-serif,system-ui,-apple-system,Segoe UI,Roboto,sans-serif" font-size="11" fill="#4E534D">its own .git, its own backups</text>
-<rect x="636" y="176" width="380" height="118" rx="5" fill="#FFFFFF" stroke="#B9BEB8" stroke-width="1"/>
-<text x="654" y="204" font-family="ui-sans-serif,system-ui,-apple-system,Segoe UI,Roboto,sans-serif" font-size="14" font-weight="600" fill="#141715">Their NextTex</text>
-<text x="654" y="228" font-family="ui-sans-serif,system-ui,-apple-system,Segoe UI,Roboto,sans-serif" font-size="11" fill="#4E534D">every file, and what they used to say</text>
-<text x="654" y="248" font-family="ui-sans-serif,system-ui,-apple-system,Segoe UI,Roboto,sans-serif" font-size="11" fill="#4E534D">its own history, its own trash</text>
-<text x="654" y="268" font-family="ui-sans-serif,system-ui,-apple-system,Segoe UI,Roboto,sans-serif" font-size="11" fill="#4E534D">its own .git, its own backups</text>
-<line x1="414" y1="235" x2="626" y2="235" stroke="#6F2998" stroke-width="1.5"/>
-<path d="M625 231 l6 4 -6 4z" fill="#6F2998"/>
-<path d="M415 231 l-6 4 6 4z" fill="#6F2998"/>
-<text x="520" y="224" text-anchor="middle" font-family="ui-monospace,SFMono-Regular,Menlo,monospace" font-size="11" fill="#6F2998">encrypted, direct</text>
-<text x="520" y="254" text-anchor="middle" font-family="ui-sans-serif,system-ui,-apple-system,Segoe UI,Roboto,sans-serif" font-size="10" fill="#4E534D">to their key, not an address</text>
-<text x="24" y="318" font-family="ui-sans-serif,system-ui,-apple-system,Segoe UI,Roboto,sans-serif" font-size="12" fill="#373B36">No accounts and nothing in the middle. Both of you can write with the other machine shut, and the two sets of edits are merged when it wakes.</text>
+<rect width="760" height="380" rx="10" fill="#E3E7E2"/>
+<text x="20" y="32" font-family="ui-sans-serif,system-ui,-apple-system,Segoe UI,Roboto,sans-serif" font-size="12" fill="#4E534D" letter-spacing="1.6">WRITING IT WITH SOMEBODY ELSE</text>
+<rect x="240" y="52" width="280" height="62" rx="6" fill="#FFFFFF" stroke="#B9BEB8" stroke-dasharray="5 4"/>
+<text x="380" y="78" font-family="ui-sans-serif,system-ui,-apple-system,Segoe UI,Roboto,sans-serif" font-size="15" font-weight="600" text-anchor="middle" fill="#373B36">A relay, only if needed</text>
+<text x="380" y="100" font-family="ui-sans-serif,system-ui,-apple-system,Segoe UI,Roboto,sans-serif" font-size="14" text-anchor="middle" fill="#4E534D">forwards ciphertext, sees nothing</text>
+<line x1="170" y1="160" x2="280" y2="114" stroke="#B9BEB8" stroke-width="1.75" stroke-dasharray="4 4"/>
+<line x1="590" y1="160" x2="480" y2="114" stroke="#B9BEB8" stroke-width="1.75" stroke-dasharray="4 4"/>
+<rect x="16" y="160" width="280" height="128" rx="6" fill="#FFFFFF" stroke="#B9BEB8"/>
+<text x="34" y="192" font-family="ui-sans-serif,system-ui,-apple-system,Segoe UI,Roboto,sans-serif" font-size="16" font-weight="600" fill="#141715">Your NextTex</text>
+<text x="34" y="218" font-family="ui-sans-serif,system-ui,-apple-system,Segoe UI,Roboto,sans-serif" font-size="14" fill="#4E534D">every file, and what it used to say</text>
+<text x="34" y="240" font-family="ui-sans-serif,system-ui,-apple-system,Segoe UI,Roboto,sans-serif" font-size="14" fill="#4E534D">its own history and trash</text>
+<text x="34" y="262" font-family="ui-sans-serif,system-ui,-apple-system,Segoe UI,Roboto,sans-serif" font-size="14" fill="#4E534D">its own .git and backups</text>
+<rect x="464" y="160" width="280" height="128" rx="6" fill="#FFFFFF" stroke="#B9BEB8"/>
+<text x="482" y="192" font-family="ui-sans-serif,system-ui,-apple-system,Segoe UI,Roboto,sans-serif" font-size="16" font-weight="600" fill="#141715">Their NextTex</text>
+<text x="482" y="218" font-family="ui-sans-serif,system-ui,-apple-system,Segoe UI,Roboto,sans-serif" font-size="14" fill="#4E534D">every file, and what it used to say</text>
+<text x="482" y="240" font-family="ui-sans-serif,system-ui,-apple-system,Segoe UI,Roboto,sans-serif" font-size="14" fill="#4E534D">its own history and trash</text>
+<text x="482" y="262" font-family="ui-sans-serif,system-ui,-apple-system,Segoe UI,Roboto,sans-serif" font-size="14" fill="#4E534D">its own .git and backups</text>
+<line x1="305" y1="226" x2="455" y2="226" stroke="#6F2998" stroke-width="1.75"/>
+<path d="M455 221 l7 5 -7 5z" fill="#6F2998"/>
+<path d="M305 221 l-7 5 7 5z" fill="#6F2998"/>
+<text x="380" y="214" font-family="ui-sans-serif,system-ui,-apple-system,Segoe UI,Roboto,sans-serif" font-size="14" text-anchor="middle" fill="#6F2998">encrypted,</text>
+<text x="380" y="250" font-family="ui-sans-serif,system-ui,-apple-system,Segoe UI,Roboto,sans-serif" font-size="14" text-anchor="middle" fill="#6F2998">direct</text>
+<text x="20" y="322" font-family="ui-sans-serif,system-ui,-apple-system,Segoe UI,Roboto,sans-serif" font-size="14" fill="#373B36">No accounts and nothing in the middle. Each of you can write</text>
+<text x="20" y="346" font-family="ui-sans-serif,system-ui,-apple-system,Segoe UI,Roboto,sans-serif" font-size="14" fill="#373B36">with the other machine shut; the edits merge when it wakes.</text>
 </svg>

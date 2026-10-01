@@ -18,8 +18,8 @@ Like a Jupyter notebook for papers.
 · **[Report a bug](#found-a-bug)**
 
 <picture>
-  <source media="(prefers-color-scheme: dark)" srcset="docs/tour/hero-dark.gif">
-  <img alt="Typing a sentence into the abstract; the typeset page redraws a moment later, and a double-click on the page puts the caret back on the line that set it." src="docs/tour/hero-light.gif" width="880">
+  <source media="(prefers-color-scheme: dark)" srcset="docs/tour/hero-dark.webp">
+  <img alt="Typing a sentence into the abstract; the typeset page redraws a moment later, and a double-click on the page puts the caret back on the line that set it." src="docs/tour/hero-light.webp" width="880">
 </picture>
 
 <sub>Type a sentence, and the page catches up. Double-click the page, and you are back on the line.</sub>
@@ -101,7 +101,7 @@ steps](docs/install.md#uninstalling)
 
 <table>
 <tr>
-<td width="50%"><picture><source media="(prefers-color-scheme: dark)" srcset="docs/tour/hero-dark.gif"><img src="docs/tour/hero-light.gif" alt="The page following the typing" width="380"></picture></td>
+<td width="50%"><picture><source media="(prefers-color-scheme: dark)" srcset="docs/tour/hero-dark.webp"><img src="docs/tour/hero-light.webp" alt="The page following the typing" width="380"></picture></td>
 <td width="50%">
 
 ### The page follows your typing
@@ -124,10 +124,10 @@ it. It also says which error to fix first. No AI involved.
 [More on errors →](docs/guide.md#it-tells-you-what-the-error-means)
 
 </td>
-<td><img src="docs/tour/errors.gif" alt="A missing dollar sign; the strip counts one error; the Build drawer explains it in plain words; the fix makes it go away." width="380"></td>
+<td><img src="docs/tour/errors.webp" alt="A missing dollar sign; the strip counts one error; the Build drawer explains it in plain words; the fix makes it go away." width="380"></td>
 </tr>
 <tr>
-<td><picture><source media="(prefers-color-scheme: dark)" srcset="docs/screenshot-hover-dark.png"><img src="docs/screenshot-hover-light.png" alt="A figure's card beside its row in the Files drawer, and a table drawn over its source." width="380"></picture></td>
+<td><picture><source media="(prefers-color-scheme: dark)" srcset="docs/screenshot-hover-detail-dark.png"><img src="docs/screenshot-hover-detail-light.png" alt="A figure's card beside its row in the Files drawer, and a table drawn over its source." width="380"></picture></td>
 <td>
 
 ### See it without building
@@ -152,7 +152,7 @@ When you do use git, it is one drawer: see what changed, commit and push, pull.
 [More on history and git →](docs/guide.md#every-pause-is-a-version)
 
 </td>
-<td><img src="docs/tour/history-git.gif" alt="A paragraph deleted and brought back from History, then committed from the Git drawer." width="380"></td>
+<td><img src="docs/tour/history-git.webp" alt="A paragraph deleted and brought back from History, then committed from the Git drawer." width="380"></td>
 </tr>
 <tr>
 <td align="center"><picture><source media="(prefers-color-scheme: dark)" srcset="docs/screenshot-agent-dark.png"><img src="docs/screenshot-agent-light.png" alt="The agent column mid-turn: a plan ticking itself off, an edit with Show and Undo, and a card asking before it runs a script." width="220"></picture></td>
@@ -190,10 +190,10 @@ no path from the model's memory to your `.bib` file.
 [More on references →](docs/guide.md#it-cannot-invent-a-citation)
 
 </td>
-<td><img src="docs/tour/citations.gif" alt="A search in the References drawer, Add, and the new key chosen from the completion list after typing \cite{." width="380"></td>
+<td><img src="docs/tour/citations.webp" alt="A search in the References drawer, Add, and the new key chosen from the completion list after typing \cite{." width="380"></td>
 </tr>
 <tr>
-<td><img src="docs/tour/download.gif" alt="The Download drawer: one block per document, a chip per format, and the Word file it makes." width="380"></td>
+<td><img src="docs/tour/download.webp" alt="The Download drawer: one block per document, a chip per format, and the Word file it makes." width="380"></td>
 <td>
 
 ### Download as PDF, Word, HTML or Markdown
@@ -219,7 +219,7 @@ in the middle.
 [How sharing works ↓](#writing-together)
 
 </td>
-<td><img src="docs/tour/together.gif" alt="A co-author's named cursor arrives in the paragraph and types a sentence, live." width="380"><br><picture><source media="(prefers-color-scheme: dark)" srcset="docs/collab-dark.svg"><img src="docs/collab-light.svg" alt="Two NextTex installs, each holding a whole copy, connected directly and encrypted." width="380"></picture></td>
+<td><img src="docs/tour/together.webp" alt="A co-author's named cursor arrives in the paragraph and types a sentence, live." width="380"></td>
 </tr>
 </table>
 
@@ -255,6 +255,13 @@ itself up to date.
 
 From then on, the two copies stay in step.
 
+<p align="center">
+<picture>
+  <source media="(prefers-color-scheme: dark)" srcset="docs/collab-dark.svg">
+  <img alt="Two NextTex installs, each holding a whole copy of the project, connected directly and encrypted to the other's key. A relay forwards ciphertext only when a direct route cannot be made. There are no accounts and nothing in the middle." src="docs/collab-light.svg" width="760">
+</picture>
+</p>
+
 | When this happens | NextTex does this |
 |---|---|
 | You both type at once | You see each other's cursor, with a name, live. |
@@ -274,7 +281,7 @@ project you share, and passes edits along whenever anyone is online.
 <p align="center">
 <picture>
   <source media="(prefers-color-scheme: dark)" srcset="docs/host-dark.svg">
-  <img alt="Three writers' computers, each connected to one always-on host in the middle. A writer online in the morning and one online at night both reach the host, so their edits cross even though they are never online together." src="docs/host-light.svg" width="640">
+  <img alt="Three writers' computers, each connected to one always-on host in the middle. A writer online in the morning and one online at night both reach the host, so their edits cross even though they are never online together." src="docs/host-light.svg" width="760">
 </picture>
 <br>
 <sub>Each writer still runs their own NextTex, with their own name and their own agent. The host only keeps the shared projects in step.</sub>

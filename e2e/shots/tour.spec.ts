@@ -8,7 +8,7 @@ import { ROOT, startServer, type Instance } from "../server";
 import { plot } from "../png";
 import { Recorder, glide } from "./recorder";
 
-/** The README's GIFs, filmed in the real app.
+/** The README's animations, filmed in the real app.
  *
  *  Beside `hero.spec.ts` and run by hand the same way, since it writes
  *  into `docs/tour/`:
@@ -17,9 +17,9 @@ import { Recorder, glide } from "./recorder";
  *
  *  Each scene follows its storyboard on the README's design page: what
  *  happens, and where the camera looks while it does.  The scene only
- *  says "look here" and "pull back"; `gif.py` moves the camera and cuts
+ *  says "look here" and "pull back"; `animate.py` moves the camera and cuts
  *  the frames.  Six scenes, seven files: the hero in both themes, the
- *  five tour GIFs in dark.
+ *  five tour animations in dark, as animated WebP.
  *
  *  Nothing reaches the network.  The reference search is answered by a
  *  route in the page, the way `papers.spec.ts` answers it, and the
@@ -111,7 +111,7 @@ async function dress(tab: Page, theme: "light" | "dark") {
   await expect(tab.locator("canvas").first()).toBeVisible({ timeout: 60_000 });
 }
 
-/** The tour GIFs are about one thing each, so the agent column folds away
+/** The tour animations are about one thing each, so the agent column folds away
  *  and the source and the page get the width. */
 async function withoutAgent(tab: Page) {
   if (await tab.getByTestId("chat").isVisible().catch(() => false)) {
@@ -172,11 +172,13 @@ async function caretToEndOf(tab: Page, text: string) {
   await tab.keyboard.press("End");
 }
 
-/** The hero is shown at the README's full width; a tour GIF sits in half
- *  of a table, so 640 pixels is already twice what most screens draw. */
-function gif(scene: string, out: string, extra: string[] = ["--width", "640", "--fps", "10"]) {
+/** The hero is shown at the README's full width and a tour animation in
+ *  half of a table, so the hero is cut at 1280 pixels and the rest at
+ *  960, both at 25 frames a second, which is still about twice what the
+ *  README draws them at on a fine screen. */
+function animate(scene: string, out: string, extra: string[] = ["--width", "960"]) {
   mkdirSync(OUT, { recursive: true });
-  const printed = execFileSync(PYTHON, [join(ROOT, "e2e", "shots", "gif.py"), join(FRAMES, scene), join(OUT, out), ...extra], { encoding: "utf8" });
+  const printed = execFileSync(PYTHON, [join(ROOT, "e2e", "shots", "animate.py"), join(FRAMES, scene), join(OUT, out), ...extra], { encoding: "utf8" });
   console.log(printed.trim());
 }
 
@@ -222,7 +224,7 @@ for (const theme of ["light", "dark"] as const) {
     rec.wide();
     await rec.hold(1200);
     await rec.stop();
-    gif(`hero-${theme}`, `hero-${theme}.gif`, ["--width", "880", "--fps", "10"]);
+    animate(`hero-${theme}`, `hero-${theme}.webp`, ["--width", "1280"]);
   });
 }
 
@@ -275,7 +277,7 @@ test("B, errors in plain English", async ({ tab }) => {
   rec.wide();
   await rec.hold(900);
   await rec.stop();
-  gif("errors", "errors.gif");
+  animate("errors", "errors.webp");
 });
 
 // --- C: every pause is a version, and git -----------------------------------
@@ -399,7 +401,7 @@ test("C, history and git", async ({ app, home, page }) => {
     rec.wide();
     await rec.hold(900);
     await rec.stop();
-  gif("history-git", "history-git.gif");
+  animate("history-git", "history-git.webp");
 });
 
 // --- D: citations it cannot invent ------------------------------------------
@@ -493,7 +495,7 @@ test("D, citations it cannot invent", async ({ tab, root }) => {
   rec.wide();
   await rec.hold(900);
   await rec.stop();
-  gif("citations", "citations.gif");
+  animate("citations", "citations.webp");
 });
 
 // --- F: download as Word ----------------------------------------------------
@@ -543,7 +545,7 @@ test("F, download as Word", async ({ tab, home }) => {
   rec.wide();
   await rec.hold(900);
   await rec.stop();
-  gif("download", "download.gif");
+  animate("download", "download.webp");
 });
 
 // --- E: write together ------------------------------------------------------
@@ -602,5 +604,5 @@ test("E, write together", async ({ tab, app, root, browser }) => {
   await rec.hold(900);
   await rec.stop();
   await other.close();
-  gif("together", "together.gif");
+  animate("together", "together.webp");
 });

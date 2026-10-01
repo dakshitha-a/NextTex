@@ -26,7 +26,7 @@ things go to be forgotten rather than a list anybody reads.
 
 Nothing is in hand. The README run closed on 1 October 2026 at 4.12.1,
 at the writer's request: the README is a front door of about 450 lines,
-with GIFs filmed in the real app by `e2e/shots/tour.spec.ts`, and the long
+with animations filmed in the real app by `e2e/shots/tour.spec.ts`, and the long
 text it held lives in `docs/install.md`, `docs/guide.md` and
 `docs/keyboard.md`. It turned up and fixed a restore from History that
 changed the file on disk and left an open editor showing what had been

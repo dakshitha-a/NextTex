@@ -16,10 +16,11 @@ import { plot } from "../png";
  *
  *      cd e2e && node_modules/.bin/playwright test --config shots.config.ts shots/hero.spec.ts
  *
- *  Thirteen pictures come out of it: the three hero shots of the
+ *  Fifteen pictures come out of it: the three hero shots of the
  *  workspace, and five pairs (light and dark) of the surfaces the README
  *  talks about, the projects screen, the settings sheet, the Claude column
- *  mid-turn, the two hover cards, and the share sheet. */
+ *  mid-turn, the two hover cards, and the share sheet, and a pair of the
+ *  hover cards' corner cut close for the README's tour. */
 
 /** The projects live under a home directory made for the run, so a row's
  *  location reads `~/papers/...` in the picture rather than the path of a
@@ -252,6 +253,15 @@ for (const theme of ["light", "dark"] as const) {
     await hoverCell(tab, "Second & 4.07", "Second", ".nx-table-tooltip");
     await tab.waitForTimeout(300);
     await tab.screenshot({ path: shot(`hover-${theme}`) });
+    // And the README's tour picture of the same moment: the corner that
+    // holds both cards, the Files drawer's and the table's, cut from the
+    // left edge to the source pane's right, in the shape of the tour's
+    // other pictures, so at half the README's width the cards are still
+    // big enough to read.
+    const source = await tab.locator(".cm-editor").boundingBox();
+    if (!source) throw new Error("no source pane to frame the hover detail by");
+    const width = Math.round(source.x + source.width);
+    await tab.screenshot({ path: shot(`hover-detail-${theme}`), clip: { x: 0, y: 0, width, height: Math.round(width / 1.36) } });
   });
 
   /** The share sheet over the list, in its shared state, with an invite

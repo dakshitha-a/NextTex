@@ -1,19 +1,22 @@
-"""Turn a recorded scene into one of the README's GIFs.
+"""Turn a recorded scene into one of the README's animations.
 
 `e2e/shots/recorder.ts` leaves a directory per scene: every repaint of the
 window at full resolution, with the time it painted, and the marks the
 scene made, "look here" and "pull back", and the waits it asked to have
-played back quickly.  This file is the camera.  It
-samples the scene at a steady rate, glides a crop rectangle between the
-marks with an ease in and out, crops each full frame at that rectangle and
-scales it to the GIF's width, so a zoomed view is cut from the real pixels
-rather than blown up from a small copy.
+played back quickly.  This file is the camera.  It samples the scene at a
+steady rate, glides a crop rectangle between the marks with an ease in and
+out, crops each full frame at that rectangle and scales it to the output's
+width, so a zoomed view is cut from the real pixels rather than blown up
+from a small copy.
 
-One palette serves every frame of a GIF, built from a mosaic of frames
-across the whole scene, because a palette per frame makes flat interface
-colours shimmer as the camera moves.
+The output is an animated WebP, which plays and loops like a GIF in any
+current browser and in a README.  It was GIF until 1 October 2026; GIF's
+256 colours banded the interface's quiet greys and its weight held the
+animations to ten frames a second at 640 pixels, where WebP keeps full
+colour, stores only what changed between frames, and so affords 25 frames
+a second at 1280.
 
-    .venv/bin/python e2e/shots/gif.py SCENE_DIR OUT.gif [--width 880] [--fps 12] [--colors 255]
+    .venv/bin/python e2e/shots/animate.py SCENE_DIR OUT.webp [--width 1280] [--fps 25] [--quality 75]
 """
 
 from __future__ import annotations
@@ -36,7 +39,7 @@ def ease(u: float) -> float:
 
 
 def fit(rect: dict, view: dict) -> tuple[float, float, float, float]:
-    """The mark's rectangle grown to the GIF's shape, kept on screen."""
+    """The mark's rectangle grown to the output's shape, kept on screen."""
     vw, vh = view["width"], view["height"]
     aspect = vw / vh
     x, y, w, h = rect["x"], rect["y"], rect["width"], rect["height"]
@@ -72,7 +75,7 @@ def camera(scene: dict):
     return at
 
 
-def render(scene_dir: Path, out: Path, width: int, fps: int, trim: float, tail: float, colors: int = 255) -> None:
+def render(scene_dir: Path, out: Path, width: int, fps: int, trim: float, tail: float, quality: int) -> None:
     scene = json.loads((scene_dir / "scene.json").read_text())
     frames = scene["frames"]
     if not frames:
@@ -98,56 +101,36 @@ def render(scene_dir: Path, out: Path, width: int, fps: int, trim: float, tail: 
     def speed_at(t: float) -> float:
         return next((f["speed"] for f in fast if f["from"] <= t < f["to"]), 1.0)
 
-    # While the camera moves every pixel changes, so a moving frame costs
-    # a whole frame where a still one costs only what changed.  The camera
-    # is therefore drawn at half the rate while it moves: a glide of 0.7 s
-    # still reads as a glide, and a GIF of mostly gliding halves in size.
+    # Every sample is a frame: WebP keeps full colour and stores only what
+    # changed between frames, so the camera can glide at the full rate.
     shots: list[Image.Image] = []
-    holds: list[int] = []
     step = 1 / fps
     t = trim
-    last_box = None
-    moving_skip = False
     while t <= end:
         full = frame_at(t)
         sx = full.width / view["width"]
         x, y, w, h = at(t)
         box = (round(x * sx), round(y * sx), round((x + w) * sx), round((y + h) * sx))
-        moving = last_box is not None and box != last_box
-        last_box = box
-        if moving and moving_skip and shots:
-            holds[-1] += 1
-            moving_skip = False
-        else:
-            shots.append(full.crop(box).resize((width, height), Image.LANCZOS))
-            holds.append(1)
-            moving_skip = moving
+        shots.append(full.crop(box).resize((width, height), Image.LANCZOS))
         t += step * speed_at(t)
-
-    # One palette, from frames spread across the scene.
-    sample = shots[:: max(1, len(shots) // 12)]
-    mosaic = Image.new("RGB", (width, height * len(sample)))
-    for k, im in enumerate(sample):
-        mosaic.paste(im, (0, k * height))
-    palette = mosaic.quantize(colors=colors, method=Image.Quantize.MEDIANCUT)
 
     # Identical neighbours become one frame held longer.
     out_frames: list[Image.Image] = []
     durations: list[int] = []
     last = None
-    for im, hold in zip(shots, holds):
-        q = im.quantize(palette=palette, dither=Image.Dither.NONE)
-        raw = q.tobytes()
+    for im in shots:
+        raw = im.tobytes()
         if raw == last:
-            durations[-1] += hold * round(1000 / fps)
+            durations[-1] += round(1000 / fps)
             continue
-        out_frames.append(q)
-        durations.append(hold * round(1000 / fps))
+        out_frames.append(im)
+        durations.append(round(1000 / fps))
         last = raw
     durations[-1] += round(tail * 1000)
     out_frames[0].save(
-        out, save_all=True, append_images=out_frames[1:], duration=durations,
-        loop=0, optimize=True, disposal=1,
+        out, format="WEBP", save_all=True, append_images=out_frames[1:],
+        duration=durations, loop=0, quality=quality, method=4,
+        allow_mixed=True, minimize_size=True,
     )
     size = out.stat().st_size / 1e6
     print(f"{out.name}: {len(out_frames)} frames, {sum(durations) / 1000:.1f} s, {size:.2f} MB")
@@ -157,13 +140,13 @@ def main() -> None:
     parser = argparse.ArgumentParser()
     parser.add_argument("scene", type=Path)
     parser.add_argument("out", type=Path)
-    parser.add_argument("--width", type=int, default=880)
-    parser.add_argument("--fps", type=int, default=12)
+    parser.add_argument("--width", type=int, default=1280)
+    parser.add_argument("--fps", type=int, default=25)
     parser.add_argument("--trim", type=float, default=0.0, help="seconds to drop from the start")
     parser.add_argument("--tail", type=float, default=1.5, help="seconds to hold the last frame")
-    parser.add_argument("--colors", type=int, default=255, help="palette size; fewer is smaller")
+    parser.add_argument("--quality", type=int, default=75, help="WebP quality; lower is smaller")
     args = parser.parse_args()
-    render(args.scene, args.out, args.width, args.fps, args.trim, args.tail, args.colors)
+    render(args.scene, args.out, args.width, args.fps, args.trim, args.tail, args.quality)
 
 
 if __name__ == "__main__":
