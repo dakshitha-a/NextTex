@@ -728,6 +728,30 @@ number that argument had been missing. A row that is added to settle a
 question should be read once against what the code actually did, not
 only against its budget.
 
+## The performance run measured before it changed anything
+
+The run of 1 October 2026 took each proposed saving to a measurement
+first and dropped the ones whose cost was not real, so most of its
+evidence is one-off numbers in its tracker page. What stays in the
+suites is what guards a saving from quietly coming back. Four bench rows
+were added: `symbols.after_edit_ms`, a rescan after one chapter changed,
+which is one file's parse while each file's findings are kept;
+`deps.after_structural_change_ms`, the list of what can be previewed
+after a rename, which must not re-parse every file; `latexlog.parse_ms`,
+a synthetic log of 72,000 warnings, which must not ask the disk about
+each file again; and `project.tree_5000_ms`, a tree with fifty folders of
+data files, built beside the thesis so the other rows keep measuring
+what they always have. Two browser specs were added:
+`e2e/specs/pdf-worker.spec.ts` counts the pdf.js workers three rebuilds
+start, and `e2e/specs/image-tabs.spec.ts` closes three figures' tabs down
+to `main.tex` and finds no shared text asked for and `main.tex` whole
+after eight seconds. The unit tests beside them compare the fast path
+with the slow one rather than timing it: `folds.test.ts` and
+`after-end.test.ts` insert and delete at every position of a sample and
+require the carried answer to equal a fresh one, and
+`tests/test_symbols_cache.py` and `tests/test_deps.py` count which files
+were parsed.
+
 ## The documents name things, and now something checks the things exist
 
 `tests/test_documents_match_the_code.py` reads every document in the repository and asserts that each file path, each `/api/` route and each `NEXTTEX_*` variable written as a name is real. It is not a test of the prose: a sentence can be wrong in ways no test can see, and catching that still means reading the passage next to the code. What it covers is the mechanical half, which is the half that rots silently when something is renamed. The README's own Contents index is in that half: `scripts/readme_index.py` generates it from the headings, and the test asserts the block in the file is the one the headings call for, and that every `#anchor` link in the README reaches a heading.
