@@ -198,7 +198,7 @@ describe("which edits move the skipped lines", () => {
 });
 
 describe("finding a comment quickly", () => {
-  it("answers the same with and without a backslash before the percent", async () => {
+  test("answers the same with and without a backslash before the percent", async () => {
     const { commentStart } = await import("./latex-families");
     expect(commentStart("plain prose")).toBe(-1);
     expect(commentStart("prose % note")).toBe(6);
