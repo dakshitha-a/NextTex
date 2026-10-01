@@ -3,8 +3,8 @@ import { START_FROM, templateOrder } from "./templates";
 
 describe("the templates a project starts from", () => {
   it("are shown in the page's order, not the directory's", () => {
-    expect(templateOrder(["application", "basic", "beamer", "letter", "report"])).toEqual([
-      "basic", "report", "beamer", "letter", "application",
+    expect(templateOrder(["application", "basic", "beamer", "letter", "reply", "report"])).toEqual([
+      "basic", "report", "beamer", "letter", "application", "reply",
     ]);
   });
 

@@ -1,0 +1,39 @@
+% A reply to the reviewers, one point at a time.
+%
+% Each \point is what a reviewer said, \quoted the words of the paper it
+% is about, \source where they are (a Ctrl-click in NextTex opens them),
+% and the reply environment is your answer. The Comments drawer's
+% "Write the reply letter" adds one point for every open comment thread.
+% Send it with the marked-up PDF History gives: a version's menu, Changes
+% as PDF.
+\documentclass[11pt]{article}
+\usepackage[T1]{fontenc}
+\usepackage{lmodern}
+\usepackage[margin=1in]{geometry}
+\usepackage{parskip}
+
+\newcounter{point}
+\newcommand{\point}[1]{%
+  \medskip\refstepcounter{point}\noindent\textbf{Point~\thepoint.}\ #1\par}
+\newcommand{\quoted}[1]{\begin{quote}\itshape #1\end{quote}}
+\newcommand{\source}[1]{\noindent{\small\ttfamily\detokenize{#1}}\par}
+\newenvironment{reply}{\noindent\textbf{Reply.}\ }{\par}
+
+\title{Reply to the reviewers}
+\author{Your Name}
+\date{\today}
+
+\begin{document}
+\maketitle
+
+We thank the reviewers for their careful reading. Each point is answered
+below; the changes are marked in the accompanying PDF.
+
+\section*{Reviewer 1}
+
+\point{The first point the reviewer made.}
+\begin{reply}
+What you changed, and where.
+\end{reply}
+
+\end{document}

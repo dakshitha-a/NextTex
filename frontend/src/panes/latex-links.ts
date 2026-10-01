@@ -10,7 +10,7 @@ import type { Symbols } from "../api";
  *  list was built on it, and nothing but the completion list read it.
  */
 
-export type LinkKind = "ref" | "input" | "cite" | "image";
+export type LinkKind = "ref" | "input" | "cite" | "image" | "source";
 
 export type Link = {
   kind: LinkKind;
@@ -36,6 +36,9 @@ const REFS = new Set([
 ]);
 const INPUTS = new Set(["input", "include", "subfile", "subfileinclude"]);
 const IMAGES = new Set(["includegraphics"]);
+/** `\\source{chapters/two.tex:14}`, the reply letter's way back to the
+ *  words a point is about. */
+const SOURCES = new Set(["source"]);
 const CITES = new Set([
   "cite", "citep", "citet", "citealt", "citealp", "citeauthor", "citeyear",
   "citeyearpar", "parencite", "textcite", "autocite", "footcite", "smartcite",
@@ -51,6 +54,7 @@ function kindOf(command: string): LinkKind | null {
   if (INPUTS.has(command)) return "input";
   if (CITES.has(command)) return "cite";
   if (IMAGES.has(command)) return "image";
+  if (SOURCES.has(command)) return "source";
   return null;
 }
 
@@ -185,6 +189,15 @@ export function inputTarget(name: string, symbols: Symbols | null): string | nul
     if (files.includes(candidate)) return candidate;
   }
   return null;
+}
+
+/** Where a `\\source{file:line}` goes: the file, if the project holds
+ *  it, and the line. */
+export function sourceTarget(name: string, symbols: Symbols | null): { file: string; line: number } | null {
+  const match = /^(.+?):(\d+)$/.exec(name.trim());
+  if (!match) return null;
+  const file = inputTarget(match[1], symbols);
+  return file ? { file, line: Number(match[2]) } : null;
 }
 
 /** The bibliography entry a `\cite` key names. */

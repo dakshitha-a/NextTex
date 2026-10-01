@@ -1197,6 +1197,11 @@ const api = {
     request<{ asked: number; unknown: number; failed: number; findings: SubmitFinding[] }>(
       `/projects/${id}/submit/records`, { method: "POST" },
     ),
+  /** Write the reply to the reviewers from the open comment threads. */
+  writeReplyLetter: (id: string) =>
+    request<{ path: string; points: number; created: boolean }>(
+      `/projects/${id}/reply`, json({ origin: clientId }),
+    ),
   submitCheck: (id: string, document = "") =>
     request<SubmitReport>(
       `/projects/${id}/submit?document=${encodeURIComponent(document)}`,

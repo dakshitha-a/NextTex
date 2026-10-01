@@ -11713,3 +11713,23 @@ page's "A submission source bundle" draws it; `tests/test_bundle.py`
 builds an extracted bundle on its own where TeX is installed, and
 `e2e/specs/download.spec.ts` downloads one and reads what is in it.
 
+## 101. Reply to reviewers
+
+The eighth item of the roadmap run. A revision answers a list of
+points, and the points are usually the comments left on the text. The
+Comments drawer's foot holds *Write the reply letter* while any thread
+is open. It writes `reply.tex` from a new template, *A reply to
+reviewers*, also in New project's Start from, which wraps at six: one
+`\point` per open thread, the thread's first message as the point, the
+words it is about as `\quoted`, where they are as
+`\source{chapters/two.tex:14}`, an empty `reply` to answer in, and the
+rest of the thread as comments under it. A Ctrl-click on a `\source`
+opens that line, and resting on it says the file and line, as an
+`\input` does. A letter that exists is never rewritten: a second press
+adds the points of threads opened since, under a dated comment, and
+every answer already typed stays. The letter opens once written. The
+template's own text says to send it with the marked-up PDF History
+gives. The direction page's "Reply to reviewers" draws it, and
+`e2e/specs/reply.spec.ts` comments on a sentence, writes the letter and
+follows its point back.
+

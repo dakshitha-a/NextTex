@@ -14,6 +14,7 @@ export const START_FROM: Record<string, string> = {
   beamer: "A talk",
   letter: "A letter",
   application: "A job application",
+  reply: "A reply to reviewers",
 };
 
 const KNOWN = Object.keys(START_FROM);

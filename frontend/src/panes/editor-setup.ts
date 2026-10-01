@@ -58,7 +58,7 @@ import { bibCompletions } from "./bib-complete";
 import { environmentToClose, indentOf, opensEnvironment } from "./close-environment";
 import { isEscaped } from "./escaping";
 import { isBib, isScript } from "./file-kinds";
-import { inputTarget, labelTarget, linkAt } from "./latex-links";
+import { inputTarget, labelTarget, linkAt, sourceTarget } from "./latex-links";
 import { mac } from "./math-hover";
 import { mathHover, type FigureFacts, type OnEquation, type OnSymbol } from "./math-hover";
 import { afterEndOfDocument } from "./after-end";
@@ -561,7 +561,9 @@ function followLinks(
       if (!link || link.kind === "cite") return false;
       const target = link.kind === "ref"
         ? labelTarget(link.name, symbols())
-        : inputTarget(link.name, symbols());
+        : link.kind === "source"
+          ? sourceTarget(link.name, symbols())
+          : inputTarget(link.name, symbols());
       if (!target) {
         // Not a fall-through to multi-cursor: a click that was aimed at a
         // reference and quietly did something else reads as the editor

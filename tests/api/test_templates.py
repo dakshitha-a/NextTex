@@ -13,7 +13,7 @@ def test_every_template_is_offered(client):
     answer = client.get("/api/templates")
     assert answer.status_code == 200
     names = answer.json()["templates"]
-    assert names == ["application", "basic", "beamer", "letter", "report"]
+    assert names == ["application", "basic", "beamer", "letter", "reply", "report"]
 
 
 def test_a_named_template_is_the_one_that_is_written(client, opened):

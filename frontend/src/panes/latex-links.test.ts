@@ -1,6 +1,6 @@
 import { describe, expect, it } from "vitest";
 import {
-  citationFor, envWord, imageTarget, inputTarget, labelSays, labelTarget, linkAt, refPreview,
+  citationFor, envWord, imageTarget, inputTarget, labelSays, labelTarget, linkAt, refPreview, sourceTarget,
 } from "./latex-links";
 
 const at = (line: string, column: number) => linkAt(line, column);
@@ -141,5 +141,20 @@ describe("where a link goes", () => {
   it("finds a bibliography entry by key", () => {
     expect(citationFor("knuth", symbols)?.author).toBe("Knuth");
     expect(citationFor("nobody", symbols)).toBeNull();
+  });
+});
+
+describe("sourceTarget", () => {
+  const symbols = { texfiles: ["main.tex", "chapters/two.tex"] } as unknown as Parameters<typeof sourceTarget>[1];
+
+  it("reads a reply letter's place as a file and a line", () => {
+    expect(linkAt("\\source{chapters/two.tex:14}", 10)?.kind).toBe("source");
+    expect(sourceTarget("chapters/two.tex:14", symbols)).toEqual({ file: "chapters/two.tex", line: 14 });
+    expect(sourceTarget("chapters/two:3", symbols)).toEqual({ file: "chapters/two.tex", line: 3 });
+  });
+
+  it("has nowhere to go for a file the project does not hold, or no line", () => {
+    expect(sourceTarget("gone.tex:4", symbols)).toBeNull();
+    expect(sourceTarget("main.tex", symbols)).toBeNull();
   });
 });

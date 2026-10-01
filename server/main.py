@@ -81,7 +81,7 @@ from nexttex.project import (
     PROJECT_STATES, clean_limits,
 )
 from nexttex.symbols import walk_project
-from nexttex import bibcheck, bibfix, bundle, consistency, deps, figures, published, export, lint_explain, prompts, search, texstyles, updates, usage
+from nexttex import bibcheck, bibfix, bundle, consistency, deps, figures, published, reply, export, lint_explain, prompts, search, texstyles, updates, usage
 from nexttex.install.ui import child_env
 from server.session import CLOSED, DocumentState, ProjectSession, spawn
 
@@ -4698,6 +4698,38 @@ async def submit_records(project_id: str):
     return await asyncio.to_thread(published.ask, entries)
 
 
+#: Where Write the reply letter puts the letter.
+REPLY_LETTER = "reply.tex"
+
+
+@app.post("/api/projects/{project_id}/reply")
+async def write_reply_letter(project_id: str, origin: str = Body("", embed=True)):
+    """Write the reply to the reviewers from the open comment threads, one
+    point each, into `reply.tex`: from the reply template when there is no
+    letter yet, and added before its `\\end{document}` when there is, so a
+    letter already answered is never rewritten (`nexttex/reply.py`)."""
+    session = session_for(project_id)
+    threads = [
+        thread for thread in _comments(session).listing()
+        if not thread.get("resolved") and not thread.get("detached")
+    ]
+    if not threads:
+        raise HTTPException(409, "there are no open comments to answer")
+    target = _safe(session, REPLY_LETTER)
+    live = session.collab.open_texts()
+    existing = live.get(REPLY_LETTER)
+    if existing is None and target.is_file():
+        existing = await asyncio.to_thread(read_text, target)
+    template = (TEMPLATES / "reply" / "main.tex").read_text(encoding="utf-8")
+    text = reply.letter(existing, template, threads)
+    await _save_text(session, target, text, source=origin, why="the reply to the reviewers")
+    await session.events.publish({
+        "type": "files_changed", "paths": [REPLY_LETTER], "origin": origin,
+        "structural": existing is None,
+    })
+    return {"path": REPLY_LETTER, "points": len(threads), "created": existing is None}
+
+
 class EquationRequest(BaseModel):
     body: str = Field(max_length=equation.MAX_BODY)
     format: str = "svg"
@@ -5791,6 +5823,9 @@ TEMPLATES = Path(__file__).resolve().parent.parent / "nexttex" / "templates"
 # bibliography or figures.
 TEMPLATE_SHAPE: dict[str, dict] = {
     "application": {"lead": "resume.tex", "scaffold": False},
+    # A letter answering reviewers: one document, no bibliography or
+    # figures of its own.
+    "reply": {"lead": "main.tex", "scaffold": False},
 }
 
 

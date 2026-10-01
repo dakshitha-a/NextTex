@@ -31,6 +31,22 @@ export default function CommentsPanel({
   const [asking, setAsking] = useState<string | null>(null);
   /** A row's right-click menu: which thread, and where. */
   const [menu, setMenu] = useState<{ id: string; at: Wanted } | null>(null);
+  const [writing, setWriting] = useState(false);
+  /** The reply to the reviewers, written from the open threads into
+   *  reply.tex, which then opens: new points go in before its end, and an
+   *  answer already typed there stays. */
+  const writeLetter = async () => {
+    if (!projectId) return;
+    setWriting(true);
+    try {
+      const answer = await api.writeReplyLetter(projectId);
+      onOpen(answer.path, 1);
+    } catch (error: any) {
+      set({ error: `Could not write the reply letter: ${error?.message ?? error}` });
+    } finally {
+      setWriting(false);
+    }
+  };
 
   useEffect(() => {
     if (projectId) void refreshComments(projectId);
@@ -164,6 +180,7 @@ export default function CommentsPanel({
     );
   }
   return (
+    <div className="flex min-h-0 flex-1 flex-col">
     <div className="min-h-0 flex-1 overflow-auto" data-testid="comments-panel">
       {[...byFile].map(([path, list]) => (
         <section key={path}>
@@ -216,6 +233,20 @@ export default function CommentsPanel({
           </Menu>
         );
       })()}
+    </div>
+    {open.length ? (
+      <div className="nx-drawer-foot">
+        <Button
+          variant="ghost"
+          size="sm"
+          data-testid="comments-reply-letter"
+          disabled={writing}
+          onClick={() => void writeLetter()}
+        >
+          {writing ? "Writing…" : "Write the reply letter"}
+        </Button>
+      </div>
+    ) : null}
     </div>
   );
 }

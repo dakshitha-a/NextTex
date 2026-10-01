@@ -230,6 +230,8 @@ in the middle.
 - **Before you submit.** A checklist for undefined references, leftover TODOs,
   page limits and blind review, and, when you ask, a citation since retracted
   or a preprint since published.
+- **A reply to the reviewers**, written from the open comments, each point
+  leading back to its text.
 - **A source bundle for the upload**: the files the document uses and its
   `.bbl`, comments stripped if you like.
 - **Every figure and table in one list**, with its number and page, and the

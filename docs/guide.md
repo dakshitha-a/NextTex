@@ -83,6 +83,9 @@ a **Tutorial** button at its foot, and the projects screen's app bar has an
   chapter takes without pushing the other out. People is who is in the
   project and the invite to send; Build is the errors, the log and
   Rebuild, and a double-click on its button rebuilds.
+- **A reply to the reviewers.** *Write the reply letter* at the foot of
+  Comments turns every open comment into a point of `reply.tex`, each with
+  a `\source` that a Ctrl-click follows back to its text.
 - **Copy path.** A file's or a folder's menu in Files, or a right-click on
   its row, copies its full path on the machine running NextTex.
 - **The source for an upload.** In Download, a document's *source* chip is

@@ -158,6 +158,7 @@ test("a new project can start as something other than an article", async ({
     "A talk",
     "A letter",
     "A job application",
+    "A reply to reviewers",
   ]);
 
   const where = `${app.projects}/started-as-a-talk`;

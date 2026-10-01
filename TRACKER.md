@@ -30,10 +30,6 @@ each; venue templates stay on the roadmap for a run of their own. Each
 item moves here from the roadmap when it starts. Its tracker page is
 https://claude.ai/artifact/Lttcw8HSYKBGfhLUyVmy9x.
 
-- [ ] **Reply to reviewers.** A template with point and reply macros,
-      and a command that turns the open comment threads into points to
-      answer, each linking back to its text.
-
 The performance run closed on 1 October 2026 at
 4.13.5, at the writer's request, from 4.13.0 in five pushes: every item
 was measured before it was changed, and those whose cost turned out not

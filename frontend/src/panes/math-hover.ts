@@ -15,7 +15,7 @@ import type { Extension } from "@codemirror/state";
 import type { Symbols } from "../api";
 import { sizeOf } from "../size";
 import {
-  citationFor, envWord, imageTarget, inputTarget, labelSays, labelTarget, linkAt, refPreview,
+  citationFor, envWord, imageTarget, inputTarget, labelSays, labelTarget, linkAt, refPreview, sourceTarget,
 } from "./latex-links";
 import { shortcut } from "../keys";
 import { hoverCards, type HoverKind } from "../appearance";
@@ -25,7 +25,7 @@ import type { LinkKind } from "./latex-links";
 /** Which chip on the settings sheet each link kind answers to.  The
  *  writer's names for them are Cross-references, Citations, Figures and
  *  Files; the code's are the link scanner's. */
-const CARD_FOR: Record<LinkKind, HoverKind> = { ref: "refs", cite: "cites", image: "figures", input: "files" };
+const CARD_FOR: Record<LinkKind, HoverKind> = { ref: "refs", cite: "cites", image: "figures", input: "files", source: "files" };
 
 type Katex = typeof import("katex");
 let katex: Katex | null = null;
@@ -540,6 +540,10 @@ function linkTooltip(
     const facts = target && figure ? figure(target) : null;
     image = target && facts ? { path: target, facts } : null;
     follow = false;
+  } else if (link.kind === "source") {
+    const target = sourceTarget(link.name, table);
+    says = target ? `${target.file}, line ${target.line}` : `${link.name} is not a place in this project.`;
+    follow = Boolean(target);
   } else {
     const target = inputTarget(link.name, table);
     says = target ?? `${link.name} is not a file in this project.`;
