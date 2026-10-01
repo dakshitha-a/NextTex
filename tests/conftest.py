@@ -72,3 +72,16 @@ def the_machines_own_login_is_untouched():
             f"{login} existed when it started and is gone now. Something "
             "reached the real CLI. See tests/conftest.py."
         )
+
+
+@pytest.fixture(autouse=True)
+def _a_fresh_machine_build_limit():
+    """The machine-wide build limit is one queue for the process, and each
+    test runs on its own event loop. A test whose loop ends while a build
+    holds a slot never gives it back, and every later test's build would
+    wait for it, so each test starts with the queue empty."""
+    from nexttex.compile import MACHINE_BUILDS
+
+    MACHINE_BUILDS._active = 0
+    MACHINE_BUILDS._waiting = []
+    yield

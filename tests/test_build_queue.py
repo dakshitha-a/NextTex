@@ -107,3 +107,30 @@ def test_a_failing_build_does_not_keep_its_slot():
             pass
 
     asyncio.run(main())
+
+
+def test_builds_across_projects_share_one_machine_limit(monkeypatch):
+    """Each project builds one document at a time, and nothing bounded the
+    projects: an always-on host with a dozen shared projects receiving
+    edits ran a dozen engines at once. Two sessions' builds wait for the
+    machine's slots, which number half the cores and at least one."""
+    import os
+    from nexttex import compile as compiling
+
+    assert compiling.MACHINE_BUILDS._limit == max(1, (os.cpu_count() or 2) // 2)
+    machine = BuildQueue(limit=1)
+    running = []
+    most = []
+
+    async def build(project: BuildQueue):
+        async with project.slot(), machine.slot():
+            running.append(1)
+            most.append(len(running))
+            await asyncio.sleep(0.01)
+            running.pop()
+
+    async def go():
+        await asyncio.gather(*(build(BuildQueue()) for _ in range(4)))
+
+    asyncio.run(go())
+    assert max(most) == 1

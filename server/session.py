@@ -20,7 +20,7 @@ from nexttex.explain import annotate, summarise
 from nexttex.library import Library
 from nexttex.providers import agent_for
 from nexttex.compile import (
-    BuildQueue, CompileResult, CompileScheduler, Outcome, ProjectPaths,
+    MACHINE_BUILDS, BuildQueue, CompileResult, CompileScheduler, Outcome, ProjectPaths,
 )
 from nexttex.deps import DependencyGraph
 from nexttex.wordcount import WordCounts
@@ -1254,7 +1254,10 @@ class ProjectSession:
         # The scoping hint only means anything to the document that reads
         # the file it points at.
         focus = self._focus if self._owns(state, self._focus) else None
-        async with self.queue.slot(priority=state.path == self.visible):
+        # The project's slot first, then the machine's: a project never
+        # holds a machine slot while it waits for its own queue.
+        visible = state.path == self.visible
+        async with self.queue.slot(priority=visible), MACHINE_BUILDS.slot(priority=visible):
             started = time.time()
             if state.in_flight == build:
                 state.started_at = started

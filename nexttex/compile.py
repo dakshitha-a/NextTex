@@ -582,6 +582,14 @@ class BuildQueue:
             self._release()
 
 
+#: Builds running at once across every project this install has open.
+#: Each project already builds one document at a time (`BuildQueue`
+#: above); nothing bounded the projects, so an always-on host with a
+#: dozen shared projects receiving edits ran a dozen engines at once on a
+#: machine somebody may also be writing on. Half the cores, at least one.
+MACHINE_BUILDS = BuildQueue(limit=max(1, (os.cpu_count() or 2) // 2))
+
+
 def _alive(pid: int) -> bool:
     """Whether `pid` is still running, a zombie counting as gone."""
     try:

@@ -472,7 +472,7 @@ A single process with no database means nothing is bounded unless something boun
 | Unanswered join | discarded after 10 minutes |
 | Transcript | compacted by bytes, and 50 archived conversations kept |
 | A shared document's log | squashed into one snapshot once it is eight times the document's encoded size and past 64 kB; the size is remembered from the last measurement, so the document is encoded again only when the log outgrows that (`should_compact` in `server/collab/persist.py`) |
-| Build | 120 second timeout, then the process group is killed |
+| Build | 120 second timeout, then the process group is killed; one document at a time per project (`BuildQueue`), and across every open project half the machine's cores at once, at least one (`MACHINE_BUILDS` in `nexttex/compile.py`), so an always-on host with many shared projects receiving edits does not run an engine for each |
 | A figure script, from the agent or from the source pane | 120 second timeout, then the process group and every descendant is killed; 64 kB of output per stream; one run per script at a time |
 | Installing a package | 300 second timeout |
 | A file sent by a peer | 64 MB each, 512 MB parked in memory in all, held until the flush that writes it |
