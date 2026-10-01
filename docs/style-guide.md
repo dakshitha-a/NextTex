@@ -169,7 +169,7 @@ kit's `Button` carries those looks as its variants.
 | `Chip` | `controls.tsx` | a small labelled thing that can be removed: a file, an added word, a format; `mono` for a literal | a pill with a colour |
 | `ChipToggle` | `controls.tsx` | one of several yes-or-no choices that are not exclusive, in one line: which cards the editor shows; on is the chip's shape in the ink, off is hollow in the third ink, `aria-pressed` carries the state | a switch row per item where the items are many and small |
 | `Switch` | `controls.tsx` | on or off, and nothing between | a checkbox styled by hand |
-| `Segmented` | `controls.tsx` | two to five exclusive choices, `md` in a sheet and `sm` in a strip; `className="nx-segmented-wrap"` when five may not fit the width, as the templates do not on a phone | a row of toggle buttons |
+| `Segmented` | `controls.tsx` | two to six exclusive choices, `md` in a sheet and `sm` in a strip; `className="nx-segmented-wrap"` when they may not fit the width, as the six templates do not on a phone | a row of toggle buttons |
 | `Heading` | `controls.tsx` | a real `h1`/`h2`/`h3`; `display` for a sheet's or a screen's title | a styled span |
 | `TextArea` | `controls.tsx` | a text box of several lines, taking its look from its place's class | a raw `<textarea>` |
 | `Pressable` | `controls.tsx` | something pressed whose look is its content, taken from its place's class: a row, a tab, a hit in a list, a word in a sentence that acts; `type="button"` unless told otherwise | a raw `<button>` |
