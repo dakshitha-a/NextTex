@@ -30,6 +30,11 @@ each; venue templates stay on the roadmap for a run of their own. Each
 item moves here from the roadmap when it starts. Its tracker page is
 https://claude.ai/artifact/Lttcw8HSYKBGfhLUyVmy9x.
 
+- [ ] **A submission source bundle.** One download with only the
+      files the document uses, paths intact, the `.bbl` included, the
+      build folder and unused figures left out, and comments stripped
+      on request.
+
 The performance run closed on 1 October 2026 at
 4.13.5, at the writer's request, from 4.13.0 in five pushes: every item
 was measured before it was changed, and those whose cost turned out not
