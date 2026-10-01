@@ -39,15 +39,7 @@ roadmap run of 1 October 2026 builds the first eight, moving each to
 `TRACKER.md` as it starts. A new item goes here, in its place in the
 order, when somebody proposes it.
 
-1. **One-click fixes on the `.bib` rows.** `nexttex/bibcheck.py` reports
-   and does not repair. Add actions that protect capitals in a title with
-   braces, rename a key to author and year through `nexttex/rename.py`,
-   drop bulky `abstract` and `url` fields, and merge two entries with one
-   DOI. Weekly while a bibliography is being built, and each action only
-   rewrites what is there, so no reference is invented. Builds on the row
-   pattern in `frontend/src/panes/diagnostic-rows.ts`. Small to medium;
-   *y*.
-2. **Consistency checks that need no model.** Rows in the existing lint
+1. **Consistency checks that need no model.** Rows in the existing lint
    list for an acronym used but never defined or defined and never used,
    one word spelt two ways ("dataset" and "data set"), "Fig." beside
    "Figure", US and UK spellings mixed, and a missing `~` before `\cite`
@@ -56,21 +48,21 @@ order, when somebody proposes it.
    `frontend/src/panes/spell-scan.ts`; read section 74 of
    `docs/design.md` first, since some grammar rules are off on purpose.
    Medium; *y*.
-3. **A figures and tables list.** Every figure and table with its caption,
+2. **A figures and tables list.** Every figure and table with its caption,
    number, page, how often it is referenced and its image's resolution; a
    click goes to the source, and one never referenced is marked. Weekly in
    a thesis. Numbers and pages come from `nexttex/auxlabels.py`, labels
    from `nexttex/symbols.py`, counts from `nexttex/usage.py`, resolution
    from the image rows in `nexttex/submit.py`. Small as a part of the
    Sections drawer, medium as a drawer of its own; *y*.
-4. **Typeset changes against a History version.** `nexttex/changes.py`
+3. **Typeset changes against a History version.** `nexttex/changes.py`
    marks up the PDF against a git commit; many writers here never commit.
    Choosing any version in History, including one named "submitted v1",
    gives the same marked-up PDF, which is the reply to "what changed?".
    Once per revision. The new part is writing a version from
    `nexttex/history.py` into the scratch folder `changes.py` already uses.
    Medium; *y*.
-5. **Retraction and published-version check.** A row in the submission
+4. **Retraction and published-version check.** A row in the submission
    check says a cited DOI has been retracted, or that a cited preprint now
    has a journal version, naming the journal's own DOI. Both answers come
    from the publisher's record, which fits the rule that every reference
@@ -78,20 +70,20 @@ order, when somebody proposes it.
    `nexttex/vendor/verify_bib.py`, which already fetch that record per
    DOI. It is the check's first network call, and the drawer says so.
    Small to medium; *y*.
-6. **A submission source bundle.** One download with only the files the
+5. **A submission source bundle.** One download with only the files the
    document uses, paths intact, the `.bbl` included, the build folder and
    unused figures left out, and comments stripped on request: what a
    journal's or a preprint server's source upload wants. Once per paper,
    at the step writers dread. Builds on the project zip in
    `server/main.py`, the file graph in `nexttex/deps.py` and the build's
    `.bbl`. Medium; *y*.
-7. **Reply to reviewers.** A template with point and reply macros, and a
+6. **Reply to reviewers.** A template with point and reply macros, and a
    command that turns the open comment threads into points to answer, each
-   linking back to its text, sent with the item 4 PDF. Once per revision.
+   linking back to its text, sent with the item 3 PDF. Once per revision.
    Builds on `nexttex/templates`, `nexttex/comment_tools.py` and the agent
    answering comments, section 78 of `docs/design.md`. The template alone
    is small; the whole is medium; *y*.
-8. **Venue templates, and a browser to choose them in.** Today
+7. **Venue templates, and a browser to choose them in.** Today
    `nexttex/templates` holds five. Ship only templates whose licence allows
    it, and choose them in a template browser rather than the present short
    list, since names alone stop working past a dozen. For a template that
