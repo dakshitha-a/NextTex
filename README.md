@@ -101,7 +101,7 @@ steps](docs/install.md#uninstalling)
 
 <table>
 <tr>
-<td width="50%"><picture><source media="(prefers-color-scheme: dark)" srcset="docs/tour/hero-dark.gif"><img src="docs/tour/hero-light.gif" alt="The page following the typing" width="440"></picture></td>
+<td width="50%"><picture><source media="(prefers-color-scheme: dark)" srcset="docs/tour/hero-dark.gif"><img src="docs/tour/hero-light.gif" alt="The page following the typing" width="380"></picture></td>
 <td width="50%">
 
 ### The page follows your typing
@@ -124,10 +124,10 @@ it. It also says which error to fix first. No AI involved.
 [More on errors →](docs/guide.md#it-tells-you-what-the-error-means)
 
 </td>
-<td><img src="docs/tour/errors.gif" alt="A missing dollar sign; the strip counts one error; the Build drawer explains it in plain words; the fix makes it go away." width="440"></td>
+<td><img src="docs/tour/errors.gif" alt="A missing dollar sign; the strip counts one error; the Build drawer explains it in plain words; the fix makes it go away." width="380"></td>
 </tr>
 <tr>
-<td><picture><source media="(prefers-color-scheme: dark)" srcset="docs/screenshot-hover-dark.png"><img src="docs/screenshot-hover-light.png" alt="A figure's card beside its row in the Files drawer, and a table drawn over its source." width="440"></picture></td>
+<td><picture><source media="(prefers-color-scheme: dark)" srcset="docs/screenshot-hover-dark.png"><img src="docs/screenshot-hover-light.png" alt="A figure's card beside its row in the Files drawer, and a table drawn over its source." width="380"></picture></td>
 <td>
 
 ### See it without building
@@ -152,7 +152,7 @@ When you do use git, it is one drawer: see what changed, commit and push, pull.
 [More on history and git →](docs/guide.md#every-pause-is-a-version)
 
 </td>
-<td><img src="docs/tour/history-git.gif" alt="A paragraph deleted and brought back from History, then committed from the Git drawer." width="440"></td>
+<td><img src="docs/tour/history-git.gif" alt="A paragraph deleted and brought back from History, then committed from the Git drawer." width="380"></td>
 </tr>
 <tr>
 <td align="center"><picture><source media="(prefers-color-scheme: dark)" srcset="docs/screenshot-agent-dark.png"><img src="docs/screenshot-agent-light.png" alt="The agent column mid-turn: a plan ticking itself off, an edit with Show and Undo, and a card asking before it runs a script." width="220"></picture></td>
@@ -190,10 +190,10 @@ no path from the model's memory to your `.bib` file.
 [More on references →](docs/guide.md#it-cannot-invent-a-citation)
 
 </td>
-<td><img src="docs/tour/citations.gif" alt="A search in the References drawer, Add, and the new key chosen from the completion list after typing \cite{." width="440"></td>
+<td><img src="docs/tour/citations.gif" alt="A search in the References drawer, Add, and the new key chosen from the completion list after typing \cite{." width="380"></td>
 </tr>
 <tr>
-<td><img src="docs/tour/download.gif" alt="The Download drawer: one block per document, a chip per format, and the Word file it makes." width="440"></td>
+<td><img src="docs/tour/download.gif" alt="The Download drawer: one block per document, a chip per format, and the Word file it makes." width="380"></td>
 <td>
 
 ### Download as PDF, Word, HTML or Markdown
@@ -219,7 +219,7 @@ in the middle.
 [How sharing works ↓](#writing-together)
 
 </td>
-<td><img src="docs/tour/together.gif" alt="A co-author's named cursor arrives in the paragraph and types a sentence, live." width="440"><br><picture><source media="(prefers-color-scheme: dark)" srcset="docs/collab-dark.svg"><img src="docs/collab-light.svg" alt="Two NextTex installs, each holding a whole copy, connected directly and encrypted." width="440"></picture></td>
+<td><img src="docs/tour/together.gif" alt="A co-author's named cursor arrives in the paragraph and types a sentence, live." width="380"><br><picture><source media="(prefers-color-scheme: dark)" srcset="docs/collab-dark.svg"><img src="docs/collab-light.svg" alt="Two NextTex installs, each holding a whole copy, connected directly and encrypted." width="380"></picture></td>
 </tr>
 </table>
 
