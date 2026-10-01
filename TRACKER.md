@@ -24,7 +24,20 @@ things go to be forgotten rather than a list anybody reads.
 
 ## In hand
 
-Nothing is in hand. The performance run closed on 1 October 2026 at
+The roadmap run, from 1 October 2026 at 4.13.5, builds the first eight
+items of `ROADMAP.md`'s list in its order, one push and one *y* bump
+each; venue templates stay on the roadmap for a run of their own. Each
+item moves here from the roadmap when it starts. Its tracker page is
+https://claude.ai/artifact/Lttcw8HSYKBGfhLUyVmy9x.
+
+- [ ] **Limits that stay in view.** Set "abstract at most 250 words" or
+      "8 pages" once, and a quiet count beside the section in the
+      outline and in the status strip measures against it, in the
+      warning ink when over. The page limit is kept in
+      `nexttex/project.py` and read by `nexttex/submit.py`; the strip
+      did not show it.
+
+The performance run closed on 1 October 2026 at
 4.13.5, at the writer's request, from 4.13.0 in five pushes: every item
 was measured before it was changed, and those whose cost turned out not
 to be real were left, with the measurement as the reason. Done: the
