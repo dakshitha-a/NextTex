@@ -18,9 +18,8 @@ import api from "../api";
  *  thousand files and a session can hover most of them.
  *
  *  This module lives in the card's chunk, not the entry: pdf.js is
- *  imported when a PDF is first hovered and never before, and the worker
- *  is named here as well because `Pdf.tsx` names it at module load and
- *  may not have loaded yet.
+ *  imported when a PDF is first hovered and never before. Its worker is
+ *  the preview's, kept by `pdf-worker.ts`, so a hover never starts one.
  */
 
 export type Thumbnail = {
