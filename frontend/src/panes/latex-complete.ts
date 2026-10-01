@@ -14,7 +14,7 @@ import {
   type CompletionContext,
   type CompletionResult,
 } from "@codemirror/autocomplete";
-import type { Extension } from "@codemirror/state";
+import type { EditorState, Extension } from "@codemirror/state";
 import type { EditorView } from "@codemirror/view";
 import type { Symbols } from "../api";
 import { labelSays } from "./latex-links";
@@ -260,6 +260,79 @@ const INSIDE_BRACES = /^[^}{]*$/;
 /** Every command whose argument is a list of citation keys. */
 const CITE = /^(no|super|paren|text|auto|foot|full)?cite[a-zA-Z]*$/;
 
+/** How far a citation list is followed onto other lines: twenty lines, two
+ *  thousand characters, and never past a blank line, so a brace pages away
+ *  costs nothing and a paragraph break always ends the search. */
+const REACH_LINES = 20;
+const REACH_CHARS = 2000;
+
+/** A line, or the part of one, that holds only keys and the commas between
+ *  them.  Prose fails it, since its words are parted by spaces rather than
+ *  commas, and so does anything with a brace, a command or a comment, which
+ *  is what keeps a list from being read into the paragraph around it. */
+const KEYS = /^\s*,?\s*[\w:.+\-/@]*(?:\s*,\s*[\w:.+\-/@]*)*\s*$/;
+
+/** The open citation the caret is in when its `\cite{` is on an earlier
+ *  line: `typed` is everything from the brace to the caret, newlines and
+ *  all, which `citeContext` reads like any list.  A key left unfinished
+ *  at the end of the line before, with no comma after it, is not a list
+ *  the caret can add to, so it answers nothing. */
+export function citeAcross(
+  state: EditorState,
+  pos: number,
+): { command: string; typed: string } | null {
+  const line = state.doc.lineAt(pos);
+  const head = line.text.slice(0, pos - line.from);
+  if (!KEYS.test(head)) return null;
+  const between: string[] = [head];
+  let reach = head.length;
+  for (let n = line.number - 1; n >= Math.max(1, line.number - REACH_LINES); n -= 1) {
+    const text = state.doc.line(n).text;
+    reach += text.length + 1;
+    if (!text.trim() || reach > REACH_CHARS) return null;
+    const open = inArgument(text);
+    if (open) {
+      if (!CITE.test(open.command)) return null;
+      const typed = [open.typed, ...between.reverse()].join("\n");
+      const last = typed.slice(typed.lastIndexOf(",") + 1);
+      return /\S\s*\n/.test(last) ? null : { command: open.command, typed };
+    }
+    if (!KEYS.test(text)) return null;
+    between.push(text);
+  }
+  return null;
+}
+
+/** What follows the caret in a citation list, onto later lines while they
+ *  hold only keys, up to the line that closes it.  What `citeContext` and
+ *  `citeInsertion` read, so a key already on the next line is left out of
+ *  the list and a closing brace there is not doubled. */
+export function citeAfter(state: EditorState, pos: number): string {
+  const line = state.doc.lineAt(pos);
+  let after = line.text.slice(pos - line.from);
+  if (/[{}\\%]/.test(after) || !KEYS.test(after)) return after;
+  const last = Math.min(state.doc.lines, line.number + REACH_LINES);
+  for (let n = line.number + 1; n <= last; n += 1) {
+    const text = state.doc.line(n).text;
+    if (!text.trim() || after.length + text.length > REACH_CHARS) break;
+    const close = text.indexOf("}");
+    if (close >= 0) {
+      if (KEYS.test(text.slice(0, close))) after += `\n${text}`;
+      break;
+    }
+    if (!KEYS.test(text)) break;
+    after += `\n${text}`;
+  }
+  return after;
+}
+
+/** The open argument at the caret, on this line or, for a citation list,
+ *  begun on an earlier one. */
+function argumentAt(state: EditorState, pos: number): { command: string; typed: string } | null {
+  const line = state.doc.lineAt(pos);
+  return inArgument(line.text.slice(0, pos - line.from)) ?? citeAcross(state, pos);
+}
+
 /** What the completion list would be at one position.
  *
  *  Separated from the extension so it can be asked a question without a
@@ -275,7 +348,7 @@ export function latexSource(
     const before = line.text.slice(0, context.pos - line.from);
     const found = symbols();
 
-    const argument = inArgument(before);
+    const argument = inArgument(before) ?? citeAcross(context.state, context.pos);
     if (argument) {
       const from = context.pos - argument.typed.length;
       const { command } = argument;
@@ -432,8 +505,7 @@ function citations(
 ): CompletionResult | null {
   const all = found?.citations ?? [];
   if (!all.length) return null;
-  const line = context.state.doc.lineAt(context.pos);
-  const after = line.text.slice(context.pos - line.from);
+  const after = citeAfter(context.state, context.pos);
   const { segment, back, forward, excluded } = citeContext(typed, after);
   const document = scope
     ? documentOf(scope.path, scope.owners, scope.previews, scope.activePreview)
@@ -448,7 +520,7 @@ function citations(
       info: hit.citation.title || undefined,
       type: "constant",
       apply: (view: EditorView, _completion: Completion, start: number, end: number) => {
-        const { insert, caret } = citeInsertion(view.state.sliceDoc(end, view.state.doc.lineAt(end).to), key);
+        const { insert, caret } = citeInsertion(citeAfter(view.state, end), key);
         view.dispatch({
           changes: { from: start, to: end, insert },
           selection: { anchor: start + caret },
@@ -468,8 +540,7 @@ function citations(
     filter: false,
     getMatch: (option) => LABEL.get(option) ?? [],
     update: (_current, _from, _to, next) => {
-      const here = next.state.doc.lineAt(next.pos);
-      const now = inArgument(here.text.slice(0, next.pos - here.from));
+      const now = argumentAt(next.state, next.pos);
       return now && CITE.test(now.command) ? citations(next, now.typed, found, scope) : null;
     },
   };

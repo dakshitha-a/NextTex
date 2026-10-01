@@ -248,3 +248,76 @@ describe("accepting closes the argument", () => {
     );
   });
 });
+
+/** A citation list typed over several lines, one key a line as many
+ *  people keep a long one, used to offer nothing past the first line,
+ *  since the source read only the line the caret was on.  It now reads
+ *  back to the brace, bounded, and on to the closing brace the same way. */
+describe("a citation list over several lines", () => {
+  const MORE: Symbols = {
+    ...SYMBOLS,
+    citations: [
+      { key: "knuth1984", author: "Knuth", year: "1984", title: "The TeXbook" },
+      { key: "lamport1994", author: "Lamport", year: "1994", title: "LaTeX" },
+      { key: "okafor2020", author: "Okafor", year: "2020", title: "Conical intersections" },
+    ],
+  } as any;
+
+  function atIn(doc: string) {
+    const pos = doc.includes("|") ? doc.indexOf("|") : doc.length;
+    const state = EditorState.create({ doc: doc.replace("|", "") });
+    return latexSource(() => MORE)(new CompletionContext(state, pos, false));
+  }
+  const keys = (doc: string) => (atIn(doc)?.options ?? []).map((option) => option.label);
+
+  test("the next line offers keys, leaving out the ones above", () => {
+    expect(keys("As shown~\\cite{knuth1984,\n  ")).toEqual(["lamport1994", "okafor2020"]);
+    expect(keys("\\cite{knuth1984,\n  lamport1994,\n  ok")).toEqual(["okafor2020"]);
+  });
+
+  test("the replacement starts at the key on its own line", () => {
+    const doc = "\\cite{knuth1984,\n  lam";
+    expect(atIn(doc)!.from).toBe(doc.length - 3);
+  });
+
+  test("a key on a later line is left out too", () => {
+    expect(keys("\\cite{knuth1984,\n  |\n  okafor2020}")).toEqual(["lamport1994"]);
+  });
+
+  test("a brace on the line before a paragraph break is not followed", () => {
+    expect(atIn("\\cite{knuth1984,\n\nlam")).toBeNull();
+  });
+
+  test("a brace more lines up than the reach is not followed", () => {
+    const filler = Array.from({ length: 25 }, () => "  knuth1984,").join("\n");
+    expect(atIn(`\\cite{${filler}\n  lam`)).toBeNull();
+  });
+
+  test("prose on the line before is not read as part of a list", () => {
+    expect(atIn("\\cite{knuth1984,\nand so we went on\nlam")).toBeNull();
+  });
+
+  test("a key left unfinished above, with no comma, is not continued", () => {
+    expect(atIn("\\cite{knuth1984\n  lam")).toBeNull();
+  });
+
+  test("labels are as they were: one line", () => {
+    expect(atIn("\\ref{\n  eq")).toBeNull();
+  });
+
+  test("accepting before a brace on the next line adds no second brace", () => {
+    const doc = "\\cite{knuth1984,\n  lam|\n}";
+    const pos = doc.indexOf("|");
+    const view = {
+      state: EditorState.create({ doc: doc.replace("|", ""), selection: { anchor: pos } }),
+      dispatch(spec: any) {
+        this.state = this.state.update(spec).state;
+      },
+    } as any;
+    const result = latexSource(() => MORE)(new CompletionContext(view.state, pos, true))!;
+    const option = result.options.find((o) => o.label === "lamport1994")!;
+    (option.apply as any)(view, option, result.from, result.to ?? pos);
+    expect(view.state.doc.toString()).toBe("\\cite{knuth1984,\n  lamport1994\n}");
+  });
+});
+

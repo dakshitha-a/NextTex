@@ -125,11 +125,6 @@ OpenAI provider against OpenAI itself.
       decision about where it opens, which the page's links already
       took and this should follow.
 
-- [ ] **A citation list that spans lines is not completed.** The
-      completion source reads the current line, so a `\cite{` whose keys
-      run onto the next line offers nothing there. Rare, since a list is
-      usually typed on one line; the fix is reading back to the brace.
-
 ### Never run against the real thing
 
 - [ ] **The OpenAI provider has never spoken to OpenAI itself.**

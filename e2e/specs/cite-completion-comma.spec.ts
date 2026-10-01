@@ -85,3 +85,41 @@ test("citations complete after each comma, by author and title, from the linked 
   await page.keyboard.press("Enter");
   await expect(page.locator(".cm-activeLine")).toHaveText("\\cite{lamport1994,okafor2020}");
 });
+
+/** A list kept one key a line offered nothing past its first line, since
+ *  the completion read only the line the caret was on.  It reads back to
+ *  the brace now, and leaves out the keys above. */
+test("a citation list over several lines completes on each line", async ({ app, project, page }) => {
+  appendFileSync(join(project.root, "references.bib"), [
+    "",
+    "@book{lamport1994,",
+    "  author = {Lamport, Leslie},",
+    "  title  = {LaTeX: a document preparation system},",
+    "  year   = {1994},",
+    "}",
+    "",
+  ].join("\n"));
+  await page.goto(`${app.base}/?token=${app.token}`);
+  await page.getByText("Projects", { exact: false }).first().waitFor();
+  await openProject(page, project.root);
+  await expect(page.locator(".cm-content")).toContainText("\\cite{knuth1984}", { timeout: 30_000 });
+  await page.locator(".cm-content").click();
+  await page.keyboard.press("Control+End");
+  await page.keyboard.press("ArrowUp");
+  await page.keyboard.press("Home");
+  await page.keyboard.press("Enter");
+  await page.keyboard.press("ArrowUp");
+
+  const list = page.locator(".cm-tooltip-autocomplete");
+  const labels = list.locator(".cm-completionLabel");
+  await page.keyboard.type("Both~\\cite{knuth1984,");
+  await page.keyboard.press("Escape");
+  await page.keyboard.press("Enter");
+  await page.keyboard.type("lamp");
+  await expect(list).toBeVisible({ timeout: 10_000 });
+  await expect(labels).toHaveText(["lamport1994"]);
+  await page.waitForTimeout(200);
+  await page.keyboard.press("Enter");
+  await expect(page.locator(".cm-activeLine")).toContainText("lamport1994}");
+  await expect(page.locator(".cm-content")).toContainText("Both~\\cite{knuth1984,");
+});
