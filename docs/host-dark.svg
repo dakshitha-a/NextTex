@@ -1,0 +1,36 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="1040" height="330" viewBox="0 0 1040 330" role="img" aria-label="An always-on host between writers who are never online together. You, online in the morning, and your co-author, online at night, each connect to one host in the middle, an ordinary NextTex on a machine that stays on. It keeps a copy of every shared project and passes edits along whenever either of you is online. Anyone else in the share connects to it the same way.">
+<title>An always-on host</title>
+<rect width="1040" height="330" rx="10" fill="#232825"/>
+<text x="24" y="34" font-family="ui-sans-serif,system-ui,-apple-system,Segoe UI,Roboto,sans-serif" font-size="11" letter-spacing="1.6" fill="#A9B2AB">AN ALWAYS-ON HOST</text>
+<rect x="24" y="120" width="280" height="110" rx="5" fill="#1E2320" stroke="#3A403C" stroke-width="1"/>
+<text x="42" y="148" font-family="ui-sans-serif,system-ui,-apple-system,Segoe UI,Roboto,sans-serif" font-size="14" font-weight="600" fill="#E3E8E2">You</text>
+<text x="42" y="172" font-family="ui-sans-serif,system-ui,-apple-system,Segoe UI,Roboto,sans-serif" font-size="11" fill="#A9B2AB">online in the morning</text>
+<text x="42" y="192" font-family="ui-sans-serif,system-ui,-apple-system,Segoe UI,Roboto,sans-serif" font-size="11" fill="#A9B2AB">your own NextTex, your own agent</text>
+<rect x="736" y="120" width="280" height="110" rx="5" fill="#1E2320" stroke="#3A403C" stroke-width="1"/>
+<text x="754" y="148" font-family="ui-sans-serif,system-ui,-apple-system,Segoe UI,Roboto,sans-serif" font-size="14" font-weight="600" fill="#E3E8E2">Your co-author</text>
+<text x="754" y="172" font-family="ui-sans-serif,system-ui,-apple-system,Segoe UI,Roboto,sans-serif" font-size="11" fill="#A9B2AB">online at night</text>
+<text x="754" y="192" font-family="ui-sans-serif,system-ui,-apple-system,Segoe UI,Roboto,sans-serif" font-size="11" fill="#A9B2AB">their own NextTex, their own agent</text>
+<rect x="736" y="262" width="280" height="48" rx="5" fill="#1E2320" stroke="#3A403C" stroke-width="1" stroke-dasharray="5 4"/>
+<text x="754" y="290" font-family="ui-sans-serif,system-ui,-apple-system,Segoe UI,Roboto,sans-serif" font-size="14" font-weight="600" fill="#E3E8E2">Anyone else in the share</text>
+<rect x="400" y="96" width="240" height="160" rx="6" fill="#1E2320" stroke="#C988E7" stroke-width="2"/>
+<rect x="440" y="118" width="160" height="20" rx="3" fill="#232825" stroke="#C3C8C3" stroke-width="1.2"/>
+<circle cx="586" cy="128" r="3.5" fill="#C988E7"/>
+<line x1="452" y1="128" x2="500" y2="128" stroke="#3A403C" stroke-width="2" stroke-linecap="round"/>
+<rect x="440" y="146" width="160" height="20" rx="3" fill="#232825" stroke="#C3C8C3" stroke-width="1.2"/>
+<circle cx="586" cy="156" r="3.5" fill="#C988E7"/>
+<line x1="452" y1="156" x2="500" y2="156" stroke="#3A403C" stroke-width="2" stroke-linecap="round"/>
+<text x="520" y="200" font-family="ui-sans-serif,system-ui,-apple-system,Segoe UI,Roboto,sans-serif" font-size="14" font-weight="600" fill="#E3E8E2" text-anchor="middle">Always-on host</text>
+<text x="520" y="220" font-family="ui-sans-serif,system-ui,-apple-system,Segoe UI,Roboto,sans-serif" font-size="11" fill="#A9B2AB" text-anchor="middle">a spare machine or a lab node</text>
+<text x="520" y="240" font-family="ui-sans-serif,system-ui,-apple-system,Segoe UI,Roboto,sans-serif" font-size="11" fill="#A9B2AB" text-anchor="middle">keeps every shared project</text>
+<line x1="304" y1="175" x2="400" y2="175" stroke="#C988E7" stroke-width="1.5"/>
+<path d="M399 171 l6 4 -6 4z" fill="#C988E7"/>
+<path d="M305 171 l-6 4 6 4z" fill="#C988E7"/>
+<line x1="736" y1="175" x2="640" y2="175" stroke="#C988E7" stroke-width="1.5"/>
+<path d="M641 171 l-6 4 6 4z" fill="#C988E7"/>
+<path d="M735 171 l6 4 -6 4z" fill="#C988E7"/>
+<text x="352" y="164" font-family="ui-sans-serif,system-ui,-apple-system,Segoe UI,Roboto,sans-serif" font-size="11" fill="#A9B2AB" text-anchor="middle">9 am</text>
+<text x="688" y="164" font-family="ui-sans-serif,system-ui,-apple-system,Segoe UI,Roboto,sans-serif" font-size="11" fill="#A9B2AB" text-anchor="middle">11 pm</text>
+<path d="M736 286 C680 286 660 270 640 250" fill="none" stroke="#3A403C" stroke-width="1.5" stroke-dasharray="4 4"/>
+<text x="24" y="290" font-family="ui-sans-serif,system-ui,-apple-system,Segoe UI,Roboto,sans-serif" font-size="11" fill="#A9B2AB">Edits cross whenever either of you is online.</text>
+<text x="24" y="308" font-family="ui-sans-serif,system-ui,-apple-system,Segoe UI,Roboto,sans-serif" font-size="11" fill="#A9B2AB">No accounts, and the host builds no PDFs for projects nobody opens there.</text>
+</svg>

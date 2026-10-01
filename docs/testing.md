@@ -247,6 +247,20 @@ because they write into the repository and they are two more browsers on
 a machine already running five; run them when the interface changes, look
 at what came out, and commit the images with the change that moved them.
 
+`e2e/shots/tour.spec.ts` films the README's GIFs the same way, into
+`docs/tour/`: the hero in both themes and five tour scenes in dark, each
+following its storyboard. `e2e/shots/recorder.ts` records the window
+through the DevTools screencast at full resolution, with a drawn pointer
+since headless Chromium has none, and notes where the camera should look
+and which waits to play back quickly; `e2e/shots/gif.py` is the camera,
+gliding a crop between those marks and cutting each frame from the full
+one, so a zoom is as sharp as the screen. Run it with `NEXTTEX_SHOT_DPR=2`
+so the zooms have the pixels; each GIF is a few seconds of real use and
+about one to three megabytes. The reference search in its citation scene
+is answered by a route in the page, as `papers.spec.ts` does, and its
+co-author is a second window under another name, since two installs
+cannot meet over the loopback transport.
+
 `e2e/shots/fidelity.spec.ts` is the third of these, and the one the visual
 overhaul was held to. It renders named surfaces from the running app, in
 both themes, as element screenshots rather than pages: a menu, a sheet, a
