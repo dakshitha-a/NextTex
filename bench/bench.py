@@ -125,6 +125,19 @@ def measure(root: Path) -> list[dict]:
 
     results.append(timed("symbols.after_build_ms", after_a_build, runs=5))
 
+    # A writer's edit, which is a real miss: one chapter changed. Each
+    # file's findings are kept, so this reads and parses that chapter and
+    # no other; it was a whole rescan, the same as symbols.scan_ms.
+    edited = root / "chapters" / "07.tex"
+    marks = iter(range(10_000))
+
+    def after_an_edit() -> None:
+        with edited.open("a", encoding="utf-8") as handle:
+            handle.write(f"\n\\label{{bench:{next(marks)}}}")
+        cache.get(build_dir=build)
+
+    results.append(timed("symbols.after_edit_ms", after_an_edit, runs=5))
+
     # The shared documents, on a project this size. Both of these are on the
     # keystroke path now: an edit reaching this install from a collaborator
     # is an `apply_update`, and every edit that settles becomes a projection.

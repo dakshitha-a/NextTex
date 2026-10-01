@@ -167,3 +167,36 @@ def test_deleting_a_file_that_is_not_the_newest_drops_its_labels(tmp_path):
     (root / "chapters" / "one.tex").unlink()
     second = cache.get(build_dir=root / "build")
     assert "sec:one" not in [label["name"] for label in second.labels]
+
+
+def test_a_change_to_one_file_reads_that_file_and_no_other(tmp_path, monkeypatch):
+    """A miss used to re-read and re-parse every source file: 28 ms on the
+    thesis-shaped bench project, after every build that followed a change.
+    Each file's findings are kept under its size and time now, and merged
+    with the first definition of a name winning, as one pass did."""
+    import os
+    import nexttex.symbols as symbols
+
+    root = project(tmp_path)
+    (root / "chapters" / "two.tex").write_text(
+        "\\label{sec:one}\\newcommand{\\R}{x}\\DeclareMathOperator{\\R}{y}",
+        encoding="utf-8",
+    )
+    cache = SymbolCache(root)
+    build = root / "build"
+    whole = cache.get(build_dir=build).as_dict()
+    assert whole == scan(root, build_dir=build).as_dict()
+    assert [c["name"] for c in whole["commands"]] == ["R"]
+
+    parsed = []
+    real = symbols._file_symbols
+    monkeypatch.setattr(symbols, "_file_symbols",
+                        lambda path, *a: parsed.append(path.name) or real(path, *a))
+    one = root / "chapters" / "one.tex"
+    one.write_text("\\label{sec:one}\\label{sec:new}", encoding="utf-8")
+    later = os.stat(one).st_mtime_ns + 10**10
+    os.utime(one, ns=(later, later))
+    found = cache.get(build_dir=build)
+    assert parsed == ["one.tex"]
+    assert "sec:new" in [label["name"] for label in found.labels]
+    assert found.as_dict() == scan(root, build_dir=build).as_dict()

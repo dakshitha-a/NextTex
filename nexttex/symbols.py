@@ -13,6 +13,7 @@ time it saw rather than trying to watch anything.
 from __future__ import annotations
 
 import os
+import threading
 import re
 from dataclasses import dataclass, field
 from pathlib import Path
@@ -393,12 +394,18 @@ def scan(
     excluded=None,
     build_dir: Path | None = None,
     files: list[Path] | None = None,
+    memo: dict | None = None,
 ) -> Symbols:
     """Everything in the project worth completing to.
 
     `files` is the walk the caller has already done, so the cache below can
     decide whether a rescan is needed and then perform it without walking
     the project a second time.
+
+    `memo` keeps each file's own findings under its size and modification
+    time, so a rescan after one file changed reads and parses that file
+    and no other. The findings are merged in walk order with the first
+    definition of a name winning, exactly as one pass over every file did.
     """
     found = Symbols()
     seen_labels: set[str] = set()
@@ -406,6 +413,7 @@ def scan(
 
     if files is None:
         files = walk_project(root, excluded=excluded, build_dir=build_dir)
+    kept: dict = {}
     for path in files:
         suffix = path.suffix.lower()
         if suffix not in STAMP_SUFFIXES:
@@ -415,70 +423,110 @@ def scan(
         if suffix in IMAGE_SUFFIXES:
             found.images.append(relative)
             continue
-        if suffix == ".bib":
-            try:
-                found.citations.extend(_bib_entries(path.read_text(
-                    encoding="utf-8", errors="replace"), relative))
-            except OSError:
-                pass
+        if suffix != ".bib" and suffix not in TEX_SUFFIXES:
             continue
-        if suffix not in TEX_SUFFIXES:
-            continue
-
         if suffix in {".tex", ".ltx"}:
             found.texfiles.append(relative)
-        try:
-            text = path.read_text(encoding="utf-8", errors="replace")
-        except OSError:
+
+        part = None
+        if memo is not None:
+            try:
+                info = path.stat()
+                stamp = (info.st_mtime_ns, info.st_size, relative)
+            except OSError:
+                stamp = None
+            held = memo.get(str(path))
+            if stamp is not None and held is not None and held[0] == stamp:
+                part = held[1]
+        if part is None:
+            part = _file_symbols(path, relative, suffix)
+            if memo is not None and stamp is not None and part is not None:
+                kept[str(path)] = (stamp, part)
+        elif memo is not None:
+            kept[str(path)] = memo[str(path)]
+        if part is None:
             continue
 
-        if suffix in {".tex", ".ltx"}:
-            english = english_of(text)
-            if english:
-                found.english[relative] = english
-            language = language_of(text)
-            if language:
-                found.languages[relative] = language
+        found.citations.extend(part.citations)
+        found.english.update(part.english)
+        found.languages.update(part.languages)
+        for label in part.labels:
+            if label["name"] not in seen_labels:
+                seen_labels.add(label["name"])
+                found.labels.append(label)
+        for command in part.commands:
+            if command["name"] not in seen_commands:
+                seen_commands.add(command["name"])
+                found.commands.append(command)
+        found.environments.extend(part.environments)
 
-        # Labels by position rather than by line, so each can say which
-        # environment it sits in; the line number is counted on the way.
-        index: list[dict] | None = None
-        line_number = 1
-        counted_to = 0
-        for match in LABEL.finditer(text):
-            name = match.group(1)
-            line_number += text.count("\n", counted_to, match.start())
-            counted_to = match.start()
-            if name in seen_labels:
-                continue
-            seen_labels.add(name)
-            if index is None:
-                index = environment_index(text)
-            found.labels.append({
-                "name": name, "file": relative, "line": line_number,
-                **environment_facts(text, match.start(), index),
-            })
-
-        for match in NEWCOMMAND.finditer(text):
-            name, arity = match.group(1), match.group(2)
-            if name in seen_commands:
-                continue
-            seen_commands.add(name)
-            found.commands.append({
-                "name": name,
-                "args": int(arity or 0),
-                "file": relative,
-                # The body, so a hover preview can expand the macro rather
-                # than showing an error for the writer's own notation.
-                "definition": _balanced(text, match.end(3) - 1),
-            })
-        for name in DECLARE_OP.findall(text):
-            if name not in seen_commands:
-                seen_commands.add(name)
-                found.commands.append({"name": name, "args": 0, "file": relative})
-        found.environments.extend(NEWENV.findall(text))
-
+    if memo is not None:
+        # What the walk no longer finds is let go, so a deleted chapter's
+        # findings are not held for the life of the session.
+        memo.clear()
+        memo.update(kept)
     found.environments = sorted(set(found.environments))
+    return found
+
+
+def _file_symbols(path: Path, relative: str, suffix: str) -> Symbols | None:
+    """One file's findings, each name kept once within the file."""
+    try:
+        text = path.read_text(encoding="utf-8", errors="replace")
+    except OSError:
+        return None
+    found = Symbols()
+    if suffix == ".bib":
+        found.citations.extend(_bib_entries(text, relative))
+        return found
+
+    if suffix in {".tex", ".ltx"}:
+        english = english_of(text)
+        if english:
+            found.english[relative] = english
+        language = language_of(text)
+        if language:
+            found.languages[relative] = language
+
+    seen_labels: set[str] = set()
+    seen_commands: set[str] = set()
+    # Labels by position rather than by line, so each can say which
+    # environment it sits in; the line number is counted on the way.
+    index: list[dict] | None = None
+    line_number = 1
+    counted_to = 0
+    for match in LABEL.finditer(text):
+        name = match.group(1)
+        line_number += text.count("\n", counted_to, match.start())
+        counted_to = match.start()
+        if name in seen_labels:
+            continue
+        seen_labels.add(name)
+        if index is None:
+            index = environment_index(text)
+        found.labels.append({
+            "name": name, "file": relative, "line": line_number,
+            **environment_facts(text, match.start(), index),
+        })
+
+    for match in NEWCOMMAND.finditer(text):
+        name, arity = match.group(1), match.group(2)
+        if name in seen_commands:
+            continue
+        seen_commands.add(name)
+        found.commands.append({
+            "name": name,
+            "args": int(arity or 0),
+            "file": relative,
+            # The body, so a hover preview can expand the macro rather
+            # than showing an error for the writer's own notation.
+            "definition": _balanced(text, match.end(3) - 1),
+        })
+    for name in DECLARE_OP.findall(text):
+        if name not in seen_commands:
+            seen_commands.add(name)
+            found.commands.append({"name": name, "args": 0, "file": relative})
+    found.environments.extend(NEWENV.findall(text))
     return found
 
 
@@ -489,6 +537,11 @@ class SymbolCache:
         self.root = root
         self._stamp: tuple = ()
         self._value: Symbols | None = None
+        # Each file's findings, so a change rescans only what changed.
+        self._memo: dict = {}
+        # The route asks from a worker thread; two asks at once would
+        # otherwise both rescan and race on the memo.
+        self._lock = threading.Lock()
 
     def get(self, *, excluded=None, build_dir: Path | None = None) -> Symbols:
         """The project's symbols, rescanned only if something has changed.
@@ -497,6 +550,10 @@ class SymbolCache:
         so a hit costs a single pass over the source files and a miss costs
         no more walking than a hit.
         """
+        with self._lock:
+            return self._get(excluded=excluded, build_dir=build_dir)
+
+    def _get(self, *, excluded=None, build_dir: Path | None = None) -> Symbols:
         files = walk_project(self.root, excluded=excluded, build_dir=build_dir)
         newest = 0.0
         names: list[str] = []
@@ -517,6 +574,7 @@ class SymbolCache:
         if self._value is None or stamp != self._stamp:
             self._value = scan(
                 self.root, excluded=excluded, build_dir=build_dir, files=files,
+                memo=self._memo,
             )
             self._stamp = stamp
         return self._value

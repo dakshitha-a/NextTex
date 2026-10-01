@@ -5558,8 +5558,11 @@ async def project_symbols(project_id: str):
     ask: the files are small, and the editor asks once per build.
     """
     session = session_for(project_id)
-    found = session.symbols.get(
-        excluded=session.project._excluded, build_dir=session.project.build_dir
+    # In a thread: even a hit walks the project to stamp it, and a miss
+    # reads the files that changed. The cache holds its own lock.
+    found = await asyncio.to_thread(
+        session.symbols.get,
+        excluded=session.project._excluded, build_dir=session.project.build_dir,
     )
     answer = found.as_dict()
 
