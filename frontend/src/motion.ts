@@ -68,8 +68,19 @@ export function useFold(open: boolean, still?: { current: boolean }): Fold {
     }
     if (!open) {
       setPhase("closing");
-      const timer = window.setTimeout(() => setPhase("closed"), duration("leave"));
-      return () => window.clearTimeout(timer);
+      // Timed from the frame the move starts in, not from the click. A
+      // busy main thread, the source pane letting go of its editor, holds
+      // that frame back and the transition with it, and a timer started
+      // at once ended the move early: the pane was hidden two thirds of
+      // the way across (e2e/specs/motion.spec.ts).
+      let timer = 0;
+      const frame = window.requestAnimationFrame(() => {
+        timer = window.setTimeout(() => setPhase("closed"), duration("leave"));
+      });
+      return () => {
+        window.cancelAnimationFrame(frame);
+        window.clearTimeout(timer);
+      };
     }
     setPhase("entering");
     let timer = 0;

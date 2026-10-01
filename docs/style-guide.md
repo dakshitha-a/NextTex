@@ -365,7 +365,10 @@ The rules:
   drawer below their breakpoints, slides by a transform. A panel that
   opens beside another, the tutorial, slides 24 px in from its outer
   side as it fades, `.nx-slide-in`. `useFold` in
-  `frontend/src/motion.ts` gives each pane its phase.
+  `frontend/src/motion.ts` gives each pane its phase, and a close is
+  timed from the first frame of the move rather than from the click, so
+  a busy main thread delays the end of the slide with its start instead
+  of cutting it short.
 - **Panes that move together move as one.** Reading and writing modes
   fold several panes in one render, so their moves share one timeline.
 - **The preview keeps its ground.** A new page is drawn out of sight,

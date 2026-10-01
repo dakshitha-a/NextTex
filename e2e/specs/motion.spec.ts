@@ -124,17 +124,40 @@ async function widths(tab: Page, testid: string, side: "left" | "right", other: 
           margin: parseFloat(side === "left" ? style.marginLeft : style.marginRight),
           other: neighbour?.offsetWidth ?? 0,
         });
+        last = performance.now();
       }
       requestAnimationFrame(tick);
     };
+    let last = performance.now();
     requestAnimationFrame(tick);
-    (window as unknown as { __widths: () => typeof frames }).__widths = () => {
+    const w = window as unknown as {
+      __widths: () => typeof frames;
+      __slid: () => boolean;
+    };
+    w.__widths = () => {
       running = false;
       return frames;
     };
+    // The slide has begun, and has ended: the pane has stopped being drawn
+    // (a fold hides it) or is back at its edge (an unfold).
+    w.__slid = () => {
+      const moved = frames.some((f) => f.margin !== 0);
+      const at = frames[frames.length - 1];
+      return moved && (performance.now() - last > 150 || (at !== undefined && at.margin === 0));
+    };
   }, { testid, side, other });
   return async () => {
-    await tab.waitForTimeout(700);
+    // Until the slide has run, not for a fixed time. It was 700 ms, and
+    // under a full run's load the click landed late enough that only the
+    // slide's first frame fell inside the window (seen twice on 1 October
+    // 2026). A slide that never starts still ends the wait, and fails the
+    // checks after it.
+    await tab
+      .waitForFunction(() => (window as unknown as { __slid: () => boolean }).__slid(), null, {
+        timeout: 5000,
+      })
+      .catch(() => undefined);
+    await tab.waitForTimeout(100);
     return tab.evaluate(() =>
       (window as unknown as { __widths: () => { width: number; margin: number; other: number }[] }).__widths(),
     );
@@ -183,8 +206,9 @@ async function holdsItsWidth(tab: Page, which: keyof typeof PANES, zoom: string)
     expect(frames.filter((f) => Math.abs(f.width - rest) > 1), shown).toHaveLength(0);
     // The slide covers the whole pane, so nothing is left to snap away.
     // Nearly, not exactly: under load the last frame of the slide can be
-    // dropped.  The fault this guards against stopped at two thirds.
-    expect(Math.min(...frames.map((f) => f.margin)), shown).toBeLessThanOrEqual(-rest * 0.9);
+    // dropped, and a close is 140 ms, so one frame is a ninth of it.  The
+    // fault this guards against stopped at two thirds.
+    expect(Math.min(...frames.map((f) => f.margin)), shown).toBeLessThanOrEqual(-rest * 0.8);
     // The neighbour takes up exactly what the pane gives up.
     expect(frames.filter((f) => Math.abs(f.width + f.margin + f.other - row) > 2), shown).toHaveLength(0);
   }
