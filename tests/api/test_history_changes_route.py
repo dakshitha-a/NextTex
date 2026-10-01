@@ -9,6 +9,9 @@ def test_a_version_that_is_not_there_is_404(client, opened):
         json={"path": "main.tex", "sha": "0" * 64},
     )
     assert answer.status_code == 404
+    # A sentence that says what happened and what to do, since the usual
+    # cause is the newest version folded into the next save.
+    assert "name a version" in answer.json()["detail"]
 
 
 @pytest.mark.parametrize("path", ["../outside.tex", "/etc/passwd", "chapters/../../x.tex"])

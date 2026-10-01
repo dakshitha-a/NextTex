@@ -5637,7 +5637,13 @@ async def history_changes_pdf(
         (found for found in session.history.versions(relative) if found.sha == sha), None,
     )
     if version is None:
-        raise HTTPException(404, "no such version")
+        # Most often the newest version, folded into the next save made
+        # within the burst window, so its row now stands for newer text.
+        raise HTTPException(
+            404,
+            "that version was folded into a newer one as you kept writing; "
+            "choose it again from History, or name a version to keep it as it is",
+        )
     try:
         state = session.document_for(document or None)
     except LookupError as error:
