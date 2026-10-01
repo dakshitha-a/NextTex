@@ -296,3 +296,51 @@ def test_a_range_of_lines_is_counted_by_the_same_counter(client, opened):
     # writer or a collaborator could see it.
     assert not list(session.project.build_dir.glob(".words-*"))
     assert not list(session.project.root.glob(".words-*"))
+
+
+def test_a_count_of_unchanged_files_is_answered_without_texcount(
+    client, opened, tmp_path, monkeypatch,
+):
+    """The browser asks for a count after every build and whenever the
+    caret crosses a heading, and each ask was a texcount process; over a
+    thesis that is seconds. An answer is kept while the files it read are
+    unchanged. A stand-in texcount records each run."""
+    import os
+    import stat
+
+    runs = tmp_path / "runs.txt"
+    fake = tmp_path / "bin" / "texcount"
+    fake.parent.mkdir()
+    fake.write_text(f"#!/bin/sh\necho run >> {runs}\necho 42\n", encoding="utf-8")
+    fake.chmod(fake.stat().st_mode | stat.S_IEXEC)
+    monkeypatch.setenv("PATH", f"{fake.parent}{os.pathsep}{os.environ['PATH']}")
+    monkeypatch.setattr(server_main, "_texcount", lambda: str(fake))
+
+    session = server_main.SESSIONS[opened["id"]]
+    target = session.project.root / "counted.tex"
+    target.write_text("Alpha beta.\n", encoding="utf-8")
+    base = f"/api/projects/{opened['id']}/words"
+    count = lambda: len(runs.read_text().splitlines()) if runs.exists() else 0
+
+    for _ in range(3):
+        assert client.get(f"{base}?path=counted.tex&scope=file").json()["words"] == 42
+    assert count() == 1
+    for _ in range(2):
+        client.get(f"{base}?path=counted.tex&scope=selection&first=1&last=1")
+    assert count() == 2
+    for _ in range(2):
+        assert client.get(f"{base}?scope=document").json()["words"] == 42
+    assert count() == 3
+
+    # A file it read changes, and the next ask counts again.
+    target.write_text("Alpha beta gamma.\n", encoding="utf-8")
+    later = target.stat().st_mtime_ns + 10**9
+    os.utime(target, ns=(later, later))
+    client.get(f"{base}?path=counted.tex&scope=file")
+    assert count() == 4
+    main = session.project.root / "main.tex"
+    main.write_text(main.read_text() + "\n% more\n", encoding="utf-8")
+    later = main.stat().st_mtime_ns + 10**9
+    os.utime(main, ns=(later, later))
+    client.get(f"{base}?scope=document")
+    assert count() == 5

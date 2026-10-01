@@ -23,6 +23,7 @@ from nexttex.compile import (
     BuildQueue, CompileResult, CompileScheduler, Outcome, ProjectPaths,
 )
 from nexttex.deps import DependencyGraph
+from nexttex.wordcount import WordCounts
 from nexttex.context import ProjectContext
 from nexttex.dictionary import GrammarIgnores, ProjectDictionary
 from nexttex.atomic import read_text, write_atomically
@@ -384,6 +385,8 @@ class ProjectSession:
         # build/, .git/ and node_modules, which is both slow and wrong --
         # a .tex under build/ is output, not a document.
         self.deps = DependencyGraph(project.root, skip=self._not_the_writers)
+        # texcount's answers while the files they counted are unchanged.
+        self.word_counts = WordCounts()
         self.documents: dict[str, DocumentState] = {}
         # The strip as this install last had it.  A project opened here for
         # the first time inherits what an older toml called `main` and

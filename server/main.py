@@ -65,7 +65,7 @@ from nexttex.atomic import (
 )
 from nexttex.compile import ENGINES, CompileScheduler, ProjectPaths, engine_for
 from nexttex.config import Settings, ensure_tex_on_path, missing_tools
-from nexttex import references
+from nexttex import references, wordcount
 from nexttex.library import (
     MAX_PDFS as LIBRARY_MAX, Library, Scan, have_pdftotext,
     title_is_on_the_page, walk as library_walk,
@@ -6019,10 +6019,10 @@ async def words(
     is the one their supervisor will get.
     """
     session = session_for(project_id)
-    if not shutil.which("texcount"):
+    if not _texcount():
         return {"words": None, "scope": scope}
     argv = ["texcount", "-q", "-total", "-1", "-sum"]
-    slice_file: Path | None = None
+    chosen: list[str] | None = None
     if first and last and path:
         source = _safe(session, path)
         try:
@@ -6032,44 +6032,66 @@ async def words(
         chosen = lines[max(first - 1, 0):max(last, 0)]
         if not chosen:
             return {"words": 0, "scope": scope}
-        # texcount reads a file, so the range becomes one. In the build
-        # directory rather than the project: it is already excluded from
-        # the tree, the watcher and every walk, so a temporary file there
-        # cannot appear in front of the writer or in a share.
-        session.project.build_dir.mkdir(parents=True, exist_ok=True)
-        slice_file = session.project.build_dir / f".words-{uuid.uuid4().hex}.tex"
-        slice_file.write_text("\n".join(chosen) + "\n", encoding="utf-8")
-        argv.append(str(slice_file))
+        # A selection or a section is counted from its text, so its text
+        # is the key.
+        key: tuple = ("text", wordcount.text_key("\n".join(chosen)))
     elif scope == "document":
-        argv += ["-inc", str(_document(session).paths.main)]
+        state = _document(session)
+        main_file = state.paths.main
+        argv += ["-inc", str(main_file)]
+        read = sorted(session.deps.reachable([state.path]))
+        files = [main_file] + [session.project.root / name for name in read]
+        key = ("document", str(main_file),
+               await asyncio.to_thread(wordcount.stamps, files))
     else:
         if not path:
             return {"words": None, "scope": scope}
-        argv.append(str(_safe(session, path)))
+        target = _safe(session, path)
+        argv.append(str(target))
+        key = ("file", str(target), wordcount.stamps([target]))
 
-    def count() -> str:
+    def count() -> int | None:
+        slice_file: Path | None = None
+        if chosen is not None:
+            # texcount reads a file, so the range becomes one. In the build
+            # directory rather than the project: it is already excluded
+            # from the tree, the watcher and every walk, so a temporary
+            # file there cannot appear in front of the writer or in a share.
+            session.project.build_dir.mkdir(parents=True, exist_ok=True)
+            slice_file = session.project.build_dir / f".words-{uuid.uuid4().hex}.tex"
+            slice_file.write_text("\n".join(chosen) + "\n", encoding="utf-8")
         try:
-            return subprocess.run(
-                argv, capture_output=True, text=True, timeout=45,
+            out = subprocess.run(
+                argv + ([str(slice_file)] if slice_file is not None else []),
+                capture_output=True, text=True, timeout=45,
                 cwd=session.project.root,
             ).stdout
         finally:
             if slice_file is not None:
                 slice_file.unlink(missing_ok=True)
+        for line in out.splitlines():
+            digits = line.strip()
+            if digits.isdigit():
+                return int(digits)
+        return None
 
     try:
         # In a thread: texcount over a whole thesis takes seconds, and on
         # the loop it holds up every autosave and every streamed token.
-        out = await asyncio.to_thread(count)
+        # Remembered while the files it read are unchanged, and never run
+        # twice at once for the same question (`nexttex/wordcount.py`).
+        total = await session.word_counts.get(key, lambda: asyncio.to_thread(count))
     except (OSError, subprocess.SubprocessError):
         return {"words": None, "scope": scope}
-    total = None
-    for line in out.splitlines():
-        digits = line.strip()
-        if digits.isdigit():
-            total = int(digits)
-            break
     return {"words": total, "scope": scope}
+
+
+@functools.lru_cache(maxsize=1)
+def _texcount() -> str | None:
+    """Where texcount is, looked for once. The route asked PATH on every
+    count, on the loop; a TeX installed while the server runs is found at
+    the next start, as the engines are."""
+    return shutil.which("texcount")
 
 
 @app.get("/api/projects/{project_id}/lint")
