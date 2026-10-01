@@ -1071,13 +1071,22 @@ export default function App() {
 
   // ---- events from the server ------------------------------------------
   useEffect(() => {
-    handlers.onFilesChanged = (_paths, structural = true) => {
+    handlers.onFilesChanged = (paths, structural = true) => {
       // A plain save in another tab changes a file, not the shape of the
       // project, and walking the tree for one of those on every keystroke
       // burst in the other window is work for nothing.
       if (structural) refreshTree();
       // No reloading. An open file is a shared document, so a change made
       // anywhere is already in the buffer by the time this event lands.
+      // A .bib's rows follow the writer's own typing, so a change from
+      // anywhere else, a co-author, an outside editor, a row's repair, has
+      // the file in front checked again; its rows had stayed as they were.
+      const { projectId: id, activePath: open } = get();
+      if (id && open && open.endsWith(".bib") && paths.includes(open)) {
+        api.lint(id, open)
+          .then((again) => { if (get().activePath === open) set({ lint: again.diagnostics }); })
+          .catch(() => undefined);
+      }
     };
     handlers.onRenamed = (from, to) => {
       renameOpenFile(from, to);
