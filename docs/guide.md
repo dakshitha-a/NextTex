@@ -205,10 +205,14 @@ makes typing slower on the day it happens.
 | Full build with `biber` | 17.9 s | 30 s |
 | Full symbol scan | 17.9 ms | 400 ms |
 | Symbol lookup, cached | 0.93 ms | 6 ms |
+| Symbols again after one chapter changed | 2.7 ms | 40 ms |
 | Opening a project | 20 ms | 400 ms |
 | Recording a version | 2.5 ms | 8 ms |
 | Rebuilding a transcript | 13.5 ms | 120 ms |
-| Project file tree | 3.6 ms | 250 ms |
+| Project file tree | 1.0 ms | 250 ms |
+| The same, with 5,000 data files beside the paper | 49 ms | 200 ms |
+| What can be previewed, after a rename or an upload | 8.1 ms | 60 ms |
+| Reading a build log of 72,000 warnings | 1.6 s | 2.5 s |
 | A collaborator's edit, applied | 3.1 ms | 40 ms |
 | A settled edit written to disk | 1.4 ms | 40 ms |
 | The same, with its version recorded | 3.0 ms | 60 ms |
