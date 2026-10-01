@@ -600,3 +600,35 @@ async def test_key_for_from_a_worker_thread_adopts_on_the_loop(project):
         assert ran_on == [loop_thread, loop_thread]
     finally:
         store.close()
+
+
+def test_a_long_log_is_not_encoded_on_every_flush(tmp_path, monkeypatch):
+    """Deciding whether a document's log has outgrown a snapshot encoded
+    the whole document on every flush once the log passed 64 kB: 4 to
+    5 ms each for a 2 MB file. The size measured last is remembered, and
+    the document is encoded again only once the log has outgrown that.
+    A log that does outgrow it is still compacted."""
+    from pycrdt import Doc, Text
+    from server.collab import persist
+
+    path = tmp_path / "doc.y"
+    doc = Doc()
+    text = doc.get("text", type=Text)
+    text += "x" * 20_000
+    persist.snapshot(path, doc)
+    for _ in range(4):
+        persist.append(path, b"\0" * (persist.COMPACT_FLOOR // 2))
+
+    encoded = []
+    real = Doc.get_update
+    monkeypatch.setattr(Doc, "get_update", lambda self, *a: encoded.append(1) or real(self, *a))
+    known: dict = {}
+    assert persist.should_compact(path, doc, known) is False
+    for _ in range(5):
+        assert persist.should_compact(path, doc, known) is False
+    assert len(encoded) == 1
+
+    for _ in range(4):
+        persist.append(path, b"\0" * persist.COMPACT_FLOOR)
+    assert persist.should_compact(path, doc, known) is True
+    assert len(encoded) == 2

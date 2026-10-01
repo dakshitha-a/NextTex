@@ -100,11 +100,27 @@ def snapshot(path: Path, doc: Doc) -> None:
     write_atomically(path, MAGIC + struct.pack(">I", len(update)) + update)
 
 
-def should_compact(path: Path, doc: Doc) -> bool:
+def should_compact(path: Path, doc: Doc, known: dict | None = None) -> bool:
+    """Whether the log has outgrown a snapshot of its document.
+
+    `known` remembers each document's encoded size, by log path, from the
+    last time it was measured. Encoding a document is the expensive half
+    of this question, 4 to 5 ms for a 2 MB file, and it was asked on every
+    flush once a log passed the floor. A document only grows by what is
+    typed into it, which the log grows by too, so while the log is under
+    the ratio of the size last measured it is under the ratio of the size
+    now, and the encoding is skipped.
+    """
     try:
         size = path.stat().st_size
     except OSError:
         return False
     if size < COMPACT_FLOOR:
         return False
-    return size > COMPACT_RATIO * max(1, len(doc.get_update()))
+    key = str(path)
+    if known is not None and key in known and size <= COMPACT_RATIO * max(1, known[key]):
+        return False
+    encoded = len(doc.get_update())
+    if known is not None:
+        known[key] = encoded
+    return size > COMPACT_RATIO * max(1, encoded)

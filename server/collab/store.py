@@ -436,6 +436,9 @@ class CollabStore:
         #: from *this* disk, which says nothing about anybody else's.
         self.root_lost = False
         self.last_projected: dict[str, str] = {}
+        # Each document's encoded size when last measured, so deciding
+        # whether its log needs compacting does not encode it every flush.
+        self._encoded: dict[str, int] = {}
 
         self._dirty: set[str] = set()
         # Files a peer proposed that this install will not write: a path that
@@ -991,7 +994,7 @@ class CollabStore:
             except ValueError:
                 continue
             try:
-                if persist.should_compact(path, doc):
+                if persist.should_compact(path, doc, self._encoded):
                     persist.snapshot(path, doc)
             except OSError:
                 pass

@@ -469,6 +469,7 @@ A single process with no database means nothing is bounded unless something boun
 | Idle session | evicted after 30 minutes, if nothing relies on it |
 | Unanswered join | discarded after 10 minutes |
 | Transcript | compacted by bytes, and 50 archived conversations kept |
+| A shared document's log | squashed into one snapshot once it is eight times the document's encoded size and past 64 kB; the size is remembered from the last measurement, so the document is encoded again only when the log outgrows that (`should_compact` in `server/collab/persist.py`) |
 | Build | 120 second timeout, then the process group is killed |
 | A figure script, from the agent or from the source pane | 120 second timeout, then the process group and every descendant is killed; 64 kB of output per stream; one run per script at a time |
 | Installing a package | 300 second timeout |
