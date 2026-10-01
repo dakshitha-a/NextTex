@@ -295,6 +295,28 @@ def measure(root: Path) -> list[dict]:
     results.append(timed("deps.after_structural_change_ms", after_structural_change, runs=5))
 
     results.append(timed("download.zip_ms", lambda: zip_size(root), runs=1))
+
+    # Reading a big build's log: the shape a thesis with unresolved
+    # citations writes, forty chapters opened and closed and 72,000
+    # warnings. Each warning asked the disk for its file's real path again
+    # until the answers were remembered; this was 3.3 s on a real 5.5 MB
+    # log and is about a third of that now.
+    from nexttex.latexlog import parse as parse_log
+
+    log_lines = []
+    for i in range(72_000):
+        chapter = root / "chapters" / f"{i % CHAPTERS:02d}.tex"
+        log_lines.append(f"({chapter}")
+        log_lines.append(
+            f"LaTeX Warning: Citation `source{i}' on page {i // 40} "
+            f"undefined on input line {i % 900 + 1}."
+        )
+        log_lines.append(")")
+    log_text = "\n".join(log_lines)
+    results.append(timed(
+        "latexlog.parse_ms",
+        lambda: parse_log(log_text, root, root / "main.tex"), runs=3,
+    ))
     results.extend(compile_passes(root))
     return results
 
