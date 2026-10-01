@@ -3928,7 +3928,16 @@ async def restore_version(
     # the file held the old text, the shared document still held the new
     # text, and the next keystroke anywhere projected the document back over
     # the restored file.
-    _ingest(session, target, text)
+    #
+    # As text. `bytes_of` hands back bytes so a figure comes back whole, and
+    # `CollabStore.ingest` takes anything that is not a `str` for a binary
+    # with no shared text, so for a while every restore of a `.tex` folded
+    # nothing in and the open editor went on showing what had been undone.
+    try:
+        restored = text.decode("utf-8") if isinstance(text, bytes) else text
+    except UnicodeDecodeError:
+        restored = text
+    _ingest(session, target, restored)
     session.note_edit(target, text, previous)
     session.schedule_compile()
     await session.events.publish({"type": "files_changed", "paths": [path]})

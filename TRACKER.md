@@ -24,7 +24,13 @@ things go to be forgotten rather than a list anybody reads.
 
 ## In hand
 
-Nothing is in hand. The right-click menus run closed on 30 September
+Found while filming the README's GIFs on 1 October 2026, and fixed:
+restoring a version of a `.tex` that was open in the editor changed the
+file on disk and left the editor showing what had been undone, with the
+next write ready to put the deletion back. The restore route handed the
+shared document bytes, which it takes for a binary file.
+
+Nothing else is in hand. The right-click menus run closed on 30 September
 2026 at 4.11.0, at the writer's request: a file tree row, the tree's empty
 space, every tab, a projects row, the typeset page, and the rows of the
 Comments, Deleted and History drawers open their own actions on a

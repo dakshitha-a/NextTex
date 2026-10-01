@@ -411,3 +411,55 @@ def test_a_rename_leaves_the_log_file_where_it_was(client, opened):
     assert session.collab.file_id_for("thesis.tex") == key
     assert session.history.path_of(key) == "thesis.tex"
     assert (session.history.root / "format").read_text(encoding="utf-8").strip() == "2"
+
+
+# --- a restore of the file that is open --------------------------------------
+
+
+def _document_text(client, project_id: str, path: str = "main.tex") -> str:
+    from server import main as server_main
+
+    session = server_main.SESSIONS[project_id]
+
+    async def read():
+        return str(session.collab.body(session.collab.file_id_for(path)))
+
+    return client.portal.call(read)
+
+
+def _settle(client, project_id: str) -> None:
+    """The document written out, so the disk and the document agree."""
+    from server import main as server_main
+
+    session = server_main.SESSIONS[project_id]
+
+    async def flush():
+        session.collab.flush()
+
+    client.portal.call(flush)
+
+
+def test_restoring_a_text_file_puts_it_in_the_shared_document(client, opened, project_dir):
+    """Found filming the README's history GIF: a paragraph deleted in the
+    open editor, the version from before it restored, and the file on disk
+    had the paragraph back while the editor went on showing it gone.
+
+    The route reads the version as bytes, so a figure comes back whole, and
+    handed those bytes to the shared document, which takes anything that is
+    not a `str` for a binary and folds nothing in. So the document kept the
+    deletion, and its next write to disk undid the restore."""
+    project_id = opened["id"]
+    save(client, project_id, "Kept.\n\nThe paragraph.\n", origin="tab-a")
+    save(client, project_id, "Kept.\n", origin="tab-b")
+    before = version_saying(client, project_id, "Kept.\n\nThe paragraph.\n")
+    assert _document_text(client, project_id) == "Kept.\n"
+
+    answer = client.post(f"/api/projects/{project_id}/history/restore",
+                         json={"path": "main.tex", "sha": before["sha"]})
+    assert answer.status_code == 200
+    assert _document_text(client, project_id) == "Kept.\n\nThe paragraph.\n"
+
+    # And the document writing itself out keeps it, rather than putting
+    # the deletion back over the restored file.
+    _settle(client, project_id)
+    assert (project_dir / "main.tex").read_text(encoding="utf-8") == "Kept.\n\nThe paragraph.\n"
