@@ -8,14 +8,15 @@
  *  parser already knows what a heading is.  Folding is a view decoration:
  *  the shared document and its undo history are untouched.
  *
- *  Both kinds are found once per document text in `foldRanges`, which the
- *  service memoises per document, since the gutter asks about every visible
- *  line on every redraw.
+ *  Both kinds are found in `foldRanges` and kept in a state field, since
+ *  the gutter asks about every visible line on every redraw; an edit that
+ *  can only have moved them carries them through instead of finding them
+ *  again (`reshapes`).
  */
 
 import { foldEffect, foldService, foldedRanges } from "@codemirror/language";
-import type { EditorState, Extension } from "@codemirror/state";
-import type { Text } from "@codemirror/state";
+import { StateField } from "@codemirror/state";
+import type { ChangeSet, EditorState, Extension, Text } from "@codemirror/state";
 import type { Command } from "@codemirror/view";
 
 /** Depth of each sectioning command, LaTeX's own order.  `\part` folds to
@@ -54,9 +55,16 @@ export function foldRanges(doc: Text): Map<number, Fold> {
   let verbatim: string | null = null;
   let endDocument: number | null = null;
 
-  for (let n = 1; n <= doc.lines; n++) {
-    const line = doc.line(n);
-    const text = stripComment(line.text);
+  // Walked in order rather than asked for by number: `doc.line(n)` is a
+  // descent through the text's tree, once per line of a long file.
+  let n = 0;
+  let from = 0;
+  for (const iter = doc.iterLines(); !iter.next().done; ) {
+    n += 1;
+    const raw = iter.value;
+    const line = { from, to: from + raw.length };
+    from = line.to + 1;
+    const text = stripComment(raw);
     if (verbatim) {
       if (text.includes(`\\end{${verbatim}}`)) {
         close(verbatim, n, line, stack, out);
@@ -64,6 +72,10 @@ export function foldRanges(doc: Text): Map<number, Fold> {
       }
       continue;
     }
+    // Every line that opens, closes or heads something has a backslash,
+    // and most prose does not; the regular expressions below are the
+    // expensive part of this loop.
+    if (!text.includes("\\")) continue;
     // Environments first, since a heading line rarely opens one and a
     // line can close one environment and open another.
     const opens: string[] = [];
@@ -136,6 +148,11 @@ function close(
 
 /** A line's text with its comment removed, `\%` kept. */
 function stripComment(text: string): string {
+  // Most lines have no `%` at all, and building them again a character at
+  // a time was the single largest cost of typing in a long file.
+  const percent = text.indexOf("%");
+  if (percent < 0) return text;
+  if (percent > 0 && !text.includes("\\")) return text.slice(0, percent);
   let out = "";
   for (let i = 0; i < text.length; i++) {
     const c = text[i];
@@ -156,18 +173,58 @@ export function foldAt(state: EditorState, lineStart: number, cache: Map<number,
   return cache.get(n) ?? null;
 }
 
-/** The CodeMirror service: one range computation per document version,
- *  answered per line from the map. */
-export function latexFolding(): Extension {
-  let forDoc: Text | null = null;
-  let ranges = new Map<number, Fold>();
-  return foldService.of((state, lineStart) => {
-    if (state.doc !== forDoc) {
-      ranges = foldRanges(state.doc);
-      forDoc = state.doc;
-    }
-    return foldAt(state, lineStart, ranges);
+/** Whether an edit could change what folds, judged from the lines it
+ *  touched before and after.  A fold starts on a line with a backslash,
+ *  and a section's fold stops short of trailing blank lines, so an edit
+ *  that keeps every line it touches free of backslashes, `%` and
+ *  blankness, and adds or removes no line, moves the folds' ends and
+ *  changes nothing else.  That is ordinary typing in a paragraph. */
+export function reshapes(changes: ChangeSet, before: Text, after: Text): boolean {
+  let reshaped = false;
+  const plain = (doc: Text, from: number, to: number) => {
+    const first = doc.lineAt(from).number;
+    const last = doc.lineAt(to).number;
+    if (first !== last) return false;
+    const text = doc.line(first).text;
+    return text.trim() !== "" && !text.includes("\\") && !text.includes("%");
+  };
+  changes.iterChanges((fromA, toA, fromB, toB) => {
+    if (reshaped) return;
+    if (!plain(before, fromA, toA) || !plain(after, fromB, toB)) reshaped = true;
   });
+  return reshaped;
+}
+
+/** Each fold's ends carried through an edit that `reshapes` says moved
+ *  them and nothing else. */
+function mapped(ranges: Map<number, Fold>, changes: ChangeSet): Map<number, Fold> {
+  const out = new Map<number, Fold>();
+  for (const [line, fold] of ranges) {
+    out.set(line, { from: changes.mapPos(fold.from, 1), to: changes.mapPos(fold.to, 1) });
+  }
+  return out;
+}
+
+/** Every fold in the document, kept with the state.  It was computed
+ *  afresh for each new document, which is each keystroke, by a pass over
+ *  every line: in a 12,000-line file that was a fifth of the time typing
+ *  took.  Typing in a paragraph now carries the folds through the edit. */
+const foldsField = StateField.define<Map<number, Fold>>({
+  create: (state) => foldRanges(state.doc),
+  update(ranges, tr) {
+    if (!tr.docChanged) return ranges;
+    return reshapes(tr.changes, tr.startState.doc, tr.state.doc)
+      ? foldRanges(tr.state.doc)
+      : mapped(ranges, tr.changes);
+  },
+});
+
+/** The CodeMirror service, answered per line from the field. */
+export function latexFolding(): Extension {
+  return [
+    foldsField,
+    foldService.of((state, lineStart) => foldAt(state, lineStart, state.field(foldsField))),
+  ];
 }
 
 /** Fold the section or environment the caret is in: the innermost range

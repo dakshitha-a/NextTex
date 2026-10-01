@@ -126,3 +126,69 @@ describe("environments", () => {
     expect(spans("\\begin{document}\nx\ny\n\\end{document}")).toEqual({});
   });
 });
+
+describe("folds carried through typing", () => {
+  const sample = [
+    "\\documentclass{article}",
+    "\\begin{document}",
+    "\\section{One}",
+    "Prose that is typed into.",
+    "",
+    "\\begin{itemize}",
+    "  item text here",
+    "  more item text",
+    "\\end{itemize}",
+    "Closing prose of one.",
+    "",
+    "\\section{Two} % a comment",
+    "Prose of two.",
+    "\\end{document}",
+  ].join("\n");
+
+  /** Every single-character insertion and deletion anywhere in the
+   *  sample: the field's answer must equal a fresh computation, whether it
+   *  carried the folds or found them again. */
+  it("agrees with a fresh computation after every possible keystroke", async () => {
+    const { EditorState } = await import("@codemirror/state");
+    const { latexFolding } = await import("./folds");
+    const { foldService } = await import("@codemirror/language");
+    const answer = (state: import("@codemirror/state").EditorState) => {
+      const out: string[] = [];
+      for (let n = 1; n <= state.doc.lines; n++) {
+        for (const service of state.facet(foldService)) {
+          const fold = service(state, state.doc.line(n).from, state.doc.line(n).to);
+          if (fold) out.push(`${n}:${fold.from}-${fold.to}`);
+        }
+      }
+      return out.join(" ");
+    };
+    const base = EditorState.create({ doc: sample, extensions: latexFolding() });
+    for (let at = 0; at <= sample.length; at++) {
+      for (const insert of ["x", " ", "\\", "%", "\n"]) {
+        const next = base.update({ changes: { from: at, insert } }).state;
+        const fresh = EditorState.create({ doc: next.doc, extensions: latexFolding() });
+        expect(answer(next), `insert ${JSON.stringify(insert)} at ${at}`).toBe(answer(fresh));
+      }
+      if (at < sample.length) {
+        const next = base.update({ changes: { from: at, to: at + 1 } }).state;
+        const fresh = EditorState.create({ doc: next.doc, extensions: latexFolding() });
+        expect(answer(next), `delete at ${at}`).toBe(answer(fresh));
+      }
+    }
+  });
+
+  it("typing in a plain line carries the folds; touching structure finds them again", async () => {
+    const { EditorState, Text } = await import("@codemirror/state");
+    const { reshapes } = await import("./folds");
+    const doc = Text.of(sample.split("\n"));
+    const state = EditorState.create({ doc });
+    const prose = doc.line(4).from + 5;
+    const plain = state.update({ changes: { from: prose, insert: "word " } });
+    expect(reshapes(plain.changes, doc, plain.state.doc)).toBe(false);
+    const slash = state.update({ changes: { from: prose, insert: "\\" } });
+    expect(reshapes(slash.changes, doc, slash.state.doc)).toBe(true);
+    const blankLine = doc.line(5).from;
+    const filled = state.update({ changes: { from: blankLine, insert: "x" } });
+    expect(reshapes(filled.changes, doc, filled.state.doc)).toBe(true);
+  });
+});
