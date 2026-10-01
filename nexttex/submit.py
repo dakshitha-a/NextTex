@@ -71,6 +71,16 @@ NOT_ENTRIES = {"comment", "string", "preamble"}
 #: Per kind: the sentence under the row and what to do about it.  `title`
 #: is the group heading in the panel, so it reads as a category.
 EXPLAIN = {
+    "retracted": {
+        "title": "Retracted",
+        "detail": "The publisher's record says this paper has been retracted. A reviewer who checks will find it, and a retracted result cannot support a claim.",
+        "fix": "Remove the citation, or, where the paper must be mentioned, cite the retraction notice, which the publisher's page for the paper links.",
+    },
+    "published": {
+        "title": "Published since",
+        "detail": "The publisher's record says this preprint has a journal version. Venues ask for the version of record where there is one.",
+        "fix": "Cite the journal version: References takes its DOI and adds the entry from the publisher's record.",
+    },
     "undefined": {
         "title": "Undefined references and citations",
         "detail": "The build could not resolve this key, so the page shows ?? where it should show a number.",

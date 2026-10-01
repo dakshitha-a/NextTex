@@ -25,7 +25,7 @@ type Group = { kind: string; title: string; rows: SubmitFinding[] };
 
 /** The order the groups are drawn in: what a reviewer notices first. */
 const ORDER = [
-  "pages", "blind", "pdfa", "undefined", "missing", "font", "image", "metadata", "alt",
+  "pages", "retracted", "published", "blind", "pdfa", "undefined", "missing", "font", "image", "metadata", "alt",
   "today", "todo", "duplicate-label", "overfull", "commented", "uncited", "unused-label",
   "tool",
 ];
@@ -73,6 +73,18 @@ export function asText(report: SubmitReport): string {
     .join("\n");
 }
 
+/** What the record check says it did, under the headline. */
+export function recordsSaid(records: { asked: number; unknown: number; failed: number }): string {
+  const parts = [`Asked Crossref about ${records.asked === 1 ? "one DOI" : `${records.asked} DOIs`}.`];
+  if (records.unknown) {
+    parts.push(`It does not hold ${records.unknown === 1 ? "one of them" : `${records.unknown} of them`}, so nothing is said about ${records.unknown === 1 ? "it" : "those"}.`);
+  }
+  if (records.failed) {
+    parts.push(`${records.failed === 1 ? "One" : records.failed} could not be asked: the network did not answer.`);
+  }
+  return parts.join(" ");
+}
+
 export default function SubmitPanel({
   onJump,
   onPage,
@@ -93,6 +105,33 @@ export default function SubmitPanel({
   const [expanded, setExpanded] = useState<string | null>(null);
   const [limitDraft, setLimitDraft] = useState(String(settings.pageLimit || ""));
   const [copied, setCopied] = useState(false);
+  // The publishers' records: how many DOIs there are to ask about, and
+  // what the asking found, kept beside the report so a re-check after a
+  // build does not drop rows that came from the network.
+  const [dois, setDois] = useState<number | null>(null);
+  const [records, setRecords] = useState<{ asked: number; unknown: number; failed: number; findings: SubmitFinding[] } | null>(null);
+  const [asking, setAsking] = useState(false);
+  useEffect(() => {
+    if (!projectId || !report) return;
+    let cancelled = false;
+    api.submitRecordsCount(projectId)
+      .then((answer) => !cancelled && setDois(answer.dois))
+      .catch(() => !cancelled && setDois(null));
+    return () => {
+      cancelled = true;
+    };
+  }, [projectId, report]);
+  const askRecords = async () => {
+    if (!projectId) return;
+    setAsking(true);
+    try {
+      setRecords(await api.submitRecords(projectId));
+    } catch (error: any) {
+      set({ error: `Could not ask the publishers' records: ${error?.message ?? error}` });
+    } finally {
+      setAsking(false);
+    }
+  };
 
   useEffect(() => {
     setLimitDraft(String(settings.pageLimit || ""));
@@ -139,7 +178,10 @@ export default function SubmitPanel({
     });
   };
 
-  const groups = useMemo(() => (report ? grouped(report.findings) : []), [report]);
+  const groups = useMemo(
+    () => (report ? grouped([...(records?.findings ?? []), ...report.findings]) : []),
+    [report, records],
+  );
   const missingTools = tools && (!tools.pdffonts || !tools.pdfimages);
 
   // The drawer as the page draws it: empty, one sentence and Check;
@@ -257,6 +299,40 @@ export default function SubmitPanel({
         ) : null}
         {said ? (
           <p className="nx-note !text-warn" data-testid="submit-said">{said}</p>
+        ) : null}
+        {report && dois ? (
+          records ? (
+            <>
+              <p className="nx-note" data-testid="submit-records-said">
+                {recordsSaid(records)}
+              </p>
+              {records.failed ? (
+                <div className="nx-line">
+                  <Button variant="ghost" size="inline" disabled={asking} onClick={() => void askRecords()}>
+                    {asking ? "Asking…" : "Ask again"}
+                  </Button>
+                </div>
+              ) : null}
+            </>
+          ) : (
+            <>
+              <div className="nx-line">
+                <Button
+                  variant="ghost"
+                  size="inline"
+                  data-testid="submit-records"
+                  disabled={asking}
+                  onClick={() => void askRecords()}
+                >
+                  {asking ? "Asking…" : "Ask the publishers' records"}
+                </Button>
+              </div>
+              <p className="nx-note">
+                Asks Crossref about this document's {dois === 1 ? "one DOI" : `${dois} DOIs`}, for a
+                retraction or a journal version. Nothing else is sent.
+              </p>
+            </>
+          )
         ) : null}
         {facts}
         {missingTools ? (

@@ -1596,6 +1596,30 @@ const SURFACES: Record<string, Surface> = {
       await showDrawer(tab, "files");
     },
   },
+  "records": {
+    // Before you submit after asking the publishers' records, as
+    // "Retraction and published-version check" draws it; the answers are
+    // a stand-in, since no render reaches Crossref.
+    open: async (tab) => {
+      await tab.route("**/submit/records", (route) => {
+        if (route.request().method() === "GET") return route.fulfill({ json: { dois: 23 } });
+        const row = (kind: string, severity: string, message: string, line: number, title: string) => ({
+          kind, severity, message, file: "references.bib", line, page: null, source: "submit",
+          explain: { title, detail: "", fix: "" },
+        });
+        return route.fulfill({ json: { asked: 23, unknown: 2, failed: 0, findings: [
+          row("retracted", "error", "wakefield1998 has been retracted", 212, "Retracted"),
+          row("published", "warning", "lee2019 is a preprint; its journal version is 10.1364/OE.572415", 40, "Published since"),
+        ] } });
+      });
+      await showDrawer(tab, "submit");
+      await tab.getByTestId("submit-check").click();
+      await tab.getByTestId("submit-records").click({ timeout: 60_000 });
+      await tab.getByTestId("submit-records-said").waitFor();
+      return tab.getByTestId("drawer");
+    },
+    close: async (tab) => { await showDrawer(tab, "files"); },
+  },
   "page-count": {
     open: async (tab) => {
       await tab.request.post(`${ctx!.base}/api/projects/${ctx!.id}/settings`, { data: { pageLimit: 1 } });

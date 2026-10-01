@@ -187,3 +187,35 @@ test("the panel lists what a venue would send back, and every row that has a pla
   expect(copied).toContain("main.tex:6: \\today");
   expect(copied).toContain("page 2: ");
 });
+
+test("the publishers' records are asked on a press, and say what changed", async ({ tab }) => {
+  // The answers are a stand-in: no spec reaches Crossref.
+  let asked = 0;
+  await tab.route("**/submit/records", (route) => {
+    if (route.request().method() === "GET") return route.fulfill({ json: { dois: 23 } });
+    asked += 1;
+    return route.fulfill({
+      json: {
+        asked: 23, unknown: 2, failed: 0,
+        findings: [{
+          kind: "retracted", severity: "error", message: "wakefield1998 has been retracted",
+          file: "references.bib", line: 1, page: null, source: "submit",
+          explain: { title: "Retracted", detail: "d", fix: "f" },
+        }],
+      },
+    });
+  });
+  await expect(tab.locator(".cm-editor")).toBeVisible({ timeout: 45_000 });
+  await tab.getByTestId("bar-submit").click();
+  await tab.getByTestId("submit-check").click();
+  const ask = tab.getByTestId("submit-records");
+  await expect(ask).toBeVisible({ timeout: 60_000 });
+  await expect(tab.getByTestId("submit-panel")).toContainText("Asks Crossref about this document's 23 DOIs");
+  expect(asked).toBe(0);
+  await ask.click();
+  await expect(tab.getByTestId("submit-records-said")).toHaveText(
+    "Asked Crossref about 23 DOIs. It does not hold 2 of them, so nothing is said about those.",
+  );
+  await expect(tab.getByTestId("submit-panel")).toContainText("wakefield1998 has been retracted");
+  expect(asked).toBe(1);
+});

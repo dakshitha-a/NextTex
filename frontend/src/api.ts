@@ -1190,6 +1190,13 @@ const api = {
     request<{ document: string; entries: FigureEntry[] }>(
       `/projects/${id}/figures?document=${encodeURIComponent(document)}`,
     ),
+  /** How many distinct DOIs the documents cite, before asking. */
+  submitRecordsCount: (id: string) => request<{ dois: number }>(`/projects/${id}/submit/records`),
+  /** Ask the publishers' records about them: the drawer's one network call. */
+  submitRecords: (id: string) =>
+    request<{ asked: number; unknown: number; failed: number; findings: SubmitFinding[] }>(
+      `/projects/${id}/submit/records`, { method: "POST" },
+    ),
   submitCheck: (id: string, document = "") =>
     request<SubmitReport>(
       `/projects/${id}/submit?document=${encodeURIComponent(document)}`,

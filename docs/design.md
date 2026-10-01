@@ -11672,3 +11672,26 @@ offered. The direction page's "Typeset changes against a History
 version" draws it, and `e2e/specs/history-changes.spec.ts` names a
 version and opens its marked-up PDF.
 
+## 99. Retraction and published-version check
+
+The sixth item of the roadmap run. A cited paper since retracted is the
+one reference a reviewer will certainly notice, and a cited preprint
+since published should be cited as the journal's; both answers are in
+the publisher's own record, where NextTex takes every reference from.
+Before you submit offers, under what it read, *Ask the publishers'
+records*, with a line saying it asks Crossref about the document's DOIs,
+counted, and sends nothing else. It is the drawer's first question to
+the network, so it runs only when pressed, never on a build, and its
+answers are kept for a day. A retracted paper is a row in the error ink
+under *Retracted*; the notice was drawn in the row and left to the
+publisher's page once the render showed the message too long to read
+at the drawer's narrowest; a preprint with a
+journal version is a row under *Published since* naming the journal's
+DOI; both groups head the list. After asking, the line says how many
+DOIs were asked about and how many Crossref does not hold, an arXiv DOI
+being DataCite's, so nothing is said about those; one the network did
+not answer is counted and *Ask again* offered. A row goes to the entry
+in the `.bib`. The direction page's "Retraction and published-version
+check" draws it, and `e2e/specs/submit.spec.ts` asks, with the answers
+a stand-in, and reads the rows and the line.
+

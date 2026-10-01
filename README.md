@@ -228,7 +228,8 @@ in the middle.
 <br>
 
 - **Before you submit.** A checklist for undefined references, leftover TODOs,
-  page limits and blind review.
+  page limits and blind review, and, when you ask, a citation since retracted
+  or a preprint since published.
 - **Every figure and table in one list**, with its number and page, and the
   ones the text never mentions marked.
 - **Limits in view.** A word limit on the abstract or a section, counted beside

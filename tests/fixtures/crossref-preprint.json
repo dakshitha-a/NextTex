@@ -1,0 +1,20 @@
+{
+ "status": "ok",
+ "message": {
+  "DOI": "10.1364/opticaopen.29459153.v1",
+  "type": "posted-content",
+  "title": [
+   "Optical Frequency Comb Bandwidth Enhancement of a Monolithically Integrated Gain Switched Device"
+  ],
+  "container-title": [],
+  "relation": {
+   "is-preprint-of": [
+    {
+     "id-type": "doi",
+     "id": "10.1364/OE.572415",
+     "asserted-by": "subject"
+    }
+   ]
+  }
+ }
+}

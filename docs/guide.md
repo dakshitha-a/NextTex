@@ -287,6 +287,11 @@ PDF/A* and a preamble that does not ask for PDF/A becomes one. Every row that ha
 line goes to it, every row that has a page turns to it, and *Copy all*
 puts the list on the clipboard for a co-author. No model is involved.
 
+*Ask the publishers' records*, under what the drawer read, asks Crossref
+whether a cited paper has since been retracted, or a cited preprint has a
+journal version, and adds a row for each that has. It sends the DOIs and
+nothing else, only when pressed.
+
 A `.bib` file gets rows of its own while you type it: a key pasted twice,
 an `@article` with no journal, a year that says "in press", one paper
 under two keys with the same DOI, and an entry nothing cites. Fix the

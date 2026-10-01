@@ -81,7 +81,7 @@ from nexttex.project import (
     PROJECT_STATES, clean_limits,
 )
 from nexttex.symbols import walk_project
-from nexttex import bibcheck, bibfix, consistency, deps, figures, export, lint_explain, prompts, search, texstyles, updates, usage
+from nexttex import bibcheck, bibfix, consistency, deps, figures, published, export, lint_explain, prompts, search, texstyles, updates, usage
 from nexttex.install.ui import child_env
 from server.session import CLOSED, DocumentState, ProjectSession, spawn
 
@@ -4654,6 +4654,48 @@ async def figures_list(project_id: str, document: str = ""):
         return figures.listing(texts, state.path, numbers, rows)
 
     return {"document": state.path, "entries": await asyncio.to_thread(run)}
+
+
+def _cited_entries(texts: dict[str, str]) -> list[dict]:
+    """Every `.bib` entry the project's documents cite, with its DOI and
+    place; every entry when a `\\nocite{*}` cites them all."""
+    sources = {name: body for name, body in texts.items() if name.lower().endswith(".tex")}
+    cited = usage.cited_keys(sources)
+    found: list[dict] = []
+    for name, body in texts.items():
+        if not name.lower().endswith(".bib"):
+            continue
+        for entry in bibfix.entries(body):
+            if entry.kind in bibfix.DIRECTIVES or (cited is not None and entry.key not in cited):
+                continue
+            doi = entry.get("doi")
+            if doi and doi.value.strip():
+                found.append({"key": entry.key, "doi": doi.value, "file": name, "line": entry.line})
+    return found
+
+
+@app.get("/api/projects/{project_id}/submit/records")
+async def submit_records_count(project_id: str):
+    """How many distinct DOIs the documents cite: what the record check
+    would ask about, said before it is asked."""
+    session = session_for(project_id)
+    texts = await asyncio.to_thread(_project_texts, session)
+    entries = await asyncio.to_thread(_cited_entries, texts)
+    return {"dois": len({published.normal(entry["doi"]) for entry in entries})}
+
+
+@app.post("/api/projects/{project_id}/submit/records")
+async def submit_records(project_id: str):
+    """Ask the publishers' records about every cited DOI: a retraction and
+    a journal version, from Crossref, on the writer's press and never on a
+    build, since it is the submission check's one network call. Answers
+    are kept a day (`nexttex/published.py`)."""
+    session = session_for(project_id)
+    live = session.collab.open_texts()
+    texts = await asyncio.to_thread(_project_texts, session)
+    texts.update({path: body for path, body in live.items() if path in texts})
+    entries = await asyncio.to_thread(_cited_entries, texts)
+    return await asyncio.to_thread(published.ask, entries)
 
 
 class EquationRequest(BaseModel):
