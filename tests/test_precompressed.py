@@ -98,3 +98,39 @@ def test_the_build_writes_the_compressed_copies():
     assert '"build": "vite build && node precompress.mjs"' in (
         Path(__file__).parent.parent / "frontend" / "package.json"
     ).read_text()
+
+
+def test_a_hashed_asset_is_kept_by_the_browser_for_good(assets):
+    """Vite names every chunk by its content, so a name that is still the
+    same is a body that is still the same. Each reload used to revalidate
+    every chunk and be told 304, one round trip each for an answer that
+    could not change."""
+    (assets / "index-BtPilmL7.js").write_bytes(b"const x = 1;\n" * 400)
+    (assets / "index-BtPilmL7.js.br").write_bytes(b"brotli-bytes")
+    for accept in ("br", None):
+        response = fetch(assets, "index-BtPilmL7.js", accept)
+        assert response.headers["cache-control"] == "public, max-age=31536000, immutable"
+
+
+def test_a_name_without_a_hash_is_not_marked_immutable(assets):
+    response = fetch(assets, "app.js", "br")
+    assert "immutable" not in response.headers.get("cache-control", "")
+
+
+def test_webassembly_is_served_compressed_with_its_own_type(assets):
+    """The grammar checker's module is 16 MB and went out whole: the build
+    did not compress `.wasm`. A browser compiling it while it streams needs
+    `application/wasm` on the decompressed body, not the envelope's type."""
+    (assets / "harper_wasm_bg-BEyNQVrT.wasm").write_bytes(b"\0asm" + b"\0" * 4096)
+    (assets / "harper_wasm_bg-BEyNQVrT.wasm.br").write_bytes(b"brotli-bytes")
+    response = fetch(assets, "harper_wasm_bg-BEyNQVrT.wasm", "gzip, deflate, br")
+    assert response.headers["content-encoding"] == "br"
+    assert response.headers["content-type"] == "application/wasm"
+
+
+def test_the_build_compresses_webassembly_and_module_workers():
+    """`precompress.mjs` decides what gets a compressed copy; the two
+    largest files the interface ships were outside its list."""
+    script = (Path(__file__).resolve().parent.parent / "frontend" / "precompress.mjs").read_text()
+    listed = script.split("const WORTH_IT", 1)[1].split("\n", 1)[0]
+    assert '".wasm"' in listed and '".mjs"' in listed

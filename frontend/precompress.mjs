@@ -24,8 +24,19 @@ const gz = promisify(gzip);
 
 const DIR = "dist/assets";
 // Text compresses; a PNG or a woff2 is already compressed and would only
-// grow.  Fonts are left alone for the same reason.
-const WORTH_IT = new Set([".js", ".css", ".svg", ".json", ".map"]);
+// grow.  Fonts are left alone for the same reason.  WebAssembly and the
+// `.mjs` pdf.js worker compress well and were missing: the grammar
+// checker's 16 MB module went out whole, and brotli takes it to 7.4 MB;
+// the worker goes from 1.27 MB to 0.31 MB.
+const WORTH_IT = new Set([".js", ".mjs", ".css", ".svg", ".json", ".map", ".wasm"]);
+// Quality 11 is the smallest brotli and the slowest: on the 16 MB module it
+// took 39 s for 4 % less than quality 9 managed in 2.4 s.  Past this size
+// the build takes the faster setting, and writes no gzip copy: browsers
+// offer brotli wherever the link is TLS, which is every address NextTex
+// serves to another machine, and loopback is fast enough to send the file
+// whole.  A gzip copy of the module would add 8 MB to every published
+// interface for nobody.
+const LARGE = 4 * 1024 * 1024;
 // Below this the saving is smaller than the headers describing it.
 const FLOOR = 1024;
 
@@ -40,17 +51,18 @@ for (const name of files) {
   const info = await stat(path);
   if (info.size < FLOOR) continue;
   const raw = await readFile(path);
+  const large = info.size > LARGE;
   const [brotli, gzipped] = await Promise.all([
     br(raw, {
       params: {
-        [constants.BROTLI_PARAM_QUALITY]: 11,
+        [constants.BROTLI_PARAM_QUALITY]: large ? 9 : 11,
         [constants.BROTLI_PARAM_SIZE_HINT]: raw.length,
       },
     }),
-    gz(raw, { level: 9 }),
+    large ? null : gz(raw, { level: 9 }),
   ]);
   await writeFile(`${path}.br`, brotli);
-  await writeFile(`${path}.gz`, gzipped);
+  if (gzipped) await writeFile(`${path}.gz`, gzipped);
   before += raw.length;
   after += brotli.length;
   count += 1;

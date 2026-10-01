@@ -7114,6 +7114,11 @@ async def events(project_id: str, request: Request):
 # The frontend
 
 
+# Vite's output name: the source's name, a dash, eight characters of
+# content hash, the extension.
+HASHED_ASSET = re.compile(r"-[A-Za-z0-9_-]{8}\.[a-z0-9]+$")
+
+
 class PrecompressedStatic(StaticFiles):
     """Static files, with the compressed copy served when one exists.
 
@@ -7133,9 +7138,21 @@ class PrecompressedStatic(StaticFiles):
     `Vary: Accept-Encoding` is essential rather than decorative: without it
     a cache between the browser and here can hand a brotli body to a client
     that never asked for one.
+
+    A file whose name carries the build's content hash is marked immutable.
+    The name changes whenever a byte does, so a browser that has it never
+    needs to ask again; it used to ask for every chunk on every reload and
+    be told 304, one round trip per chunk for an answer that could not
+    change. `index.html` is not served from here and keeps asking.
     """
 
     async def get_response(self, path: str, scope):
+        response = await self._encoded(path, scope)
+        if response.status_code == 200 and HASHED_ASSET.search(path):
+            response.headers["cache-control"] = "public, max-age=31536000, immutable"
+        return response
+
+    async def _encoded(self, path: str, scope):
         request = Request(scope)
         accepted = request.headers.get("accept-encoding", "")
         for suffix, encoding in ((".br", "br"), (".gz", "gzip")):
