@@ -220,6 +220,14 @@ function kindOf(tree: any, path: string): string | undefined {
   return find(tree)?.kind;
 }
 
+/** Whether a file is the editor's to open: text, or a file the tree has
+ *  not heard of yet, which a moment ago somebody made. A figure is shown
+ *  by the file view over the editor and never handed to it. */
+function opensInEditor(tree: any, path: string): boolean {
+  const kind = kindOf(tree, path);
+  return kind === "text" || !kind;
+}
+
 /** Every file path in a tree, flattened. */
 function pathsIn(node: any): string[] {
   if (!node) return [];
@@ -722,7 +730,7 @@ export default function App() {
     // failure for a file that is perfectly fine.
     set({
       activePath: path,
-      ...(kindOf(get().tree, path) === "text" || !kindOf(get().tree, path)
+      ...(opensInEditor(get().tree, path)
         ? { pendingOpen: { path, line, word, steal, nonce: Date.now() } }
         : {}),
     });
@@ -866,7 +874,12 @@ export default function App() {
       // Only when the file in front actually changed.  "Close the others"
       // from the tab already in front must not scroll the pane or move the
       // caret, which is what a `pendingOpen` does.
-      if (activePath && activePath !== wasActive) {
+      // And only a file the editor holds. Closing the tab in front of a
+      // figure handed the figure to the editor as text: its shared
+      // document was refused, which the pane showed as offline, and the
+      // open waited out its eight seconds and then put an empty document
+      // on screen over whatever file was in front by then.
+      if (activePath && activePath !== wasActive && opensInEditor(get().tree, activePath)) {
         set({ pendingOpen: { path: activePath, nonce: Date.now() } });
       }
       // A document this window followed onto the strip leaves it with its
