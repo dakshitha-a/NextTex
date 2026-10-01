@@ -119,15 +119,14 @@ function raster(url: string): Promise<Thumbnail> {
 
 /** The first page of a PDF, drawn to a canvas 464 px wide. */
 async function firstPage(url: string): Promise<Thumbnail> {
-  const [pdfjs, worker] = await Promise.all([
+  const [pdfjs, { pdfWorker }] = await Promise.all([
     import("pdfjs-dist"),
-    import("pdfjs-dist/build/pdf.worker.min.mjs?url"),
+    import("./pdf-worker"),
   ]);
-  if (!pdfjs.GlobalWorkerOptions.workerSrc) pdfjs.GlobalWorkerOptions.workerSrc = worker.default;
   const answer = await fetch(url, { credentials: "same-origin" });
   if (!answer.ok) throw new Error(`the file answered ${answer.status}`);
   const data = await answer.arrayBuffer();
-  const doc = await pdfjs.getDocument({ data }).promise;
+  const doc = await pdfjs.getDocument({ data, worker: pdfWorker() }).promise;
   try {
     const page = await doc.getPage(1);
     const natural = page.getViewport({ scale: 1 });

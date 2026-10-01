@@ -2,7 +2,7 @@ import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { duration } from "../motion";
 import * as pdfjs from "pdfjs-dist";
 import { headingHint, isBoldFont, tagSpans } from "./pdf-heading";
-import workerUrl from "pdfjs-dist/build/pdf.worker.min.mjs?url";
+import { pdfWorker } from "./pdf-worker";
 import api from "../api";
 import { download, stemOf } from "../chrome";
 import { get, useStore } from "../store";
@@ -28,7 +28,6 @@ import {
   type PreviewQuality,
 } from "./pdf-raster";
 
-pdfjs.GlobalWorkerOptions.workerSrc = workerUrl;
 
 /** Extra device pixels so text stays crisp without quadrupling the work.
  *
@@ -990,7 +989,7 @@ export default function Pdf({
         }
         const data = await response.arrayBuffer();
         if (cancelled) return;
-        const loaded = await pdfjs.getDocument({ data }).promise;
+        const loaded = await pdfjs.getDocument({ data, worker: pdfWorker() }).promise;
         if (cancelled) {
           // Destroyed through its loading task: pdf.js 6 took `destroy`
           // off the document itself.
