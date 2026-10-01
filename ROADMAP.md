@@ -39,13 +39,7 @@ roadmap run of 1 October 2026 builds the first eight, moving each to
 `TRACKER.md` as it starts. A new item goes here, in its place in the
 order, when somebody proposes it.
 
-1. **Reply to reviewers.** A template with point and reply macros, and a
-   command that turns the open comment threads into points to answer, each
-   linking back to its text, sent with the marked-up PDF History gives. Once per revision.
-   Builds on `nexttex/templates`, `nexttex/comment_tools.py` and the agent
-   answering comments, section 78 of `docs/design.md`. The template alone
-   is small; the whole is medium; *y*.
-2. **Venue templates, and a browser to choose them in.** Today
+1. **Venue templates, and a browser to choose them in.** Today
    `nexttex/templates` holds five. Ship only templates whose licence allows
    it, and choose them in a template browser rather than the present short
    list, since names alone stop working past a dozen. For a template that
