@@ -562,10 +562,15 @@ class BuildQueue:
             raise
 
     def _release(self) -> None:
-        self._active -= 1
+        # Never below nothing: one queue now lasts the life of the process
+        # (`MACHINE_BUILDS`), and a slot given back twice must not open a
+        # second one for good.
+        self._active = max(0, self._active - 1)
         while self._waiting and self._active < self._limit:
             _, _, ticket = self._waiting.pop(0)
-            if ticket.done():
+            # Done, or left by an event loop that has since closed, so
+            # nobody is waiting on it: the slot goes to the next in line.
+            if ticket.done() or ticket.get_loop().is_closed():
                 continue
             # Handed over rather than taken: the slot is counted here, not
             # when the woken task resumes, so nothing can slip in between.

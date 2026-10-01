@@ -134,3 +134,19 @@ def test_builds_across_projects_share_one_machine_limit(monkeypatch):
 
     asyncio.run(go())
     assert max(most) == 1
+
+
+def test_a_waiter_whose_loop_has_closed_does_not_take_the_slot():
+    """The machine-wide queue outlives any one event loop. A ticket left
+    by a loop that has since closed cannot be handed the slot, and a slot
+    given back twice does not leave the queue with a spare."""
+    queue = BuildQueue(limit=1)
+    dead = asyncio.new_event_loop()
+    stale = dead.create_future()
+    dead.close()
+    queue._active = 1
+    queue._waiting = [(0, 1, stale)]
+    queue._release()
+    assert queue._active == 0 and queue._waiting == []
+    queue._release()
+    assert queue._active == 0
