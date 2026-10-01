@@ -511,3 +511,56 @@ def test_an_export_of_a_document_outside_the_project_is_refused(client, opened, 
             f"/api/projects/{opened['id']}/download", params={"format": "md", "document": escape},
         )
         assert answer.status_code in (400, 403, 404), escape
+
+
+def test_figures_are_stored_and_source_is_compressed(client, opened, project_dir):
+    """Deflating a PNG, a JPEG or a PDF again costs CPU and buys nothing:
+    1.1 s on 40 MB of figures for an archive 13 kB larger. They are stored
+    as they are, and the source, which compresses well, is still deflated."""
+    (project_dir / "figures").mkdir(exist_ok=True)
+    (project_dir / "figures" / "plot.png").write_bytes(os.urandom(4096))
+    (project_dir / "figures" / "graph.PDF").write_bytes(os.urandom(4096))
+    (project_dir / "chapter.tex").write_text("prose " * 2000)
+
+    response = client.get(f"/api/projects/{opened['id']}/download")
+    assert response.status_code == 200
+    with zipfile.ZipFile(io.BytesIO(response.content)) as archive:
+        kinds = {info.filename: info.compress_type for info in archive.infolist()}
+    assert kinds["figures/plot.png"] == zipfile.ZIP_STORED
+    assert kinds["figures/graph.PDF"] == zipfile.ZIP_STORED
+    assert kinds["chapter.tex"] == zipfile.ZIP_DEFLATED
+
+
+def test_the_walk_never_enters_what_the_archive_leaves_out(
+    client, opened, project_dir, monkeypatch,
+):
+    """`.git` and the build folder used to be listed file by file and then
+    skipped. A linked folder is still followed, as it was, and a link back
+    up the tree is not followed round for ever."""
+    import server.main as main
+
+    (project_dir / ".git" / "objects").mkdir(parents=True, exist_ok=True)
+    (project_dir / ".git" / "objects" / "ab").write_bytes(b"x")
+    elsewhere = project_dir.parent / "shared-figures"
+    elsewhere.mkdir(exist_ok=True)
+    (elsewhere / "logo.png").write_bytes(b"\x89PNG")
+    (project_dir / "linked").symlink_to(elsewhere, target_is_directory=True)
+    (project_dir / "loop").symlink_to(project_dir, target_is_directory=True)
+
+    entered = []
+    real_walk = os.walk
+
+    def walk(top, *args, **kwargs):
+        for parent, dirnames, filenames in real_walk(top, *args, **kwargs):
+            entered.append(Path(parent).name)
+            yield parent, dirnames, filenames
+
+    monkeypatch.setattr(main.os, "walk", walk)
+    response = client.get(f"/api/projects/{opened['id']}/download")
+    assert response.status_code == 200
+    with zipfile.ZipFile(io.BytesIO(response.content)) as archive:
+        names = set(archive.namelist())
+    assert ".git" not in entered and "objects" not in entered
+    assert "linked/logo.png" in names
+    assert "main.tex" in names
+    assert not [n for n in names if n.startswith("loop/")]
