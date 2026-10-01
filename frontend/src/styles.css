@@ -1634,6 +1634,14 @@ button.nx-row { width: 100%; text-align: left; }
 .nx-limit-field:focus { box-shadow: inset 0 0 0 1px var(--hint); }
 /* A consistency row's other place: a quiet inline button in the code face
    at the code's small size, since the button's own size outranks the role. */
+/* A row of the Figures list: "Figure 3" in the ink and its page in the
+   third ink, the references at the end, in the warning ink when none, and
+   the caption's start under it on one line. */
+.nx-figure-row { width: 100%; text-align: left; }
+.nx-figure-row .nx-row-note { padding-left: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.nx-figure-page { margin-left: 6px; color: var(--ink-3); font-size: 12px; font-variant-numeric: tabular-nums; }
+.nx-figure-refs { flex: none; margin-left: auto; color: var(--ink-3); font-size: 12px; font-variant-numeric: tabular-nums; }
+.nx-figure-refs.nx-figure-unreferenced { color: var(--warn); font-weight: 500; }
 .nx-button.nx-place { font-family: var(--font-mono); font-size: 12px; font-weight: 400; }
 
 .nx-menu {

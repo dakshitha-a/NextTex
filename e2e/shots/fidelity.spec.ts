@@ -1580,6 +1580,22 @@ const SURFACES: Record<string, Surface> = {
     },
     close: async (tab) => { await showDrawer(tab, "files"); },
   },
+  "figures": {
+    // The Sections drawer on Figures, after a build, the second row under
+    // the pointer, as "A figures and tables list" draws it.
+    open: async (tab) => {
+      await showDrawer(tab, "sections");
+      await tab.getByTestId("structure-figures").click();
+      const rows = tab.getByTestId("figure-row");
+      await expect(rows.first()).toContainText(/p\. \d/, { timeout: 60_000 });
+      if ((await rows.count()) > 1) await rows.nth(1).hover();
+      return tab.getByTestId("drawer");
+    },
+    close: async (tab) => {
+      await tab.getByTestId("structure-sections").click();
+      await showDrawer(tab, "files");
+    },
+  },
   "page-count": {
     open: async (tab) => {
       await tab.request.post(`${ctx!.base}/api/projects/${ctx!.id}/settings`, { data: { pageLimit: 1 } });

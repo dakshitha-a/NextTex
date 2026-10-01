@@ -11630,3 +11630,26 @@ listed is chktex's warning 2 already. The direction page's
 "Consistency checks that need no model" draws it, and
 `e2e/specs/consistency.spec.ts` follows a row to the other form.
 
+## 97. A figures and tables list
+
+The fourth item of the roadmap run. A thesis has sixty figures, and the
+questions about them are weekly: which is Figure 4.3, which one is never
+mentioned, which was pasted from a screen. The Sections drawer now holds
+two lists under one switch at its top, *Sections* and *Figures*, the
+kit's segmented control on the drawer's tone, rather than a thirteenth
+button on the bar, since both are the document's structure; the choice
+is remembered on this computer.
+
+*Figures* lists every figure and table the document reaches, in the
+order a reader meets them, through every `\input` and `\include`. A row
+says "Figure 3" in the ink and its page in the third ink, from the last
+build, with the start of its caption on a second line, and at its end
+how often the text refers to it: "1 ref", "3 refs", or "not referenced"
+in the warning ink, which is the row a writer most wants to find. A
+picture drawn under 150 ppi starts its caption line with its resolution
+in the warning ink. Before a build, or for a figure with no label, the
+row says "Figure" with no number. A press opens the source at it. The
+direction page's "A figures and tables list" draws it, and
+`e2e/specs/figures.spec.ts` finds an unreferenced table, follows it to
+its source, and finds the choice remembered after a reload.
+

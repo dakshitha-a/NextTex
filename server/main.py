@@ -81,7 +81,7 @@ from nexttex.project import (
     PROJECT_STATES, clean_limits,
 )
 from nexttex.symbols import walk_project
-from nexttex import bibcheck, bibfix, consistency, deps, export, lint_explain, prompts, search, texstyles, updates, usage
+from nexttex import bibcheck, bibfix, consistency, deps, figures, export, lint_explain, prompts, search, texstyles, updates, usage
 from nexttex.install.ui import child_env
 from server.session import CLOSED, DocumentState, ProjectSession, spawn
 
@@ -4627,6 +4627,33 @@ async def submit_check(project_id: str, document: str = ""):
         return report.as_dict()
 
     return await asyncio.to_thread(run)
+
+
+@app.get("/api/projects/{project_id}/figures")
+async def figures_list(project_id: str, document: str = ""):
+    """Every figure and table one document reaches, in reading order, for
+    the Sections drawer's Figures list: the source's file, line, caption
+    and labels, with the last build's number and page and the last PDF's
+    resolution where there is one. Answers before any build, without the
+    numbers, since the list is the source's."""
+    session = session_for(project_id)
+    if document and document not in session.documents:
+        raise HTTPException(404, "no such document")
+    state = _document(session, document)
+    paths = state.paths
+    live = session.collab.open_texts()
+    texts = await asyncio.to_thread(_project_texts, session)
+    texts.update({path: body for path, body in live.items() if path in texts})
+
+    def run() -> list[dict]:
+        numbers = auxlabels.read(paths.build_dir, paths.jobname)
+        rows: list[dict[str, str]] = []
+        if paths.pdf.is_file():
+            listed = submit.run_pdfimages(paths.pdf)
+            rows = submit._image_rows(listed) if listed else []
+        return figures.listing(texts, state.path, numbers, rows)
+
+    return {"document": state.path, "entries": await asyncio.to_thread(run)}
 
 
 class EquationRequest(BaseModel):

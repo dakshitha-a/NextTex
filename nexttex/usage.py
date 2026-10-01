@@ -42,6 +42,8 @@ class Usage:
     #: the second entry for the same name.
     definitions: dict[str, list[Where]] = field(default_factory=dict)
     referenced: set[str] = field(default_factory=set)
+    #: How many references each label has, for the figures list.
+    uses: dict[str, int] = field(default_factory=dict)
     cited: set[str] = field(default_factory=set)
     nocite_all: bool = False
 
@@ -84,7 +86,9 @@ def scan(texts: dict[str, str]) -> Usage:
                 # definition is not a reference to itself.
                 if DEFINITION_HEAD.match(found.group(0)):
                     continue
-                out.referenced.update(_names(found.group(1)))
+                for name in _names(found.group(1)):
+                    out.referenced.add(name)
+                    out.uses[name] = out.uses.get(name, 0) + 1
             for found in CITE_CALL.finditer(line):
                 out.cited.update(_names(found.group(1)))
             if NOCITE_ALL.search(line):

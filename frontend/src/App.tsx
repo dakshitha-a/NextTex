@@ -162,7 +162,7 @@ const CommentsPanel = lazy(() => import("./panes/CommentsPanel"));
  *  the same outline; taken out when the second roadmap run's fourth tile
  *  and export rows brought the entry chunk to 858.9 of 860 kB, so the
  *  push after it starts with room rather than a raise. */
-const SectionsPanel = lazy(() => import("./panes/SectionsPanel"));
+const StructureDrawer = lazy(() => import("./panes/StructureDrawer"));
 const PapersPanel = lazy(() => import("./panes/PapersPanel"));
 const SubmitPanel = lazy(() => import("./panes/SubmitPanel"));
 const GitPanel = lazy(() => import("./panes/GitPanel"));
@@ -2547,12 +2547,11 @@ export default function App() {
                   ) : null}
                   <Suspense fallback={null}>
                     {drawerId === "sections" ? (
-                <SectionsPanel
-                  drawer
-                  onJump={jumpToHeading}
-                  grow
-                  resolve={resolveInclude}
-                />
+                      <StructureDrawer
+                        onJump={jumpToHeading}
+                        onOpen={(file, line) => openFile(file, line)}
+                        resolve={resolveInclude}
+                      />
                     ) : null}
                     {drawerId === "trash" ? <TrashPanel onRefresh={refreshTree} /> : null}
                     {drawerId === "comments" ? (

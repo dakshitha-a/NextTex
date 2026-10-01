@@ -124,6 +124,22 @@ export type SubmitFinding = {
   explain: Explanation | null;
 };
 
+/** A figure or a table in the Sections drawer's Figures list. */
+export type FigureEntry = {
+  kind: "figure" | "table";
+  env: string;
+  file: string;
+  line: number;
+  caption: string;
+  labels: string[];
+  graphics: string[];
+  number: string | null;
+  page: number | null;
+  refs: number;
+  ppi: number | null;
+  shared: boolean;
+};
+
 export type SubmitReport = {
   document: string;
   pages: number | null;
@@ -1170,6 +1186,10 @@ const api = {
       `/projects/${id}/lint?path=${encodeURIComponent(path)}`,
     ),
   /** What a venue would send back, for one document, off its last build. */
+  figures: (id: string, document = "") =>
+    request<{ document: string; entries: FigureEntry[] }>(
+      `/projects/${id}/figures?document=${encodeURIComponent(document)}`,
+    ),
   submitCheck: (id: string, document = "") =>
     request<SubmitReport>(
       `/projects/${id}/submit?document=${encodeURIComponent(document)}`,
