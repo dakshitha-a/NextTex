@@ -20,6 +20,7 @@ import importlib.util
 import io
 import re
 import sys
+from concurrent.futures import ThreadPoolExecutor
 from contextlib import redirect_stdout
 from pathlib import Path
 
@@ -196,6 +197,11 @@ def add(doi: str, bib_path: Path) -> dict:
     return result
 
 
+#: Entries looked up at once. Few enough to stay polite to Crossref and
+#: arXiv, which ask clients not to hammer them.
+CHECKED_AT_ONCE = 4
+
+
 def verify(bib_path: Path) -> dict:
     """Re-check every entry against the record it claims to come from."""
     checker = _load("verify_bib")
@@ -204,14 +210,17 @@ def verify(bib_path: Path) -> dict:
     entries = checker.parse_bib(bib_path.read_text(encoding="utf-8"))
     problems: list[dict] = []
     buffer = io.StringIO()
-    with redirect_stdout(buffer):
-        for entry in entries:
+    with redirect_stdout(buffer), ThreadPoolExecutor(max_workers=CHECKED_AT_ONCE) as pool:
+        # Four at a time, each a request or two to the publisher's record,
+        # where one at a time a hundred entries waited on a hundred round
+        # trips in a row. `map` keeps the entries' order.
+        verdicts = pool.map(checker.check, entries)
+        for entry, (status, messages) in zip(entries, verdicts):
             # `check` answers a status and its messages, and the status is
             # the verdict: a manually verified entry comes back "ok" with a
             # message saying so, and an entry whose record was reached and
             # matched comes back "ok" with none.  Reading the pair as a
             # list made every entry a problem and the join over it fail.
-            status, messages = checker.check(entry)
             if status != "ok":
                 problems.append({
                     "key": entry.get("key", "?"),

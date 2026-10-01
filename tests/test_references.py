@@ -259,3 +259,39 @@ def test_a_tidied_entry_is_latex_safe_in_every_field():
     assert "${\\Sigma}$ bonding in {H2O}" in entry
     assert "M{\\\"{u}}ller" in entry
     assert "\\AA{}ngstr{\\\"{o}}m Letters" in entry
+
+
+def test_verifying_looks_up_four_entries_at_once_and_keeps_their_order(tmp_path, monkeypatch):
+    """Each entry is a request or two to the publisher's record, and one
+    at a time a hundred entries waited on a hundred round trips in a row,
+    each on a fresh connection. Four go at once now, over one pool, and
+    the problems still come back in the bibliography's order."""
+    import threading
+    import time
+
+    bib = tmp_path / "references.bib"
+    bib.write_text(
+        "".join(f"@article{{k{i:02d},\n  doi = {{10.1/{i}}},\n}}\n" for i in range(12)),
+        encoding="utf-8",
+    )
+    checker = references._load("verify_bib")
+    assert checker.HTTP is not None
+    lock = threading.Lock()
+    running, most = [0], [0]
+
+    def slow_check(entry):
+        with lock:
+            running[0] += 1
+            most[0] = max(most[0], running[0])
+        time.sleep(0.05)
+        with lock:
+            running[0] -= 1
+        return "FAIL", [entry["key"]]
+
+    monkeypatch.setattr(checker, "check", slow_check)
+    started = time.perf_counter()
+    result = references.verify(bib)
+    took = time.perf_counter() - started
+    assert most[0] == references.CHECKED_AT_ONCE
+    assert [p["key"] for p in result["problems"]] == [f"k{i:02d}" for i in range(12)]
+    assert took < 12 * 0.05

@@ -144,18 +144,25 @@ def first_surname(author_field):
     return fold(first.split()[-1]) if first.split() else ""
 
 
+# One connection pool for every lookup. A bare `requests.get` opened a new
+# connection, TLS handshake and all, for every entry, and a bibliography of
+# a hundred entries paid that a hundred times over to the same two hosts.
+# A Session is safe to share between the threads NextTex checks entries on.
+HTTP = requests.Session()
+
+
 def crossref(doi):
     """The record behind a DOI: Crossref's, or, for a DOI Crossref does
     not hold (arXiv, Zenodo, a dataset), the CSL JSON doi.org negotiates
     from whichever agency does, folded into Crossref's shape."""
     url = f"https://api.crossref.org/works/{quote(doi, safe='')}"
-    r = requests.get(url, headers={"User-Agent": UA}, timeout=TIMEOUT)
+    r = HTTP.get(url, headers={"User-Agent": UA}, timeout=TIMEOUT)
     if r.status_code != 404:
         r.raise_for_status()
         return r.json()["message"]
-    r = requests.get(f"https://doi.org/{quote(doi, safe='/')}",
-                     headers={"User-Agent": UA, "Accept": "application/vnd.citationstyles.csl+json"},
-                     timeout=TIMEOUT, allow_redirects=True)
+    r = HTTP.get(f"https://doi.org/{quote(doi, safe='/')}",
+                 headers={"User-Agent": UA, "Accept": "application/vnd.citationstyles.csl+json"},
+                 timeout=TIMEOUT, allow_redirects=True)
     if r.status_code == 404:
         return None
     r.raise_for_status()
@@ -168,7 +175,7 @@ def crossref(doi):
 
 def arxiv(arxiv_id):
     url = f"https://export.arxiv.org/api/query?id_list={quote(arxiv_id, safe='')}"
-    r = requests.get(url, headers={"User-Agent": UA}, timeout=TIMEOUT)
+    r = HTTP.get(url, headers={"User-Agent": UA}, timeout=TIMEOUT)
     r.raise_for_status()
     m = re.search(r"<entry>.*?<title>(.*?)</title>", r.text, re.DOTALL)
     if not m:
