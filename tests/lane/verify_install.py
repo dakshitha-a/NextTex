@@ -8,16 +8,17 @@ bootstrap is the only one guaranteed to exist.
 Not collected by pytest, on purpose.  The unit tier under `tests/` asserts
 what the installer *would* run, with the child processes replaced; this
 asserts what it *did*, against the files, the service manager and the port
-the README promises.  The two answer different questions and the second one
+docs/install.md promises.  The two answer different questions and the second one
 needs a machine that was clean five minutes ago.
 
     verify_install.py installed --root DIR [--instance NAME] [--head SHA]
     verify_install.py again     --root DIR [--instance NAME]
     verify_install.py gone      --root DIR [--instance NAME] --port N
 
-`installed` is the README's claims, one by one.  `again` is the same install
+`installed` is docs/install.md's claims, one by one.  `again` is the same install
 run a second time: the log has one more block, nothing else has changed.
-`gone` is the README's uninstall section, checked after somebody ran it.
+`gone` is the uninstall section of docs/install.md, checked after somebody
+ran it.
 """
 
 from __future__ import annotations
@@ -163,7 +164,7 @@ def wait_listening(port: int, seconds: float) -> bool:
 
 
 def start_server(root: Path, instance: str) -> subprocess.Popen:
-    """Start the server the way the README's "run it in the foreground"
+    """Start the server the way docs/install.md's "run it in the foreground"
     line does, for an install that was asked not to start at login."""
     env = dict(os.environ)
     env["NEXTTEX_INSTANCE"] = instance
@@ -281,8 +282,8 @@ def cmd_installed(args) -> int:
 
     started = None
     if url and not args.service:
-        # Nothing was asked to start it, so this does, the way the README's
-        # foreground line does; the checks below are about the install and
+        # Nothing was asked to start it, so this does, the way the
+        # foreground line in docs/install.md does; the checks below are about the install and
         # not about the service manager.
         started = start_server(root, instance)
     if url:
@@ -355,7 +356,7 @@ def cmd_installed(args) -> int:
                 report.note("no desktop directory here", "the shortcut step is skipped, as documented")
 
     if args.tex == "tinytex":
-        # The README's TinyTeX shape: pdflatex and the five extras in the
+        # The TinyTeX shape docs/install.md describes: pdflatex and the five extras in the
         # directory the installer says, and the service seeing them.  The
         # server prints the TeX it found at startup, so the service's own
         # output says whether the PATH it was given reaches TinyTeX, which

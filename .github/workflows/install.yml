@@ -75,8 +75,8 @@ jobs:
   # default name.  The second is the pipe: the checkout's script fed to
   # `sh -s`, exactly as `curl | sh` would feed it, cloning from GitHub into
   # `~/apps/NextTex`.  The pipe install is the one that is then run again
-  # and uninstalled, because it is the one the README's uninstall section
-  # names paths for.
+  # and uninstalled, because it is the one the uninstall section of
+  # docs/install.md names paths for.
   native:
     strategy:
       fail-fast: false
@@ -127,7 +127,7 @@ jobs:
         shell: bash
         run: python3 "$RUNNER_TEMP/verify_install.py" again --root "$HOME/apps/NextTex" --service --record "$RUNNER_TEMP/pipe.json"
 
-      - name: Uninstall, the README's way (Linux)
+      - name: Uninstall, the documented way (Linux)
         if: runner.os == 'Linux'
         shell: bash
         run: |
@@ -137,7 +137,7 @@ jobs:
           rm -f ~/Desktop/NextTex.desktop
           rm -rf ~/apps/NextTex ~/.local/share/nexttex
 
-      - name: Uninstall, the README's way (macOS)
+      - name: Uninstall, the documented way (macOS)
         if: runner.os == 'macOS'
         shell: bash
         run: |
@@ -198,10 +198,10 @@ jobs:
         shell: powershell
         run: python "$env:RUNNER_TEMP\verify_install.py" again --root "$HOME\apps\NextTex" --service --record "$env:RUNNER_TEMP\pipe.json"
 
-      - name: Uninstall, the README's way (Windows)
+      - name: Uninstall, the documented way (Windows)
         if: runner.os == 'Windows'
         shell: powershell
-        # Character for character what the README says, which is the whole
+        # Character for character what docs/install.md says, which is the whole
         # point of this step.  The `$PID` exclusion in the third line is
         # part of that: without it the filter matches any shell that was
         # handed this block as text, kills it, and the three lines after
@@ -281,7 +281,7 @@ jobs:
   # A bare copy of the checkout stands in for GitHub, with its master set
   # back two commits.  The install is made from that, with the login
   # service, so there is a running server to update.  The first hop is the
-  # script by hand, the way the README's "Keeping it up to date" opens:
+  # script by hand, the way docs/install.md's "Keeping it up to date" opens:
   # master is moved to the previous commit and update.sh or update.ps1 is
   # run, which pulls, hands over to the pulled script, and restarts the
   # service.  The second hop is the button: master is moved to HEAD and

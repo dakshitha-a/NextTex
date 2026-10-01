@@ -3,13 +3,15 @@ import { join } from "node:path";
 import { describe, expect, it } from "vitest";
 import { ACTIONS, CHORDED, actionFor, matchesChord, type KeyLike } from "./actions";
 
-/** The registry, and the README's table held to it.
+/** The registry, and the keyboard document's table held to it.
  *
  *  The README's Keyboard section carried the chords by hand and drifted
  *  from the effects that answered them; the Tutorial's list was a third
  *  copy.  The Tutorial renders from the registry now, and this reads the
- *  README's "Anywhere" table back and asserts the two name the same
- *  chords, so the third copy cannot drift without a test saying so.
+ *  "Anywhere" table back and asserts the two name the same chords, so the
+ *  third copy cannot drift without a test saying so.  The full tables
+ *  moved to `docs/keyboard.md` when the README was redesigned on 1 October
+ *  2026, which keeps only the eight chords a newcomer needs.
  */
 
 const press = (over: Partial<KeyLike>): KeyLike => ({
@@ -58,8 +60,8 @@ describe("the registry", () => {
     expect(new Set(chords).size).toBe(chords.length);
   });
 
-  it("names the same chords as the README's tables", () => {
-    const readme = readFileSync(join(__dirname, "..", "..", "README.md"), "utf8");
+  it("names the same chords as the keyboard document's tables", () => {
+    const readme = readFileSync(join(__dirname, "..", "..", "docs", "keyboard.md"), "utf8");
     const table = (from: string, to: string) => {
       const section = readme.split(from)[1].split(to)[0];
       const named = new Set<string>();
@@ -77,11 +79,11 @@ describe("the registry", () => {
       return named;
     };
     // Anywhere: the two lists are the same list.
-    const anywhere = table("### Anywhere", "### In the source");
+    const anywhere = table("## Anywhere", "## In the source");
     expect([...anywhere].sort()).toEqual([...CHORDED.map((action) => action.chord!)].sort());
     // In the source: the table also holds CodeMirror's own keys, so the
     // registry's rows that belong there must be in it, not the reverse.
-    const source = table("### In the source", "### On the page");
+    const source = table("## In the source", "## On the page");
     for (const action of ACTIONS) {
       if (action.chord && action.where === "source") expect(source).toContain(action.chord);
     }

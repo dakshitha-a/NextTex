@@ -8,6 +8,57 @@ of it. The writing rules, the test tiers and the git conventions are not
 here; they are in `CLAUDE.md` and `docs/testing.md`, and this document
 assumes them.
 
+## Writing a report
+
+Something broke, and the thing that makes the difference between a fix and a
+question back is knowing what this install is and what it saw. NextTex writes
+that down for you. On the projects screen, the app bar's **Report a
+problem** button puts the report on your clipboard, shows it to you, and offers
+to open the issue form on GitHub with the platform and commit already filled
+in. From a terminal, the same text is:
+
+```sh
+cd ~/apps/NextTex
+.venv/bin/python server/run.py --report
+```
+
+or, when the virtual environment is the thing that broke, from whatever Python
+the machine has:
+
+```sh
+python3 -m nexttex.report
+```
+
+Either prints a report. It carries the commit the code is on and the commit
+the interface was built from, the settings with a yes or no in place of
+every secret, each tool NextTex looks for and where it found it, whether a
+service is running it, and what the Claude CLI says about itself (never the
+account). It ends with the last eighty lines of every log the install
+keeps: on Linux the user journal (`journalctl --user -u nexttex` is what it
+runs), on macOS and Windows `server.log` and `server.err.log` in
+`~/.local/share/nexttex/`, and on every platform the last run recorded in
+`install.log` and `update.log`. On Windows it also reads the system's own
+logs: the scheduled task's history for the last week, or a line saying
+that history is not switched on, which it is not until somebody turns it
+on in Task Scheduler, and any crash the Application log recorded for the
+Python interpreter. That is where a server that stopped without writing a
+word leaves its trace.
+
+The access token, the OpenAI key, the password hash and every browser
+session's fingerprint are removed before you see it, and so is your home
+directory, which appears as `~`, and your account's name, which appears as
+`[account]`. A property test writes secrets into every
+file the report reads and asserts none of them comes out. It is still yours
+to read before you paste it: it names your hostname, your tailnet address if
+you have one, and the commit subjects of your last update.
+
+Open an issue at [github.com/dakshitha-a/NextTex/issues](https://github.com/dakshitha-a/NextTex/issues),
+say what happened and what you expected, and paste the report. A fix lands
+on `master`; when the issue closes, the comment on it names the commit, and
+taking the fix is the update sheet's **Update** button or `scripts/update.sh`
+(`scripts\update.ps1` on Windows). What happens in between is written down
+in the rest of this document.
+
 ## What arrives
 
 The issue form has five fields. *What happened* and *How to make it happen

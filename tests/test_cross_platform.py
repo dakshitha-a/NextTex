@@ -508,14 +508,19 @@ def test_no_telemetry_of_any_kind():
 
 def test_every_link_the_readme_makes_resolves():
     """A README that points at a file nobody wrote is the first thing a
-    stranger clicks."""
+    stranger clicks.
+
+    Since the README became a front door (1 October 2026), most of its
+    links go to a heading inside a document under `docs/`, so the file is
+    what this checks and the part after `#` is left to the anchor test in
+    `tests/test_documents_match_the_code.py`. Pictures count too: the
+    README's GIFs and diagrams are `src` attributes, not links."""
     import re
 
     readme = (ROOT / "README.md").read_text(encoding="utf-8")
-    broken = [
-        target for target in re.findall(r"\]\((docs/[^)]+)\)", readme)
-        if not (ROOT / target).exists()
-    ]
+    targets = re.findall(r"\]\((docs/[^)#]+)", readme)
+    targets += re.findall(r'(?:src|srcset)="(docs/[^"]+)"', readme)
+    broken = [target for target in targets if not (ROOT / target).exists()]
     assert not broken, broken
 
 
@@ -621,9 +626,11 @@ def test_the_readme_does_not_claim_windows_is_tested():
     rewrite. What is required is that the section still names something as
     not done, and does not claim to be finished.
     """
-    readme = (ROOT / "README.md").read_text(encoding="utf-8")
+    # The section moved from the README to `docs/install.md` with the
+    # README redesign of 1 October 2026; the honesty it is held to did not.
+    readme = (ROOT / "docs" / "install.md").read_text(encoding="utf-8")
     start = readme.find("### On Windows")
-    assert start != -1, "the README has no Windows section at all"
+    assert start != -1, "docs/install.md has no Windows section at all"
     section = readme[start:readme.find("\n## ", start)]
 
     admits = ("unproven", "unverified", "untested", "has never", "still not")

@@ -30,6 +30,9 @@ DOCUMENTS = [
     "docs/design.md",
     "docs/testing.md",
     "docs/first-session.md",
+    "docs/guide.md",
+    "docs/install.md",
+    "docs/keyboard.md",
     "docs/project-context.md",
     "docs/bug-reports.md",
     "docs/style-guide.md",
@@ -149,7 +152,10 @@ def test_every_variable_a_document_names_is_read_somewhere():
 
 
 def test_the_benchmark_table_quotes_the_budgets_that_are_set():
-    """The README's table has a budget column, and it is a transcription.
+    """The guide's table has a budget column, and it is a transcription.
+
+    The table lived in the README until the redesign of 1 October 2026,
+    which moved the long account of the build into `docs/guide.md`.
 
     It was wrong: the interface bundle was listed against 782 kB when
     `bench/thresholds.json` had held 800 since the agent panel rework, so a
@@ -161,7 +167,7 @@ def test_the_benchmark_table_quotes_the_budgets_that_are_set():
     import json
 
     thresholds = json.loads((ROOT / "bench" / "thresholds.json").read_text())
-    readme = (ROOT / "README.md").read_text(encoding="utf-8")
+    readme = (ROOT / "docs" / "guide.md").read_text(encoding="utf-8")
 
     def cell(key: str) -> str:
         """The budget as the table writes it.
@@ -223,8 +229,10 @@ def test_the_readme_starts_windows_the_way_the_installer_does():
 
     This is the class of mistake the tests above cannot see: every name in
     that sentence is real, and each was being used for the wrong thing.
+    The instruction moved to `docs/install.md` with the README redesign of
+    1 October 2026.
     """
-    readme = (ROOT / "README.md").read_text(encoding="utf-8")
+    readme = (ROOT / "docs" / "install.md").read_text(encoding="utf-8")
 
     assert "pythonw.exe server" not in readme, (
         "the README starts the Windows server with the silent interpreter"
@@ -315,7 +323,8 @@ def test_the_measured_bundle_in_the_readme_is_close_to_the_one_on_disk():
     Every other measured figure in the table belongs to the machine that
     took it and cannot be checked from here. This one does not: it is the
     size of `frontend/dist`, so it is the same number wherever it is read,
-    and it was 788.0 in the README against 791.7 on disk.
+    and it was 788.0 in the README against 791.7 on disk. The table has
+    been in `docs/guide.md` since the README redesign of 1 October 2026.
 
     Skipped when there is no build, because the fast tier does not make
     one and a test that fails for the absence of an artefact it did not
@@ -327,7 +336,7 @@ def test_the_measured_bundle_in_the_readme_is_close_to_the_one_on_disk():
     if measured is None:
         pytest.skip("frontend/dist has not been built")
 
-    readme = (ROOT / "README.md").read_text(encoding="utf-8")
+    readme = (ROOT / "docs" / "guide.md").read_text(encoding="utf-8")
     row = next(
         (line for line in readme.splitlines() if line.startswith("| Interface bundle |")),
         None,
@@ -341,11 +350,11 @@ def test_the_measured_bundle_in_the_readme_is_close_to_the_one_on_disk():
     # figure is machine-independent, so the only slack it needs is the
     # rounding to a tenth of a kilobyte.
     assert abs(stated - on_disk) / on_disk < 0.005, (
-        f"the README says {stated} kB and frontend/dist is {on_disk} kB"
+        f"docs/guide.md says {stated} kB and frontend/dist is {on_disk} kB"
     )
 
 
-# --- the README's own index -------------------------------------------------
+# --- the guide's index, and every anchor ------------------------------------
 
 
 def _readme_index():
@@ -360,26 +369,59 @@ def _readme_index():
     return module
 
 
-def test_every_link_within_the_readme_reaches_a_heading():
-    """A `#anchor` was the one kind of link nothing checked."""
-    module = _readme_index()
-    text = (ROOT / "README.md").read_text(encoding="utf-8")
+#: The documents a reader follows anchors through: the README, and the
+#: three documents its long sections moved into on 1 October 2026.
+ANCHORED = ["README.md", "docs/guide.md", "docs/install.md", "docs/keyboard.md"]
+
+
+def _anchors(module, path: Path) -> set[str]:
+    text = path.read_text(encoding="utf-8")
     anchors = {module.slug(title) for _level, title in module.headings(text)}
-    # The title is a `#` heading and not in the index; it still has an anchor.
-    anchors |= {module.slug(line[2:]) for line in text.splitlines() if line.startswith("# ")}
-    missing = [
-        target for target in re.findall(r"\]\(#([^)]+)\)", text)
-        if target not in anchors
-    ]
-    assert not missing, "README links to headings that are not there: " + ", ".join(missing)
+    # A `#` title and a `####` heading are not in the index; each still has
+    # an anchor.
+    anchors |= {
+        module.slug(line.lstrip("#"))
+        for line in text.splitlines()
+        if re.match(r"^(#|####) ", line)
+    }
+    return anchors
 
 
-def test_the_readme_index_names_every_section_in_order():
-    """The index is generated, so it can be checked rather than trusted."""
+def test_every_link_within_the_readme_reaches_a_heading():
+    """A `#anchor` was the one kind of link nothing checked.
+
+    Since the README redesign of 1 October 2026 most of its links point
+    into another document, `docs/guide.md#the-agent` say, so a link with a
+    file and an anchor is followed to that file's headings too.
+    """
     module = _readme_index()
-    text = (ROOT / "README.md").read_text(encoding="utf-8")
+    missing = []
+    for name in ANCHORED:
+        path = ROOT / name
+        text = path.read_text(encoding="utf-8")
+        for target, anchor in re.findall(r"\]\(([^)#\s]*)#([^)\s]+)\)", text):
+            if target.startswith("http"):
+                continue
+            where = (path.parent / target).resolve() if target else path
+            if not where.exists():
+                missing.append(f"{name} -> {target} (no such file)")
+                continue
+            if anchor not in _anchors(module, where):
+                missing.append(f"{name} -> {target or name}#{anchor}")
+    assert not missing, "links to headings that are not there: " + ", ".join(missing)
+
+
+def test_the_guide_index_names_every_section_in_order():
+    """The index is generated, so it can be checked rather than trusted.
+
+    It was the README's until the redesign of 1 October 2026, which left
+    the README short enough for GitHub's own outline and moved the long
+    sections, and the need for an index, into `docs/guide.md`.
+    """
+    module = _readme_index()
+    text = (ROOT / "docs" / "guide.md").read_text(encoding="utf-8")
     assert module.current(text) == module.wanted(text), (
-        "the README's Contents index is behind its headings; "
+        "the guide's Contents index is behind its headings; "
         "run scripts/readme_index.py"
     )
 

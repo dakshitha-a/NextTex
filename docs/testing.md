@@ -359,7 +359,7 @@ run it on one. `.github/workflows/install.yml` does, weekly and on demand,
 and it is the tier that found the bugs in this section's last paragraph.
 
 Each native leg, on `ubuntu-latest`, `macos-latest` and `windows-latest`,
-installs twice because the README documents two shapes: the checkout from
+installs twice because `docs/install.md` documents two shapes: the checkout from
 inside itself, as a named instance, and the pipe, the checkout's script fed
 to `sh -s` the way `curl | sh` feeds it, cloning from GitHub into
 `~/apps/NextTex`. On Windows the pipe runs under Windows PowerShell 5.1,
@@ -367,12 +367,12 @@ which is what a stock machine opens, and the in-checkout shape under pwsh 7;
 both documented forms run, the script block with arguments and the verbatim
 `irm | iex`. The pipe install is run a second time and expected to change
 nothing but one appended block in `install.log`, and removed with the
-README's own uninstall commands and expected to leave nothing.
-`tests/lane/verify_install.py` holds the assertions, which are the README's
-claims one by one: the venv imports the app, the interface belongs to the
+uninstall commands in `docs/install.md` and expected to leave nothing.
+`tests/lane/verify_install.py` holds the assertions, which are the install
+guide's claims one by one: the venv imports the app, the interface belongs to the
 commit when it was downloaded, `install.log` names every step, the address
 prints, `/api/instance` answers with the right head and refuses a wrong
-token, the service file is where the README says and the service manager
+token, the service file is where the guide says and the service manager
 has it, the shortcut is where the platform puts it, and on a `tex=tinytex`
 dispatch that TinyTeX landed where the installer says with pdflatex running
 and the five extras beside it, and that the service-started server printed
@@ -724,7 +724,7 @@ only against its budget.
 
 `tests/test_documents_match_the_code.py` reads every document in the repository and asserts that each file path, each `/api/` route and each `NEXTTEX_*` variable written as a name is real. It is not a test of the prose: a sentence can be wrong in ways no test can see, and catching that still means reading the passage next to the code. What it covers is the mechanical half, which is the half that rots silently when something is renamed. The README's own Contents index is in that half: `scripts/readme_index.py` generates it from the headings, and the test asserts the block in the file is the one the headings call for, and that every `#anchor` link in the README reaches a heading.
 
-It exists because of what a documentation sweep turned up. The README's benchmark table quotes a budget column, transcribed from `bench/thresholds.json` by hand, and the interface bundle row said 782 kB when the file had held 800 since the agent panel rework. So a reader comparing the two numbers in that row was comparing a measurement from one run against a budget from an older one, and nothing anywhere could have noticed. The fourth test in that file checks the budget column against the file it was copied from.
+It exists because of what a documentation sweep turned up. The benchmark table, in the README then and in `docs/guide.md` now, quotes a budget column, transcribed from `bench/thresholds.json` by hand, and the interface bundle row said 782 kB when the file had held 800 since the agent panel rework. So a reader comparing the two numbers in that row was comparing a measurement from one run against a budget from an older one, and nothing anywhere could have noticed. The fourth test in that file checks the budget column against the file it was copied from.
 
 **Its first version did not do that, and the way it was wrong is the interesting part.** It listed the expected cell for each row as a string beside the key, checked the README against that list, and looked at `thresholds.json` only to confirm the key still existed. It was watched to fail, and it did fail, on a README edited to the old number. But that proved the README agreed with the test, not that it agreed with the budget: raising a budget in `thresholds.json` and leaving the README alone would have kept it green, which is the exact drift it was written to catch. A hardcoded expectation is a second transcription, and two transcriptions of the same number are the thing the test was meant to replace. It derives the cell from the value now, since the table's only formatting rule is that four thousand milliseconds is written `4 s`, and it was watched to fail the other way: a budget changed in the file, the README untouched.
 
