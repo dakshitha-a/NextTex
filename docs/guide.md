@@ -353,6 +353,11 @@ through in red, in a browser tab of its own to save or send. A small TeX
 such as TinyTeX may lack the `ulem` package latexdiff's marks need; you
 are told so by name, and installing it once fixes it.
 
+The History drawer gives the same PDF without a commit: every version's
+menu has *Changes as PDF*, the project as it stood at that moment against
+the one now, and a version you named, "submitted v1" say, offers it under
+the pointer.
+
 A project with no repository is offered one, *Keep versions here*, with a
 first commit and a `.gitignore` that already knows about `build/` and
 `.nexttex/`. Sending a copy to GitHub is a separate step, *Back up to

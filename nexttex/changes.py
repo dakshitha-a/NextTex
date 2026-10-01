@@ -90,22 +90,55 @@ def _export(root: Path, sha: str, into: Path) -> None:
 def marked_up(root: Path, document: str, sha: str, build_dir: Path, engine: str,
               search_env: dict[str, str]) -> Path:
     """Build the marked-up PDF of `document` since `sha` and return it."""
+    if not gitrepo.SHA.fullmatch(sha or ""):
+        raise ChangesError("that is not a commit")
+    return _marked(
+        root, document, f"{Path(document).stem}-since-{sha[:7]}",
+        lambda into: _export(root, sha, into), "at that commit",
+        build_dir, engine, search_env,
+    )
+
+
+def marked_up_from(root: Path, document: str, old: dict[str, bytes], stamp: str,
+                   build_dir: Path, engine: str, search_env: dict[str, str]) -> Path:
+    """Build the marked-up PDF of `document` against the project as `old`
+    gives it, path to bytes, a moment in History; `stamp` names the job,
+    as `20261001-1432`."""
+    if not re.fullmatch(r"\d{8}-\d{6}", stamp):
+        raise ChangesError("that is not a moment")
+
+    def fill(into: Path) -> None:
+        for name, data in old.items():
+            if name.startswith("/") or ".." in Path(name).parts:
+                continue
+            target = into / name
+            target.parent.mkdir(parents=True, exist_ok=True)
+            target.write_bytes(data)
+
+    return _marked(
+        root, document, f"{Path(document).stem}-at-{stamp}", fill, "then",
+        build_dir, engine, search_env,
+    )
+
+
+def _marked(root: Path, document: str, job: str, fill, when: str, build_dir: Path,
+            engine: str, search_env: dict[str, str]) -> Path:
+    """latexdiff between the old tree `fill` writes and the project now,
+    built as `job` in `<build>/changes/`."""
     tool = binary()
     if not tool:
         raise ChangesError("latexdiff is not installed")
     if not (root / document).is_file():
         raise ChangesError(f"{document} is not in the project")
-    short = sha[:7]
     stem = Path(document).stem
     out = build_dir / "changes"
     out.mkdir(parents=True, exist_ok=True)
-    job = f"{stem}-since-{short}"
     with tempfile.TemporaryDirectory(prefix="nexttex-changes-") as scratch:
         old_root = Path(scratch)
-        _export(root, sha, old_root)
+        fill(old_root)
         old = old_root / document
         if not old.is_file():
-            raise ChangesError(f"{document} did not exist at that commit")
+            raise ChangesError(f"{document} did not exist {when}")
         argv = [tool, "--flatten", str(old), str(root / document)]
         if tool.endswith(".py"):
             # The tests' stand-in, run by this interpreter.

@@ -30,12 +30,6 @@ each; venue templates stay on the roadmap for a run of their own. Each
 item moves here from the roadmap when it starts. Its tracker page is
 https://claude.ai/artifact/Lttcw8HSYKBGfhLUyVmy9x.
 
-- [ ] **Typeset changes against a History version.** Choosing any
-      version in History, a named one included, gives the marked-up PDF
-      `nexttex/changes.py` makes against a commit; History keeps
-      versions per file, so the project at that moment is assembled from
-      each file's newest version then.
-
 The performance run closed on 1 October 2026 at
 4.13.5, at the writer's request, from 4.13.0 in five pushes: every item
 was measured before it was changed, and those whose cost turned out not

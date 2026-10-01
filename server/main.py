@@ -5507,11 +5507,58 @@ async def git_changes_pdf(project_id: str, sha: str, document: str = Body("", em
     return {"name": pdf.name, "url": f"/api/projects/{project_id}/git/changes/{pdf.name}"}
 
 
+@app.post("/api/projects/{project_id}/history/changes")
+async def history_changes_pdf(
+    project_id: str,
+    path: str = Body(...),
+    sha: str = Body(...),
+    document: str = Body(""),
+):
+    """A typeset PDF of what changed in a document since a version in
+    History, by latexdiff: the project as it stood at that version's
+    moment against the project now. Each file stood as its newest version
+    then (`History.state_at`); a file History has never seen stood as it
+    stands, and one made since stood empty, so a new chapter is marked as
+    added. Answers the address the PDF is served at."""
+    session = session_for(project_id)
+    target = _safe(session, path)
+    relative = session.project.relative(target)
+    version = next(
+        (found for found in session.history.versions(relative) if found.sha == sha), None,
+    )
+    if version is None:
+        raise HTTPException(404, "no such version")
+    try:
+        state = session.document_for(document or None)
+    except LookupError as error:
+        raise HTTPException(404, str(error))
+    main = session.project.relative(state.paths.main)
+    session.collab.flush()
+    texts = await asyncio.to_thread(_project_texts, session)
+
+    def run() -> Path:
+        old = {name: body.encode("utf-8") for name, body in texts.items() if name.lower().endswith(".tex")}
+        for name, data in session.history.state_at(version.at).items():
+            if name.lower().endswith(".tex"):
+                old[name] = data if data is not None else b""
+        stamp = time.strftime("%Y%m%d-%H%M%S", time.localtime(version.at / 1000))
+        return changes.marked_up_from(
+            session.project.root, main, old, stamp, state.paths.build_dir,
+            session.project.config.engine or "pdflatex", state.paths.search_env(),
+        )
+
+    try:
+        pdf = await asyncio.to_thread(run)
+    except changes.ChangesError as error:
+        raise HTTPException(400, str(error))
+    return {"name": pdf.name, "url": f"/api/projects/{project_id}/git/changes/{pdf.name}"}
+
+
 @app.get("/api/projects/{project_id}/git/changes/{name}")
 async def git_changes_file(project_id: str, name: str):
     """A marked-up PDF built above, by its name and nothing else."""
     session = session_for(project_id)
-    if not re.fullmatch(r"[A-Za-z0-9._-]{1,120}-since-[0-9a-f]{7}\.pdf", name):
+    if not re.fullmatch(r"[A-Za-z0-9._-]{1,120}-(?:since-[0-9a-f]{7}|at-\d{8}-\d{6})\.pdf", name):
         raise HTTPException(404, "no such file")
     for state in session.documents.values():
         path = state.paths.build_dir / "changes" / name

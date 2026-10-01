@@ -6,6 +6,7 @@ plumbing: the document as it was, exported from git, compared with the
 document as it is, and the result built with the document's engine.
 """
 
+import json
 import shutil
 import subprocess
 import sys
@@ -64,3 +65,26 @@ def test_no_latexdiff_is_said(repo, monkeypatch):
 def test_a_commit_that_is_not_one_is_refused(repo):
     with pytest.raises(changes.ChangesError, match="not a commit"):
         changes.marked_up(repo, "main.tex", "--output=x", repo / "build", "pdflatex", {})
+
+
+@needs_tex
+def test_the_document_against_a_moment_in_history_is_built_marked(tmp_path, monkeypatch):
+    """The old side is a tree History assembled, not a commit: a chapter
+    that did not exist then stands empty, so it is marked as added."""
+    root = tmp_path / "paper"
+    root.mkdir()
+    (root / "main.tex").write_text(DOC.replace("{}", "In cyclohexane.\n\\input{added}"))
+    (root / "added.tex").write_text("A new chapter.\n")
+    monkeypatch.setenv("NEXTTEX_LATEXDIFF", str(FAKE))
+    log = tmp_path / "latexdiff.jsonl"
+    monkeypatch.setenv("NEXTTEX_FAKE_LATEXDIFF_LOG", str(log))
+    old = {"main.tex": DOC.replace("{}", "In hexane.").encode(), "added.tex": b""}
+    pdf = changes.marked_up_from(root, "main.tex", old, "20261001-143200", root / "build", "pdflatex", {})
+    assert pdf.name == "main-at-20261001-143200.pdf" and pdf.is_file()
+    argv = json.loads(log.read_text().splitlines()[-1])
+    assert argv[0] == "--flatten" and argv[2] == str(root / "main.tex")
+
+
+def test_a_moment_that_is_not_one_is_refused(tmp_path):
+    with pytest.raises(changes.ChangesError):
+        changes.marked_up_from(tmp_path, "main.tex", {}, "../../x", tmp_path / "b", "pdflatex", {})

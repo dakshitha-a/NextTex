@@ -1632,7 +1632,7 @@ class ProjectSession:
             # existed before NextTex, and it has to stay reachable.
             self.history.record(
                 relative, previous, by="you", op="create",
-                why="as it was when NextTex first saw it",
+                why=History.FIRST_SEEN,
             )
         # Stamped with this install's identity, so a collaborator receiving
         # it knows whose it was.  Empty for a project that has never been

@@ -1400,6 +1400,11 @@ const api = {
       ghReason: string;
     }>(`/projects/${id}/git`),
   /** A marked-up PDF of what changed since a commit; answers where it is. */
+  /** The marked-up PDF of the document since a version in History. */
+  historyChangesPdf: (id: string, path: string, sha: string, document = "") =>
+    request<{ name: string; url: string }>(
+      `/projects/${id}/history/changes`, json({ path, sha, document }),
+    ),
   gitChangesPdf: (id: string, sha: string, document = "") =>
     request<{ name: string; url: string }>(`/projects/${id}/git/changes/${sha}`, json({ document })),
   gitAction: (id: string, action: string, message = "") =>

@@ -11653,3 +11653,22 @@ direction page's "A figures and tables list" draws it, and
 `e2e/specs/figures.spec.ts` finds an unreferenced table, follows it to
 its source, and finds the choice remembered after a reload.
 
+## 98. Typeset changes against a History version
+
+The fifth item of the roadmap run. A revision goes back with a PDF that
+marks what changed since the submitted version; the Git drawer has made
+one since a commit, and many writers here never commit. Any version in
+History now gives the same PDF, the document now against the project as
+it stood at that version's moment, every file at its newest version
+then and a chapter made since marked as added. Every version's menu,
+which a right-click opens, gains *Changes as PDF* after Compare and
+Name it. A named version, "submitted v1", offers it under the pointer
+too, in Rename's place: it was drawn beside Rename, and the render at
+the drawer's narrowest showed the row could not hold both, the time
+wrapping under them, so Rename is in the menu there and the time keeps
+one line. It builds while the button says Building and opens in a tab
+of its own, as the Git drawer's does; without latexdiff neither is
+offered. The direction page's "Typeset changes against a History
+version" draws it, and `e2e/specs/history-changes.spec.ts` names a
+version and opens its marked-up PDF.
+

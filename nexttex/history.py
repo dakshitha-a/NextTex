@@ -647,6 +647,42 @@ class History:
             return None
         return data.decode("utf-8", errors="replace")
 
+    #: The reason `record_version` gives the state a file was in before
+    #: NextTex first changed it, which is what that file held until then.
+    FIRST_SEEN = "as it was when NextTex first saw it"
+
+    def state_at(self, moment: float) -> dict[str, bytes | None]:
+        """Every file this history knows, as it stood at `moment`.
+
+        A file's bytes are its newest version at or before the moment, and
+        None when that version deleted it. A file whose versions all come
+        after the moment stood then as the state NextTex first saw it in,
+        when its first version is that, and did not exist when its first
+        version made it. A file's former names are given the same bytes,
+        since an `\\input` written then names the file as it was called
+        then. A version whose contents are not on this disk is None. A
+        file the history has never seen is not in the answer: nothing has
+        changed it, so it stood as it stands."""
+        found: dict[str, bytes | None] = {}
+        for key, entry in self._paths().items():
+            path = (entry or {}).get("path", "")
+            if not path:
+                continue
+            versions = self.versions_of(key)
+            if not versions:
+                continue
+            before = [version for version in versions if version.at <= moment]
+            if before:
+                last = before[-1]
+                data = None if last.op == "delete" else self.blobs.get(last.sha)
+            else:
+                first = versions[0]
+                seen = first.op == "create" and first.why == self.FIRST_SEEN
+                data = self.blobs.get(first.sha) if seen else None
+            for name in [path, *(entry.get("aliases") or [])]:
+                found.setdefault(name, data)
+        return found
+
     def timeline(self, limit: int = 100) -> list[dict]:
         """Recent versions across every file, newest first.
 

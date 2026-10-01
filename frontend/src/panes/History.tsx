@@ -70,7 +70,29 @@ export default function History({
   const activePath = useStore((s) => s.activePath);
   const projectId = useStore((s) => s.projectId);
   const compile = useStore((s) => s.compile);
+  const latexdiff = useStore((s) => Boolean(s.git?.latexdiff));
+  const document = useStore((s) => s.activePreview);
   const [labelling, setLabelling] = useState<string | null>(null);
+  /** The version whose marked-up PDF is being built, by its sha. */
+  const [marking, setMarking] = useState<string | null>(null);
+  /** The document now against the project as it stood at this version,
+   *  marked up by latexdiff, in a tab of its own, opened at the press so a
+   *  browser that refuses a window opened later still gives this one. */
+  const changesAsPdf = async (version: Version, path: string) => {
+    if (!projectId) return;
+    const tab = window.open("", "_blank");
+    setMarking(version.sha);
+    try {
+      const answer = await api.historyChangesPdf(projectId, path, version.sha, document ?? "");
+      if (tab) tab.location.href = answer.url;
+      else window.location.assign(answer.url);
+    } catch (problem: any) {
+      tab?.close();
+      set({ error: problem?.message ?? String(problem) });
+    } finally {
+      setMarking(null);
+    }
+  };
   /** A version row's right-click menu: which version, and where. */
   const [rowMenu, setRowMenu] = useState<{ sha: string; at: Wanted } | null>(null);
   // A figure has no text to read, so selecting one of its versions opens
@@ -466,6 +488,16 @@ export default function History({
                       >
                         {version.label ? "Rename" : "Name it"}
                       </MenuItem>
+                      {latexdiff && !rowBinary ? (
+                        <MenuItem
+                          onClick={() => {
+                            setRowMenu(null);
+                            void changesAsPdf(version, rowPath);
+                          }}
+                        >
+                          Changes as PDF
+                        </MenuItem>
+                      ) : null}
                     </Menu>
                   </div>
                 ) : null}
@@ -499,7 +531,7 @@ export default function History({
                       )}
                     </span>
                   ) : null}
-                  <span className="t-meta tnum text-ink-3">{timeOf(version.at)}</span>
+                  <span className="t-meta tnum whitespace-nowrap text-ink-3">{timeOf(version.at)}</span>
                   <span className={whoInk(version)} data-testid="version-who">
                     {who(version, me)}
                   </span>
@@ -532,7 +564,7 @@ export default function History({
                         Compare
                       </Button>
                     ) : null}
-                    {!folded ? (
+                    {!folded && !(latexdiff && version.label && !rowBinary) ? (
                       <Button
                         size="inline"
                         title="Name this version so it is never thinned away"
@@ -542,6 +574,24 @@ export default function History({
                         }}
                       >
                         {version.label ? "Rename" : "Name it"}
+                      </Button>
+                    ) : null}
+                    {/* On a named version, "submitted v1", in Rename's place,
+                        since it is the reason a version is named and the
+                        row cannot hold both at the drawer's narrowest;
+                        Rename and it are in every version's menu. */}
+                    {latexdiff && version.label && !folded && !rowBinary ? (
+                      <Button
+                        size="inline"
+                        title="The document now against the project as it stood at this version, marked up"
+                        data-testid="version-changes-pdf"
+                        disabled={marking === version.sha}
+                        onClick={(event) => {
+                          event.stopPropagation();
+                          void changesAsPdf(version, rowPath);
+                        }}
+                      >
+                        {marking === version.sha ? "Building" : "Changes as PDF"}
                       </Button>
                     ) : null}
                   </span>
