@@ -144,3 +144,16 @@ def test_a_code_that_is_not_one_is_refused(client):
     assert client.post("/api/hosts", json={"code": "hello"}).status_code == 400
     assert host.read_code("nexttex-host-v1-!!!") is None
     assert host.read_code(host.make_code("addr", "sec")) == {"address": "addr", "secret": "sec"}
+
+
+def test_start_at_boot_off_linux_says_what_to_run(client, monkeypatch):
+    """The route answered every other platform with "see the README for
+    Windows", and the README stopped carrying that passage on 1 October
+    2026. A refusal should say what to do instead, so it names the script
+    and the shell it wants."""
+    monkeypatch.setattr(server_main.sys, "platform", "win32")
+    answer = client.post("/api/host/boot")
+    assert answer.status_code == 501
+    detail = answer.json()["detail"]
+    assert "register-task.ps1 -AtStartup" in detail
+    assert "README" not in detail

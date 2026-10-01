@@ -1400,7 +1400,11 @@ async def host_starts_at_boot():
     in, which a host needs to be always on. Linux only: its answer is one
     `loginctl` away. Asked in a thread, since that may wait on polkit."""
     if not sys.platform.startswith("linux"):
-        raise HTTPException(501, "Only Linux can be asked from here; see the README for Windows.")
+        raise HTTPException(
+            501,
+            "Only Linux can be asked from here. On Windows, run "
+            "scripts\\register-task.ps1 -AtStartup from an administrator's PowerShell.",
+        )
     from nexttex.install import service
 
     said = await asyncio.to_thread(service.start_at_boot, _boot_user())
