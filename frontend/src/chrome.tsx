@@ -155,6 +155,16 @@ export function downloadZip(projectId: string, fallback = "project.zip") {
   return download(api.downloadUrl(projectId, { format: "zip" }), fallback, "the project");
 }
 
+/** One document's source, as a journal's upload wants it: the files it
+ *  reads and the .bbl of its last build, comments stripped on request. */
+export function downloadSource(projectId: string, document: string, strip: boolean) {
+  return download(
+    api.downloadUrl(projectId, { format: "source", document, comments: strip ? "strip" : "keep" }),
+    `${stemOf(document)}-source.zip`,
+    "the source",
+  );
+}
+
 /** A document as Word, HTML or Markdown, through pandoc on the server;
  *  a refusal is pandoc's own sentence in the corner, and so is a figure
  *  that saved as its name rather than as a picture. */

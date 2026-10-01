@@ -1568,11 +1568,12 @@ const api = {
 
   downloadUrl: (
     id: string,
-    options: { path?: string; format?: string; document?: string } = {},
+    options: { path?: string; format?: string; document?: string; comments?: "strip" | "keep" } = {},
   ) => {
     const params = new URLSearchParams();
     if (options.path) params.set("path", options.path);
     if (options.format) params.set("format", options.format);
+    if (options.comments) params.set("comments", options.comments);
     // Which document's PDF, by project-relative path; empty is the one on
     // screen, which is what every caller written before there were several
     // sent.

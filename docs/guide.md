@@ -85,6 +85,9 @@ a **Tutorial** button at its foot, and the projects screen's app bar has an
   Rebuild, and a double-click on its button rebuilds.
 - **Copy path.** A file's or a folder's menu in Files, or a right-click on
   its row, copies its full path on the machine running NextTex.
+- **The source for an upload.** In Download, a document's *source* chip is
+  a zip of the files it uses with the `.bbl` of its last build; *Strip
+  comments from the source* takes your comments out.
 - **Figures and tables.** Switch the Sections drawer to *Figures* for every
   figure and table in reading order, with its number, page and how often the
   text refers to it; one never referred to says so.

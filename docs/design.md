@@ -11695,3 +11695,21 @@ in the `.bib`. The direction page's "Retraction and published-version
 check" draws it, and `e2e/specs/submit.spec.ts` asks, with the answers
 a stand-in, and reads the rows and the line.
 
+## 100. A submission source bundle
+
+The seventh item of the roadmap run, at the step writers dread: a
+journal's or a preprint server's source upload wants the files the
+document uses and nothing else, the `.bbl` beside the main file, no
+build folder, no drafts of figures, and, by preference, no comments a
+referee could read. Each document's chips in the Download drawer end
+with *source*, a `.zip` of exactly that: every `.tex` it reads, its
+bibliographies and figures, the project's own packages, classes and
+styles it loads, and the `.bbl` from its last build, paths as they are.
+One check box under the documents, *Strip comments from the source*,
+kept on this computer, takes them out on the way, leaving verbatim as it
+is. A document not built yet has its source chip waiting, outlined, as
+its PDF chip is, since the `.bbl` comes from the build. The direction
+page's "A submission source bundle" draws it; `tests/test_bundle.py`
+builds an extracted bundle on its own where TeX is installed, and
+`e2e/specs/download.spec.ts` downloads one and reads what is in it.
+

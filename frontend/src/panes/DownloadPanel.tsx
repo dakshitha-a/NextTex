@@ -1,7 +1,8 @@
-import { useMemo } from "react";
+import { useMemo, useState } from "react";
 import { useStore, type DocBuild } from "../store";
-import { ChipButton } from "../ui/controls";
-import { EXPORTS, downloadExport, downloadPdf, downloadZip, stemOf } from "../chrome";
+import { ChipButton, Input } from "../ui/controls";
+import { EXPORTS, downloadExport, downloadPdf, downloadSource, downloadZip, stemOf } from "../chrome";
+import { keep, recallText } from "../remember";
 
 /** The Download drawer: every copy the project can give, in one place.
  *
@@ -32,6 +33,8 @@ export default function DownloadPanel() {
     [previews, candidates],
   );
   const whole = useMemo(() => countFiles(tree), [tree]);
+  // Whether a source bundle leaves its comments behind, on this computer.
+  const [strip, setStrip] = useState(() => recallText("nexttex.stripComments") === "yes");
 
   return (
     <div className="flex min-h-0 flex-1 flex-col" data-testid="download-panel">
@@ -93,14 +96,39 @@ export default function DownloadPanel() {
                       </ChipButton>
                     ))
                   : null}
+                <ChipButton
+                  title={built ? `What ${path} reads, with the .bbl of its last build, as a zip` : "Preview this document to build it first"}
+                  data-testid="download-source"
+                  data-document={path}
+                  tone="surface"
+                  disabled={!built}
+                  onClick={() => projectId && void downloadSource(projectId, path, strip)}
+                >
+                  source
+                </ChipButton>
               </div>
             </div>
           );
         })}
+        {documents.length ? (
+          <label className="nx-line gap-1.5 text-ink-2">
+            <Input
+              type="checkbox"
+              data-testid="download-strip-comments"
+              checked={strip}
+              onChange={(event) => {
+                setStrip(event.target.checked);
+                keep("nexttex.stripComments", event.target.checked ? "yes" : "no");
+              }}
+            />
+            <span>Strip comments from the source</span>
+          </label>
+        ) : null}
       </div>
       <p className="nx-note">
         Every .tex with a \documentclass of its own is a document; a new one
-        appears here as soon as it is saved.{pandoc ? " Word, HTML and Markdown come through pandoc." : ""}
+        appears here as soon as it is saved.{pandoc ? " Word, HTML and Markdown come through pandoc." : ""}{" "}
+        The source is what the document reads, with the .bbl of its last build.
       </p>
     </div>
   );

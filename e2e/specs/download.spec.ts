@@ -92,3 +92,25 @@ test("the whole project downloads from the project list", async ({ app, project,
   const download = await waiting;
   expect(namesIn(await zipOf(download))).toContain("main.tex");
 });
+
+test("a document's source is what it uses with its .bbl, comments stripped on request", async ({ tab }) => {
+  await expect(tab.locator("canvas").first()).toBeVisible({ timeout: 45_000 });
+  await tab.getByTestId("bar-download").click();
+  const row = tab.locator('[data-testid="download-row"][data-document="main.tex"]');
+  await expect(row).toHaveAttribute("data-built", "true", { timeout: 60_000 });
+  const strip = tab.getByTestId("download-strip-comments");
+  await strip.check();
+  const waiting = tab.waitForEvent("download");
+  await row.getByTestId("download-source").click();
+  const download = await waiting;
+  expect(download.suggestedFilename()).toBe("main-source.zip");
+  const names = namesIn(await zipOf(download));
+  expect(names).toContain("main.tex");
+  expect(names).toContain("references.bib");
+  expect(names.some((name) => name.startsWith("build/"))).toBe(false);
+  // The choice is kept on this computer.
+  await tab.reload();
+  await expect(tab.locator("canvas").first()).toBeVisible({ timeout: 45_000 });
+  if (!(await tab.getByTestId("download-panel").isVisible())) await tab.getByTestId("bar-download").click();
+  await expect(tab.getByTestId("download-strip-comments")).toBeChecked();
+});

@@ -81,7 +81,7 @@ from nexttex.project import (
     PROJECT_STATES, clean_limits,
 )
 from nexttex.symbols import walk_project
-from nexttex import bibcheck, bibfix, consistency, deps, figures, published, export, lint_explain, prompts, search, texstyles, updates, usage
+from nexttex import bibcheck, bibfix, bundle, consistency, deps, figures, published, export, lint_explain, prompts, search, texstyles, updates, usage
 from nexttex.install.ui import child_env
 from server.session import CLOSED, DocumentState, ProjectSession, spawn
 
@@ -5198,6 +5198,7 @@ def _archive_walk(top: Path, build_dir: Path):
 @app.get("/api/projects/{project_id}/download")
 async def download(
     project_id: str, path: str = "", format: str = "auto", document: str = "",
+    comments: str = "keep",
 ):
     """Take a copy away: one file, a folder, the whole project, or its PDF.
 
@@ -5260,6 +5261,41 @@ async def download(
         return Response(
             content=data, media_type="application/pdf",
             headers={"Content-Disposition": _attachment(f"{name}.pdf")},
+        )
+
+    if format == "source":
+        # One document's source, as a journal's or a preprint server's
+        # upload wants it: `nexttex/bundle.py`. `comments=strip` takes the
+        # comments out on the way.
+        session = session_for(project_id)
+        state = session.documents.get(document) if document else None
+        if state is not None:
+            main = state.paths.main
+        elif document:
+            main = _safe(session, document)
+            if not main.is_file() or main.suffix.lower() not in {".tex", ".ltx"}:
+                raise HTTPException(404, "no such document")
+        else:
+            main = _document(session).paths.main
+        root = session.project.root
+        relative = session.project.relative(main)
+        live = session.collab.open_texts()
+        texts = await asyncio.to_thread(_project_texts, session)
+        texts.update({name: body for name, body in live.items() if name in texts})
+        stem = Path(relative).stem
+
+        def run() -> bytes:
+            reads = session.deps.reachable([relative])
+            bbl = session.project.build_dir / f"{stem}.bbl"
+            data, _names = bundle.build(
+                root, relative, set(reads), texts, bbl, strip=comments == "strip",
+            )
+            return data
+
+        data = await asyncio.to_thread(run)
+        return Response(
+            content=data, media_type="application/zip",
+            headers={"Content-Disposition": _attachment(f"{stem}-source.zip")},
         )
 
     if format in export.FORMATS:
