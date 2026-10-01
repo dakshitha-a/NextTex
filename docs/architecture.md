@@ -50,7 +50,7 @@ The lifespan starts four background tasks and cancels them on the way out.
 
 **The rejoin task** opens every shared project so its peers can reach it again after a restart.
 
-**The warm task** imports the agent SDK while nobody is waiting, because that import costs about six hundred milliseconds and was otherwise paid by the first person to open a project after an update.
+**The warm task** imports the agent SDK while nobody is waiting, because that import costs about six hundred milliseconds and was otherwise paid by the first person to open a project after an update. The OpenAI provider is never imported at start at all: its default model is named in `nexttex/providers.py` as `OPENAI_DEFAULT_MODEL`, where `server/main.py` had imported it from `nexttex/openai_agent.py` and `requests` with it, about 60 ms of every start.
 
 **Two commits, read at two different times.** `HEAD_AT_BOOT` is read once here, when the process starts, and is the only commit this process can honestly claim to be running. The commit on disk is asked for when `/api/instance` is called, because it moves: an update pulls into the working tree of a server that is already running. They were one field, read at request time, so an install updated and not restarted reported the new commit, matched it against the remote, and called itself up to date while serving the old code.
 

@@ -62,3 +62,23 @@ def test_warming_never_takes_the_server_down(monkeypatch) -> None:
     monkeypatch.setattr("builtins.__import__", explode)
     # Returns rather than raises, which is what keeps `lifespan` intact.
     asyncio.run(main._warm_the_agent())
+
+
+def test_importing_the_server_does_not_load_the_openai_provider() -> None:
+    """The server named the OpenAI default model by importing
+    `openai_agent`, which imports `requests`: about 60 ms of every start
+    for a provider most installs never choose. The name lives in
+    `providers.py` now. Asked of a fresh interpreter, since this one has
+    long since imported everything."""
+    import subprocess
+    from pathlib import Path
+
+    probe = (
+        "import sys, server.main; "
+        "print('requests' in sys.modules, 'nexttex.openai_agent' in sys.modules)"
+    )
+    result = subprocess.run(
+        [sys.executable, "-c", probe], capture_output=True, text=True,
+        cwd=Path(__file__).resolve().parents[2], timeout=120,
+    )
+    assert result.stdout.split() == ["False", "False"], result.stderr

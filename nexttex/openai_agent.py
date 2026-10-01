@@ -59,6 +59,7 @@ from .atomic import read_text
 from .explain import compile_report
 from .references import appended, entry_for
 from .lines import first_changed_line
+from .providers import OPENAI_DEFAULT_MODEL
 from .writing import PROSE
 
 #: OpenAI itself.  A base URL in the settings replaces the host and the
@@ -79,9 +80,8 @@ def endpoint(base_url: str) -> str:
         return base
     return f"{base}/chat/completions"
 
-# A model that has to be named somewhere.  Any string the account can use
-# is accepted in settings; this is only what a fresh install starts with.
-DEFAULT_MODEL = "gpt-4o"
+# What a fresh install starts with, named in `providers.py`.
+DEFAULT_MODEL = OPENAI_DEFAULT_MODEL
 
 # How long one turn may take before it is abandoned.  A writing turn that
 # has not finished in five minutes is not going to.  Time spent waiting on

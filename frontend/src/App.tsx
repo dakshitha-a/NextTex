@@ -9,7 +9,6 @@ import api, {
 import { Followed } from "./followed";
 import { forget, keep, recall, recallText } from "./remember";
 import { rangeFor, scopesFor } from "./words";
-import { createTwoFilesPatch } from "diff";
 import Patch from "./panes/Patch";
 import {
   Chevron,
@@ -2450,7 +2449,10 @@ export default function App() {
                 if (!projectId || !pair || !shown) return;
                 try {
                   const path = get().viewing?.path ?? "";
-                  const fetched = await api.historyVersion(projectId, path, other.sha);
+                  const [fetched, { createTwoFilesPatch }] = await Promise.all([
+                    api.historyVersion(projectId, path, other.sha),
+                    import("diff"),
+                  ]);
                   // Older on the left, whichever was clicked, so a
                   // patch always reads forwards in time.
                   const forwards = other.at >= shown.at;
@@ -2681,7 +2683,7 @@ export default function App() {
               // One control for both readings of the change: the shading
               // in the editor of what is gone, and the patch under the
               // banner of what arrived as well.
-              onToggleChanges={() => {
+              onToggleChanges={async () => {
                 const next = !showingChanges;
                 setShowingChanges(next);
                 editor.current?.showChanges(next);
@@ -2692,6 +2694,10 @@ export default function App() {
                 const pair = editor.current?.viewed();
                 if (!pair) return;
                 const name = viewing.path.split("/").pop() ?? viewing.path;
+                // Fetched here rather than imported at the top: the patch
+                // is drawn only while an old version is on screen, and
+                // the library was riding in the entry chunk for it.
+                const { createTwoFilesPatch } = await import("diff");
                 setPatchView({
                   title: "From that version to the file as it stands",
                   text: createTwoFilesPatch(name, name, pair.old, pair.live, "", "", {

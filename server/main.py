@@ -70,8 +70,7 @@ from nexttex.library import (
     MAX_PDFS as LIBRARY_MAX, Library, Scan, have_pdftotext,
     title_is_on_the_page, walk as library_walk,
 )
-from nexttex.openai_agent import DEFAULT_MODEL as OPENAI_DEFAULT_MODEL
-from nexttex.providers import PROVIDERS
+from nexttex.providers import OPENAI_DEFAULT_MODEL, PROVIDERS
 from nexttex.context import KINDS, MEMORY_MAX_CHARS
 from nexttex.history import History, now_ms
 from nexttex.paths import shares_home, state_home

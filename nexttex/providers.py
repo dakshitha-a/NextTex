@@ -23,6 +23,13 @@ from typing import Any, AsyncIterator
 
 PROVIDERS = ("claude", "openai", "none")
 
+# The OpenAI model a fresh install starts with. Any string the account can
+# use is accepted in settings. It lives here rather than in
+# `openai_agent.py` so the server can name it without importing that
+# module and `requests` behind it, about 60 ms of every start for a
+# provider most installs never choose.
+OPENAI_DEFAULT_MODEL = "gpt-4o"
+
 
 def _installer() -> str:
     """The installer for the platform this is actually running on.
