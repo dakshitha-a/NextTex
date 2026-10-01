@@ -24,10 +24,24 @@ things go to be forgotten rather than a list anybody reads.
 
 ## In hand
 
-The roadmap run, from 1 October 2026 at 4.13.5, builds the first eight
-items of `ROADMAP.md`'s list in its order, one push and one *y* bump
-each; venue templates stay on the roadmap for a run of their own. Each
-item moves here from the roadmap when it starts. Its tracker page is
+Nothing is in hand. The roadmap run closed on 1 October 2026 at
+4.21.1, from 4.13.5 in nine pushes: the first eight items of
+`ROADMAP.md`'s list, one *y* bump each, and the writer's Copy path on a
+file tree row. Done: word limits on a section or the abstract counted in
+the outline and pages against the page limit in the strip; the `.bib`
+rows' repairs; consistency checks marking only the less common of two
+forms; a figures and tables list beside Sections; Changes as PDF from
+any version in History; the publishers' records asked about retracted
+and since-published citations; a document's source as a journal's
+upload wants it; and the reply to the reviewers written from the open
+comments. The tie before `\cite` on the roadmap was chktex's warning 2
+already. It turned up and fixed a `.bib`'s rows left stale by a change
+from outside the editor, an over-limit count drawn grey by a utility
+class its own rule outranked, a reply-letter path with an underscore
+breaking the build, the guide's measured bundle and the style guide's
+segmented limit behind the code, and a History version folded away
+while asked about answering "no such version". Venue templates stay on
+the roadmap for a run of their own. Its tracker page is
 https://claude.ai/artifact/Lttcw8HSYKBGfhLUyVmy9x.
 
 The performance run closed on 1 October 2026 at
@@ -173,6 +187,13 @@ None. The last three were closed on 1 October 2026 at 4.13.0.
 
 ### Flaky, with the trace read
 
+- [ ] **Four specs that failed once each under the full run's load
+      in the roadmap run**: `bib-check.spec.ts:76` (the
+      `\bibliographystyle` completion) and `writing.spec.ts:237` (Tab
+      indenting) on the 4.18.0 check, `menus-contrast.spec.ts:650` and
+      `share-panel.spec.ts:135` on the 4.19.0 check, each passing on its
+      retry; the first two passed 10 of 10 alone. Not read further,
+      since none recurred in the two runs after.
 - [ ] **`e2e/specs/latex-links.spec.ts:112`, the reference hover, under
       load.** Run with `writing.spec.ts` at `--repeat-each=6` it failed
       2 of 156 on 4.13.1's interface and on 4.13.3's alike, the card

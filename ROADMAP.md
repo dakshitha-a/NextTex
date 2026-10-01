@@ -31,12 +31,12 @@ the reversal should have to answer it.
 ## The list
 
 The list held by the run of 24 September 2026 was built, each item with a
-section of its own in `docs/design.md`, 67 to 74. The items below came from
-a survey on 1 October 2026 of what the code already does against what
-writers of papers and theses meet, and the writer chose to file all of them
-here rather than build them in the performance run of that day. The
-roadmap run of 1 October 2026 builds the first eight, moving each to
-`TRACKER.md` as it starts. A new item goes here, in its place in the
+section of its own in `docs/design.md`, 67 to 74. The items that followed
+came from a survey on 1 October 2026 of what the code already does against
+what writers of papers and theses meet. The roadmap run of the same day
+built the first eight of them, 4.14.0 to 4.21.0, each with a section of
+its own in `docs/design.md`, 93 and 95 to 101. What is left is the large
+one, for a run of its own. A new item goes here, in its place in the
 order, when somebody proposes it.
 
 1. **Venue templates, and a browser to choose them in.** Today
