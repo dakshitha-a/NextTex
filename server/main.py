@@ -2885,7 +2885,10 @@ async def open_project(project_id: str):
 
 @app.get("/api/projects/{project_id}/tree")
 async def project_tree(project_id: str):
-    return session_for(project_id).project.tree()
+    # In a thread: a project with a few thousand data files takes tens of
+    # milliseconds to walk, and the browser asks after every change to the
+    # project's shape.
+    return await asyncio.to_thread(session_for(project_id).project.tree)
 
 
 # ---------------------------------------------------------------------------

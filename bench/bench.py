@@ -256,6 +256,20 @@ def measure(root: Path) -> list[dict]:
 
     results.append(timed("project.tree_ms", project.tree, runs=3))
 
+    # A project with its data beside the paper, the shape that made the
+    # tree slow: fifty folders of a hundred files. Built apart from the
+    # thesis so the other rows keep measuring what they always have. It
+    # was 275 ms, four `stat`s an entry; one `scandir` a folder made it 53.
+    data_root = root.parent / "with-data"
+    (data_root / "data").mkdir(parents=True, exist_ok=True)
+    (data_root / "main.tex").write_text("\\documentclass{article}\n", encoding="utf-8")
+    for run in range(50):
+        folder = data_root / "data" / f"run{run:02d}"
+        folder.mkdir(exist_ok=True)
+        for row in range(100):
+            (folder / f"r{row}.csv").write_text("1,2\n", encoding="utf-8")
+    results.append(timed("project.tree_5000_ms", Project.open(data_root).tree, runs=3))
+
     registry = Registry(root / ".nexttex" / "projects.json")
     registry.add(root)
     results.append(timed("registry.list_ms", registry.list))

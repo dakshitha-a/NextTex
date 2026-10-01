@@ -200,6 +200,7 @@
   "history.versions_ms": 3,
   "transcript.items_ms": 120,
   "project.tree_ms": 250,
+  "project.tree_5000_ms": 200,
   "project.open_ms": 400,
   "registry.list_ms": 40,
   "registry.find_ms": 40,

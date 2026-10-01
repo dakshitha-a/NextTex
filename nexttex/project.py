@@ -499,39 +499,70 @@ class Project:
         return False
 
     def tree(self) -> dict:
-        """The project's files, as a nested structure for the file tree."""
+        """The project's files, as a nested structure for the file tree.
 
-        def walk(directory: Path) -> list[dict]:
+        One `scandir` per folder, whose entries already know whether they
+        are a folder and, on Windows, their size. It was `iterdir` with a
+        `stat` for the sort, another for the exclusion, another for the
+        kind and a fourth for the size, and the configured exclusions built
+        into a set again for every entry: 275 ms on a project with fifty
+        folders of a hundred data files each, asked after every change to
+        the project's shape. Same answer, entry for entry.
+        """
+        excluded = set(self.config.exclude)
+        build_dir = self.build_dir
+
+        def skipped(name: str, path: Path, is_dir: bool) -> bool:
+            if name in IGNORED_DIRS or is_ours(name) or name in excluded:
+                return True
+            if is_dir:
+                if path == build_dir:
+                    return True
+                try:
+                    return (path / VENV_MARKER).is_file()
+                except OSError:
+                    return False
+            return False
+
+        def walk(directory: Path, prefix: str) -> list[dict]:
             entries: list[dict] = []
             try:
-                children = sorted(
-                    directory.iterdir(),
-                    key=lambda p: (p.is_file(), p.name.lower()),
-                )
+                with os.scandir(directory) as found:
+                    listed = []
+                    for entry in found:
+                        try:
+                            is_dir = entry.is_dir()
+                        except OSError:
+                            is_dir = False
+                        listed.append((entry, is_dir))
             except OSError:
                 return entries
-            for child in children:
-                if self._excluded(child):
+            # Folders first, then by name without case, as before.
+            listed.sort(key=lambda item: (not item[1], item[0].name.lower()))
+            for entry, is_dir in listed:
+                name = entry.name
+                path = directory / name
+                if skipped(name, path, is_dir):
                     continue
-                if child.is_dir():
+                relative = prefix + name
+                if is_dir:
                     entries.append({
-                        "name": child.name,
-                        "path": self._relative_below(child),
+                        "name": name,
+                        "path": relative,
                         "type": "dir",
-                        "children": walk(child),
+                        "children": walk(path, relative + "/"),
                     })
                 else:
-                    suffix = child.suffix.lower()
                     try:
-                        stat = child.stat()
+                        stat = entry.stat()
                         size, mtime = stat.st_size, stat.st_mtime
                     except OSError:
                         size, mtime = 0, 0.0
                     entries.append({
-                        "name": child.name,
-                        "path": self._relative_below(child),
+                        "name": name,
+                        "path": relative,
                         "type": "file",
-                        "kind": kind_of(child.name),
+                        "kind": kind_of(name),
                         "size": size,
                         # So a thumbnail cached per file is redrawn when
                         # the file is, and not before.
@@ -543,7 +574,7 @@ class Project:
             "name": self.config.name,
             "path": "",
             "type": "dir",
-            "children": walk(self.root),
+            "children": walk(self.root, ""),
         }
 
     def as_dict(self) -> dict:

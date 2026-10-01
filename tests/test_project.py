@@ -251,3 +251,33 @@ def test_projects_opened_in_the_same_moment_are_listed_by_name_then_path(tmp_pat
         ("alpha", str(tmp_path / "alpha-2")),
         ("zeta", str(tmp_path / "zeta")),
     ]
+
+
+def test_the_tree_skips_machinery_sorts_folders_first_and_follows_a_linked_folder(tmp_path):
+    """The tree is one `scandir` per folder now, where it was four `stat`s
+    an entry; it must answer as it did. Folders first, then names without
+    case; the build directory, `.git`, a virtual environment found by its
+    marker and NextTex's own state left out; a linked folder followed."""
+    from nexttex.project import Project
+
+    root = tmp_path / "paper"
+    (root / "build").mkdir(parents=True)
+    (root / "build" / "main.pdf").write_text("x")
+    (root / ".git").mkdir()
+    (root / "env").mkdir()
+    (root / "env" / "pyvenv.cfg").write_text("")
+    (root / "Figures").mkdir()
+    (root / "Figures" / "plot.png").write_bytes(b"x")
+    (root / "appendix").mkdir()
+    (root / "Zeta.tex").write_text("z")
+    (root / "alpha.tex").write_text("a")
+    (root / "linked").symlink_to(root / "Figures", target_is_directory=True)
+    tree = Project.open(root).tree()
+    names = [child["name"] for child in tree["children"]]
+    assert names[:3] == ["appendix", "Figures", "linked"]
+    assert "build" not in names and ".git" not in names and "env" not in names
+    assert names.index("alpha.tex") < names.index("Zeta.tex")
+    linked = next(child for child in tree["children"] if child["name"] == "linked")
+    assert [child["path"] for child in linked["children"]] == ["linked/plot.png"]
+    image = next(c for c in tree["children"] if c["name"] == "Figures")["children"][0]
+    assert image["kind"] == "image" and image["size"] == 1 and image["mtime"] > 0
