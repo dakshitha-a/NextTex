@@ -278,6 +278,22 @@ def measure(root: Path) -> list[dict]:
 
     results.append(timed("project.open_ms", open_work, runs=3))
 
+    # What a rename, a delete or an upload costs before the browser is
+    # told what can be previewed: `_publish_documents` throws away what
+    # references resolve to and asks again. The text's parse is kept, so
+    # this is stats and a walk; it was every file read and parsed again.
+    graph = DependencyGraph(root)
+    names = [guess_document(root) or "main.tex"]
+    graph.standalone_candidates(names)
+    graph.reverse(names)
+
+    def after_structural_change() -> None:
+        graph.invalidate()
+        graph.standalone_candidates(names)
+        graph.reverse(names)
+
+    results.append(timed("deps.after_structural_change_ms", after_structural_change, runs=5))
+
     results.append(timed("download.zip_ms", lambda: zip_size(root), runs=1))
     results.extend(compile_passes(root))
     return results

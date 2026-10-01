@@ -186,6 +186,18 @@ class DependencyGraph:
         self.root = root.resolve()
         self._skip = skip or (lambda _: False)
         self._edges: dict[str, tuple[tuple[int, int], list[str]]] = {}
+        # What each file's text references, before resolving any of it to a
+        # file. Valid while the file's size and time are, whatever happens
+        # elsewhere, so `invalidate` keeps it: a rename or an upload changes
+        # what a reference resolves to and never what the text says. It
+        # used to clear the parse with the resolution, and re-parsing a
+        # thesis after every structural change was three quarters of the
+        # cost of telling the browser what can be previewed.
+        self._refs: dict[str, tuple[tuple[int, int], list[tuple[str, str]]]] = {}
+        # Whether each file stands alone as a document, under the same
+        # stamp: the candidates list read every unread `.tex` again on each
+        # structural change.
+        self._alone: dict[str, tuple[tuple[int, int], bool]] = {}
         self._walked: dict[tuple[str, ...], dict[str, set[str]]] = {}
         self._parented: dict[str, list[str]] | None = None
 
@@ -193,6 +205,7 @@ class DependencyGraph:
 
     def note_changed(self, relative: str) -> None:
         self._edges.pop(relative, None)
+        self._refs.pop(relative, None)
         self._walked.clear()
         self._parented = None
 
@@ -220,12 +233,18 @@ class DependencyGraph:
         cached = self._edges.get(relative)
         if cached and cached[0] == stamp:
             return cached[1]
-        try:
-            text = path.read_text(encoding="utf-8", errors="replace")
-        except OSError:
-            return []
+        parsed = self._refs.get(relative)
+        if parsed and parsed[0] == stamp:
+            found = parsed[1]
+        else:
+            try:
+                text = path.read_text(encoding="utf-8", errors="replace")
+            except OSError:
+                return []
+            found = references(text)
+            self._refs[relative] = (stamp, found)
         out: list[str] = []
-        for kind, reference in references(text):
+        for kind, reference in found:
             target = resolve(self.root, path, kind, reference)
             if target is None:
                 continue
@@ -466,13 +485,26 @@ class DependencyGraph:
             name = self._relative(path)
             if name is None or name in read:
                 continue
-            try:
-                text = path.read_text(encoding="utf-8", errors="replace")
-            except OSError:
-                continue
-            if is_standalone(text):
+            if self._stands_alone(name, path):
                 found.append(name)
         return found
+
+    def _stands_alone(self, name: str, path: Path) -> bool:
+        try:
+            stat = path.stat()
+            stamp = (stat.st_mtime_ns, stat.st_size)
+        except OSError:
+            return False
+        cached = self._alone.get(name)
+        if cached and cached[0] == stamp:
+            return cached[1]
+        try:
+            text = path.read_text(encoding="utf-8", errors="replace")
+        except OSError:
+            return False
+        answer = is_standalone(text)
+        self._alone[name] = (stamp, answer)
+        return answer
 
 
 def documents_in(root: Path, texts: Iterable[tuple[str, str]]) -> list[str]:

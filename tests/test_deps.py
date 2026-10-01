@@ -307,3 +307,38 @@ def test_two_commands_on_one_line_are_both_found():
     assert included_targets(line) == ["one", "two"]
     # And a comment between them hides only the second.
     assert included_targets(r"\include{one} % \include{two}") == ["one"]
+
+
+def test_a_structural_change_resolves_again_without_parsing_again(tmp_path, monkeypatch):
+    """`invalidate` is for a rename, a delete or an upload, which change
+    what a reference resolves to and never what a file's text says. It used
+    to throw the parse away with the resolution, and re-parsing a thesis
+    was three quarters of the cost of telling the browser what can be
+    previewed after each such change."""
+    import nexttex.deps as deps
+
+    write(tmp_path, "main.tex",
+          "\\documentclass{book}\\begin{document}\\input{one}\\input{late}\\end{document}")
+    write(tmp_path, "one.tex", "one")
+    write(tmp_path, "fig.tex", "\\documentclass{standalone}\\begin{document}x\\end{document}")
+    graph = DependencyGraph(tmp_path)
+    assert graph.standalone_candidates(["main.tex"]) == ["fig.tex"]
+
+    parsed, read = [], []
+    real_references, real_alone = deps.references, deps.is_standalone
+    monkeypatch.setattr(deps, "references", lambda text: parsed.append(text) or real_references(text))
+    monkeypatch.setattr(deps, "is_standalone", lambda text: read.append(1) or real_alone(text))
+
+    write(tmp_path, "late.tex", "arrived")
+    graph.invalidate()
+    assert "late.tex" in graph.reachable(["main.tex"])
+    assert graph.standalone_candidates(["main.tex"]) == ["fig.tex"]
+    # Only the file that arrived is read: it is new, and nothing knew it.
+    assert parsed == ["arrived"] and read == []
+
+    # A file that did change is read again, and only that one.
+    write(tmp_path, "one.tex", "one \\input{two}")
+    write(tmp_path, "two.tex", "two")
+    graph.note_changed("one.tex")
+    assert "two.tex" in graph.reachable(["main.tex"])
+    assert parsed == ["arrived", "one \\input{two}", "two"]

@@ -195,6 +195,7 @@
   "symbols.cached_ms": 6,
   "symbols.after_build_ms": 6,
   "symbols.after_edit_ms": 40,
+  "deps.after_structural_change_ms": 60,
   "history.record_ms": 8,
   "history.versions_ms": 3,
   "transcript.items_ms": 120,
