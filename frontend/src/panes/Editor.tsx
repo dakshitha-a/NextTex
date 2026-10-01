@@ -338,6 +338,10 @@ export default function Editor({
   const view = useRef<EditorView | null>(null);
   const buffers = useRef(new Map<string, Buffer>());
   const current = useRef<string | null>(null);
+  /** Which open is the latest. An open waits on the network, up to eight
+   *  seconds for a document that never answers, and one overtaken by a
+   *  later open must not finish over it. */
+  const opening = useRef(0);
   const collab = useRef<ProjectCollab | null>(null);
   // How a change made by the shared document is told apart from a keystroke.
   // Filled in when the collaboration module arrives, which is after these
@@ -1012,6 +1016,8 @@ export default function Editor({
         projectForBuffers.current = projectId;
       }
       if (viewing.current) backToNow();
+      const mine = (opening.current += 1);
+      const overtaken = () => mine !== opening.current;
       if (current.current !== path) {
         // Shut from the moment a swap is asked for, not from the first
         // await inside it: the caller that makes a new file has already
@@ -1022,6 +1028,10 @@ export default function Editor({
         closeForSwap();
       }
       if (current.current === path) {
+        // Already in front, and a swap to some other file that was under
+        // way has been overtaken by this open, so give the keyboard back:
+        // that swap shut it and will not open it again.
+        openAgain();
         // The agent's announcement holds its highlight longer than a jump
       // does, because the write it points at has not happened yet and a
       // flash that has faded before the text changes pointed at nothing.
@@ -1051,8 +1061,12 @@ export default function Editor({
           // A swap that cannot finish must still give the editor back, or
           // the pane the writer is looking at stays uneditable for the
           // rest of the session with nothing on screen to say why.
-          openAgain();
+          if (!overtaken()) openAgain();
           throw error;
+        }
+        if (overtaken()) {
+          if (opened) shared!.release(path);
+          return;
         }
         if (!opened) {
           // No document, so there is no way to disk: a keystroke here would
@@ -1068,9 +1082,10 @@ export default function Editor({
           try {
             file = await api.readFile(projectId, path);
           } catch (error) {
-            openAgain();
+            if (!overtaken()) openAgain();
             throw error;
           }
+          if (overtaken()) return;
           buffer = {
             state: freshState(file.text, readOnlyExt, readOnlyLanguageOf(path)),
             release: () => {},
@@ -1089,6 +1104,15 @@ export default function Editor({
           // The state is built after the wait so the pane never shows the
           // empty document either.
           await opened.synced;
+          if (overtaken()) {
+            // Another file was asked for while this one waited. Putting
+            // this one on screen now is what showed an empty main.tex:
+            // the wait was for a figure's document the server refused,
+            // eight seconds long, and it ended after main.tex was back
+            // in front.
+            shared!.release(path);
+            return;
+          }
           buffer = {
             state: freshState(
               opened.text.toString(), [...ext, opened.extension], languageOf(path),
