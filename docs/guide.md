@@ -283,7 +283,10 @@ puts the list on the clipboard for a co-author. No model is involved.
 A `.bib` file gets rows of its own while you type it: a key pasted twice,
 an `@article` with no journal, a year that says "in press", one paper
 under two keys with the same DOI, and an entry nothing cites. Fix the
-entry and the row leaves. Typing `@` at the start of a line offers the
+entry and the row leaves. A row with a mechanical repair offers it under
+its message: *Protect capitals* for a title's BERT or LaTeX, *Drop them*
+for abstracts and a url beside a DOI, *Rename to lee2019* for a key unlike
+the others, and *Merge* for one paper entered twice. Typing `@` at the start of a line offers the
 entry types, each with its required fields as tab stops, and
 `\bibliographystyle{` offers the styles your TeX has.
 

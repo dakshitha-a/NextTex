@@ -19,6 +19,7 @@ from __future__ import annotations
 
 import re
 
+from . import bibfix
 from .references import _load
 
 #: The fields BibTeX's standard styles require, per entry type.  A tuple
@@ -89,7 +90,22 @@ EXPLAIN = {
     "duplicate-doi": {
         "title": "The same DOI twice",
         "detail": "Two entries carry one DOI, which is one paper added twice under two keys, and the reference list will show it twice.",
-        "fix": "Keep one entry and point every \\cite at it.",
+        "fix": "Merge keeps the fuller of the two and points every \\cite of the other at it.",
+    },
+    "title-caps": {
+        "title": "Capitals a style will lower",
+        "detail": "Most bibliography styles lowercase a title after its first word, so BERT prints as bert and LaTeX as latex unless the word is in braces.",
+        "fix": "Protect capitals wraps each such word in braces; nothing else in the title changes.",
+    },
+    "bulky-fields": {
+        "title": "Fields the reference list never prints",
+        "detail": "An abstract, or a url beside a DOI, is carried by every entry a reference manager exported and printed by no standard style; a venue's copy editor asks for them gone, and a url beside a DOI can print the address twice.",
+        "fix": "Drop them takes those fields out of every entry in the file, and leaves everything else as it is.",
+    },
+    "key-style": {
+        "title": "A key unlike the others",
+        "detail": "Most keys in this file are a surname and a year, and this one is not, which makes it the one a co-author has to look up.",
+        "fix": "Rename gives it the author and year key, and every \\cite of it follows.",
     },
     "uncited": {
         "title": "Not cited",
@@ -103,8 +119,11 @@ def _normalise_doi(value: str) -> str:
     return DOI_PREFIX.sub("", value.strip()).strip().lower()
 
 
-def _row(kind: str, severity: str, message: str, path: str, line: int) -> dict:
-    return {
+def _row(
+    kind: str, severity: str, message: str, path: str, line: int,
+    fix: dict | None = None,
+) -> dict:
+    row = {
         "severity": severity,
         "message": message,
         "file": path,
@@ -114,6 +133,11 @@ def _row(kind: str, severity: str, message: str, path: str, line: int) -> dict:
         "kind": kind,
         "explain": EXPLAIN[kind],
     }
+    # A row whose repair is mechanical says so: the verb the drawer shows,
+    # and what `bibfix.repair` needs to make it.
+    if fix:
+        row["fix"] = fix
+    return row
 
 
 def _has(fields: dict[str, str], name: str | tuple[str, ...]) -> bool:
@@ -162,9 +186,52 @@ def check(text: str, path: str, cited: set[str] | None = None) -> list[dict]:
                 rows.append(_row(
                     "duplicate-doi", "warning",
                     f"{key} has the same DOI as {seen_dois[doi]}", path, line,
+                    {"kind": "duplicate-doi", "key": key, "verb": "Merge"},
                 ))
             else:
                 seen_dois[doi] = key
         if cited is not None and key not in cited:
             rows.append(_row("uncited", "info", f"{key} is not cited by any document", path, line))
+    rows.extend(_repairable(text, path))
+    return sorted(rows, key=lambda row: row["line"])
+
+
+def _repairable(text: str, path: str) -> list[dict]:
+    """The rows `bibfix` can repair that the checks above do not raise."""
+    rows: list[dict] = []
+    every = bibfix.entries(text)
+    heavy = 0
+    first_heavy = 0
+    for entry in every:
+        if entry.kind in NOT_ENTRIES:
+            continue
+        title = entry.get("title")
+        words = bibfix.unprotected_capitals(title.value) if title else []
+        if words:
+            listed = " and ".join(words[:2]) if len(words) <= 2 else ", ".join(words[:2]) + " and more"
+            rows.append(_row(
+                "title-caps", "info",
+                f"{entry.key}'s title has {listed} unprotected, so most styles lowercase them",
+                path, entry.line,
+                {"kind": "title-caps", "key": entry.key, "verb": "Protect capitals"},
+            ))
+        if bibfix.bulky(entry):
+            heavy += 1
+            first_heavy = first_heavy or entry.line
+        if bibfix.wants_key_style(entry, every):
+            to = bibfix.proposed_key(entry, every)
+            rows.append(_row(
+                "key-style", "info",
+                f"{entry.key} is not in author and year form, as most keys here are",
+                path, entry.line,
+                {"kind": "key-style", "key": entry.key, "verb": f"Rename to {to}"},
+            ))
+    if heavy:
+        many = "1 entry carries" if heavy == 1 else f"{heavy} entries carry"
+        rows.append(_row(
+            "bulky-fields", "info",
+            f"{many} an abstract, or a url beside its DOI",
+            path, first_heavy,
+            {"kind": "bulky-fields", "key": "", "verb": "Drop them"},
+        ))
     return rows

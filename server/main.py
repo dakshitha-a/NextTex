@@ -81,7 +81,7 @@ from nexttex.project import (
     PROJECT_STATES, clean_limits,
 )
 from nexttex.symbols import walk_project
-from nexttex import bibcheck, deps, export, lint_explain, prompts, search, texstyles, updates, usage
+from nexttex import bibcheck, bibfix, deps, export, lint_explain, prompts, search, texstyles, updates, usage
 from nexttex.install.ui import child_env
 from server.session import CLOSED, DocumentState, ProjectSession, spawn
 
@@ -3255,6 +3255,44 @@ async def rename_everywhere(
     changed = await asyncio.to_thread(rename.rename, texts, kind, name, to, comments=comments)
     for relative, after in changed.items():
         await _save_text(session, _safe(session, relative), after, source=origin)
+    if changed:
+        session.schedule_compile()
+        await session.events.publish({
+            "type": "files_changed", "paths": list(changed), "origin": origin,
+            "structural": False,
+        })
+    return {"files": len(changed), "paths": list(changed)}
+
+
+@app.post("/api/projects/{project_id}/bib/fix")
+async def fix_bibliography(
+    project_id: str,
+    path: str = Body(...),
+    kind: str = Body(...),
+    key: str = Body(""),
+    origin: str = Body(""),
+):
+    """A `.bib` row's mechanical repair: `bibfix.repair` over the project's
+    texts, the open ones winning, each changed file written through the
+    ordinary save so it is a version in History. 409 when the row's repair
+    no longer applies, as when two windows press it at once."""
+    session = session_for(project_id)
+    target = _safe(session, path)
+    if target.suffix.lower() != ".bib":
+        raise HTTPException(400, "a bibliography repair is for a .bib file")
+    if kind not in bibfix.FIX_KINDS:
+        raise HTTPException(400, f"no repair for {kind!r}")
+    live = session.collab.open_texts()
+    texts = await asyncio.to_thread(_project_texts, session)
+    texts.update({name: body for name, body in live.items() if name in texts})
+    relative = session.project.relative(target)
+    try:
+        changed = await asyncio.to_thread(bibfix.repair, texts, relative, kind, key)
+    except bibfix.NotApplicable as error:
+        raise HTTPException(409, str(error))
+    changed = {name: body for name, body in changed.items() if texts.get(name) != body}
+    for name, after in changed.items():
+        await _save_text(session, _safe(session, name), after, source=origin)
     if changed:
         session.schedule_compile()
         await session.events.publish({

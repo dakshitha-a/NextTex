@@ -82,3 +82,55 @@ test("\\bibliographystyle completes the styles this TeX has", async ({ tab }) =>
   await expect(list).toBeVisible({ timeout: 15_000 });
   await expect(list).toContainText("plain");
 });
+
+test("a row's repair is a verb under the pointer, and the row goes once it is made", async ({
+  app, project, tab,
+}) => {
+  // One entry with unprotected capitals and a url beside its DOI, and a
+  // second with the same DOI: three rows a press repairs.
+  const bib = [
+    "@article{lee2019,",
+    "  author = {Lee, Ada},",
+    "  title = {Surface hopping with BERT},",
+    "  journal = {J},",
+    "  year = {2019},",
+    "  doi = {10.2/y},",
+    "  url = {https://example.org/lee}",
+    "}",
+    "",
+    "@article{lee2019b,",
+    "  author = {Lee, Ada},",
+    "  title = {Surface hopping},",
+    "  year = {2019},",
+    "  doi = {10.2/Y}",
+    "}",
+    "",
+  ].join("\n");
+  await expect(tab.locator(".cm-editor")).toBeVisible({ timeout: 45_000 });
+  await fetch(`${app.base}/api/projects/${project.id}/file`, {
+    method: "PUT",
+    headers: { "content-type": "application/json", "x-nexttex-token": app.token },
+    body: JSON.stringify({ path: "references.bib", text: bib, compile: false, create: true }),
+  });
+  await tab.locator('[role="tree"] [data-path="references.bib"]').click();
+  await expect(tab.locator(".cm-content")).toContainText("lee2019b", { timeout: 15_000 });
+  const drawer = tab.getByTestId("diagnostics");
+  await expect(async () => {
+    await tab.keyboard.press("F8");
+    await expect(drawer).toBeVisible({ timeout: 700 });
+  }).toPass({ timeout: 20_000 });
+
+  const press = async (message: RegExp, verb: string) => {
+    const row = drawer.locator("div.group").filter({ hasText: message });
+    await row.hover();
+    await row.getByTestId("diagnostic-repair").filter({ hasText: verb }).click();
+    await expect(drawer.getByText(message)).toHaveCount(0, { timeout: 15_000 });
+  };
+  await press(/title has BERT unprotected/, "Protect capitals");
+  await expect(tab.locator(".cm-content")).toContainText("{BERT}");
+  await press(/an abstract, or a url beside its DOI/, "Drop them");
+  await expect(tab.locator(".cm-content")).not.toContainText("example.org");
+  await press(/lee2019b has the same DOI as lee2019/, "Merge");
+  // lee2019 had the journal, so it stayed.
+  await expect(tab.locator(".cm-content")).not.toContainText("lee2019b");
+});

@@ -29,6 +29,9 @@ export type Diagnostic = {
   /** The style, class or definition file a "not found" names, when a
    *  package manager could supply it; the drawer's Install button. */
   missingFile?: string;
+  /** A `.bib` row's mechanical repair: the verb the drawer shows, and
+   *  what the repair route needs to make it. */
+  fix?: { kind: string; key: string; verb: string };
   /** Which previewed document's build produced this. Added by the store
    *  when it flattens the per-document lists into one; the server answers
    *  per document and does not need to say so. */
@@ -1114,6 +1117,11 @@ const api = {
       `/projects/${id}/references?kind=${kind}&name=${encodeURIComponent(name)}`,
     ),
   /** Rename it everywhere, through the ordinary save, one version per file. */
+  /** A `.bib` row's repair, which `fix` on the row names. */
+  fixBibliography: (id: string, path: string, kind: string, key: string) =>
+    request<{ files: number; paths: string[] }>(
+      `/projects/${id}/bib/fix`, json({ path, kind, key }),
+    ),
   renameSymbol: (id: string, kind: SymbolKind, name: string, to: string, comments: boolean) =>
     request<{ files: number; paths: string[] }>(
       `/projects/${id}/rename`, json({ kind, name, to, comments }),

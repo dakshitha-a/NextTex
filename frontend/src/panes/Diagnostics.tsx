@@ -184,6 +184,24 @@ export default function Diagnostics({
   // list because the build that ran without the flag is what filled it.
   const shellEscape = useStore((s) => s.settings.shellEscape);
   const [allowing, setAllowing] = useState<"" | "asked" | "running">("");
+  // A .bib row's repair in flight, by the row's key; the row goes when
+  // the file it rewrote is checked again, which the editor does on the
+  // change arriving.
+  const [repairing, setRepairing] = useState<string | null>(null);
+  const repair = async (key: string, file: string, fix: { kind: string; key: string }) => {
+    const projectId = get().projectId;
+    if (!projectId) return;
+    setRepairing(key);
+    try {
+      // The rows are checked again when the change comes back as
+      // files_changed, as for any change made outside this editor.
+      await api.fixBibliography(projectId, file, fix.kind, fix.key);
+    } catch (error: any) {
+      set({ error: `Could not repair the entry: ${error?.message ?? error}` });
+    } finally {
+      setRepairing(null);
+    }
+  };
   const [allowSaid, setAllowSaid] = useState("");
 
   const allowShellEscape = async () => {
@@ -441,6 +459,25 @@ export default function Diagnostics({
                   Copy
                 </Pressable>
               </span>
+              {/* A .bib row's own repair, on a line of its own under the
+                  message and there at rest: it is what the row is for, and
+                  a verb in the right-hand column would hold that column
+                  open at its width and squeeze every message beside it. */}
+              {item.fix && item.file ? (
+                <div className="col-span-2 col-start-3 -ml-1.5">
+                  <Button
+                    size="inline"
+                    data-testid="diagnostic-repair"
+                    disabled={repairing === key}
+                    onClick={(event) => {
+                      event.stopPropagation();
+                      void repair(key, item.file!, item.fix!);
+                    }}
+                  >
+                    {item.fix.verb}
+                  </Button>
+                </div>
+              ) : null}
               {open ? (
                 <div className="col-span-2 col-start-3 mt-0.5 text-small leading-4.25 text-ink-2">
                   {item.explain ? (

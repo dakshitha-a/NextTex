@@ -11571,3 +11571,32 @@ no Clipboard API, so `copyText` falls back to the older way. The
 direction page draws it under the roadmap run, and
 `e2e/specs/tree-menu.spec.ts` copies a file's path and a folder's and
 reads the clipboard.
+
+## 95. One-click fixes on the `.bib` rows
+
+The second item of the roadmap run. A `.bib` file's rows said what was
+wrong and left the repair to the writer, and the commonest repairs are
+mechanical, so a row whose repair has one right answer carries it as a
+verb named for what it does: *Protect capitals* on a title whose words
+have a capital after their first letter, which most styles would lower;
+*Drop them* on one row per file, taking out every `abstract` and every
+`url` that sits beside a DOI; *Rename to lee2019* on a key that is not a
+surname and a year where at least half the file's keys are, so a file
+with its own convention is left alone; and *Merge* on the existing row
+for two entries with one DOI, keeping the one with more filled fields,
+the first on a tie, and pointing every `\cite` of the other at it.
+
+The verb sits on a line of its own under the message, there at rest,
+since it is what the row is for. It was drawn first beside Fix and Copy
+at the row's end, and the render showed why not: those two are hidden
+until the pointer arrives but keep their column's width, and a verb
+like *Protect capitals* in that column squeezed every message in the
+drawer to a word a line. Each repair rewrites only the entry it names,
+never invents a value, and goes through the ordinary save, so it is a
+version in History and is undone from there. The row leaves when the
+file is checked again, which now happens whenever a change to the open
+`.bib` arrives from anywhere but the writer's own typing. The direction
+page's "One-click fixes on the .bib rows" draws it, and
+`e2e/specs/bib-check.spec.ts` presses three of the verbs and watches
+each row go.
+

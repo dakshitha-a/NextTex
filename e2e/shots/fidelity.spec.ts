@@ -1534,6 +1534,29 @@ const SURFACES: Record<string, Surface> = {
       await showDrawer(tab, "files");
     },
   },
+  "bib-repairs": {
+    // The four rows a press repairs, the first under the pointer, as "One-
+    // click fixes on the .bib rows" draws them.
+    open: async (tab) => {
+      const bib = [
+        "@article{vaswani2017,", "  author = {Vaswani, A},", "  title = {Attention for BERT and NLP},",
+        "  journal = {NeurIPS},", "  year = {2017},", "  doi = {10.1/a},", "  url = {https://example.org/a}", "}", "",
+        "@article{lee2019,", "  author = {Lee, A},", "  title = {One},", "  journal = {J},", "  year = {2019},", "  doi = {10.2/y}", "}", "",
+        "@article{Paper_on_hopping,", "  author = {Tully, John C.},", "  title = {Hopping},", "  journal = {J},", "  year = {1990}", "}", "",
+        "@article{lee2019b,", "  author = {Lee, A},", "  title = {One},", "  year = {2019},", "  doi = {10.2/Y}", "}", "",
+      ].join("\n");
+      await tab.request.put(`${ctx!.base}/api/projects/${ctx!.id}/file`, {
+        data: { path: "references.bib", text: bib, compile: false, create: true },
+      });
+      await tab.locator('[role="tree"] [data-path="references.bib"]').click();
+      await showDrawer(tab, "build");
+      const drawer = tab.getByTestId("drawer");
+      await drawer.getByText(/title has BERT and NLP unprotected/).waitFor({ timeout: 15_000 });
+      await drawer.locator("div.group").filter({ hasText: /title has BERT/ }).hover();
+      return drawer;
+    },
+    close: async (tab) => { await showDrawer(tab, "files"); },
+  },
   "page-count": {
     open: async (tab) => {
       await tab.request.post(`${ctx!.base}/api/projects/${ctx!.id}/settings`, { data: { pageLimit: 1 } });
