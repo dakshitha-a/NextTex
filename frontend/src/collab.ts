@@ -141,8 +141,23 @@ class DocSocket {
     });
     doc.on("update", this.documentChanged);
     awareness.on("update", this.awarenessChanged);
+    window.addEventListener("online", this.tryNow);
+    document.addEventListener("visibilitychange", this.tryNow);
     this.connect();
   }
+
+  /** A socket that dropped while the laptop slept or the tab was hidden
+   *  waits out its backoff, up to thirty seconds, and a hidden tab's
+   *  timers are slowed to as little as one a minute, so a writer coming
+   *  back read "offline" for most of a minute with the server right there.
+   *  Coming back to the tab, or the network coming back, tries at once. */
+  private tryNow = () => {
+    if (this.closing || this.socket || this.timer === null) return;
+    if (document.visibilityState === "hidden") return;
+    window.clearTimeout(this.timer);
+    this.timer = null;
+    this.connect();
+  };
 
   private documentChanged = (update: Uint8Array, origin: unknown) => {
     if (origin === this) return;
@@ -239,7 +254,10 @@ class DocSocket {
       this.onState(this.state);
       const wait = RETRY_MS[Math.min(this.attempt, RETRY_MS.length - 1)];
       this.attempt += 1;
-      this.timer = window.setTimeout(() => this.connect(), wait);
+      this.timer = window.setTimeout(() => {
+        this.timer = null;
+        this.connect();
+      }, wait);
     };
 
     socket.onerror = () => socket.close();
@@ -254,6 +272,8 @@ class DocSocket {
   close() {
     this.closing = true;
     this.state = "offline";
+    window.removeEventListener("online", this.tryNow);
+    document.removeEventListener("visibilitychange", this.tryNow);
     if (this.timer !== null) window.clearTimeout(this.timer);
     this.doc.off("update", this.documentChanged);
     this.awareness.off("update", this.awarenessChanged);
