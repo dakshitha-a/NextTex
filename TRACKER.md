@@ -24,12 +24,29 @@ things go to be forgotten rather than a list anybody reads.
 
 ## In hand
 
-The performance run, started on 1 October 2026 from 4.13.0 at the
-writer's request: less work after each build, while typing and on disk,
-in four groups pushed one at a time, every item measured before and after
-and dropped here with its reason if the cost it was meant to remove turns
-out not to be real. The feature survey made the same day went to
-`ROADMAP.md`. Its tracker page is
+Nothing is in hand. The performance run closed on 1 October 2026 at
+4.13.5, at the writer's request, from 4.13.0 in five pushes: every item
+was measured before it was changed, and those whose cost turned out not
+to be real were left, with the measurement as the reason. Done: the
+grammar checker and the PDF worker sent compressed, hashed assets kept
+for good, the GitHub CLI's sign-in remembered, a download that stores
+its figures, less loaded at start, word counts remembered, symbols
+rescanned per file off the loop, the list of what can be previewed made
+without re-parsing, one pdf.js worker for every rebuild, typing in a
+long file no longer rescanning it for folds, the text after
+`\end{document}` or spelling, a build log read without asking the disk
+about each file again, the compaction check without an encoding per
+flush, a file tree of one `scandir` per folder off the loop, a build cap
+across projects, and the bibliography checked four entries at a time.
+Left, as measured: a rebuild's PDF is never byte-identical, so it is
+always fetched; ten agent writes walked the tree twice; caret moves cost
+the same either way; the outline is under one percent of typing; a whole
+thesis held open is 6 MB; the history timeline across 200 files is 16
+ms; and the middleware is a fraction of a millisecond and the security
+gate. It turned up and fixed a closing pane hidden part way through its
+slide, and, from the writer's report during the run, figure tabs that
+left `main.tex` empty and the pane offline. The feature survey of the
+same day went to `ROADMAP.md`. Its tracker page is
 https://claude.ai/artifact/XJHE3kBwz6wkBWpYXcJxZ6.
 
 The README run closed on 1 October 2026 at 4.12.1,
@@ -120,6 +137,46 @@ OpenAI provider against OpenAI itself.
 ### Known gaps, with a cost somebody will eventually pay
 
 None. The last three were closed on 1 October 2026 at 4.13.0.
+
+### Measured and left, worth revisiting with a measurement
+
+- [ ] **A save syncs to disk eight times.** Each flush of a typed edit
+      writes the file, a history blob, the history log and the
+      projection record, each with an fsync of the file and of its
+      folder. On this machine's NVMe that is 4 ms; with a simulated 5 ms
+      fsync it is 49 ms on the event loop. The projection record must
+      stay durable, since a stale one would make the next start fold our
+      own write back in as an outside edit and revert the document, and
+      history is the safety net, so the performance run left it. Worth
+      revisiting once a flush is timed on the Windows laptop, where
+      FlushFileBuffers is the cost; moving the history half to one
+      writer thread is the likely shape.
+- [ ] **The file watcher restarts for every project when one opens.**
+      `_restart_watch` restarts `awatch` for every open project and
+      `_adopt_what_appeared` walks each again: tens of milliseconds a
+      project, so left. The watch is also recursive over `.git` and any
+      virtual environment inside a project, which on a project with a
+      large one can reach the inotify limit; a watch per project with
+      those folders left out is the shape, if that limit is ever met.
+- [ ] **A long PDF's layout asks for every page.** A rebuild of a
+      600-page document takes about 120 ms more to redraw than a short
+      one, because the layout asks pdf.js for every page's size. Sizing
+      pages from the first and correcting lazily would cost a wrong
+      layout for documents that mix page sizes, so it was left; the
+      chat's length was never measured.
+
+### Flaky, with the trace read
+
+- [ ] **`e2e/specs/latex-links.spec.ts:112`, the reference hover, under
+      load.** Run with `writing.spec.ts` at `--repeat-each=6` it failed
+      2 of 156 on 4.13.1's interface and on 4.13.3's alike, the card
+      never appearing; alone it passed 12 of 12. Not caused by the
+      performance run; the likeliest cause is a document change arriving
+      inside the card's rest and closing it.
+- [ ] **`tests/api/test_build_loop.py` on CI.** It held the loop 0.60 s
+      against a 0.25 s budget once, on the 4.13.1 push, and passed on the
+      rerun and five times locally. A collection pause over its 72,000
+      diagnostics is the suspect.
 
 ### Never run against the real thing
 
