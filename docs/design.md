@@ -11600,3 +11600,33 @@ page's "One-click fixes on the .bib rows" draws it, and
 `e2e/specs/bib-check.spec.ts` presses three of the verbs and watches
 each row go.
 
+## 96. Consistency checks that need no model
+
+The third item of the roadmap run: what a copy editor sends back, found
+by reading. Four checks, each the same question, whether two forms of
+one thing coexist in the document: a compound written closed and open
+or hyphenated, "dataset" beside "data set"; an abbreviation beside its
+full form in front of a number or a reference, "Fig." beside "Figure",
+outside a sentence's start, where many styles want the word in full; one
+word in American spelling here and British there, each word its own
+question, so British spelling with -ize is not a mix; and an acronym
+defined as the long form with it in brackets and never used again, or,
+where the document defines most of its acronyms, one used and never
+defined. A document written throughout in one form gets nothing, which
+is what keeps these apart from the grammar rules section 74 turned off
+as matters of style.
+
+Only the less common form is marked, with how often the other is used,
+"\"Equation\" here, \"Eq.\" 15 times elsewhere mid-sentence". A first
+version marked both forms and every undefined acronym; run over four of
+the writer's own papers it found 111 rows in one, most of them the
+writer's convention or the names of methods and programs. As built it
+finds between one and six in each, every one a real mix. The rows sit
+in the Build drawer among chktex's, and each reads the whole project's
+prose, so the other form can be in another chapter: under the message,
+the other form's first place, `chapters/two.tex:14`, is a quiet button
+in the code face that goes there. The tie before `\cite` the roadmap
+listed is chktex's warning 2 already. The direction page's
+"Consistency checks that need no model" draws it, and
+`e2e/specs/consistency.spec.ts` follows a row to the other form.
+

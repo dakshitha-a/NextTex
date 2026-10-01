@@ -32,6 +32,9 @@ export type Diagnostic = {
   /** A `.bib` row's mechanical repair: the verb the drawer shows, and
    *  what the repair route needs to make it. */
   fix?: { kind: string; key: string; verb: string };
+  /** A consistency row's other form: where it is, which the drawer offers
+   *  as a way there under the message. */
+  other?: { file: string; line: number };
   /** Which previewed document's build produced this. Added by the store
    *  when it flattens the per-document lists into one; the server answers
    *  per document and does not need to say so. */

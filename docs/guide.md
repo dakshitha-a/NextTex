@@ -247,6 +247,10 @@ not this measurement and the two should not be compared.
 
 `chktex` runs while you type, and the LaTeX log is parsed into `file:line`
 diagnostics with the right file attribution even inside `\include`d chapters.
+Beside chktex's rows sit the ones a copy editor would send: a word written
+two ways, "Fig." beside "Figure", American beside British spelling of one
+word, an acronym defined and never used. Each marks only the less common
+form, and under it a button goes to the other.
 They live in the *Build* drawer on the bar, which the count in the strip
 under the source opens and `F8` steps through, with Rebuild at its foot;
 a double-click on the bar's Build button rebuilds. Every message is

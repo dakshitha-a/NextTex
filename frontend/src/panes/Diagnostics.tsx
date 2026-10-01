@@ -478,6 +478,25 @@ export default function Diagnostics({
                   </Button>
                 </div>
               ) : null}
+              {/* A consistency row's other form, as a way there: the
+                  place in the code face, a quiet button on the repair's
+                  line. */}
+              {item.other ? (
+                <div className="col-span-2 col-start-3 -ml-1.5">
+                  <Button
+                    size="inline"
+                    className="nx-place"
+                    data-testid="diagnostic-other"
+                    title="Go to the other form"
+                    onClick={(event) => {
+                      event.stopPropagation();
+                      onJump(item.other!.file, item.other!.line);
+                    }}
+                  >
+                    {item.other.file}:{item.other.line}
+                  </Button>
+                </div>
+              ) : null}
               {open ? (
                 <div className="col-span-2 col-start-3 mt-0.5 text-small leading-4.25 text-ink-2">
                   {item.explain ? (

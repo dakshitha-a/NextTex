@@ -1557,6 +1557,29 @@ const SURFACES: Record<string, Surface> = {
     },
     close: async (tab) => { await showDrawer(tab, "files"); },
   },
+  "consistency": {
+    // Notes a copy editor would send, as "Consistency checks that need no
+    // model" draws them, the first under the pointer.
+    open: async (tab) => {
+      const text = [
+        "\\documentclass{article}", "\\begin{document}",
+        "The dataset was cleaned, the dataset split, the dataset kept.",
+        "We wrote up the data set. As in Fig.~1, then Fig.~2; as in Figure~3, so.",
+        "The colour, the color, the color. We use surface hopping (SH) here.",
+        "\\end{document}", "",
+      ].join("\n");
+      await tab.request.put(`${ctx!.base}/api/projects/${ctx!.id}/file`, {
+        data: { path: "notes.tex", text, compile: false, create: true },
+      });
+      await tab.locator('[role="tree"] [data-path="notes.tex"]').click();
+      await showDrawer(tab, "build");
+      const drawer = tab.getByTestId("drawer");
+      await drawer.getByText(/"data set" here/).waitFor({ timeout: 15_000 });
+      await drawer.locator("div.group").filter({ hasText: /"data set" here/ }).hover();
+      return drawer;
+    },
+    close: async (tab) => { await showDrawer(tab, "files"); },
+  },
   "page-count": {
     open: async (tab) => {
       await tab.request.post(`${ctx!.base}/api/projects/${ctx!.id}/settings`, { data: { pageLimit: 1 } });

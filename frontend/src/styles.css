@@ -1632,6 +1632,9 @@ button.nx-row { width: 100%; text-align: left; }
 .nx-limit-edit { flex: none; margin-left: auto; display: inline-flex; align-items: center; gap: 6px; color: var(--ink-3); font-size: 12px; }
 .nx-limit-field { width: 56px; height: 22px; padding: 0 6px; border-radius: var(--nx-radius-control); background: var(--surface); box-shadow: inset 0 0 0 1px var(--line); color: var(--ink); font: inherit; font-variant-numeric: tabular-nums; outline: none; }
 .nx-limit-field:focus { box-shadow: inset 0 0 0 1px var(--hint); }
+/* A consistency row's other place: a quiet inline button in the code face
+   at the code's small size, since the button's own size outranks the role. */
+.nx-button.nx-place { font-family: var(--font-mono); font-size: 12px; font-weight: 400; }
 
 .nx-menu {
   position: fixed; z-index: 40;

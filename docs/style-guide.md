@@ -283,6 +283,12 @@ else.
   button has visible focus, never by the button. The page-wide ring in
   `--pen` is for what has no rule of its own; a control on the band or
   in the kit never shows it, since the pen means Claude.
+- A diagnostic row's one direct action, a `.bib` repair or the way to a
+  consistency row's other form, is a quiet inline button on a line of its
+  own under the message, there at rest, since it is what the row is for.
+  Fix and Copy keep the row's end under the pointer: hidden, their
+  column keeps its width, so a long verb there would squeeze every
+  message in the drawer.
 - A row that does something and holds buttons is a plain element with
   a real button for its own act and the others beside it, never a
   `role="button"` around buttons, which a screen reader cannot get

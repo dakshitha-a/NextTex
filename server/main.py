@@ -81,7 +81,7 @@ from nexttex.project import (
     PROJECT_STATES, clean_limits,
 )
 from nexttex.symbols import walk_project
-from nexttex import bibcheck, bibfix, deps, export, lint_explain, prompts, search, texstyles, updates, usage
+from nexttex import bibcheck, bibfix, consistency, deps, export, lint_explain, prompts, search, texstyles, updates, usage
 from nexttex.install.ui import child_env
 from server.session import CLOSED, DocumentState, ProjectSession, spawn
 
@@ -6176,8 +6176,17 @@ async def lint(project_id: str, path: str):
             lambda: bibcheck.check(text, relative, usage.cited_keys(sources)),
         )
         return {"diagnostics": rows}
+    # What a copy editor would mark, read over the whole project's prose,
+    # whether or not chktex is here: `nexttex/consistency.py`.
+    style: list[dict] = []
+    if target.suffix.lower() == ".tex":
+        live = session.collab.open_texts()
+        texts = await asyncio.to_thread(_project_texts, session)
+        texts.update({name: body for name, body in live.items() if name in texts})
+        relative = session.project.relative(target)
+        style = await asyncio.to_thread(consistency.check, texts, relative)
     if not shutil.which("chktex"):
-        return {"diagnostics": []}
+        return {"diagnostics": style}
     rcfile = Path(__file__).resolve().parent.parent / ".chktexrc"
     # `-I0` is the fix and `%f` is the guard.
     #
@@ -6206,7 +6215,7 @@ async def lint(project_id: str, path: str):
             ).stdout
         )
     except (subprocess.SubprocessError, OSError):
-        return {"diagnostics": []}
+        return {"diagnostics": style}
     diagnostics = []
     for row in out.splitlines():
         # Six fields, and the message is whatever is left -- it contains
@@ -6242,7 +6251,7 @@ async def lint(project_id: str, path: str):
         if said:
             found["explain"] = said
         diagnostics.append(found)
-    return {"diagnostics": diagnostics}
+    return {"diagnostics": diagnostics + style}
 
 
 # ---------------------------------------------------------------------------
