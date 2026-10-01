@@ -85,6 +85,8 @@ export function skippedLines(lines: readonly string[]): Set<number> {
     const cut = commentStart(raw);
     const text = cut < 0 ? raw : raw.slice(0, cut);
     if (depth > 0 || display) out.add(index + 1);
+    // Every pattern below starts with a backslash; most prose has none.
+    if (!text.includes("\\")) return;
 
     for (const found of text.matchAll(/\\(begin|end)\s*\{([^}]*)\}|\\(\[|\])/g)) {
       const bracket = found[3];

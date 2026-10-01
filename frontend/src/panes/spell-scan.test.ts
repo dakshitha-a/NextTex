@@ -196,3 +196,15 @@ describe("which edits move the skipped lines", () => {
     }
   });
 });
+
+describe("finding a comment quickly", () => {
+  it("answers the same with and without a backslash before the percent", async () => {
+    const { commentStart } = await import("./latex-families");
+    expect(commentStart("plain prose")).toBe(-1);
+    expect(commentStart("prose % note")).toBe(6);
+    expect(commentStart("% whole line")).toBe(0);
+    expect(commentStart("50\\% of it % note")).toBe(11);
+    expect(commentStart("50\\% of it")).toBe(-1);
+    expect(commentStart("a line break \\\\% note")).toBe(15);
+  });
+});

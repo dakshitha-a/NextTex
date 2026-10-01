@@ -123,6 +123,12 @@ export const TITLED = new Set([
  *  backslash is a literal percent sign and does not start one, and a
  *  doubled backslash is a line break rather than an escape. */
 export function commentStart(line: string): number {
+  // Most lines hold no `%`, and a `%` with no backslash before it on the
+  // line cannot be escaped; the walk below is for the rest. Spelling asks
+  // this of every line of the file after a structural keystroke.
+  const first = line.indexOf("%");
+  if (first < 0) return -1;
+  if (line.lastIndexOf("\\", first) < 0) return first;
   for (let i = 0; i < line.length; i += 1) {
     if (line[i] === "\\") { i += 1; continue; }
     if (line[i] === "%") return i;

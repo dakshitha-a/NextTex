@@ -227,8 +227,8 @@ const checker = ViewPlugin.fromClass(
      *  cannot be worked out from the visible range alone -- an `\end{align}`
      *  may be a thousand lines below the `\begin`.  Recomputed when the
      *  document changes and cached across scrolling, which is the common
-     *  case by far. */
-    private skip: Set<number> = new Set();
+     *  case by far.  Null until the checker is on and has scanned. */
+    private skip: Set<number> | null = null;
     constructor(private readonly view: EditorView) {
       this.sync(true);
     }
@@ -238,9 +238,13 @@ const checker = ViewPlugin.fromClass(
       );
       if (update.docChanged || update.viewportChanged || told) {
         // The skipped lines are scanned again only when an edit could move
-        // them; a letter typed into a paragraph cannot (Q-033).
-        let moved = told;
-        if (update.docChanged && !moved) {
+        // them; a letter typed into a paragraph cannot (Q-033). Being told
+        // of new settings or a dictionary cannot either: they are a fact
+        // about the text. They were rescanned on every such word, and the
+        // editor sends one after every build with the project's accepted
+        // words, so each build cost a pass over the whole file.
+        let moved = false;
+        if (update.docChanged) {
           update.changes.iterChanges((fromA, toA, _fromB, _toB, inserted) => {
             if (moved) return;
             moved =
@@ -255,7 +259,7 @@ const checker = ViewPlugin.fromClass(
       const state = this.view.state.field(spelling);
       if (!state.on) {
         this.decorations = Decoration.none;
-        this.skip = new Set();
+        this.skip = null;
         return;
       }
       if (!ready()) {
@@ -266,7 +270,7 @@ const checker = ViewPlugin.fromClass(
       if (rescan || !this.skip) {
         const doc = this.view.state.doc;
         const lines: string[] = [];
-        for (let n = 1; n <= doc.lines; n += 1) lines.push(doc.line(n).text);
+        for (const iter = doc.iterLines(); !iter.next().done; ) lines.push(iter.value);
         this.skip = skippedLines(lines);
       }
       this.decorations = misspellings(this.view, state.custom, this.skip);
