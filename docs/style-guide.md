@@ -178,6 +178,7 @@ kit's `Button` carries those looks as its variants.
 | `Announce` | `controls.tsx` | words a screen reader hears when something changes out of sight, a build ending or an update wanting attention: a polite live region, always mounted, drawn as nothing | a visible toast for news the eye already has |
 | `Empty` | `controls.tsx` | what a drawer or a list says when it holds nothing: one sentence and at most one action | an illustration, a heading of its own |
 | `Kbd` | `controls.tsx` | a key or a chord, shown always where a key is the way in | text in a box |
+| `ExternalLink` | `controls.tsx` | a link out of the app, in a sentence: a reply's link, a README's, the page a sheet sends the writer to; it opens in a new tab with `rel="noopener noreferrer"`, and `linkable` says which addresses may be links | a raw `<a>` with colour classes |
 | `Menu`, `MenuItem`, `MenuDivider`, `MenuHeader` | `Menu.tsx` | anything that opens under a button: `role="menu"` on the fixed element, shortcut hints at the right, the destructive item last after a divider, a `note` under an item that needs a line | a positioned div of buttons |
 | `FloatingCard` | `FloatingCard.tsx` | a hover card, a completion list, the selection bar: 8 px radius, `--float`, the shell's palette | a card with a border |
 | `Sheet` | `Sheet.tsx` | anything that covers the screen: `role="dialog"`, a display heading, labels over fields, the foot | a modal built by hand |
@@ -252,6 +253,15 @@ else.
   under its own label with `HostIcon` and no presence dot.
 - A second press on the active bar icon folds the drawer; the drawer
   swap is a cut.
+- A link is the hint's ink, `.nx-link`, never the pen's, since the pen
+  means the agent: an underline at 45 per cent of `--hint` at rest, so a
+  sentence with links in it still reads as a sentence, and the whole
+  hint at 1.5 px under the pointer; the keyboard's ring is the hint's.
+  It opens in a new tab, and nothing is drawn beside it to say so. Only
+  `http`, `https` and `mailto` addresses become links; any other scheme
+  in text from a model or a file stays the literal text, so a link can
+  never run anything. On the Markdown preview's paper the hint is the
+  light theme's whatever the shell's, as every ink on that paper is.
 - A reply in the Claude column is marked by its pen rule alone, with no
   name over it; its time sits at the end of its first line, in the
   layout at rest, and shows under the pointer or with focus, so nothing

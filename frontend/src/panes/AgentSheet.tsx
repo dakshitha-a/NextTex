@@ -3,7 +3,7 @@ import api from "../api";
 import { loginRefusal } from "../signin";
 import { Sheet } from "../ui/Sheet";
 import { Button } from "../ui/Button";
-import { Field, Heading, Pressable } from "../ui/controls";
+import { ExternalLink, Field, Heading, Pressable } from "../ui/controls";
 
 /** What writes with you: one choice for this install, made or changed in
  *  one sheet.
@@ -234,9 +234,9 @@ function OpenAISetup({
     <div className="nx-agent-setup">
       <p className="t-micro text-ink-3">
         A key from{" "}
-        <a className="text-pen underline" href="https://platform.openai.com/api-keys" target="_blank" rel="noreferrer">
+        <ExternalLink href="https://platform.openai.com/api-keys">
           platform.openai.com/api-keys
-        </a>
+        </ExternalLink>
         , sent to nobody but OpenAI. This is an API key rather than a ChatGPT
         subscription: usage is billed to your OpenAI account.
         {standing?.provider === "openai" && standing.keyTail
@@ -517,15 +517,9 @@ function ClaudeSetup({
         <div className="nx-agent-links">
           <div className="t-micro text-ink-2">Open this to authorise:</div>
           {links.map((link) => (
-            <a
-              key={link}
-              href={link}
-              target="_blank"
-              rel="noreferrer"
-              className="t-code-sm mt-1 block break-all text-pen underline"
-            >
+            <ExternalLink key={link} href={link} className="t-code-sm mt-1 block">
               {link}
-            </a>
+            </ExternalLink>
           ))}
         </div>
       ) : null}

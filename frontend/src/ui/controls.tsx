@@ -1,6 +1,7 @@
 import {
   forwardRef,
   useId,
+  type AnchorHTMLAttributes,
   type ButtonHTMLAttributes,
   type HTMLAttributes,
   type InputHTMLAttributes,
@@ -290,6 +291,42 @@ export function Kbd({ children, className, ...rest }: HTMLAttributes<HTMLElement
     <kbd className={`nx-kbd${className ? ` ${className}` : ""}`} {...rest}>
       {children}
     </kbd>
+  );
+}
+
+/** The schemes a link may have.  Anything else, `javascript:`, `data:`,
+ *  `file:`, a relative path, is not a place a link should take anyone,
+ *  and text that arrives from a model or from a file somebody else wrote
+ *  must never be able to run something by being clicked. */
+const LINKABLE = /^(https?:\/\/|mailto:)/i;
+
+/** Whether an address may become a link. */
+export function linkable(href: string): boolean {
+  return LINKABLE.test(href.trim());
+}
+
+/** A link out of the app: a reply's link, a README's, a page somebody
+ *  is sent to set something up.
+ *
+ *  It opens in a new tab with no opener and no referrer, since the app is
+ *  something the writer is in the middle of, and the browser's own status
+ *  line already says where it goes.  An address with any other scheme is
+ *  drawn as the words alone and goes nowhere, so a caller that forgot to
+ *  ask `linkable` first still cannot make a `javascript:` link. */
+export type ExternalLinkProps = AnchorHTMLAttributes<HTMLAnchorElement> & { href: string };
+
+export function ExternalLink({ href, className, children, ...rest }: ExternalLinkProps) {
+  if (!linkable(href)) return <span className={className}>{children}</span>;
+  return (
+    <a
+      href={href.trim()}
+      target="_blank"
+      rel="noopener noreferrer"
+      className={`nx-link${className ? ` ${className}` : ""}`}
+      {...rest}
+    >
+      {children}
+    </a>
   );
 }
 

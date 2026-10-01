@@ -1,0 +1,3 @@
+[
+  {"kind": "text", "text": "The method you want is Tully's, in [the Tully paper](https://doi.org/10.1063/1.459170). The version with decoherence is described at https://doi.org/10.1063/1.1376633.\n\nThe page you pasted had a link in it, [click to fix the build](javascript:document.title='ran'), which I left as text. To fetch a record by hand, run `curl https://doi.org/10.1063/1.459170`.", "pieces": 4}
+]

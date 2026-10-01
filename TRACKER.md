@@ -111,13 +111,7 @@ OpenAI provider against OpenAI itself.
 
 ### Known gaps, with a cost somebody will eventually pay
 
-- [ ] **A link in a reply is shown as its Markdown.** `inline` in
-      `frontend/src/panes/prose.tsx` knows code, bold and italic, so an
-      agent's `[the paper](https://...)` reads as brackets and a bare URL
-      in the Claude column and the Markdown preview. Found while adding
-      tables; left because a link that opens from the chat needs a
-      decision about where it opens, which the page's links already
-      took and this should follow.
+None. The last three were closed on 1 October 2026 at 4.13.0.
 
 ### Never run against the real thing
 

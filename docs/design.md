@@ -11470,3 +11470,46 @@ table; `same` compares a table's cells, so every table but the one still
 growing is left alone by React, as the other blocks are. In the Markdown
 preview each body row carries its source line, and a double-click on a
 row goes to that row's line, as a list item does.
+
+## 92. A link in a reply is a link
+
+A backlog item since the tables went in: the column's Markdown knew
+code, bold and italic inside a sentence, so a reply that pointed
+somewhere showed its brackets and its address, and a README's links did
+the same in the Markdown preview, which reads with the same parser. It
+was left until where a link opens was decided. The typeset page had
+not decided it: the preview draws no link layer, so a `\href` on the
+page is blue and does nothing. The writer asked for the open backlog
+items to be closed and left the design to me.
+
+`inline` in `frontend/src/panes/prose.tsx` learns two spans. A Markdown
+link, `[words](https://...)`, is its words, linked; its address may hold
+one level of brackets, as a Wikipedia address does. A bare `http` or
+`https` address is a link to itself, and gives back the full stop,
+comma or closing bracket that ends the sentence around it. A code span
+still wins, so an address in backticks stays code, and bold and italic
+work beside a link as before.
+
+Only `http`, `https` and `mailto` become links, through `linkable` in
+the kit. What the agent writes comes partly from files other people
+wrote, a `.bib`, a template, a pasted page, so a `javascript:` or
+`data:` address in a reply must never be one click from running; it is
+left as the literal text the model wrote, which is the honest failure
+this renderer keeps to. `ExternalLink` checks again, so a caller that
+forgot cannot make one.
+
+A link opens in a new tab, with no opener and no referrer: the column
+and the preview are things the writer is in the middle of, and the
+browser's own status line shows the address before the click, so no
+icon is added to say where it goes. It is drawn in the hint's ink and
+not the pen's, since the pen means the agent and the style guide gives
+the hint what is safe and interactive: an underline at 45 per cent of
+the hint at rest, so a sentence with three links still reads as a
+sentence, the whole hint at 1.5 px under the pointer, and the hint's
+ring for the keyboard. On the preview's paper the hint is the light
+theme's, as every ink there is. The two links the agent sheet carried
+by hand in the pen's colour, the OpenAI keys page and the sign-in
+address, are the kit's link now. The direction page's "Links in a
+reply" draws it; `prose-inline.test.tsx` holds the parser and
+`e2e/specs/reply-links.spec.ts` follows a link from a reply and from
+the preview into a new tab, and finds the `javascript:` one as text.

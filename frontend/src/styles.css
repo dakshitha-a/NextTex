@@ -2062,6 +2062,25 @@ button.nx-reads-x[data-always]:hover { color: var(--pen); }
   border-radius: 3px; box-shadow: inset 0 0 0 1px var(--line);
   color: var(--ink-2); font-family: var(--font-sans); font-size: 12px;
 }
+
+/* A link out of the app, the kit's ExternalLink (docs/style-guide.md,
+   "Links"): the hint's ink, since the pen means the agent and the hint is
+   what is safe and interactive; an underline at 45 per cent of the hint
+   at rest, so a sentence with links in it still reads as a sentence, and
+   the whole hint with a heavier stroke under the pointer.  The keyboard's
+   ring is the hint's too, as on every kit control the guide names. */
+.nx-link {
+  color: var(--hint);
+  text-decoration-line: underline;
+  text-decoration-thickness: 1px;
+  text-decoration-color: color-mix(in oklab, var(--hint) 45%, transparent);
+  text-underline-offset: 2px;
+  overflow-wrap: anywhere;
+  border-radius: 2px;
+  transition: text-decoration-color var(--dur-quick) var(--ease);
+}
+.nx-link:hover { text-decoration-color: var(--hint); text-decoration-thickness: 1.5px; }
+.nx-link:focus-visible { outline: 2px solid var(--hint); outline-offset: 1px; }
 @media (prefers-reduced-motion: reduce) {
   .nx-button, .nx-icon-button, .nx-switch, .nx-switch-knob, .nx-segment, .nx-field { transition: none; }
 }

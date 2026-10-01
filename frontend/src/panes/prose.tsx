@@ -1,5 +1,6 @@
 import { memo, useMemo, useState, type ReactNode } from "react";
 import { Button } from "../ui/Button";
+import { ExternalLink, linkable } from "../ui/controls";
 
 /** Just enough Markdown for what an agent writes about a document.
  *
@@ -173,20 +174,63 @@ export function parseBlocks(source: string): Block[] {
   return blocks;
 }
 
-/** Inline spans: code, bold, italic.  Code wins, so `**` inside a path is
- *  left alone -- which matters when the paths are LaTeX. */
+/** Inline spans: code, links, bold, italic.  Code wins, so `**` inside a
+ *  path is left alone -- which matters when the paths are LaTeX -- and so
+ *  an address inside backticks stays code.
+ *
+ *  A link is `[words](address)` or a bare `http://` or `https://` address.
+ *  Only those two schemes and `mailto:` become links (`linkable`, in the
+ *  kit): a reply is written partly from files other people wrote, so a
+ *  `javascript:` or `data:` address in it is left as the literal text the
+ *  model wrote, which is the honest failure this renderer keeps to.  A
+ *  bare address gives back the full stop, comma or closing bracket that
+ *  ends the sentence around it, so "see https://doi.org/x." links the
+ *  address and not the stop. */
+const INLINE = new RegExp(
+  [
+    "(`[^`]+`)",
+    // [words](address), the address allowed one level of brackets, as a
+    // Wikipedia address has.
+    "(\\[[^\\]\\n]+\\]\\((?:[^()\\s]|\\([^()\\s]*\\))+\\))",
+    "(https?:\\/\\/[^\\s<>\"'`]+)",
+    "(\\*\\*[^*]+\\*\\*)",
+    "(\\*[^*\\n]+\\*)",
+    "(_[^_\\n]+_)",
+  ].join("|"),
+  "g",
+);
+
+/** What a bare address gives back to the sentence: trailing punctuation,
+ *  and a closing bracket the address did not open. */
+function trimAddress(address: string): string {
+  let end = address.length;
+  for (;;) {
+    const last = address[end - 1];
+    if (!last) break;
+    const kept = address.slice(0, end);
+    if (".,;:!?'\"]".includes(last)) {
+      end -= 1;
+    } else if (last === ")" && (kept.match(/\(/g) ?? []).length < (kept.match(/\)/g) ?? []).length) {
+      end -= 1;
+    } else {
+      break;
+    }
+  }
+  return address.slice(0, end);
+}
+
 export function inline(text: string, keyPrefix: string): ReactNode[] {
   const nodes: ReactNode[] = [];
-  const pattern = /(`[^`]+`)|(\*\*[^*]+\*\*)|(\*[^*\n]+\*)|(_[^_\n]+_)/g;
+  const pattern = new RegExp(INLINE.source, "g");
   let last = 0;
   let match: RegExpExecArray | null;
   let count = 0;
 
   while ((match = pattern.exec(text)) !== null) {
     if (match.index > last) nodes.push(text.slice(last, match.index));
-    const token = match[0];
+    let token = match[0];
     const key = `${keyPrefix}-${count++}`;
-    if (token.startsWith("`")) {
+    if (match[1]) {
       nodes.push(
         <code
           key={key}
@@ -195,7 +239,28 @@ export function inline(text: string, keyPrefix: string): ReactNode[] {
           {token.slice(1, -1)}
         </code>,
       );
-    } else if (token.startsWith("**")) {
+    } else if (match[2]) {
+      const split = token.indexOf("](");
+      const words = token.slice(1, split);
+      const href = token.slice(split + 2, -1);
+      nodes.push(
+        linkable(href) ? (
+          <ExternalLink key={key} href={href}>
+            {words}
+          </ExternalLink>
+        ) : (
+          token
+        ),
+      );
+    } else if (match[3]) {
+      token = trimAddress(token);
+      pattern.lastIndex = match.index + token.length;
+      nodes.push(
+        <ExternalLink key={key} href={token}>
+          {token}
+        </ExternalLink>,
+      );
+    } else if (match[4]) {
       nodes.push(
         <strong key={key} className="font-semibold">
           {token.slice(2, -2)}

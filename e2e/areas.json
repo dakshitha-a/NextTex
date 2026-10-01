@@ -30,7 +30,7 @@
     {
       "name": "the Claude column",
       "sources": ["frontend/src/panes/Chat.tsx", "frontend/src/panes/prose.tsx", "frontend/src/panes/ComposerMenus.tsx", "frontend/src/panes/ContextPanel.tsx", "frontend/src/panes/PastConversation.tsx", "frontend/src/panes/tool-*.ts", "frontend/src/panes/composer-height.ts", "frontend/src/panes/slash-prompts.ts", "frontend/src/panes/column-header.tsx", "frontend/src/panes/AgentButton.tsx", "frontend/src/panes/AgentSheet.tsx", "frontend/src/agent-*.ts", "frontend/src/arrive-source.ts", "server/transcript.py", "nexttex/agent.py", "nexttex/scripted_agent.py", "nexttex/openai_agent.py", "nexttex/providers.py", "nexttex/tools.py", "nexttex/permission_gate.py", "nexttex/arrive.py", "nexttex/prompts/**"],
-      "specs": ["agent", "agent-sheet", "agent-comments", "slash-commands", "turn-name", "arrive", "chat-layout", "openai-*", "sign-in", "scripts", "markdown-preview"]
+      "specs": ["agent", "agent-sheet", "agent-comments", "slash-commands", "turn-name", "arrive", "chat-layout", "openai-*", "sign-in", "scripts", "markdown-preview", "reply-links"]
     },
     {
       "name": "the drawers",
