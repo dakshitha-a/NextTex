@@ -396,6 +396,9 @@ export type State = {
    *  where every section starts and nothing else knows where the last one
    *  stops. */
   lineCount: number;
+  /** The project's folder on the machine running NextTex, as the open
+   *  payload gives it, for Copy path. */
+  projectRoot: string;
   /** The section list of whatever the editor is showing, parsed from the
    *  buffer on the same debounce as the save.  Empty with no file open. */
   outline: Heading[];
@@ -498,6 +501,7 @@ const state: State = {
   cursor: { line: 1, column: 1 },
   shownPath: null,
   lineCount: 1,
+  projectRoot: "",
   outline: [],
   symbolRequest: null,
   collaborators: [],

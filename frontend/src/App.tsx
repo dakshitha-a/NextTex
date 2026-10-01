@@ -577,6 +577,7 @@ export default function App() {
     set({
       projectId: id,
       projectName: project.name ?? "",
+      projectRoot: typeof project.root === "string" ? project.root : "",
       lostFolder: null,
       tree: project.tree,
       tabs: [],

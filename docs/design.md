@@ -11553,3 +11553,21 @@ shows the same ones; a change to them alone does not mark the page out
 of date. The direction page's "Limits that stay in view" draws it, and
 `e2e/specs/limits.spec.ts` sets, counts, keeps and takes away a limit
 and reads the strip within and over a page limit.
+
+## 94. Copy path, on a file tree row
+
+Asked for by the writer during the roadmap run: a file's place on disk
+was nowhere to be had in the app, so taking it to a terminal or another
+editor meant typing its path. A row's menu, the one its button and a
+right-click open, gains *Copy path* after *Move to…*, with the other
+items about the file's name and place, on a file and on a folder. It
+copies the absolute path on the machine running NextTex, the project's
+folder as the open payload gives it joined with the row's path, in that
+folder's own separator, so a Windows install gives a Windows path
+(`absolutePath` in `frontend/src/copy-path.ts`). It is quiet when it
+works, as every Copy in the app is, and says so in a notice when the
+browser refuses the clipboard; an install reached over plain http has
+no Clipboard API, so `copyText` falls back to the older way. The
+direction page draws it under the roadmap run, and
+`e2e/specs/tree-menu.spec.ts` copies a file's path and a folder's and
+reads the clipboard.

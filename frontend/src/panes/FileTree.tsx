@@ -1,3 +1,4 @@
+import { absolutePath, copyText } from "../copy-path";
 import {
   Suspense, lazy, useCallback, useEffect, useMemo, useRef, useState,
 } from "react";
@@ -394,6 +395,11 @@ export default function FileTree({
         onRefresh();
       } else if (action === "rename") {
         setRenaming(node.path);
+      } else if (action === "copypath") {
+        // Quiet when it works, as every Copy here is; said when it does not.
+        if (!(await copyText(absolutePath(get().projectRoot, node.path)))) {
+          set({ error: "The browser would not let the path onto the clipboard." });
+        }
       } else if (action === "duplicate") {
         await onDuplicate?.(node.path);
       } else if (action === "newfile" || action === "newfolder") {
@@ -971,6 +977,10 @@ export default function FileTree({
               // tree with links and machinery left out.
               ...(onDuplicate ? [["duplicate", "Duplicate"]] : []),
               ["move", "Move to…"],
+              // Where it is on the machine running NextTex, for a terminal
+              // or an editor beside it; a name-and-place item, so it sits
+              // with them (asked for by the writer, 1 October 2026).
+              ["copypath", "Copy path"],
               // A .bib file's reason to have a menu opened on it at all is
               // its contents, which is why this sits with the document
               // items rather than at the bottom with the file operations

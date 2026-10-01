@@ -88,3 +88,23 @@ test("the tree's empty space offers the heading row's buttons at the root", asyn
   await tab.getByTestId("tree-root-menu").getByRole("button", { name: "Find a file" }).click();
   await expect(tab.getByTestId("file-search")).toBeFocused();
 });
+
+test("Copy path puts a file's absolute path on the clipboard, and a folder's", async ({ tab, project, context }) => {
+  // Asked for by the writer: the path on the machine running NextTex, for a
+  // terminal or an editor beside it.
+  await context.grantPermissions(["clipboard-read", "clipboard-write"]);
+  const row = tab.getByRole("treeitem", { name: /main\.tex/ }).first();
+  await row.click({ button: "right" });
+  const menu = tab.getByTestId("file-menu");
+  // With the other name-and-place items, after Move to.
+  const items = await labels(menu);
+  expect(items.indexOf("Copy path")).toBe(items.indexOf("Move to…") + 1);
+  await menu.getByRole("button", { name: "Copy path" }).click();
+  await expect(menu).toHaveCount(0);
+  await expect.poll(() => tab.evaluate(() => navigator.clipboard.readText())).toBe(`${project.root}/main.tex`);
+
+  const folder = tab.getByRole("treeitem", { name: /figures/ }).first();
+  await folder.click({ button: "right" });
+  await tab.getByTestId("file-menu").getByRole("button", { name: "Copy path" }).click();
+  await expect.poll(() => tab.evaluate(() => navigator.clipboard.readText())).toBe(`${project.root}/figures`);
+});
