@@ -24,7 +24,15 @@ things go to be forgotten rather than a list anybody reads.
 
 ## In hand
 
-Nothing is in hand. The README run closed on 1 October 2026 at 4.12.1,
+The performance run, started on 1 October 2026 from 4.13.0 at the
+writer's request: less work after each build, while typing and on disk,
+in four groups pushed one at a time, every item measured before and after
+and dropped here with its reason if the cost it was meant to remove turns
+out not to be real. The feature survey made the same day went to
+`ROADMAP.md`. Its tracker page is
+https://claude.ai/artifact/XJHE3kBwz6wkBWpYXcJxZ6.
+
+The README run closed on 1 October 2026 at 4.12.1,
 at the writer's request: the README is a front door of about 450 lines,
 with animations filmed in the real app by `e2e/shots/tour.spec.ts`, and the long
 text it held lives in `docs/install.md`, `docs/guide.md` and

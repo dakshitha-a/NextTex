@@ -30,9 +30,85 @@ the reversal should have to answer it.
 
 ## The list
 
-Empty. Every item the list held was built in the run of 24 September
-2026, each with a section of its own in `docs/design.md`, 67 to 74. A new
-item goes here, in its place in the order, when somebody proposes it.
+The list held by the run of 24 September 2026 was built, each item with a
+section of its own in `docs/design.md`, 67 to 74. The items below came from
+a survey on 1 October 2026 of what the code already does against what
+writers of papers and theses meet, and the writer chose to file all of them
+here rather than build them in the performance run of that day. A new item
+goes here, in its place in the order, when somebody proposes it.
+
+1. **Limits that stay in view.** Set "abstract at most 250 words" or
+   "8 pages" once, and a quiet count beside the section in the outline and
+   in the status strip measures against it, in the warning ink when over.
+   First because every venue has limits and a writer checks them weekly
+   while drafting, and the parts exist: the word count in
+   `frontend/src/words.ts`, the outline in `frontend/src/outline.ts`, and a
+   page limit already kept in `nexttex/project.py` and read by
+   `nexttex/submit.py`. Check first whether the strip already shows pages
+   against the limit. Small; *y*.
+2. **One-click fixes on the `.bib` rows.** `nexttex/bibcheck.py` reports
+   and does not repair. Add actions that protect capitals in a title with
+   braces, rename a key to author and year through `nexttex/rename.py`,
+   drop bulky `abstract` and `url` fields, and merge two entries with one
+   DOI. Weekly while a bibliography is being built, and each action only
+   rewrites what is there, so no reference is invented. Builds on the row
+   pattern in `frontend/src/panes/diagnostic-rows.ts`. Small to medium;
+   *y*.
+3. **Consistency checks that need no model.** Rows in the existing lint
+   list for an acronym used but never defined or defined and never used,
+   one word spelt two ways ("dataset" and "data set"), "Fig." beside
+   "Figure", US and UK spellings mixed, and a missing `~` before `\cite`
+   or `\ref`. These are what a copy editor sends back. Builds on
+   `nexttex/lint_explain.py` and the masked prose scan in
+   `frontend/src/panes/spell-scan.ts`; read section 74 of
+   `docs/design.md` first, since some grammar rules are off on purpose.
+   Medium; *y*.
+4. **A figures and tables list.** Every figure and table with its caption,
+   number, page, how often it is referenced and its image's resolution; a
+   click goes to the source, and one never referenced is marked. Weekly in
+   a thesis. Numbers and pages come from `nexttex/auxlabels.py`, labels
+   from `nexttex/symbols.py`, counts from `nexttex/usage.py`, resolution
+   from the image rows in `nexttex/submit.py`. Small as a part of the
+   Sections drawer, medium as a drawer of its own; *y*.
+5. **Typeset changes against a History version.** `nexttex/changes.py`
+   marks up the PDF against a git commit; many writers here never commit.
+   Choosing any version in History, including one named "submitted v1",
+   gives the same marked-up PDF, which is the reply to "what changed?".
+   Once per revision. The new part is writing a version from
+   `nexttex/history.py` into the scratch folder `changes.py` already uses.
+   Medium; *y*.
+6. **Retraction and published-version check.** A row in the submission
+   check says a cited DOI has been retracted, or that a cited preprint now
+   has a journal version, naming the journal's own DOI. Both answers come
+   from the publisher's record, which fits the rule that every reference
+   comes from one. Once per paper. Builds on `nexttex/library.py` and
+   `nexttex/vendor/verify_bib.py`, which already fetch that record per
+   DOI. It is the check's first network call, and the drawer says so.
+   Small to medium; *y*.
+7. **A submission source bundle.** One download with only the files the
+   document uses, paths intact, the `.bbl` included, the build folder and
+   unused figures left out, and comments stripped on request: what a
+   journal's or a preprint server's source upload wants. Once per paper,
+   at the step writers dread. Builds on the project zip in
+   `server/main.py`, the file graph in `nexttex/deps.py` and the build's
+   `.bbl`. Medium; *y*.
+8. **Reply to reviewers.** A template with point and reply macros, and a
+   command that turns the open comment threads into points to answer, each
+   linking back to its text, sent with the item 5 PDF. Once per revision.
+   Builds on `nexttex/templates`, `nexttex/comment_tools.py` and the agent
+   answering comments, section 78 of `docs/design.md`. The template alone
+   is small; the whole is medium; *y*.
+9. **Venue templates, and a browser to choose them in.** Today
+   `nexttex/templates` holds five. Ship only templates whose licence allows
+   it, and choose them in a template browser rather than the present short
+   list, since names alone stop working past a dozen. For a template that
+   cannot ship, the browser explains how to get it and links to the
+   publisher's official page. Shipped templates are checked against their
+   source once per *y* bump, a soft check that reports and does not fail
+   the push. Once per paper, and the first thing a new writer looks for.
+   Builds on `frontend/src/templates.ts` and `nexttex/texpkg.py`, which
+   installs a missing class. Large, since the browser is a new surface and
+   the licences are research; *y*.
 
 ## Not adopting, and why
 
@@ -70,3 +146,16 @@ reason is what makes the decision revisitable.
   writing.
 - **Assistant personas.** The distilled handbook and sample are the
   persona, and a menu of characters beside them would be a second one.
+- **A source formatter.** Re-indenting environments and aligning tables
+  needs latexindent, a Perl program that is awkward to install on Windows,
+  and any formatter that wraps lines would reflow a co-author's paragraphs.
+  Decided on 1 October 2026.
+- **A tagged-PDF readiness row.** It is a piece of the PDF/UA rulebook
+  above, and the list of packages that break tagging changes with every
+  TeX Live, so a list kept here would go stale. Decided on 1 October 2026.
+- **Importing a Word document's comments.** It is a converter by another
+  name, and anchoring a Word comment to LaTeX source can only be
+  approximate. Decided on 1 October 2026.
+- **Slide notes and a slide sorter for talks.** A grid of thumbnails
+  competes with the typeset page, and talks are rare beside papers.
+  Decided on 1 October 2026.
