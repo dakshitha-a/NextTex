@@ -74,6 +74,15 @@ describe("the key being typed", () => {
 
   it("reaches over the rest of a key the caret is inside", () => {
     expect(citeContext("kn", "uth1984, x}")).toMatchObject({ segment: "kn", forward: 7 });
+    expect(citeContext("kn", "uth1984}.")).toMatchObject({ segment: "kn", forward: 7 });
+  });
+
+  it("leaves the sentence after an argument that is not closed yet", () => {
+    // `meet~\cite{Tul` typed before the sentence's full stop: the stop is
+    // not the rest of a key, and taking one used to swallow it.
+    expect(citeContext("Tul", ".")).toMatchObject({ segment: "Tul", forward: 0 });
+    expect(citeContext("Tul", ". And then")).toMatchObject({ forward: 0 });
+    expect(citeInsertion(".", "Tully1990molecular")).toEqual({ insert: "Tully1990molecular}", caret: 19 });
   });
 });
 

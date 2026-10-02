@@ -67,8 +67,12 @@ export function citeContext(typed: string, after: string) {
   const raw = typed.slice(comma + 1);
   const segment = raw.trimStart();
   // The rest of a key the caret is inside, which taking a completion
-  // replaces rather than leaves dangling after it.
-  const rest = /^[^,}{\s]*/.exec(after)![0];
+  // replaces rather than leaves dangling after it. Only inside an argument
+  // that closes after it: in `meet~\cite{Tul` typed before a full stop,
+  // the stop is the sentence's, not the key's, and taking Tully1990 had
+  // swallowed it, since a key may hold a full stop.
+  const reach = /^[^,}{\s]*/.exec(after)![0];
+  const rest = /^\s*[,}]/.test(after.slice(reach.length)) ? reach : "";
   const close = after.indexOf("}");
   const tail = close >= 0 ? after.slice(rest.length, close) : "";
   const excluded = new Set(

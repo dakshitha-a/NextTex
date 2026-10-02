@@ -123,3 +123,38 @@ test("a citation list over several lines completes on each line", async ({ app, 
   await expect(page.locator(".cm-activeLine")).toContainText("lamport1994}");
   await expect(page.locator(".cm-content")).toContainText("Both~\\cite{knuth1984,");
 });
+
+/** A citation typed before a sentence's full stop, in an argument not yet
+ *  closed, swallowed the stop when its key was taken: the stop was read as
+ *  the rest of the key, since a key may hold one. Found filming the
+ *  README's citations animation, where "meet." became "meet [1]". */
+test("taking a key before a full stop keeps the stop", async ({ app, project, page }) => {
+  appendFileSync(join(project.root, "references.bib"), [
+    "",
+    "@book{lamport1994,",
+    "  author = {Lamport, Leslie},",
+    "  title  = {LaTeX: a document preparation system},",
+    "  year   = {1994},",
+    "}",
+    "",
+  ].join("\n"));
+  await page.goto(`${app.base}/?token=${app.token}`);
+  await page.getByText("Projects", { exact: false }).first().waitFor();
+  await openProject(page, project.root);
+  await expect(page.locator(".cm-content")).toContainText("\\cite{knuth1984}", { timeout: 30_000 });
+  await page.locator(".cm-content").click();
+  await page.keyboard.press("Control+End");
+  await page.keyboard.press("ArrowUp");
+  await page.keyboard.press("Home");
+  await page.keyboard.press("Enter");
+  await page.keyboard.press("ArrowUp");
+
+  const list = page.locator(".cm-tooltip-autocomplete");
+  await page.keyboard.type("Seen here.");
+  await page.keyboard.press("ArrowLeft");
+  await page.keyboard.type("~\\cite{lamp");
+  await expect(list.locator(".cm-completionLabel")).toHaveText(["lamport1994"], { timeout: 10_000 });
+  await page.waitForTimeout(200);
+  await page.keyboard.press("Enter");
+  await expect(page.locator(".cm-activeLine")).toHaveText("Seen here~\\cite{lamport1994}.");
+});
