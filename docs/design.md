@@ -11838,3 +11838,27 @@ Expand and Ask, a build error still offered Fix, and the palette still
 offered the agent. Each is gone without an agent now, and the selection
 offers Comment alone. `e2e/specs/no-agent.spec.ts` checks every one.
 
+## 106. The whole document's outline, beside the file's
+
+The writer asked on 2 October 2026 for a third list in the Sections
+drawer, *Typeset*: the complete outline of the document in the preview,
+so that the source and the typeset page are both a press away, noting
+that it is the more complete the more the document is split into chapter
+files, which Sections, being the file in the editor, sees one at a time.
+Drawn on the direction page and built as drawn but for one thing: the
+drawing named each heading's file after its title, and the render showed
+the names taking the titles' room at the drawer's width, so the file is
+in the row's tooltip.
+
+Typeset walks the previewed document from its own file through every
+input in the reader's order, as the Figures list does, and pairs its
+headings with the contents lines of the last build for their numbers and
+pages. Those lines are read from the `.aux` files, where every build
+writes them, since LaTeX writes a `.toc` only for a document that sets
+its own table of contents, which the first build of this list missed. A
+row is the number in the third ink, the title, and the page, which gives
+way to *Source* under the pointer. A press shows the place on the page,
+unfolding the preview if it was folded; before a build there is no page,
+and a press opens the source. `e2e/specs/typeset.spec.ts` lists a
+chapter file's headings after main.tex's, presses one to its page, and
+opens another in the editor.

@@ -44,7 +44,7 @@ from fastapi.staticfiles import StaticFiles
 from pydantic import BaseModel, Field
 
 from nexttex import (
-    arrive, attachments, auth, auxlabels, claude_auth, dictionaries, equation, gitrepo,
+    arrive, attachments, auth, auxlabels, claude_auth, dictionaries, equation, gitrepo, headings,
     plots, rename, report, submit, synctex, texpkg,
 )
 from nexttex.version import VERSION
@@ -4652,6 +4652,27 @@ async def figures_list(project_id: str, document: str = ""):
             listed = submit.run_pdfimages(paths.pdf)
             rows = submit._image_rows(listed) if listed else []
         return figures.listing(texts, state.path, numbers, rows)
+
+    return {"document": state.path, "entries": await asyncio.to_thread(run)}
+
+
+@app.get("/api/projects/{project_id}/headings")
+async def headings_list(project_id: str, document: str = ""):
+    """Every heading one document reaches, in reading order, for the
+    Sections drawer's Typeset list: the source's file, line, kind, level
+    and title, with the last build's number and page from its `.toc`.
+    Answers before any build, without the numbers."""
+    session = session_for(project_id)
+    if document and document not in session.documents:
+        raise HTTPException(404, "no such document")
+    state = _document(session, document)
+    paths = state.paths
+    live = session.collab.open_texts()
+    texts = await asyncio.to_thread(_project_texts, session)
+    texts.update({path: body for path, body in live.items() if path in texts})
+
+    def run() -> list[dict]:
+        return headings.listing(texts, state.path, headings.read_toc(paths.build_dir, paths.jobname))
 
     return {"document": state.path, "entries": await asyncio.to_thread(run)}
 

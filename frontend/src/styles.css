@@ -1643,6 +1643,11 @@ button.nx-row { width: 100%; text-align: left; }
 .nx-figure-row { width: 100%; text-align: left; }
 .nx-figure-row .nx-row-note { padding-left: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
 .nx-figure-page { margin-left: 6px; color: var(--ink-3); font-size: 12px; font-variant-numeric: tabular-nums; }
+/* The Typeset list: the heading's number in the third ink, its page at the
+   row's end, giving way to Source under the pointer. */
+.nx-typeset-number { flex: none; color: var(--ink-3); font-variant-numeric: tabular-nums; }
+.nx-typeset-page { flex: none; margin-left: auto; padding-left: 8px; color: var(--ink-3); font-size: 12px; font-variant-numeric: tabular-nums; }
+.nx-typeset-row:hover .nx-typeset-page, .nx-typeset-row:focus-within .nx-typeset-page { display: none; }
 .nx-figure-refs { flex: none; margin-left: auto; color: var(--ink-3); font-size: 12px; font-variant-numeric: tabular-nums; }
 .nx-figure-refs.nx-figure-unreferenced { color: var(--warn); font-weight: 500; }
 .nx-button.nx-place { font-family: var(--font-mono); font-size: 12px; font-weight: 400; }

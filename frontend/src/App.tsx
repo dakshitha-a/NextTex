@@ -1697,6 +1697,15 @@ export default function App() {
     });
   }, []);
 
+  /** Show a source line's place on the typeset page, for the Typeset
+   *  list: the preview unfolded first if it was folded, and given a moment
+   *  to be there before it is asked. */
+  const showOnPage = useCallback((file: string, line: number) => {
+    const folded = foldedRef.current.pdf;
+    if (folded) fold("pdf");
+    window.setTimeout(() => void pdf.current?.reveal(file, line), folded ? 260 : 0);
+  }, [fold]);
+
 
   /** Where the tutorial sheet's right edge sits.
    *
@@ -2680,6 +2689,7 @@ export default function App() {
                       <StructureDrawer
                         onJump={jumpToHeading}
                         onOpen={(file, line) => openFile(file, line)}
+                        onShow={showOnPage}
                         resolve={resolveInclude}
                       />
                     ) : null}

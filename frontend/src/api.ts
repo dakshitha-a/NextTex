@@ -125,6 +125,20 @@ export type SubmitFinding = {
 };
 
 /** A figure or a table in the Sections drawer's Figures list. */
+/** A heading of the previewed document, for the Sections drawer's
+ *  Typeset list: where the source has it and, after a build, its number
+ *  and page. */
+export type HeadingEntry = {
+  kind: string;
+  level: number;
+  starred: boolean;
+  title: string;
+  file: string;
+  line: number;
+  number: string | null;
+  page: number | null;
+};
+
 export type FigureEntry = {
   kind: "figure" | "table";
   env: string;
@@ -1189,6 +1203,11 @@ const api = {
   figures: (id: string, document = "") =>
     request<{ document: string; entries: FigureEntry[] }>(
       `/projects/${id}/figures?document=${encodeURIComponent(document)}`,
+    ),
+  /** Every heading the document reaches, across its files. */
+  headings: (id: string, document = "") =>
+    request<{ document: string; entries: HeadingEntry[] }>(
+      `/projects/${id}/headings?document=${encodeURIComponent(document)}`,
     ),
   /** How many distinct DOIs the documents cite, before asking. */
   submitRecordsCount: (id: string) => request<{ dois: number }>(`/projects/${id}/submit/records`),

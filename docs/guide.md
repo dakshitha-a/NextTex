@@ -96,6 +96,11 @@ a **Tutorial** button at its foot, and the projects screen's app bar has an
 - **Figures and tables.** Switch the Sections drawer to *Figures* for every
   figure and table in reading order, with its number, page and how often the
   text refers to it; one never referred to says so.
+- **The whole outline.** *Sections* is the file in the editor; switch to
+  *Typeset* for every heading of the document in the preview, through all
+  its chapter files, with its number and page. A press takes the preview
+  there, and *Source* on the row opens the heading in the editor. A
+  thesis kept as one file per chapter is listed whole.
 - **Limits that stay in view.** Point at a heading or the abstract in
   Sections and press *Limit* to give it a word limit; its row then ends
   with "212 of 250", in the warning colour once it runs over. With a page
@@ -235,7 +240,7 @@ makes typing slower on the day it happens.
 | A settled edit written to disk | 1.4 ms | 40 ms |
 | The same, with its version recorded | 3.0 ms | 60 ms |
 | Whole project as a zip | 67 ms | 3 s |
-| Interface bundle | 330.2 kB | 400 kB |
+| Interface bundle | 330.4 kB | 400 kB |
 
 The first row is the one worth keeping. The compile rewrites `build/main.pdf`,
 the symbol cache's stamp walk used to count it, and every build therefore
