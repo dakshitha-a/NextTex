@@ -46,7 +46,7 @@ TURN_SECONDS = 240
 
 def make(tmp_path: Path) -> OpenAIAgent:
     root = tmp_path / "project"
-    shutil.copytree(TEMPLATE, root)
+    shutil.copytree(TEMPLATE, root, ignore=shutil.ignore_patterns("template.toml"))
     return OpenAIAgent(root, tmp_path / "state", api_key="", base_url=BASE, model=MODEL)
 
 

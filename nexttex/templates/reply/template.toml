@@ -1,0 +1,5 @@
+title = "A reply to reviewers"
+kind = "letter"
+order = 6
+# One document, no bibliography or figures of its own.
+scaffold = false

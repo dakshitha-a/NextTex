@@ -41,7 +41,7 @@ class Response:
 
 def test_a_local_server_gets_no_bearer_token_and_the_turn_ends_without_a_usage_chunk(tmp_path, monkeypatch):
     root = tmp_path / "project"
-    shutil.copytree(TEMPLATE, root)
+    shutil.copytree(TEMPLATE, root, ignore=shutil.ignore_patterns("template.toml"))
     made = OpenAIAgent(root, tmp_path / "state", api_key="", base_url="http://localhost:11434/v1", model="llama3.1")
     posted = {}
 
@@ -81,7 +81,7 @@ def test_a_local_server_gets_no_bearer_token_and_the_turn_ends_without_a_usage_c
 
 def test_openai_itself_still_gets_the_key(tmp_path, monkeypatch):
     root = tmp_path / "project"
-    shutil.copytree(TEMPLATE, root)
+    shutil.copytree(TEMPLATE, root, ignore=shutil.ignore_patterns("template.toml"))
     made = OpenAIAgent(root, tmp_path / "state", api_key="sk-test")
     posted = {}
 
@@ -116,7 +116,7 @@ def test_a_local_servers_stream_is_read_as_utf8_whatever_it_declared(tmp_path, m
     reads a `text/*` body as ISO-8859-1, so an x squared arrived as two
     wrong characters on the first real turn against a local server."""
     root = tmp_path / "project"
-    shutil.copytree(TEMPLATE, root)
+    shutil.copytree(TEMPLATE, root, ignore=shutil.ignore_patterns("template.toml"))
     made = OpenAIAgent(root, tmp_path / "state", api_key="", base_url="http://localhost:11434/v1", model="qwen3")
     monkeypatch.setattr(openai_agent.requests, "post", lambda *a, **k: BytesResponse([
         'data: {"choices":[{"delta":{"content":"y = x² at the café"}}]}',

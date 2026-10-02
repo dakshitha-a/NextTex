@@ -32,6 +32,7 @@ os.environ["NEXTTEX_COLLAB_TRANSPORT"] = "loopback"
 from starlette.testclient import TestClient          # noqa: E402
 
 from server import main as server_main               # noqa: E402
+from nexttex import venues                           # noqa: E402
 
 TEMPLATE = Path(__file__).resolve().parent.parent.parent / "nexttex" / "templates" / "basic"
 
@@ -110,11 +111,10 @@ def project_dir(tmp_path) -> Path:
     """A real project on disk, seeded from the template NextTex ships."""
     root = tmp_path / "project"
     root.mkdir()
-    for item in TEMPLATE.rglob("*"):
-        if item.is_file() and item.name != ".gitkeep":
-            target = root / item.relative_to(TEMPLATE)
-            target.parent.mkdir(parents=True, exist_ok=True)
-            shutil.copy(item, target)
+    for item in venues.files("basic"):
+        target = root / item.relative_to(TEMPLATE)
+        target.parent.mkdir(parents=True, exist_ok=True)
+        shutil.copy(item, target)
     (root / "figures").mkdir(exist_ok=True)
     return root
 

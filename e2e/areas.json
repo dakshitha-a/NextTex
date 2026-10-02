@@ -14,7 +14,7 @@
     },
     {
       "name": "the projects screen",
-      "sources": ["frontend/src/panes/Projects.tsx", "frontend/src/project-*.ts", "frontend/src/panes/FolderPicker.tsx", "frontend/src/panes/FolderBrowser.tsx", "frontend/src/panes/FolderChooser.tsx", "frontend/src/panes/JoinOfferCard.tsx", "frontend/src/templates.ts", "nexttex/project.py", "nexttex/templates/**"],
+      "sources": ["frontend/src/panes/Projects.tsx", "frontend/src/project-*.ts", "frontend/src/panes/FolderPicker.tsx", "frontend/src/panes/FolderBrowser.tsx", "frontend/src/panes/FolderChooser.tsx", "frontend/src/panes/JoinOfferCard.tsx", "frontend/src/templates.ts", "nexttex/project.py", "nexttex/venues.py", "nexttex/templates/**"],
       "specs": ["projects-*", "share-from-list", "download", "moved-project", "first-run", "open-speed"]
     },
     {

@@ -267,7 +267,10 @@ export async function seedProject(
   name: string,
 ): Promise<{ id: string; root: string }> {
   const root = join(instance.projects, name);
-  cpSync(join(ROOT, "nexttex", "templates", "basic"), root, { recursive: true });
+  cpSync(join(ROOT, "nexttex", "templates", "basic"), root, {
+    recursive: true,
+    filter: (from) => !from.endsWith("template.toml"),
+  });
   mkdirSync(join(root, "figures"), { recursive: true });
   const response = await fetch(`${instance.base}/api/projects`, {
     method: "POST",

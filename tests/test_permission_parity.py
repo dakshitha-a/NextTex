@@ -30,7 +30,7 @@ SCRIPT = "import matplotlib.pyplot as plt\nplt.plot([1, 2])\nplt.show()\n"
 def project(tmp_path: Path) -> tuple[Path, Path]:
     root = tmp_path / "project"
     if not root.exists():
-        shutil.copytree(TEMPLATE, root)
+        shutil.copytree(TEMPLATE, root, ignore=shutil.ignore_patterns("template.toml"))
     return root, tmp_path / "state"
 
 

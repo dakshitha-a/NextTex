@@ -1,0 +1,8 @@
+title = "A job application"
+kind = "letter"
+order = 5
+# A resume and a cover letter, two documents with their own names and the
+# resume first, with the listing's notes beside them and no bibliography
+# or figures.
+lead = "resume.tex"
+scaffold = false

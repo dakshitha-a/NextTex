@@ -81,7 +81,7 @@ from nexttex.project import (
     PROJECT_STATES, clean_limits,
 )
 from nexttex.symbols import walk_project
-from nexttex import bibcheck, bibfix, bundle, consistency, deps, figures, published, reply, export, lint_explain, prompts, search, texstyles, updates, usage
+from nexttex import bibcheck, bibfix, bundle, consistency, deps, figures, published, reply, export, lint_explain, prompts, search, texstyles, updates, usage, venues
 from nexttex.install.ui import child_env
 from server.session import CLOSED, DocumentState, ProjectSession, spawn
 
@@ -5838,37 +5838,27 @@ async def project_symbols(project_id: str):
     return answer
 
 
-TEMPLATES = Path(__file__).resolve().parent.parent / "nexttex" / "templates"
-
-# What a template is beyond its files, for the ones that are not one
-# document with a bibliography and a figures folder.  `lead` is the file
-# that becomes the project's first document, `main.tex` unless said
-# otherwise; `scaffold` says whether the New button's blank `main.tex`,
-# empty `references.bib` and `figures/` belong with it.  The job
-# application is a resume and a cover letter, two documents with their own
-# names and the resume first, with the listing's notes beside them and no
-# bibliography or figures.
-TEMPLATE_SHAPE: dict[str, dict] = {
-    "application": {"lead": "resume.tex", "scaffold": False},
-    # A letter answering reviewers: one document, no bibliography or
-    # figures of its own.
-    "reply": {"lead": "main.tex", "scaffold": False},
-}
+TEMPLATES = venues.ROOT
 
 
+# What a template is beyond its files is in its own `template.toml`, read
+# by `nexttex/venues.py`: which file leads, and whether the New button's
+# blank `main.tex`, empty `references.bib` and `figures/` belong with it.
 def template_lead(name: str) -> str:
-    return TEMPLATE_SHAPE.get(name, {}).get("lead", "main.tex")
+    template = venues.get(name)
+    return template.lead if template else "main.tex"
 
 
 def template_scaffolds(name: str) -> bool:
-    return TEMPLATE_SHAPE.get(name, {}).get("scaffold", True)
+    template = venues.get(name)
+    return template.scaffold if template else True
 
 
 @app.get("/api/templates")
 async def list_templates():
     if not TEMPLATES.is_dir():
         return {"templates": []}
-    return {"templates": sorted(p.name for p in TEMPLATES.iterdir() if p.is_dir())}
+    return {"templates": sorted(t.name for t in venues.templates())}
 
 
 @app.post("/api/projects/{project_id}/template")
@@ -5880,7 +5870,7 @@ async def load_template(project_id: str, name: str = Body("basic", embed=True)):
     """
     session = session_for(project_id)
     source = TEMPLATES / name
-    if not source.is_dir() or ".." in name or "/" in name:
+    if ".." in name or "/" in name or "\\" in name or venues.get(name) is None:
         raise HTTPException(404, "no such template")
     lead = template_lead(name)
 
@@ -5902,9 +5892,7 @@ async def load_template(project_id: str, name: str = Body("basic", embed=True)):
             )
 
     written: list[str] = []
-    for path in sorted(source.rglob("*")):
-        if not path.is_file() or path.name == ".gitkeep":
-            continue
+    for path in venues.files(name):
         relative = path.relative_to(source)
         # The template's lead document becomes *this* project's first
         # document, whatever it is called.

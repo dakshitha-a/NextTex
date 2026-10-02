@@ -48,7 +48,7 @@ def agent(tmp_path: Path, replies: list[list[dict]], **kwargs) -> OpenAIAgent:
     """An agent whose transport replays `replies`, one list per request."""
     root = tmp_path / "project"
     if not root.exists():
-        shutil.copytree(TEMPLATE, root)
+        shutil.copytree(TEMPLATE, root, ignore=shutil.ignore_patterns("template.toml"))
     made = OpenAIAgent(root, tmp_path / "state", api_key="test-key", **kwargs)
     turns = iter(replies)
 

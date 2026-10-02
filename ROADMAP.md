@@ -35,21 +35,10 @@ section of its own in `docs/design.md`, 67 to 74. The items that followed
 came from a survey on 1 October 2026 of what the code already does against
 what writers of papers and theses meet. The roadmap run of the same day
 built the first eight of them, 4.14.0 to 4.21.0, each with a section of
-its own in `docs/design.md`, 93 and 95 to 101. What is left is the large
-one, for a run of its own. A new item goes here, in its place in the
-order, when somebody proposes it.
-
-1. **Venue templates, and a browser to choose them in.** Today
-   `nexttex/templates` holds five. Ship only templates whose licence allows
-   it, and choose them in a template browser rather than the present short
-   list, since names alone stop working past a dozen. For a template that
-   cannot ship, the browser explains how to get it and links to the
-   publisher's official page. Shipped templates are checked against their
-   source once per *y* bump, a soft check that reports and does not fail
-   the push. Once per paper, and the first thing a new writer looks for.
-   Builds on `frontend/src/templates.ts` and `nexttex/texpkg.py`, which
-   installs a missing class. Large, since the browser is a new surface and
-   the licences are research; *y*.
+its own in `docs/design.md`, 93 and 95 to 101. The large one left over,
+venue templates and a browser to choose them in, entered `TRACKER.md`'s
+*In hand* on 2 October 2026 for a run of its own. A new item goes here,
+in its place in the order, when somebody proposes it.
 
 ## Not adopting, and why
 

@@ -68,7 +68,10 @@ const test = base.extend<Shots>({
  *  swapped for a PNG, named and registered. */
 async function seed(app: Instance, home: string, folder: string, name: string): Promise<string> {
   const root = join(home, "papers", folder);
-  cpSync(join(ROOT, "nexttex", "templates", "basic"), root, { recursive: true });
+  cpSync(join(ROOT, "nexttex", "templates", "basic"), root, {
+    recursive: true,
+    filter: (from) => !from.endsWith("template.toml"),
+  });
   mkdirSync(join(root, "figures"), { recursive: true });
   writeFileSync(join(root, "figures", "decay-fit.png"), plot(1200, 800));
   const tex = join(root, "main.tex");

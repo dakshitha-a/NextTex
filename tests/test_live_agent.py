@@ -81,7 +81,7 @@ def live_session(root: Path, model: str = LIVE_MODEL):
     from nexttex.project import Project
     from server.session import ProjectSession
 
-    shutil.copytree(TEMPLATE, root)
+    shutil.copytree(TEMPLATE, root, ignore=shutil.ignore_patterns("template.toml"))
     session = ProjectSession(Project.open(root), model=model)
     assert type(session.agent).__name__ == "ProjectAgent", (
         "a scripted stand-in was selected; unset NEXTTEX_SCRIPTED_AGENT"

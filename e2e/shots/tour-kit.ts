@@ -83,7 +83,10 @@ export const test = base.extend<Scene>({
  *  an author, an abstract, and a real figure. */
 export function prepare(home: string): string {
   const root = join(home, "papers", "nonadiabatic-dynamics-review");
-  cpSync(join(ROOT, "nexttex", "templates", "basic"), root, { recursive: true });
+  cpSync(join(ROOT, "nexttex", "templates", "basic"), root, {
+    recursive: true,
+    filter: (from) => !from.endsWith("template.toml"),
+  });
   mkdirSync(join(root, "figures"), { recursive: true });
   writeFileSync(join(root, "figures", "decay-fit.png"), plot(1200, 800));
   const tex = join(root, "main.tex");

@@ -24,7 +24,13 @@ things go to be forgotten rather than a list anybody reads.
 
 ## In hand
 
-Nothing is in hand. The motion, rail and tour run closed on 2 October
+**Venue templates, and a browser to choose them in**, from `ROADMAP.md`,
+with its tracker at https://claude.ai/artifact/8jcpVy2s2vz54xNhFoqsBu.
+Done: each template's shape is its own `template.toml`, read by
+`nexttex/venues.py`. Left: the venue templates themselves, the browser,
+the soft check against CTAN, and the documents.
+
+Before it, The motion, rail and tour run closed on 2 October
 2026 at 4.22.0, from 4.21.1, at the writer's request. Done: a fold that
 moves once and stops, its strip's place widening with the slide and the
 page drawn sharp once the panes rest; a bar that shows a drawer over the

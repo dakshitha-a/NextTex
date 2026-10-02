@@ -98,3 +98,23 @@ def test_every_template_names_the_bibliography_it_ships(client):
                 assert (directory / "references.bib").is_file(), (
                     f"{directory.name} cites a bibliography it does not ship"
                 )
+
+
+def test_the_manifest_is_never_copied_into_a_project(client, tmp_path):
+    """`template.toml` describes a template to NextTex.  It is not a file
+    of the writer's, and a new project that arrived with one would carry
+    it into every share and every journal upload."""
+    root = tmp_path / "talk"
+    project = client.post(
+        "/api/projects/create", json={"path": str(root), "template": "beamer"}
+    ).json()
+    client.post(f"/api/projects/{project['id']}/open")
+    answer = client.post(f"/api/projects/{project['id']}/template", json={"name": "beamer"})
+    assert answer.status_code == 200, answer.text
+    assert "template.toml" not in answer.json()["written"]
+    assert not (root / "template.toml").exists()
+
+
+def test_a_seeded_project_holds_no_manifest(project_dir):
+    assert (project_dir / "main.tex").is_file()
+    assert not (project_dir / "template.toml").exists()
