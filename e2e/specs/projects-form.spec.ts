@@ -331,3 +331,23 @@ test("Escape closes the picker and nothing else", async ({ app, page }) => {
   await expect(browse).toBeFocused();
   await expect(sheet.getByPlaceholder(/Where to put it/)).toHaveValue("");
 });
+
+test("a folder the server refuses leaves the create button pressable", async ({ app, page }) => {
+  // `add` cleared its busy state only through `refresh`, which runs on a
+  // success, so a refusal said why and then left the button disabled: the
+  // writer could fix the folder and not press Create again.
+  const taken = join(app.projects, "already-taken");
+  mkdirSync(taken, { recursive: true });
+  writeFileSync(join(taken, "notes.txt"), "mine");
+  await page.goto(`${app.base}/?token=${app.token}`);
+  await page.getByText("Projects", { exact: false }).first().waitFor();
+  const sheet = await openWay(page, "create");
+  await sheet.getByPlaceholder(/Where to put it/).fill(taken);
+  const create = sheet.getByRole("button", { name: "Create project" });
+  await create.click();
+  await expect(sheet).toContainText("already has files in it");
+  await expect(create).toBeEnabled();
+  await sheet.getByPlaceholder(/Where to put it/).fill(join(app.projects, "a-fresh-one"));
+  await create.click();
+  await expect(page.locator(".cm-content")).toContainText("documentclass", { timeout: 20_000 });
+});

@@ -456,6 +456,11 @@ export default function Projects({
       if (project.id) onOpen(project.id);
     } catch (problem: any) {
       setError(problem.message);
+    } finally {
+      // Every way out: a refused folder, a bad arXiv id, a join that
+      // came back with an offer.  Only a success went through `refresh`,
+      // which clears it too, so a refusal left the button disabled.
+      setBusy(null);
     }
   };
 
