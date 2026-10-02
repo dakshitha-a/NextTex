@@ -1,0 +1,16 @@
+title = "A thesis"
+kind = "thesis"
+order = 30
+summary = "A book in chapters, with front matter and a bibliography by author and year."
+class = "memoir"
+source = "https://ctan.org/pkg/memoir"
+licence = "LPPL 1.3c"
+
+# Each TeX Live package the first build needs, with a file of its that
+# says whether it is here.  `checked` is the version last compared with
+# the package's source; scripts/check_templates.py compares them again.
+[needs]
+memoir = "memoir.cls"
+
+[checked]
+memoir = "3.8.4b"

@@ -191,6 +191,16 @@ destructive action pushed to the left with `mr-auto`, Cancel, and the one
 Claude"). A question before an irreversible act is the `nx-confirm` block
 in place, never a modal: one sentence, a `danger` button, Keep or Cancel.
 
+A choice among more options than a `Segmented` holds, past six, is one
+block in the sheet showing what is chosen, on `--surface-2` at the card
+radius with a ghost *Change* at its end, and *Change* turns the sheet's
+body into a chooser in place rather than opening a second sheet over it:
+a `Field` with the search icon, `ChipToggle`s to narrow by kind, and a
+list grouped under `t-meta` headings, a foot with *Back* alone. One press
+on a row chooses and goes back; Escape clears the field, then goes back,
+and never closes the sheet under it. New project's *Start from*
+(`frontend/src/panes/TemplateBrowser.tsx`) is the one there is.
+
 A class means one thing. A component rule's class is never borrowed by
 another element for one of its declarations, a colour say, because the
 rule's whole box comes with the name, and an unlayered rule beats any

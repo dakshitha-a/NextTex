@@ -1,0 +1,53 @@
+% A talk, on beamer with the metropolis theme: plain, flat and readable from
+% the back of the room.
+%
+% Each frame is one slide.  `\section` starts a part of the talk and gives it
+% a slide of its own.  Press the preview to step through the slides.
+
+\documentclass[aspectratio=169]{beamer}
+
+\usetheme{metropolis}
+
+\usepackage{amsmath}
+\usepackage{graphicx}
+\usepackage{booktabs}
+
+\usepackage[backend=biber, style=authoryear]{biblatex}
+\addbibresource{references.bib}
+
+\title{A Working Title}
+\subtitle{Where and when}
+\author{Your Name}
+\institute{Your Institution}
+\date{\today}
+
+\begin{document}
+
+\maketitle
+
+\section{The question}
+
+\begin{frame}{What this talk is about}
+  \begin{itemize}
+    \item One idea per slide.
+    \item A citation looks like this~\parencite{knuth1984}.
+  \end{itemize}
+\end{frame}
+
+\section{The answer}
+
+\begin{frame}{An equation}
+  \begin{equation*}
+    E = mc^2
+  \end{equation*}
+\end{frame}
+
+\begin{frame}[standout]
+  Questions?
+\end{frame}
+
+\begin{frame}{References}
+  \printbibliography
+\end{frame}
+
+\end{document}

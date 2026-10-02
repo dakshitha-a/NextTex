@@ -1,0 +1,17 @@
+title = "REVTeX article"
+kind = "journal"
+order = 24
+venue = "APS and AIP Publishing journals"
+summary = "Physical Review and the AIP journals, as a letter or an article."
+class = "revtex4-2"
+source = "https://journals.aps.org/revtex"
+licence = "LPPL 1.3c"
+
+# Each TeX Live package the first build needs, with a file of its that
+# says whether it is here.  `checked` is the version last compared with
+# the package's source; scripts/check_templates.py compares them again.
+[needs]
+revtex = "revtex4-2.cls"
+
+[checked]
+revtex = "4.2f"

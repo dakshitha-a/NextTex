@@ -10,7 +10,7 @@ from pathlib import Path
 
 import pytest
 
-from nexttex import texpkg
+from nexttex import texpkg, venues
 
 FAKE = Path(__file__).resolve().parent.parent / "fake_tlmgr.py"
 
@@ -63,6 +63,18 @@ def test_an_install_runs_the_manager_and_builds_again(client, opened, tlmgr):
     assert response.status_code == 200, response.text
     assert response.json() == {"ok": True, "err": ""}
     assert calls(tlmgr) == [["install", "mhchem-pkg"]]
+
+
+@pytest.mark.skipif(sys.platform == "win32", reason="the stand-in is a script")
+def test_an_install_makes_the_template_list_ask_the_tex_again(client, opened, tlmgr, monkeypatch):
+    """The browser says which package a template needs; once the package
+    is in, the next list must not say it again."""
+    forgot = []
+    monkeypatch.setattr(venues, "forget", lambda: forgot.append(True))
+    client.post(f"/api/projects/{opened['id']}/tex/install", json={"package": "mhchem-pkg"})
+    assert forgot == [True]
+    client.post(f"/api/projects/{opened['id']}/tex/install", json={"package": "stale-pkg"})
+    assert forgot == [True]
 
 
 @pytest.mark.skipif(sys.platform == "win32", reason="the stand-in is a script")

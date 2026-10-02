@@ -24,13 +24,17 @@ things go to be forgotten rather than a list anybody reads.
 
 ## In hand
 
-**Venue templates, and a browser to choose them in**, from `ROADMAP.md`,
-with its tracker at https://claude.ai/artifact/8jcpVy2s2vz54xNhFoqsBu.
-Done: each template's shape is its own `template.toml`, read by
-`nexttex/venues.py`. Left: the venue templates themselves, the browser,
-the soft check against CTAN, and the documents.
+Nothing is in hand. The venue templates run closed on 2 October 2026 at
+4.25.0, from 4.24.1, with its tracker at
+https://claude.ai/artifact/8jcpVy2s2vz54xNhFoqsBu. Done: each template's
+shape in a `template.toml` of its own; twelve venue templates on their
+publishers' TeX Live classes and eleven guides to the venues no licence
+lets NextTex ship; the template browser, with the class installed on
+Create; and a soft check of the classes against CTAN once per y bump.
+It turned up and fixed a refused folder leaving Create disabled, and the
+accessibility spec's light-theme tests auditing the dark theme.
 
-Before it, The motion, rail and tour run closed on 2 October
+Before it, the motion, rail and tour run closed on 2 October
 2026 at 4.22.0, from 4.21.1, at the writer's request. Done: a fold that
 moves once and stops, its strip's place widening with the slide and the
 page drawn sharp once the panes rest; a bar that shows a drawer over the
@@ -206,6 +210,10 @@ OpenAI provider against OpenAI itself.
       chat's length was never measured.
 
 ### Flaky, with the trace read
+
+- [ ] **`e2e/specs/history-panel.spec.ts:117` failed once under the
+      quick tier's full run for 4.24.2** and passed on its retry. It was
+      on the earlier flaky list; not read further this time.
 
 - [ ] **Four specs that failed once each under the full run's load
       in the roadmap run**: `bib-check.spec.ts:76` (the

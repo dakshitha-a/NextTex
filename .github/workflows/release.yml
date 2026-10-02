@@ -95,3 +95,13 @@ jobs:
             --title "NextTex ${{ steps.version.outputs.number }}" \
             --notes-file notes.md \
             --latest="$latest"
+
+      # Once per y bump, the venue templates are compared with their
+      # sources: each class's version on CTAN against the one its
+      # `template.toml` was checked against, and each guide's official
+      # page.  A soft check: it writes the run's summary and never fails
+      # the release, since a class that moved is work to do, not a fault.
+      - name: The venue templates against their sources
+        if: endsWith(steps.version.outputs.number, '.0')
+        continue-on-error: true
+        run: python3 scripts/check_templates.py

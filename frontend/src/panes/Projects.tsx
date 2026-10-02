@@ -28,7 +28,7 @@ import { tabStopFor } from "../tree";
 import {
   SORT_STORAGE, sortKeyFrom, viewCounts, visibleProjects, type ProjectView, type SortKey,
 } from "../project-filter";
-import { START_FROM, templateOrder } from "../templates";
+import { createLabel, type GuideInfo, type TemplateInfo } from "../templates";
 import { APPEARANCE_CHANGED, readStored, writeStored } from "../appearance";
 import { breakpoints } from "../layout";
 import { viewportWidth } from "../viewport";
@@ -42,6 +42,11 @@ const ScreenGuide = lazy(() => import("./tutorial/ScreenGuide"));
 const JoinOfferCard = lazy(() => import("./JoinOfferCard"));
 // And the folder picker, which is behind a button most visits never press.
 const FolderPicker = lazy(() => import("./FolderPicker"));
+// The template browser is opened from one sheet's Change, so it waits
+// for that press rather than riding in the projects screen's first load.
+const TemplateBrowser = lazy(() =>
+  import("./TemplateBrowser").then((module) => ({ default: module.TemplateBrowser })),
+);
 const SharePanel = lazy(() => import("./SharePanel"));
 /** The update footer draws nothing while it rests and asks the server
  *  for its state on mount, which a lazy mount does a frame later; at
@@ -154,10 +159,12 @@ export default function Projects({
     setError(null);
     setPicking(false);
     setWaysOpen(false);
+    setBrowsing(false);
     setWay(chosen);
   };
   const closeWay = () => {
     setWay(null);
+    setBrowsing(false);
     setPicking(false);
     setError(null);
   };
@@ -209,8 +216,16 @@ export default function Projects({
   /** What to fill a new project with. The route listing these has always
    *  existed and nothing ever called it, so every project started as an
    *  article whether or not the writer was writing one. */
-  const [templates, setTemplates] = useState<string[]>([]);
+  const [templates, setTemplates] = useState<TemplateInfo[]>([]);
+  const [guides, setGuides] = useState<GuideInfo[]>([]);
   const [template, setTemplate] = useState("basic");
+  /** Whether the create sheet is showing the template browser in place
+   *  of its form, which Change opens and a choice or Back closes. */
+  const [browsing, setBrowsing] = useState(false);
+  /** The package being installed for the chosen template, for the
+   *  button's label while it runs. */
+  const [installing, setInstalling] = useState<string | null>(null);
+  const chosen = templates.find((t) => t.name === template);
   const [busy, setBusy] = useState<string | null>(null);
   const [error, setError] = useState<string | null>(null);
   const [forgetting, setForgetting] = useState<string | null>(null);
@@ -241,15 +256,23 @@ export default function Projects({
   // mid-save, so the screen stops offering it.
   const [locked, setLocked] = useState(false);
 
-  // Once, on the way in. A list of directory names costs nothing and the
-  // chooser is hidden when there is only one, so an install that has had
+  // Each time the New project sheet opens, since a package installed
+  // for one project changes which templates need one.  The chooser is
+  // hidden when there is only one template, so an install that has had
   // its templates trimmed to the article looks exactly as it did.
   useEffect(() => {
+    if (way !== "create") return;
     api
       .templates()
-      .then((answer) => setTemplates(templateOrder(answer.templates)))
-      .catch(() => setTemplates([]));
-  }, []);
+      .then((answer) => {
+        setTemplates(answer.templates);
+        setGuides(answer.guides ?? []);
+      })
+      .catch(() => {
+        setTemplates([]);
+        setGuides([]);
+      });
+  }, [way]);
   // The strapline names whichever agent is configured, and says nothing
   // about one at all when the writer chose to work on their own.
   const provider = useStore((s) => s.agent?.provider);
@@ -447,6 +470,25 @@ export default function Projects({
           await api.loadTemplate(project.id, template);
         } catch (problem: any) {
           setError(`The project was made, but the template did not: ${problem.message}`);
+        }
+        // After the template, so the build each install starts is a
+        // build of the venue's document and the project opens on its
+        // page.  A package that will not install is said, and the
+        // project still opens: the Build drawer offers the same install.
+        for (const pkg of chosen?.missing ?? []) {
+          setInstalling(pkg);
+          try {
+            const result = await api.texInstall(project.id, pkg);
+            if (!result.ok) {
+              set({ error: `The project was made, but ${pkg} did not install: ${result.err}` });
+              break;
+            }
+          } catch (problem: any) {
+            set({ error: `The project was made, but ${pkg} did not install: ${problem.message}` });
+            break;
+          } finally {
+            setInstalling(null);
+          }
         }
       }
       setPath("");
@@ -1211,6 +1253,29 @@ export default function Projects({
           others with theirs. */}
       {way ? (
         <Sheet open onClose={closeWay} label={WAY_TITLES[way]} testid="way-form" width={520}>
+          {way === "create" && browsing ? (
+            <>
+              <Heading level={2} display>Start from</Heading>
+              <Suspense fallback={null}>
+              <TemplateBrowser
+                templates={templates}
+                guides={guides}
+                chosen={template}
+                onChoose={(name) => {
+                  setTemplate(name);
+                  setBrowsing(false);
+                }}
+                onBack={() => setBrowsing(false)}
+              />
+              </Suspense>
+              <div className="nx-sheet-foot">
+                <Button variant="quiet" className="mr-auto" data-testid="template-back" onClick={() => setBrowsing(false)}>
+                  Back
+                </Button>
+              </div>
+            </>
+          ) : (
+          <>
           <Heading level={2} display>{WAY_TITLES[way]}</Heading>
           <p className="t-meta mt-1 text-ink-2">
             {way === "create"
@@ -1349,21 +1414,28 @@ export default function Projects({
             /* Hidden when there is only one, which is what an install
                with its templates trimmed looks like: a chooser offering a
                single choice is a control that asks a question with one
-               answer. */
+               answer.  The chosen template is one block, and Change turns
+               the sheet into the browser, since eighteen templates and a
+               dozen guides are past what a row of buttons can hold. */
             <>
               <div className="nx-sheet-label">Start from</div>
-              <Segmented
-                label="What to start from"
-                testid="template-choice"
-                className="nx-segmented-wrap"
-                value={template}
-                options={templates.map((name) => ({
-                  value: name,
-                  label: START_FROM[name] ?? name,
-                  testid: `template-${name}`,
-                }))}
-                onChange={(name) => setTemplate(name)}
-              />
+              <div className="nx-template-chosen" data-testid="template-chosen">
+                <span className="nx-template-text">
+                  <span className="nx-template-title">{chosen?.title ?? template}</span>
+                  <span className="nx-template-line text-small">
+                    {chosen ? chosen.venue || chosen.summary : ""}
+                  </span>
+                </span>
+                <Button variant="ghost" data-testid="template-change" onClick={() => setBrowsing(true)}>
+                  Change
+                </Button>
+              </div>
+              {chosen?.missing?.length ? (
+                <p className="nx-template-hint t-meta" data-testid="template-needs">
+                  This TeX does not have {chosen.missing.join(", ")} yet. NextTex installs{" "}
+                  {chosen.missing.length === 1 ? "it" : "them"} when the project is made.
+                </p>
+              ) : null}
             </>
           ) : null}
           {error ? <p className="t-meta mt-3 text-error">{error}</p> : null}
@@ -1390,8 +1462,10 @@ export default function Projects({
                 ? "Joining…"
                 : busy === "add" && way === "bring"
                 ? "Bringing…"
+                : installing
+                ? `Installing ${installing}…`
                 : way === "create"
-                ? "Create project"
+                ? createLabel(chosen)
                 : way === "add"
                 ? "Open folder"
                 : way === "bring"
@@ -1399,6 +1473,8 @@ export default function Projects({
                 : "Join"}
             </Button>
           </div>
+          )}
+          </>
           )}
         </Sheet>
       ) : null}

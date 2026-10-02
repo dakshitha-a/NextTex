@@ -1,0 +1,131 @@
+# Templates NextTex cannot ship, because their files carry no licence that
+# lets anyone pass them on.  The browser lists each one with the way to get
+# it from the people who publish it.  A guide has a title, a kind, the
+# venue, the official page, and the steps, one sentence each.
+
+[[guide]]
+name = "neurips"
+title = "NeurIPS"
+kind = "conference"
+venue = "Neural Information Processing Systems"
+official = "https://neurips.cc/Conferences/2026/CallForPapers"
+steps = [
+  "Download this year's style files from the call for papers.",
+  "Start from an article, and drop the .sty file into the project.",
+  "Load it with \\usepackage{neurips_2026}, using the year's own name.",
+]
+
+[[guide]]
+name = "icml"
+title = "ICML"
+kind = "conference"
+venue = "International Conference on Machine Learning"
+official = "https://icml.cc/Conferences/2026/AuthorInstructions"
+steps = [
+  "Download this year's style files from the author instructions.",
+  "Start from an article, and drop the .sty and .bst files into the project.",
+  "Load it with \\usepackage{icml2026}, using the year's own name.",
+]
+
+[[guide]]
+name = "iclr"
+title = "ICLR"
+kind = "conference"
+venue = "International Conference on Learning Representations"
+official = "https://github.com/ICLR/Master-Template"
+steps = [
+  "Download the year's folder from the official template repository.",
+  "Start from an article, and drop its .sty and .bst files into the project.",
+  "Load it with \\usepackage{iclr2026_conference}, using the year's own name.",
+]
+
+[[guide]]
+name = "acl"
+title = "ACL, EMNLP and NAACL"
+kind = "conference"
+venue = "Association for Computational Linguistics"
+official = "https://github.com/acl-org/acl-style-files"
+steps = [
+  "Download acl.sty and acl_natbib.bst from the official repository.",
+  "Start from an article, and drop both files into the project.",
+  "Load it with \\usepackage[review]{acl} while under review.",
+]
+
+[[guide]]
+name = "cvpr"
+title = "CVPR"
+kind = "conference"
+venue = "Computer Vision and Pattern Recognition"
+official = "https://github.com/cvpr-org/author-kit"
+steps = [
+  "Download the author kit from the official repository.",
+  "Start from an article, and drop its .sty and .bst files into the project.",
+  "Load it with \\usepackage[review]{cvpr} while under review.",
+]
+
+[[guide]]
+name = "aaai"
+title = "AAAI"
+kind = "conference"
+venue = "AAAI Conference on Artificial Intelligence"
+official = "https://aaai.org/authorkit26-1/"
+steps = [
+  "Download this year's author kit from AAAI.",
+  "Start from an article, and drop its .sty and .bst files into the project.",
+  "Follow the kit's own main.tex for the preamble AAAI checks for.",
+]
+
+[[guide]]
+name = "springer-nature"
+title = "Springer Nature journal"
+kind = "journal"
+venue = "Springer Nature journals"
+official = "https://www.springernature.com/gp/authors/campaigns/latex-author-support"
+steps = [
+  "Download the LaTeX template from Springer Nature's author support page.",
+  "Make a new project by uploading the zip, under Other ways in.",
+]
+
+[[guide]]
+name = "plos"
+title = "PLOS journal"
+kind = "journal"
+venue = "PLOS ONE and the other PLOS journals"
+official = "https://journals.plos.org/plosone/s/latex"
+steps = [
+  "Download the LaTeX template from the PLOS submission guidelines.",
+  "Make a new project by uploading the zip, under Other ways in.",
+]
+
+[[guide]]
+name = "wiley"
+title = "Wiley journal"
+kind = "journal"
+venue = "Wiley journals"
+official = "https://authorservices.wiley.com/author-resources/Journal-Authors/Prepare/new-journal-design.html"
+steps = [
+  "Download the LaTeX template from Wiley's author services.",
+  "Make a new project by uploading the zip, under Other ways in.",
+]
+
+[[guide]]
+name = "taylor-francis"
+title = "Taylor & Francis journal"
+kind = "journal"
+venue = "Taylor & Francis journals"
+official = "https://www.tandfonline.com/"
+steps = [
+  "Find your journal and open its Instructions for authors, which links the interact template.",
+  "Make a new project by uploading the zip, under Other ways in.",
+]
+
+[[guide]]
+name = "mdpi"
+title = "MDPI journal"
+kind = "journal"
+venue = "MDPI journals"
+official = "https://www.mdpi.com/authors/latex"
+steps = [
+  "Download the LaTeX template from MDPI's author page.",
+  "Make a new project by uploading the zip, under Other ways in.",
+]

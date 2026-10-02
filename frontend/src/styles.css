@@ -1541,6 +1541,40 @@ button.nx-row { width: 100%; text-align: left; }
 .nx-member:hover .nx-member-remove, .nx-member:focus-within .nx-member-remove { opacity: 1; }
 @media (hover: none) { .nx-member-remove { opacity: 1; } }
 
+/* The New project sheet's Start from: the chosen template as one block
+   on the second surface, its title over its venue, with Change at its
+   end; and the browser Change turns the sheet into, a field over chips
+   over a list grouped by kind.  A row is two lines in a 44 px block, a
+   check in a 16 px column marking the chosen one, the wash under the
+   pointer; a guide's steps open under it on the same indent. */
+.nx-template-chosen {
+  display: flex; align-items: center; gap: 12px;
+  padding: 8px 8px 8px 12px; border-radius: var(--nx-radius-card); background: var(--surface-2);
+}
+.nx-template-chosen .nx-template-text { flex: 1; }
+.nx-template-hint { margin: 6px 0 0; color: var(--ink-3); }
+.nx-template-browser { display: flex; flex-direction: column; gap: 8px; margin-top: 12px; min-height: 0; }
+.nx-template-kinds { display: flex; flex-wrap: wrap; gap: 6px; }
+.nx-template-list { max-height: min(52vh, 440px); overflow-y: auto; margin: 0 -8px; padding: 0 8px; }
+.nx-template-group { color: var(--ink-3); padding: 10px 0 4px; }
+.nx-template-subgroup { padding-top: 8px; }
+.nx-template-row, .nx-template-guide-head {
+  display: flex; align-items: center; gap: 8px; width: 100%;
+  min-height: 44px; padding: 4px 8px; border-radius: var(--nx-radius-control);
+  text-align: left; color: var(--ink);
+}
+.nx-template-row { transition: background-color var(--dur-quick) var(--ease); }
+.nx-template-row:hover, .nx-template-row:focus-visible, .nx-template-row[aria-pressed="true"] { background: var(--wash); }
+.nx-template-row:focus-visible { outline: none; box-shadow: inset 0 0 0 1px var(--hint); }
+.nx-template-mark { width: 16px; flex: none; display: inline-flex; color: var(--ink); }
+.nx-template-text { display: flex; flex-direction: column; min-width: 0; flex: 1; }
+.nx-template-title { font-size: 14px; line-height: 20px; font-weight: 500; color: var(--ink); }
+.nx-template-line { color: var(--ink-3); line-height: 17px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.nx-template-needs { flex: none; color: var(--ink-3); }
+.nx-template-steps { padding: 0 8px 10px 32px; }
+.nx-template-steps ol { margin: 0 0 6px; padding-left: 18px; color: var(--ink-2); }
+.nx-template-steps li { margin: 2px 0; }
+
 /* The floating pill: the way to the Claude column while it is an overlay
    and parked.  The kit's card, on the first surface with the float shadow
    and no border; the mark and the name, and the shortcut only in its

@@ -1,0 +1,17 @@
+title = "Elsevier article"
+kind = "journal"
+order = 21
+venue = "Elsevier journals"
+summary = "Elsevier's classic class, single-column for submission."
+class = "elsarticle"
+source = "https://www.elsevier.com/researcher/author/policies-and-guidelines/latex-instructions"
+licence = "LPPL 1.3"
+
+# Each TeX Live package the first build needs, with a file of its that
+# says whether it is here.  `checked` is the version last compared with
+# the package's source; scripts/check_templates.py compares them again.
+[needs]
+elsarticle = "elsarticle.cls"
+
+[checked]
+elsarticle = "3.5"

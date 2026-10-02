@@ -114,6 +114,16 @@ stale-mirror message, and writes every argv it saw to the file
 press the drawer's Install button twice against a real pdflatex build and
 assert what would have been run.
 
+`tests/fake_kpsewhich.py` stands in for `kpsewhich` behind
+`NEXTTEX_KPSEWHICH`: it finds every file asked for except those
+`NEXTTEX_FAKE_KPSEWHICH_LACKS` names as `file=package` pairs, and finds
+those too once the fake tlmgr's log shows their package installed. With
+both, `e2e/specs/template-browser.spec.ts` shows the template browser a
+TeX that lacks acmart, makes an ACM project, and sees the install happen
+and the template stop asking for it, on a machine whose real TeX has
+acmart. `tests/test_venues.py` builds every venue template with latexmk
+where a TeX is installed and skips where there is none, as on CI.
+
 `tests/fake_pandoc.py` stands in for pandoc behind `NEXTTEX_PANDOC` and
 logs its argv to `NEXTTEX_FAKE_PANDOC_LOG`. It follows the export's two
 passes: asked for `-t json` it writes a tree with one image for every

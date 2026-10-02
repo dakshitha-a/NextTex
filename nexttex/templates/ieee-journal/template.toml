@@ -1,0 +1,17 @@
+title = "IEEE journal article"
+kind = "journal"
+order = 20
+venue = "IEEE journals and transactions"
+summary = "The two-column format of an IEEE transactions paper."
+class = "IEEEtran"
+source = "https://journals.ieeeauthorcenter.ieee.org/create-your-ieee-journal-article/authoring-tools-and-templates/"
+licence = "LPPL 1.3"
+
+# Each TeX Live package the first build needs, with a file of its that
+# says whether it is here.  `checked` is the version last compared with
+# the package's source; scripts/check_templates.py compares them again.
+[needs]
+ieeetran = "IEEEtran.cls"
+
+[checked]
+ieeetran = "1.8b"

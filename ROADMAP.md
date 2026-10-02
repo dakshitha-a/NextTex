@@ -36,8 +36,9 @@ came from a survey on 1 October 2026 of what the code already does against
 what writers of papers and theses meet. The roadmap run of the same day
 built the first eight of them, 4.14.0 to 4.21.0, each with a section of
 its own in `docs/design.md`, 93 and 95 to 101. The large one left over,
-venue templates and a browser to choose them in, entered `TRACKER.md`'s
-*In hand* on 2 October 2026 for a run of its own. A new item goes here,
+venue templates and a browser to choose them in, was built in a run of
+its own on 2 October 2026, 4.24.2 to 4.25.0, section 107. The list is
+empty. A new item goes here,
 in its place in the order, when somebody proposes it.
 
 ## Not adopting, and why

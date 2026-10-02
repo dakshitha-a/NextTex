@@ -5547,6 +5547,9 @@ resume. The chooser lists the five in the order the direction page draws
 them, the article first and the application last, rather than the
 directories' alphabet.
 
+Section 107 replaced this row of buttons with one chosen block and a
+browser, when the templates grew to eighteen.
+
 ### One item on the menu, and it was the wrong one for the common case
 
 An underlined word offered "Add to the dictionary" and nothing else. That is
@@ -11878,3 +11881,70 @@ unfolding the preview if it was folded; before a build there is no page,
 and a press opens the source. `e2e/specs/typeset.spec.ts` lists a
 chapter file's headings after main.tex's, presses one to its page, and
 opens another in the editor.
+
+
+## 107. Venue templates, and a browser to choose them in
+
+The last item of the roadmap, built on 2 October 2026. A writer starting
+a paper looks first for the venue's template, and New project offered
+six, as a row of buttons that had already wrapped. There are now
+eighteen, and a dozen guides to venues NextTex cannot ship, which a row
+of buttons cannot hold.
+
+**What ships, and why only that.** The licences were read first. Every
+publisher class worth starting from is in TeX Live under the LPPL or CC
+BY: ACM's acmart, IEEEtran, Springer's llncs, elsarticle and Elsevier's
+CAS classes, the AMS's amsart, REVTeX, Oxford's authoring template,
+memoir, moderncv and the metropolis theme. So NextTex ships only a
+skeleton of its own for each, in its own words with no publisher's
+sample text, and the class comes from TeX Live. The twelve new ones are
+an ACM paper, an IEEE conference paper and an IEEE journal article,
+Springer LNCS, an Elsevier article and an Elsevier CAS article, an AMS
+article, a REVTeX article, an Oxford journal article, a thesis in
+chapters, a CV and a metropolis talk. The conference kits that change
+every year, NeurIPS, ICML, ICLR, ACL, CVPR and AAAI, carry no licence at
+all, and Springer Nature, PLOS, Wiley, Taylor & Francis and MDPI hand out
+zips whose terms say nothing about passing them on. Those are guides: the
+browser lists each one with two or three steps and a link to the
+publisher's own page.
+
+**The form.** Start from is one block now, the chosen template's title
+over its venue, with Change at its end. A template whose class this TeX
+does not have says so under the block, naming the packages, and the
+create button names both verbs, *Install acmart and create*. The project
+is made, the template written, and then each package installed through
+the Build drawer's own install, so the build that follows is a build of
+the venue's document and the project opens on its page. A package that
+will not install is said inside the project, which still opens.
+
+**The browser.** Change turns the sheet into a field over chips over a
+list: every word typed must appear in a template's title, venue, class
+or summary, the projects filter's rule, and the chips, one per kind,
+narrow the list to the kinds pressed. The groups come in one order, the
+everyday kinds first, *Articles and reports*, *Talks*, *Letters and CVs*,
+then *Conferences*, *Journals* and *Theses*, so the six templates most
+projects start from are the top of the list. A row is two lines, the
+title over the venue and the class, with a check in a column of its own
+on the chosen one and *Installs acmart* at its end when the TeX lacks
+it. One press chooses and goes back to the form; Enter in the field
+chooses the first match. Escape clears the field, then goes back, and
+never closes the sheet, which would lose the name and folder already
+typed. A guide's row has no choice to make: *How to get it* opens its
+steps under it with *Open the official page*.
+
+The direction page's "The template browser" draws it, redrawn after the
+first render where the drawing and the build differed: the chips are
+named for the kinds rather than an *Everyday* chip, and the guide's link
+takes the kit's hint colour. `e2e/specs/template-browser.spec.ts`
+searches, narrows, opens a guide, audits the sheet with axe in both
+themes, and makes an ACM project on a TeX that lacks acmart, with
+`tests/fake_tlmgr.py` and `tests/fake_kpsewhich.py` standing in for the
+TeX.
+
+**Kept honest once per y bump.** Each template's manifest records the
+version of its class it was last built against. The release workflow,
+for a tag whose z is 0, runs `scripts/check_templates.py`, which asks
+CTAN for each class's current version and each guide's page whether it
+still answers, and writes what moved into the run's summary. It never
+fails the release: a class that moved is a skeleton to build again, not
+a fault in the push.

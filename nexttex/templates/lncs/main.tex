@@ -1,0 +1,51 @@
+% A paper for a Springer Lecture Notes in Computer Science volume, on
+% Springer's own class, llncs.
+%
+% Most computer science conferences that publish with Springer ask for this.
+% The bibliography style is Springer's, splncs04.  For review, the call for
+% papers says whether to remove the names.
+
+\documentclass[runningheads]{llncs}
+
+\usepackage{amsmath}
+\usepackage{graphicx}
+
+\begin{document}
+
+\title{A Working Title}
+\author{Your Name}
+\authorrunning{Y. Name}
+\institute{Your Institution, City, Country\\
+\email{you@example.org}}
+
+\maketitle
+
+\begin{abstract}
+One paragraph saying what the work is, what you did, and what you found.
+Write it last.
+\keywords{First keyword \and second keyword.}
+\end{abstract}
+
+\section{Introduction}
+\label{sec:introduction}
+
+Start here.  A citation looks like this~\cite{knuth1984}, and a reference to
+another section looks like Section~\ref{sec:method}.
+
+\section{Method}
+\label{sec:method}
+
+A numbered equation:
+\begin{equation}
+  \label{eq:example}
+  E = mc^2.
+\end{equation}
+
+\section{Conclusion}
+
+What the results mean, and what they do not.
+
+\bibliographystyle{splncs04}
+\bibliography{references}
+
+\end{document}

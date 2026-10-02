@@ -1,0 +1,22 @@
+title = "Oxford journal article"
+kind = "journal"
+order = 25
+venue = "Oxford University Press journals"
+summary = "The OUP authoring layout, in its contemporary design."
+class = "oup-authoring-template"
+source = "https://academic.oup.com/journals/pages/authors/preparing_your_manuscript"
+licence = "LPPL 1.3"
+
+# Each TeX Live package the first build needs, with a file of its that
+# says whether it is here.  `checked` is the version last compared with
+# the package's source; scripts/check_templates.py compares them again.
+[needs]
+"oup-authoring-template" = "oup-authoring-template.cls"
+anyfontsize = "anyfontsize.sty"
+changepage = "chngpage.sty"
+sttools = "flushend.sty"
+subfloat = "subfloat.sty"
+totcount = "totcount.sty"
+
+[checked]
+"oup-authoring-template" = "1.5"

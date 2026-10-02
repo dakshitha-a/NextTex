@@ -1,0 +1,17 @@
+title = "AMS article"
+kind = "journal"
+order = 23
+venue = "American Mathematical Society"
+summary = "The AMS layout, with theorems set up."
+class = "amsart"
+source = "https://www.ams.org/arc/resources/amslatex-about.html"
+licence = "LPPL 1.3c"
+
+# Each TeX Live package the first build needs, with a file of its that
+# says whether it is here.  `checked` is the version last compared with
+# the package's source; scripts/check_templates.py compares them again.
+[needs]
+amscls = "amsart.cls"
+
+[checked]
+amscls = "2.20.6"

@@ -3642,6 +3642,8 @@ async def tex_install(project_id: str, package: str = Body(..., embed=True)):
         raise HTTPException(400, f"{package!r} is not a package name")
     result = await texpkg.install(package)
     if result["ok"]:
+        # A template that needed this package no longer does.
+        venues.forget()
         for state in list(session.documents.values()):
             spawn(
                 session.compile(force_full=True, document=state.path),
@@ -5856,9 +5858,16 @@ def template_scaffolds(name: str) -> bool:
 
 @app.get("/api/templates")
 async def list_templates():
-    if not TEMPLATES.is_dir():
-        return {"templates": []}
-    return {"templates": sorted(t.name for t in venues.templates())}
+    """Every template in the chooser's order, each with the TeX Live
+    packages it needs that this TeX lacks (`null` when there is no
+    kpsewhich to ask), and the guides to the venues NextTex cannot ship.
+    The TeX is asked once, off the loop, and again after an install."""
+    def listing() -> dict:
+        return {
+            "templates": [t.as_dict(venues.missing(t)) for t in venues.templates()],
+            "guides": [g.as_dict() for g in venues.guides()],
+        }
+    return await asyncio.to_thread(listing)
 
 
 @app.post("/api/projects/{project_id}/template")

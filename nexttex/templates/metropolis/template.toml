@@ -1,0 +1,16 @@
+title = "A talk, metropolis"
+kind = "talk"
+order = 40
+summary = "Beamer with the metropolis theme: plain, flat and readable from the back of the room."
+class = "beamer"
+source = "https://ctan.org/pkg/beamertheme-metropolis"
+licence = "Other free"
+
+# Each TeX Live package the first build needs, with a file of its that
+# says whether it is here.  `checked` is the version last compared with
+# the package's source; scripts/check_templates.py compares them again.
+[needs]
+"beamertheme-metropolis" = "beamerthememetropolis.sty"
+
+[checked]
+"beamertheme-metropolis" = "1.2"

@@ -1,0 +1,50 @@
+% A paper for an American Physical Society or AIP Publishing journal, on
+% their own class, REVTeX 4.2.
+%
+% `aps,prl` is Physical Review Letters; `aps,prb` is Physical Review B, and
+% so on for each journal.  `reprint` gives the two-column printed page and
+% `preprint` the single-column one.  REVTeX sets the bibliography itself.
+
+\documentclass[aps,prl,reprint,amsmath,amssymb]{revtex4-2}
+
+\usepackage{graphicx}
+
+\begin{document}
+
+\title{A Working Title}
+
+\author{Your Name}
+\email{you@example.org}
+\affiliation{Your Institution, City, Country}
+
+\date{\today}
+
+\begin{abstract}
+One paragraph saying what the work is, what you did, and what you found.
+Write it last.
+\end{abstract}
+
+\maketitle
+
+\section{Introduction}
+\label{sec:introduction}
+
+Start here.  A citation looks like this~\cite{knuth1984}, and a reference to
+another section looks like Section~\ref{sec:method}.
+
+\section{Method}
+\label{sec:method}
+
+A numbered equation:
+\begin{equation}
+  \label{eq:example}
+  E = mc^2.
+\end{equation}
+
+\section{Conclusion}
+
+What the results mean, and what they do not.
+
+\bibliography{references}
+
+\end{document}

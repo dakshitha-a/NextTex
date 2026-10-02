@@ -1,0 +1,57 @@
+% A paper for an Elsevier journal that uses the newer CAS layout, on
+% Elsevier's own class, cas-sc.
+%
+% `cas-sc` is one column and `cas-dc` is two; the journal's guide for authors
+% says which.  The bibliography style is the CAS numbered one.
+
+\documentclass[a4paper,fleqn]{cas-sc}
+
+\usepackage[numbers]{natbib}
+
+\begin{document}
+
+\shorttitle{A Working Title}
+\shortauthors{Your Name}
+
+\title [mode = title]{A Working Title}
+
+\author[1]{Your Name}
+\ead{you@example.org}
+\affiliation[1]{organization={Your Institution},
+  city={City},
+  country={Country}}
+
+\begin{abstract}
+One paragraph saying what the work is, what you did, and what you found.
+Write it last.
+\end{abstract}
+
+\begin{keywords}
+first keyword \sep second keyword
+\end{keywords}
+
+\maketitle
+
+\section{Introduction}
+\label{sec:introduction}
+
+Start here.  A citation looks like this~\cite{knuth1984}, and a reference to
+another section looks like Section~\ref{sec:method}.
+
+\section{Method}
+\label{sec:method}
+
+A numbered equation:
+\begin{equation}
+  \label{eq:example}
+  E = mc^2.
+\end{equation}
+
+\section{Conclusion}
+
+What the results mean, and what they do not.
+
+\bibliographystyle{cas-model2-names}
+\bibliography{references}
+
+\end{document}

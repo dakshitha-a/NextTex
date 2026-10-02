@@ -235,6 +235,20 @@ in the middle.
 
 </td>
 </tr>
+<tr>
+<td>
+
+### Start from your venue's template
+
+ACM, IEEE, Springer, Elsevier, AMS, REVTeX, Oxford, a thesis or a CV, each
+on the publisher's own class, which NextTex installs if your TeX lacks it.
+For the conference kits nobody may pass on, it says where to get them.
+
+[More on templates →](docs/guide.md#a-project-on-disk)
+
+</td>
+<td><picture><source media="(prefers-color-scheme: dark)" srcset="docs/tour/templates-dark.webp"><img src="docs/tour/templates-light.webp" alt="The template browser: a search field, chips for each kind, the conference templates with ACM chosen, and a guide to ICML opened to its steps and the official page." width="380"></picture></td>
+</tr>
 </table>
 
 <details>

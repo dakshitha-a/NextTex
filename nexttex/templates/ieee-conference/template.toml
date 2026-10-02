@@ -1,0 +1,17 @@
+title = "IEEE conference paper"
+kind = "conference"
+order = 11
+venue = "IEEE conferences"
+summary = "The two-column format of an IEEE conference's proceedings."
+class = "IEEEtran"
+source = "https://www.ieee.org/conferences/publishing/templates"
+licence = "LPPL 1.3"
+
+# Each TeX Live package the first build needs, with a file of its that
+# says whether it is here.  `checked` is the version last compared with
+# the package's source; scripts/check_templates.py compares them again.
+[needs]
+ieeetran = "IEEEtran.cls"
+
+[checked]
+ieeetran = "1.8b"

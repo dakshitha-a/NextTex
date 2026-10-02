@@ -1,0 +1,60 @@
+% A paper for an Elsevier journal, on Elsevier's own class, elsarticle.
+%
+% `preprint` is the single-column format for submission.  For a sense of the
+% printed page, `final,3p` or `final,5p,twocolumn` give one and two columns.
+% The bibliography style is Elsevier's numbered one; the journal's guide for
+% authors says if it wants names and years instead.
+
+\documentclass[preprint,12pt]{elsarticle}
+
+\usepackage{amsmath}
+\usepackage{graphicx}
+
+\journal{The Journal}
+
+\begin{document}
+
+\begin{frontmatter}
+
+\title{A Working Title}
+
+\author[inst]{Your Name}
+\ead{you@example.org}
+\affiliation[inst]{organization={Your Institution},
+  city={City},
+  country={Country}}
+
+\begin{abstract}
+One paragraph saying what the work is, what you did, and what you found.
+Write it last.
+\end{abstract}
+
+\begin{keyword}
+first keyword \sep second keyword
+\end{keyword}
+
+\end{frontmatter}
+
+\section{Introduction}
+\label{sec:introduction}
+
+Start here.  A citation looks like this~\cite{knuth1984}, and a reference to
+another section looks like Section~\ref{sec:method}.
+
+\section{Method}
+\label{sec:method}
+
+A numbered equation:
+\begin{equation}
+  \label{eq:example}
+  E = mc^2.
+\end{equation}
+
+\section{Conclusion}
+
+What the results mean, and what they do not.
+
+\bibliographystyle{elsarticle-num}
+\bibliography{references}
+
+\end{document}

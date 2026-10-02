@@ -1,0 +1,48 @@
+% A thesis or dissertation, on memoir, a class made for books.
+%
+% Each chapter is a file of its own under chapters/, pulled in with
+% \include, so a chapter can be written, moved or dropped without touching
+% the others.  Your university's handbook sets the margins, the spacing and
+% the order of the front matter; give that handbook to Claude and it will
+% reshape this to match.
+
+\documentclass[12pt,a4paper,oneside]{memoir}
+
+\usepackage[T1]{fontenc}
+\usepackage{lmodern}
+\usepackage{microtype}
+\usepackage{amsmath, amssymb}
+\usepackage{graphicx}
+\usepackage{booktabs}
+
+\usepackage[backend=biber, style=authoryear]{biblatex}
+\addbibresource{references.bib}
+
+\usepackage{hyperref}
+
+\OnehalfSpacing
+\chapterstyle{madsen}
+
+\title{A Working Title}
+\author{Your Name}
+\date{\today}
+
+\begin{document}
+
+\frontmatter
+\maketitle
+
+\chapter*{Abstract}
+One page saying what the work is, what you did, and what you found.  Write
+it last.
+
+\tableofcontents
+
+\mainmatter
+\include{chapters/01-introduction}
+\include{chapters/02-method}
+
+\backmatter
+\printbibliography
+
+\end{document}

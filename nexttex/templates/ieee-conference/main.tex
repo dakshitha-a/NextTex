@@ -1,0 +1,55 @@
+% A paper for an IEEE conference, on IEEE's own class, IEEEtran.
+%
+% `conference` is the two-column proceedings format.  The bibliography style
+% is IEEE's numbered one, and the references are numbered in the order they
+% are first cited.
+
+\documentclass[conference]{IEEEtran}
+
+\usepackage{amsmath}
+\usepackage{graphicx}
+\usepackage{cite}
+
+\begin{document}
+
+\title{A Working Title}
+
+\author{\IEEEauthorblockN{Your Name}
+\IEEEauthorblockA{Your Institution\\
+City, Country\\
+you@example.org}}
+
+\maketitle
+
+\begin{abstract}
+One paragraph saying what the work is, what you did, and what you found.
+Write it last.
+\end{abstract}
+
+\begin{IEEEkeywords}
+first keyword, second keyword
+\end{IEEEkeywords}
+
+\section{Introduction}
+\label{sec:introduction}
+
+Start here.  A citation looks like this~\cite{knuth1984}, and a reference to
+another section looks like Section~\ref{sec:method}.
+
+\section{Method}
+\label{sec:method}
+
+A numbered equation:
+\begin{equation}
+  \label{eq:example}
+  E = mc^2.
+\end{equation}
+
+\section{Conclusion}
+
+What the results mean, and what they do not.
+
+\bibliographystyle{IEEEtran}
+\bibliography{references}
+
+\end{document}

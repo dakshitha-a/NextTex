@@ -12,8 +12,21 @@ from server import main as server_main
 def test_every_template_is_offered(client):
     answer = client.get("/api/templates")
     assert answer.status_code == 200
-    names = answer.json()["templates"]
-    assert names == ["application", "basic", "beamer", "letter", "reply", "report"]
+    names = [t["name"] for t in answer.json()["templates"]]
+    # The six everyday ones first, in the order the chooser has always
+    # had, then the venues by kind.
+    assert names == [
+        "basic", "report", "beamer", "letter", "application", "reply",
+        "acm", "ieee-conference", "lncs",
+        "ieee-journal", "elsevier", "elsevier-cas", "ams", "revtex", "oup",
+        "thesis", "metropolis", "cv",
+    ]
+    acm = answer.json()["templates"][6]
+    assert acm["title"] == "ACM paper" and acm["kind"] == "conference"
+    assert acm["class"] == "acmart" and acm["source"].startswith("https://")
+    guides = {g["name"]: g for g in answer.json()["guides"]}
+    assert {"neurips", "icml", "acl", "springer-nature"} <= set(guides)
+    assert guides["icml"]["steps"] and guides["icml"]["official"].startswith("https://")
 
 
 def test_a_named_template_is_the_one_that_is_written(client, opened):
@@ -78,7 +91,7 @@ def test_the_application_template_is_two_documents_and_the_resume_leads(client, 
 
 def test_a_template_nobody_has_is_a_404(client, opened):
     answer = client.post(
-        f"/api/projects/{opened['id']}/template", json={"name": "thesis"}
+        f"/api/projects/{opened['id']}/template", json={"name": "dissertation"}
     )
     assert answer.status_code == 404
 
@@ -118,3 +131,43 @@ def test_the_manifest_is_never_copied_into_a_project(client, tmp_path):
 def test_a_seeded_project_holds_no_manifest(project_dir):
     assert (project_dir / "main.tex").is_file()
     assert not (project_dir / "template.toml").exists()
+
+
+def test_a_template_says_which_packages_this_tex_lacks(client, monkeypatch):
+    """Asked of kpsewhich once for every file, and asked again after an
+    install, so the row stops offering to install what is now here."""
+    from nexttex import venues
+
+    asked = []
+
+    def present(names):
+        asked.append(names)
+        return {name for name in names if name != "acmart.cls" and name != "totpages.sty"}
+
+    monkeypatch.setattr(venues, "_present", present)
+    venues.forget()
+    rows = {t["name"]: t for t in client.get("/api/templates").json()["templates"]}
+    assert rows["acm"]["missing"] == ["acmart", "totpages"]
+    assert rows["ieee-conference"]["missing"] == []
+    assert rows["basic"]["missing"] == []
+    client.get("/api/templates")
+    assert len(asked) == 1
+    venues.forget()
+    monkeypatch.setattr(venues, "_present", lambda names: None)
+    rows = {t["name"]: t for t in client.get("/api/templates").json()["templates"]}
+    # No kpsewhich, as on a machine with no TeX: nobody can say.
+    assert rows["acm"]["missing"] is None
+    assert rows["basic"]["missing"] == []
+    venues.forget()
+
+
+def test_every_venue_template_uses_the_class_it_names():
+    from nexttex import venues
+
+    for template in venues.templates():
+        if not template.cls:
+            continue
+        lead = (venues.ROOT / template.name / template.lead).read_text(encoding="utf-8")
+        assert f"{{{template.cls}}}" in lead.split("\\begin{document}")[0], template.name
+        assert template.needs, f"{template.name} names a class and no package for it"
+        assert set(template.checked) <= set(template.needs)

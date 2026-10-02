@@ -1,0 +1,56 @@
+% A paper for an ACM conference or journal, on ACM's own class, acmart.
+%
+% `sigconf` is the two-column proceedings format most ACM conferences ask
+% for; `acmsmall` is the single-column journal format.  For review, add
+% `review,anonymous` to the options.  The venue's call for papers says which.
+% The rights block, the CCS concepts and the DOI are filled in from what ACM
+% sends you after acceptance; until then the class prints placeholders.
+
+\documentclass[sigconf]{acmart}
+
+\setcopyright{none}
+\acmConference[Conference '27]{The Conference}{June 2027}{City, Country}
+
+\begin{document}
+
+\title{A Working Title}
+
+\author{Your Name}
+\affiliation{%
+  \institution{Your Institution}
+  \city{City}
+  \country{Country}}
+\email{you@example.org}
+
+\begin{abstract}
+  One paragraph saying what the work is, what you did, and what you found.
+  Write it last.
+\end{abstract}
+
+\keywords{first keyword, second keyword}
+
+\maketitle
+
+\section{Introduction}
+\label{sec:introduction}
+
+Start here.  A citation looks like this~\cite{knuth1984}, and a reference to
+another section looks like Section~\ref{sec:method}.
+
+\section{Method}
+\label{sec:method}
+
+A numbered equation:
+\begin{equation}
+  \label{eq:example}
+  E = mc^2.
+\end{equation}
+
+\section{Conclusion}
+
+What the results mean, and what they do not.
+
+\bibliographystyle{ACM-Reference-Format}
+\bibliography{references}
+
+\end{document}

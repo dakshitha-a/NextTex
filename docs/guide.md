@@ -240,7 +240,7 @@ makes typing slower on the day it happens.
 | A settled edit written to disk | 1.4 ms | 40 ms |
 | The same, with its version recorded | 3.0 ms | 60 ms |
 | Whole project as a zip | 67 ms | 3 s |
-| Interface bundle | 330.4 kB | 400 kB |
+| Interface bundle | 332.5 kB | 400 kB |
 
 The first row is the one worth keeping. The compile rewrites `build/main.pdf`,
 the symbol cache's stamp walk used to count it, and every build therefore
@@ -995,11 +995,18 @@ What has and has not been verified on Windows is in
 Point NextTex at any folder containing a LaTeX document: *Open a folder*,
 under *Other ways in* on the projects screen, takes a path typed in or
 picked with Browse, which walks the disk of the machine NextTex is running
-on. `examples/minimal-article` is there to try it on. A new project starts from one of six templates: an article, a
-report in chapters, a talk, a letter, a job application, which is a
-resume and a cover letter as two documents with a `posting.md` beside them
-for the listing's notes, the shape a folder per application takes, or a
-reply to reviewers. A
+on. `examples/minimal-article` is there to try it on. A new project starts from a template, chosen under *Start from* with
+*Change*, which lists them all with a field to search them. Six are for
+every day: an article, a report in chapters, a talk, a letter, a job
+application, which is a resume and a cover letter as two documents with a
+`posting.md` beside them for the listing's notes, the shape a folder per
+application takes, and a reply to reviewers. Twelve are for a venue: ACM,
+IEEE conference and journal, Springer LNCS, Elsevier and Elsevier CAS,
+AMS, REVTeX, Oxford, a thesis, a CV and a metropolis talk, each on the
+publisher's own class from TeX Live, which NextTex installs when your TeX
+lacks it. The yearly conference kits, NeurIPS, ICML, ICLR, ACL, CVPR and
+AAAI, and a few publishers' journal templates cannot be passed on, so the
+list says how to get each from its publisher and links to the page. A
 project that exists somewhere else is brought here from the "Other ways in"
 menu: choose a zip somebody sent, type an arXiv id, or paste a git
 URL, and it arrives in a new folder. A zip's entries that would run or

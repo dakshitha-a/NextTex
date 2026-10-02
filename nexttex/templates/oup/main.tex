@@ -1,0 +1,60 @@
+% A paper for an Oxford University Press journal, on OUP's own class,
+% oup-authoring-template.
+%
+% `contemporary` is one of the class's page designs; `modern` and
+% `traditional` are the others, and the journal's instructions say which.
+% `webpdf` makes the links work in the PDF.
+
+\documentclass[unnumsec,webpdf,contemporary,large]{oup-authoring-template}
+
+\usepackage{graphicx}
+
+% Version 1.5 of the class asks for a society's logo on the last page and
+% stops the build when there is none; this says there is none.
+\providecommand{\societylogo}{}
+
+\begin{document}
+
+\journaltitle{The Journal}
+\DOI{DOI HERE}
+\copyrightyear{2027}
+\pubyear{2027}
+\appnotes{Paper}
+
+\firstpage{1}
+
+\title[A Working Title]{A Working Title}
+
+\author[1]{Your Name}
+\address[1]{\orgname{Your Institution}, \orgaddress{\state{City}, \country{Country}}}
+\corresp[$\ast$]{Corresponding author. \href{mailto:you@example.org}{you@example.org}}
+
+\abstract{One paragraph saying what the work is, what you did, and what you found.
+Write it last.}
+\keywords{first keyword, second keyword}
+
+\maketitle
+
+\section{Introduction}
+\label{sec:introduction}
+
+Start here.  A citation looks like this~\cite{knuth1984}, and a reference to
+another section looks like Section~\ref{sec:method}.
+
+\section{Method}
+\label{sec:method}
+
+A numbered equation:
+\begin{equation}
+  \label{eq:example}
+  E = mc^2.
+\end{equation}
+
+\section{Conclusion}
+
+What the results mean, and what they do not.
+
+\bibliographystyle{abbrvnat}
+\bibliography{references}
+
+\end{document}

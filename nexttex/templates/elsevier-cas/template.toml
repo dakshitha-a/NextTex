@@ -1,0 +1,21 @@
+title = "Elsevier CAS article"
+kind = "journal"
+order = 22
+venue = "Elsevier journals with the CAS layout"
+summary = "The newer Elsevier layout, in one column or two."
+class = "cas-sc"
+source = "https://www.elsevier.com/researcher/author/policies-and-guidelines/latex-instructions"
+licence = "LPPL 1.3c"
+
+# Each TeX Live package the first build needs, with a file of its that
+# says whether it is here.  `checked` is the version last compared with
+# the package's source; scripts/check_templates.py compares them again.
+[needs]
+"els-cas-templates" = "cas-sc.cls"
+footmisc = "footmisc.sty"
+moreverb = "moreverb.sty"
+sttools = "stfloats.sty"
+wrapfig = "wrapfig.sty"
+
+[checked]
+"els-cas-templates" = "2.4"

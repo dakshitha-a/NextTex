@@ -1,0 +1,22 @@
+title = "ACM paper"
+kind = "conference"
+order = 10
+venue = "ACM conferences and journals"
+summary = "Two columns for a proceedings paper, or one for an ACM journal."
+class = "acmart"
+source = "https://www.acm.org/publications/proceedings-template"
+licence = "LPPL 1.3"
+
+# Each TeX Live package the first build needs, with a file of its that
+# says whether it is here.  `checked` is the version last compared with
+# the package's source; scripts/check_templates.py compares them again.
+[needs]
+acmart = "acmart.cls"
+comment = "comment.sty"
+environ = "environ.sty"
+hyperxmp = "hyperxmp.sty"
+ncctools = "manyfoot.sty"
+totpages = "totpages.sty"
+
+[checked]
+acmart = "2.20"

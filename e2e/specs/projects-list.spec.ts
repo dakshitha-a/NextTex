@@ -236,13 +236,22 @@ test("the New project sheet does not run off a phone", async ({ app, project, pa
   const box = (await sheet.boundingBox())!;
   expect(box.x + box.width).toBeLessThanOrEqual(390);
   await expect(page.getByRole("button", { name: "Create project" })).toBeInViewport();
-  // The fifth template wraps onto a second row rather than leaving the
-  // sheet: every choice is inside the sheet's box.
-  for (const choice of await page.getByTestId("template-choice").getByRole("button").all()) {
-    const at = (await choice.boundingBox())!;
-    expect(at.x + at.width).toBeLessThanOrEqual(box.x + box.width);
-    expect(at.x).toBeGreaterThanOrEqual(box.x);
-  }
+  // The chosen template's block and its Change stay inside the sheet, and
+  // so does every row of the browser Change opens, its chips wrapping.
+  const inside = async (selector: string) => {
+    for (const item of await sheet.locator(selector).all()) {
+      const at = (await item.boundingBox())!;
+      expect(at.x + at.width).toBeLessThanOrEqual(box.x + box.width + 0.5);
+      expect(at.x).toBeGreaterThanOrEqual(box.x - 0.5);
+    }
+  };
+  await inside('[data-testid="template-chosen"], [data-testid="template-change"]');
+  await sheet.getByTestId("template-change").click();
+  await inside(".nx-chip-toggle, .nx-template-row, [data-testid='template-find']");
+  const browsing = await page.locator(".nx-projects").evaluate(
+    (root) => root.scrollWidth - root.clientWidth,
+  );
+  expect(browsing).toBe(0);
 });
 
 test("the arrow keys walk the list, and the filter cannot strand the focus", async ({

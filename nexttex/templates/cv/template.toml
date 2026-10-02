@@ -1,0 +1,18 @@
+title = "A CV"
+kind = "letter"
+order = 50
+summary = "A curriculum vitae on moderncv."
+class = "moderncv"
+source = "https://ctan.org/pkg/moderncv"
+licence = "LPPL 1.3c"
+scaffold = false
+
+# Each TeX Live package the first build needs, with a file of its that
+# says whether it is here.  `checked` is the version last compared with
+# the package's source; scripts/check_templates.py compares them again.
+[needs]
+moderncv = "moderncv.cls"
+fontawesome6 = "fontawesome6.sty"
+
+[checked]
+moderncv = "2.6.1"

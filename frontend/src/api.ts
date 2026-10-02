@@ -3,6 +3,7 @@
 // once rather than at each call site.
 
 import { record, type Recorded } from "./errors";
+import type { GuideInfo, TemplateInfo } from "./templates";
 
 /** What one LaTeX message means, from the server's own rule table.  No
  *  model is involved: NextTex is a LaTeX editor before it is an AI tool,
@@ -1009,9 +1010,10 @@ const api = {
       method: "DELETE",
     }),
 
-  /** What a blank project can be filled with. The route has always been
-   *  here and nothing fetched it, so every new project was an article. */
-  templates: () => request<{ templates: string[] }>("/templates"),
+  /** What a blank project can be filled with, in the chooser's order,
+   *  each saying which TeX packages this TeX lacks for it, and the guides
+   *  to the venues NextTex cannot ship. */
+  templates: () => request<{ templates: TemplateInfo[]; guides: GuideInfo[] }>("/templates"),
   /** One reference from a DOI, with no paper behind it. The resolve route
    *  needs an unidentified PDF from a folder scan to hang the DOI on. */
   addByDoi: (id: string, doi: string) =>

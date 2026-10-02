@@ -1,0 +1,37 @@
+% A curriculum vitae, on moderncv.
+%
+% `classic` is one of the class's styles; `banking`, `casual`, `oldstyle`
+% and `fancy` are the others, and `\moderncvcolor` changes the accent.
+% Each \cventry is one line of your history: the years, the role, the
+% place, the town, a grade if there is one, and a sentence about it.
+
+\documentclass[11pt,a4paper,sans]{moderncv}
+
+\moderncvstyle{classic}
+\moderncvcolor{blue}
+
+\usepackage[scale=0.8]{geometry}
+
+\name{Your}{Name}
+\title{Curriculum vitae}
+\address{Street}{City}{Country}
+\phone[mobile]{+00 000 000 000}
+\email{you@example.org}
+
+\begin{document}
+\makecvtitle
+
+\section{Education}
+\cventry{2020--2024}{Doctorate}{Your University}{City}{}{The thesis, in one sentence.}
+\cventry{2016--2020}{Degree}{Your University}{City}{}{}
+
+\section{Experience}
+\cventry{2024--now}{Role}{Organisation}{City}{}{What you did there, in a sentence or two.}
+
+\section{Publications}
+\cvitem{2024}{Your Name. \emph{A Working Title}. The Journal.}
+
+\section{Skills}
+\cvitem{Languages}{English, and another}
+
+\end{document}

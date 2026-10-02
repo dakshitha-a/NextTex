@@ -147,23 +147,20 @@ test("a new project can start as something other than an article", async ({
   await page.getByText("Projects", { exact: false }).first().waitFor();
   const sheet = await openWay(page, "create");
 
-  // The templates as a segmented control, in the words somebody choosing
-  // one would use.
-  const choice = sheet.getByTestId("template-choice");
-  await expect(choice).toBeVisible();
-  // In the order the page draws them, not the directories' alphabet.
-  await expect(choice.getByRole("button")).toHaveText([
-    "An article",
-    "A report, in chapters",
-    "A talk",
-    "A letter",
-    "A job application",
-    "A reply to reviewers",
-  ]);
+  // The chosen template is one block, and Change lists them all, the
+  // everyday ones first in the words somebody choosing one would use.
+  await expect(sheet.getByTestId("template-chosen")).toContainText("An article");
+  await sheet.getByTestId("template-change").click();
+  await expect(
+    sheet.getByTestId("template-list").locator(".nx-template-row .nx-template-title").first(),
+  ).toHaveText("An article");
+  for (const title of ["A report, in chapters", "A talk", "A letter", "A job application", "A reply to reviewers"]) {
+    await expect(sheet.getByTestId("template-list")).toContainText(title);
+  }
 
   const where = `${app.projects}/started-as-a-talk`;
   await sheet.getByTestId("template-beamer").click();
-  await expect(sheet.getByTestId("template-beamer")).toHaveAttribute("aria-pressed", "true");
+  await expect(sheet.getByTestId("template-chosen")).toContainText("A talk");
   await sheet.getByPlaceholder(/Where to put it/).fill(where);
   await sheet.getByRole("button", { name: "Create project" }).click();
 
@@ -185,6 +182,7 @@ test("a job application starts as a resume, with the cover letter and the listin
   await page.goto(`${app.base}/?token=${app.token}`);
   await page.getByText("Projects", { exact: false }).first().waitFor();
   const sheet = await openWay(page, "create");
+  await sheet.getByTestId("template-change").click();
   await sheet.getByTestId("template-application").click();
   await sheet.getByPlaceholder(/Where to put it/).fill(`${app.projects}/acme-postdoc`);
   await sheet.getByRole("button", { name: "Create project" }).click();

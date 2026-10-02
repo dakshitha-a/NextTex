@@ -1,0 +1,54 @@
+% A paper for an American Mathematical Society journal, or any mathematics
+% journal that takes the AMS layout, on the AMS's own class, amsart.
+%
+% Theorem environments are set up below; the numbering follows the section.
+
+\documentclass{amsart}
+
+\usepackage{amssymb}
+
+\newtheorem{theorem}{Theorem}[section]
+\newtheorem{lemma}[theorem]{Lemma}
+\theoremstyle{definition}
+\newtheorem{definition}[theorem]{Definition}
+\theoremstyle{remark}
+\newtheorem{remark}[theorem]{Remark}
+
+\begin{document}
+
+\title{A Working Title}
+\author{Your Name}
+\address{Your Institution, City, Country}
+\email{you@example.org}
+
+\subjclass[2020]{Primary 00A05}
+\keywords{first keyword, second keyword}
+
+\begin{abstract}
+One paragraph saying what the work is, what you did, and what you found.
+Write it last.
+\end{abstract}
+
+\maketitle
+
+\section{Introduction}
+\label{sec:introduction}
+
+Start here.  A citation looks like this~\cite{knuth1984}, and a reference to
+a result looks like Theorem~\ref{thm:example}.
+
+\section{Results}
+
+\begin{theorem}
+  \label{thm:example}
+  Every statement worth proving has a proof.
+\end{theorem}
+
+\begin{proof}
+  Write it here.
+\end{proof}
+
+\bibliographystyle{amsplain}
+\bibliography{references}
+
+\end{document}
