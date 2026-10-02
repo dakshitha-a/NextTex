@@ -51,6 +51,45 @@ export function reducedMotion(): boolean {
  *  as one. */
 export type Fold = "open" | "entering" | "opening" | "closing" | "closed";
 
+/** How many folds are part way through their move, and the work waiting for
+ *  all of them to stop.  The preview re-rasterises its pages when its width
+ *  settles, and on a fold that landed inside the slide or a beat after it:
+ *  pdf.js drawing a page is tens of milliseconds a frame on a laptop, and a
+ *  timer guessing at the end of the move fired either in the middle of it
+ *  or 300 ms after, with the page stretched and soft until then. */
+let movingNow = 0;
+const waiting = new Set<() => void>();
+
+function hold(): () => void {
+  movingNow += 1;
+  let held = true;
+  return () => {
+    if (!held) return;
+    held = false;
+    movingNow -= 1;
+    if (movingNow > 0) return;
+    const due = Array.from(waiting);
+    waiting.clear();
+    for (const run of due) run();
+  };
+}
+
+/** Whether any pane is sliding now. */
+export const panesMoving = (): boolean => movingNow > 0;
+
+/** Runs `work` once no pane is moving: at once if none is, otherwise when the
+ *  last move ends.  Returns a cancel. */
+export function whenPanesRest(work: () => void): () => void {
+  if (movingNow === 0) {
+    work();
+    return () => undefined;
+  }
+  waiting.add(work);
+  return () => {
+    waiting.delete(work);
+  };
+}
+
 export function useFold(open: boolean, still?: { current: boolean }): Fold {
   const [phase, setPhase] = useState<Fold>(open ? "open" : "closed");
   const first = useRef(true);
@@ -66,6 +105,7 @@ export function useFold(open: boolean, still?: { current: boolean }): Fold {
       setPhase(open ? "open" : "closed");
       return;
     }
+    const release = hold();
     if (!open) {
       setPhase("closing");
       // Timed from the frame the move starts in, not from the click. A
@@ -75,11 +115,15 @@ export function useFold(open: boolean, still?: { current: boolean }): Fold {
       // the way across (e2e/specs/motion.spec.ts).
       let timer = 0;
       const frame = window.requestAnimationFrame(() => {
-        timer = window.setTimeout(() => setPhase("closed"), duration("leave"));
+        timer = window.setTimeout(() => {
+          setPhase("closed");
+          release();
+        }, duration("leave"));
       });
       return () => {
         window.cancelAnimationFrame(frame);
         window.clearTimeout(timer);
+        release();
       };
     }
     setPhase("entering");
@@ -91,12 +135,16 @@ export function useFold(open: boolean, still?: { current: boolean }): Fold {
     frame = window.requestAnimationFrame(() => {
       frame = window.requestAnimationFrame(() => {
         setPhase("opening");
-        timer = window.setTimeout(() => setPhase("open"), duration("move"));
+        timer = window.setTimeout(() => {
+          setPhase("open");
+          release();
+        }, duration("move"));
       });
     });
     return () => {
       window.cancelAnimationFrame(frame);
       window.clearTimeout(timer);
+      release();
     };
   }, [open]);
   return phase;

@@ -11733,3 +11733,29 @@ gives. The direction page's "Reply to reviewers" draws it, and
 `e2e/specs/reply.spec.ts` comments on a sentence, writes the letter and
 follows its point back.
 
+
+## 102. A fold moves once and stops
+
+The writer said on 1 October 2026 that folding and unfolding a pane
+still did not feel smooth, and asked for it to be diagnosed and
+improved. Filmed frame by frame and measured in the browser, the slide
+itself was cheap, a millisecond or two of layout a frame. What showed
+was at its two ends. The strip a folded pane leaves arrived only once
+the slide had finished, so the neighbour grew 28 px past where it
+settled and snapped back, and the page fitted to its width snapped with
+it; on the way back the strip went in the first frame and the neighbour
+jumped 28 px before anything moved. And the page, stretched to follow
+the width, stayed soft for about 300 ms after the slide before pdf.js
+drew it sharp, on a timer that under load fired inside the slide
+instead.
+
+The strip's place is now part of the move: it widens from nothing to
+28 px over the frames the pane slides off in, and narrows back over the
+frames it slides in, so the neighbour's width moves one way and stops.
+The page is drawn for its new width in the frame after the last pane
+comes to rest. Nothing on the direction page changes, since it draws
+the slide and not the snap; its Motion section records the fix, as it
+did the slide that was cut short under load. `e2e/specs/motion.spec.ts`
+now reads the neighbour's width in the frames after the pane is hidden,
+where the snap was, and checks that the page is not redrawn during the
+slide.

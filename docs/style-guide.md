@@ -374,7 +374,15 @@ The rules:
   `frontend/src/motion.ts` gives each pane its phase, and a close is
   timed from the first frame of the move rather than from the click, so
   a busy main thread delays the end of the slide with its start instead
-  of cutting it short.
+  of cutting it short. The strip a folded pane leaves is part of the
+  move: its place widens from nothing to 28 px over the slide's frames,
+  and narrows back as the pane returns, so the neighbour's width moves
+  once and stops, `StripSlot` in `frontend/src/panes/Collapsed.tsx`.
+- **Heavy drawing waits for rest.** What a move makes stale and costs
+  more than a frame, the preview's pages drawn for their new width, is
+  redrawn once the last pane stops, through `whenPanesRest` in
+  `frontend/src/motion.ts`. Until then the page follows the width by its
+  box, as a pinch does.
 - **Panes that move together move as one.** Reading and writing modes
   fold several panes in one render, so their moves share one timeline.
 - **The preview keeps its ground.** A new page is drawn out of sight,

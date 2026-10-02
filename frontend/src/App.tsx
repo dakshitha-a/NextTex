@@ -139,7 +139,7 @@ const Diagnostics = lazy(() => import("./panes/Diagnostics"));
 const FileTree = lazy(loadFileTree);
 import { bibIn } from "./tree";
 import Projects from "./panes/Projects";
-import Collapsed from "./panes/Collapsed";
+import Collapsed, { StripSlot } from "./panes/Collapsed";
 import Logo from "./Logo";
 import Settings from "./panes/Settings";
 import InstanceBadge from "./panes/InstanceBadge";
@@ -2616,8 +2616,10 @@ export default function App() {
       </div>
 
       <div className={`flex min-w-0 flex-1 ${moving(editorFold) || moving(pdfFold) ? "overflow-clip" : ""}`}>
-        {editorFold === "closed" && !tight ? (
-          <Collapsed label="Source" side="left" onExpand={() => fold("editor")} />
+        {!tight ? (
+          <StripSlot fold={editorFold} name="source">
+            <Collapsed label="Source" side="left" onExpand={() => fold("editor")} />
+          </StripSlot>
         ) : null}
         <div
           ref={editorPane}
@@ -2835,14 +2837,18 @@ export default function App() {
             }
             setChatOpen(false);
           }}
-          className={`nx-pane flex min-h-0 flex-col ${
+          // Positioned so that while it slides it can lie over its strip's
+          // place, which comes after it in the row: the strip is uncovered
+          // as the pane leaves, as the source's and the Claude column's are
+          // by coming before them.
+          className={`nx-pane relative flex min-h-0 flex-col ${
             tight
               ? showing === "preview"
                 ? "flex-1"
                 : "hidden"
               : !shown(pdfFold)
                 ? "hidden"
-                : moving(pdfFold) ? "" : "min-w-80"
+                : moving(pdfFold) ? "relative z-10" : "min-w-80"
           }`}
           inert={!tight && pdfFold === "closing"}
           // Grow factors are two halves of one whole.  Against Tailwind's
@@ -2977,8 +2983,10 @@ export default function App() {
           </Suspense>
           </Boundary>
         </div>
-        {pdfFold === "closed" && !tight ? (
-          <Collapsed label="Preview" side="right" onExpand={() => fold("pdf")} />
+        {!tight ? (
+          <StripSlot fold={pdfFold} name="preview">
+            <Collapsed label="Preview" side="right" onExpand={() => fold("pdf")} />
+          </StripSlot>
         ) : null}
       </div>
 
@@ -3017,14 +3025,16 @@ export default function App() {
       {/* Docked and folded, the column leaves a strip behind like the
           Source and Preview panes do, carrying the agent's state dot so
           that "waiting for you" survives the fold. */}
-      {!noAgent && !chatOver && chatFold === "closed" ? (
-        <Collapsed
-          label="Claude"
-          shows="Claude"
-          side="right"
-          mark={<AgentStateDot />}
-          onExpand={toggleChat}
-        />
+      {!noAgent && !chatOver ? (
+        <StripSlot fold={chatFold} name="claude">
+          <Collapsed
+            label="Claude"
+            shows="Claude"
+            side="right"
+            mark={<AgentStateDot />}
+            onExpand={toggleChat}
+          />
+        </StripSlot>
       ) : null}
       {noAgent ? null : (
       <div

@@ -1,5 +1,5 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
-import { duration } from "../motion";
+import { duration, panesMoving, whenPanesRest } from "../motion";
 import * as pdfjs from "pdfjs-dist";
 import { headingHint, isBoldFont, tagSpans } from "./pdf-heading";
 import { pdfWorker } from "./pdf-worker";
@@ -1070,10 +1070,19 @@ export default function Pdf({
   // with what is drawn stretched to fit; the crisp re-fit comes once the
   // width has settled.  Without that the page kept the old width's size
   // for the whole slide and jumped at the end.
+  //
+  // Settled means, for a slide, the frame the last pane stops in, not a
+  // guess at it.  A 120 ms quiet after the last resize let pdf.js draw in
+  // the middle of a move whose frames came slower than that, and otherwise
+  // drew 300 ms after the move, with the page stretched and soft until it
+  // did.  A drag on a divider has no end the motion knows of, so it keeps
+  // the quiet.
   useEffect(() => {
     const root = scroller.current;
     if (!root) return;
     let timer = 0;
+    let frame = 0;
+    let unwait: () => void = () => undefined;
     const observer = new ResizeObserver((entries) => {
       // A pane that has just been collapsed reports zero width; re-fitting
       // to that would leave a page 35% wide when it comes back.
@@ -1089,7 +1098,9 @@ export default function Pdf({
         }
       }
       window.clearTimeout(timer);
-      timer = window.setTimeout(() => {
+      window.cancelAnimationFrame(frame);
+      unwait();
+      const settle = () => {
         if (doc.current && !scale) {
           layoutRef.current(doc.current, true);
           return;
@@ -1106,12 +1117,22 @@ export default function Pdf({
         );
         if (stale) invalidateRaster();
         else drawVisible();
-      }, 120);
+      };
+      if (panesMoving()) {
+        // The frame after the rest, so the row has been laid out at it.
+        unwait = whenPanesRest(() => {
+          frame = window.requestAnimationFrame(settle);
+        });
+      } else {
+        timer = window.setTimeout(settle, 120);
+      }
     });
     observer.observe(root);
     return () => {
       observer.disconnect();
       window.clearTimeout(timer);
+      window.cancelAnimationFrame(frame);
+      unwait();
     };
   }, [drawVisible, invalidateRaster, scale]);
 

@@ -1,6 +1,30 @@
 import type { ReactNode } from "react";
 import { ChevronLeftIcon, ChevronRightIcon } from "../ui/icons";
 import { Pressable } from "../ui/controls";
+import { foldTransition, type Fold } from "../motion";
+
+/** Where a folded pane's strip sits in the row, sized by the pane's fold.
+ *
+ *  It widens from nothing to the strip's 28 px over the same frames the
+ *  pane slides off in, and narrows back over the frames it slides in, so
+ *  the neighbour's width moves once and stops.  The strip used to arrive
+ *  only when the slide had ended: the neighbour grew 28 px past where it
+ *  settles and then snapped back, and on the way in it jumped 28 px wider
+ *  before the slide began (e2e/specs/motion.spec.ts). */
+export function StripSlot({ fold, name, children }: { fold: Fold; name: string; children: ReactNode }) {
+  const wide = fold === "closing" || fold === "closed" || fold === "entering";
+  return (
+    <div
+      data-testid={`strip-slot-${name}`}
+      className={`flex shrink-0 overflow-hidden ${wide ? "w-7" : "w-0"}`}
+      style={{ transition: foldTransition(fold, "width") }}
+      inert={fold !== "closed"}
+      aria-hidden={fold !== "closed" || undefined}
+    >
+      {fold === "open" ? null : children}
+    </div>
+  );
+}
 
 /** A collapsed pane leaves a strip behind, so it is obvious that something
  *  is folded away and obvious how to get it back.  The chevron sits at the

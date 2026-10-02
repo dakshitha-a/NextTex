@@ -24,7 +24,14 @@ things go to be forgotten rather than a list anybody reads.
 
 ## In hand
 
-Nothing is in hand. The roadmap run closed on 1 October 2026 at
+The motion, rail and tour run, begun 1 October 2026 from 4.21.1, at the
+writer's request: folds that move once and stop, a bar that shows a
+drawer over the panes on hover and docks it on a click, a README hero
+sharp enough to show the page change, a better citations animation, and
+a tour row for a figure script edited and run in the app. Its tracker
+page is https://claude.ai/artifact/EzHnwuUkGovu7nRrgjSnoP.
+
+The roadmap run closed on 1 October 2026 at
 4.21.1, from 4.13.5 in nine pushes: the first eight items of
 `ROADMAP.md`'s list, one *y* bump each, and the writer's Copy path on a
 file tree row. Done: word limits on a section or the abstract counted in
