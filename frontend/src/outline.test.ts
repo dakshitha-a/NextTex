@@ -100,6 +100,25 @@ describe("outline", () => {
     ]);
   });
 
+  it("puts an included file inside the heading it follows, not at a chapter's level", () => {
+    const found = outline(
+      [
+        "\\input{sections/intro}",
+        "\\subsection{Which surface}",
+        "\\subsubsection{The search}",
+        "\\input{sections/table_s0t1}",
+        "\\subsubsection{What this means}",
+      ].join("\n"),
+    );
+    expect(found.map((h) => [h.title, h.level])).toEqual([
+      ["intro", 3],
+      ["Which surface", 3],
+      ["The search", 4],
+      ["table_s0t1", 5],
+      ["What this means", 4],
+    ]);
+  });
+
   it("leaves the preamble out: a loaded macro file is not a chapter", () => {
     const found = outline(
       [

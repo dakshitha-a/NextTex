@@ -207,6 +207,20 @@ export function outline(text: string): Heading[] {
   const levels = found.filter((h) => h.kind !== "abstract" && h.kind !== "file").map((h) => h.level);
   const top = levels.length ? Math.min(...levels) : LEVELS.section;
   for (const heading of found) if (heading.kind === "abstract") heading.level = top;
+  // An included file sits inside the heading it follows, a level below it,
+  // and at the shallowest heading's level before any.  Left at the
+  // chapter's level, an `\input` of a table in a file of subsections set
+  // the drawer's left edge, so every heading stood two steps in, and the
+  // heading after the table read as a child of it (seen in the writer's
+  // methylamine chapter, 2 October 2026).  A skeleton file of inputs alone
+  // keeps them at `FILE_LEVEL`.
+  if (levels.length) {
+    let above: number | null = null;
+    for (const heading of found) {
+      if (heading.kind === "file") heading.level = above === null ? top : above + 1;
+      else if (heading.kind !== "abstract") above = heading.level;
+    }
+  }
 
   // Only once the document is known to begin: otherwise every included
   // file in a chapter would be dropped.
