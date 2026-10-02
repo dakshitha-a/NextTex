@@ -24,11 +24,19 @@ things go to be forgotten rather than a list anybody reads.
 
 ## In hand
 
-The motion, rail and tour run, begun 1 October 2026 from 4.21.1, at the
-writer's request: folds that move once and stop, a bar that shows a
-drawer over the panes on hover and docks it on a click, a README hero
-sharp enough to show the page change, a better citations animation, and
-a tour row for a figure script edited and run in the app. Its tracker
+Nothing is in hand. The motion, rail and tour run closed on 2 October
+2026 at 4.22.0, from 4.21.1, at the writer's request. Done: a fold that
+moves once and stops, its strip's place widening with the slide and the
+page drawn sharp once the panes rest; a bar that shows a drawer over the
+panes when the pointer rests on its button and docks it on a click; a
+README hero filmed at three times the pixels, its camera on the page as
+the rebuild lands; a citations animation that ends on the page, with the
+number and the entry; and a tour row for a figure script edited and run
+in the app, before Write together at the writer's word. It turned up and
+fixed a peek at History taking the caret out of the source, the
+References drawer's publisher chooser squeezing the query, a citation
+key taken before a full stop eating the stop, and the tour having been
+filmed at one pixel per point whatever its setting said. Its tracker
 page is https://claude.ai/artifact/EzHnwuUkGovu7nRrgjSnoP.
 
 The roadmap run closed on 1 October 2026 at
@@ -154,7 +162,15 @@ OpenAI provider against OpenAI itself.
 
 ### Known gaps, with a cost somebody will eventually pay
 
-None. The last three were closed on 1 October 2026 at 4.13.0.
+- [ ] **Four tour animations are still the soft 1x recordings.** The
+      motion, rail and tour run found that every animation had been
+      filmed at one pixel per point, since the screencast ignores the
+      ratio a context emulates, and re-filmed the hero, citations and
+      the new script row at two and three. Errors, History and git,
+      Download and Write together were left as they were because the
+      writer asked about the first two only; their close-ups are as soft
+      as the hero's were. Re-filming each is one run of its scene in
+      `e2e/shots/tour.spec.ts`.
 
 ### Measured and left, worth revisiting with a measurement
 
