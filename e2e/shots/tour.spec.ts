@@ -1,25 +1,18 @@
-import { test as base, expect, openProject } from "../fixtures";
-import type { Locator, Page } from "@playwright/test";
 import { execFileSync } from "node:child_process";
-import { cpSync, existsSync, mkdirSync, mkdtempSync, readFileSync, rmSync, symlinkSync, writeFileSync } from "node:fs";
-import { tmpdir } from "node:os";
+import { readFileSync, writeFileSync } from "node:fs";
 import { join } from "node:path";
-import { ROOT, startServer, type Instance } from "../server";
-import { plot } from "../png";
+import { openProject } from "../fixtures";
 import { Recorder, glide } from "./recorder";
+import {
+  FRAMES, animate, atRest, caretToEndOf, dress, expect, filmedAt, line, onPage, prepare, register,
+  reveal, span, test, withoutAgent,
+} from "./tour-kit";
 
-/** The README's animations, filmed in the real app.
- *
- *  Beside `hero.spec.ts` and run by hand the same way, since it writes
- *  into `docs/tour/`:
+/** The README's tour, a row per scene, filmed in the real app at twice the
+ *  window's pixels; the hero is `tour-hero.spec.ts`, and what both share
+ *  is `tour-kit.ts`.  Run by hand, since it writes into `docs/tour/`:
  *
  *      cd e2e && node_modules/.bin/playwright test --config shots.config.ts shots/tour.spec.ts
- *
- *  Each scene follows its storyboard on the README's design page: what
- *  happens, and where the camera looks while it does.  The scene only
- *  says "look here" and "pull back"; `animate.py` moves the camera and cuts
- *  the frames.  Six scenes, seven files: the hero in both themes, the
- *  five tour animations in dark, as animated WebP.
  *
  *  Nothing reaches the network.  The reference search is answered by a
  *  route in the page, the way `papers.spec.ts` answers it, and the
@@ -29,204 +22,7 @@ import { Recorder, glide } from "./recorder";
  *  What the first window shows, a named cursor arriving and typing, is
  *  what a co-author on another install looks like. */
 
-const OUT = join(ROOT, "docs", "tour");
-// Outside test-results/, which Playwright clears as it sees fit.
-const FRAMES = join(tmpdir(), "nexttex-tour-frames");
-const PYTHON = join(ROOT, ".venv", "bin", "python");
-
-type Scene = { home: string; app: Instance; tab: Page; root: string };
-
-const ABSTRACT = [
-  "  Molecules that absorb light often return to the ground state through a",
-  "  conical intersection, a point where two electronic states meet.",
-];
-
-const test = base.extend<Scene>({
-  home: async ({}, use) => {
-    const home = mkdtempSync(join(tmpdir(), "nexttex-tour-"));
-    mkdirSync(join(home, "papers"), { recursive: true });
-    const real = join(process.env.HOME ?? "", ".TinyTeX");
-    if (process.env.HOME && existsSync(real)) symlinkSync(real, join(home, ".TinyTeX"));
-    await use(home);
-    rmSync(home, { recursive: true, force: true });
-  },
-  app: async ({ home }, use) => {
-    const pandoc = join(process.env.HOME ?? "", ".local", "bin", "pandoc");
-    const instance = await startServer({ HOME: home, ...(existsSync(pandoc) ? { NEXTTEX_PANDOC: pandoc } : {}) });
-    await use(instance);
-    await instance.stop();
-  },
-  root: async ({ home }, use) => {
-    await use(prepare(home));
-  },
-  tab: async ({ app, root, page }, use) => {
-    await register(app, root);
-    await page.setViewportSize({ width: 1440, height: 900 });
-    await page.goto(`${app.base}/?token=${app.token}`);
-    await page.getByText("Projects", { exact: false }).first().waitFor();
-    await openProject(page, root);
-    await use(page);
-  },
-});
-
-/** The basic template, dressed as a paper somebody is writing: a title,
- *  an author, an abstract, and a real figure. */
-function prepare(home: string): string {
-  const root = join(home, "papers", "nonadiabatic-dynamics-review");
-  cpSync(join(ROOT, "nexttex", "templates", "basic"), root, { recursive: true });
-  mkdirSync(join(root, "figures"), { recursive: true });
-  writeFileSync(join(root, "figures", "decay-fit.png"), plot(1200, 800));
-  const tex = join(root, "main.tex");
-  let source = readFileSync(tex, "utf8");
-  const from = source.indexOf("  % Drawn here so this document compiles");
-  const to = source.indexOf("  \\caption{What the reader should notice");
-  source = source.slice(0, from) + "  \\includegraphics[width=0.6\\linewidth]{figures/decay-fit.png}\n" + source.slice(to);
-  source = source
-    .replace("\\title{A Working Title}", "\\title{Nonadiabatic Dynamics Near Conical Intersections}")
-    .replace("\\author{Your Name}", "\\author{Ada Okafor}")
-    .replace(
-      "  One paragraph saying what the work is, what you did, and what you found.\n  Write it last.",
-      ABSTRACT.join("\n"),
-    );
-  writeFileSync(tex, source);
-  writeFileSync(join(root, "nexttex.toml"), `[project]\nname = "Nonadiabatic dynamics review"\nbuild_dir = "build"\n`);
-  return root;
-}
-
-async function register(app: Instance, root: string): Promise<string> {
-  const added = await fetch(`${app.base}/api/projects`, {
-    method: "POST",
-    headers: { "content-type": "application/json", "x-nexttex-token": app.token },
-    body: JSON.stringify({ path: root }),
-  });
-  if (!added.ok) throw new Error(`could not register the project: ${added.status}`);
-  return (await added.json()).id ?? "";
-}
-
-async function dress(tab: Page, theme: "light" | "dark") {
-  await tab.evaluate((theme) => window.localStorage.setItem("nexttex.theme", theme), theme);
-  await tab.reload();
-  await Recorder.install(tab);
-  await expect(tab.locator(".cm-editor")).toBeVisible({ timeout: 30_000 });
-  await expect(tab.locator("canvas").first()).toBeVisible({ timeout: 60_000 });
-}
-
-/** The tour animations are about one thing each, so the agent column folds away
- *  and the source and the page get the width. */
-async function withoutAgent(tab: Page) {
-  if (await tab.getByTestId("chat").isVisible().catch(() => false)) {
-    await tab.keyboard.press("Control+Alt+a");
-    await expect(tab.getByTestId("chat")).toBeHidden({ timeout: 5000 });
-  }
-}
-
-async function atRest(tab: Page) {
-  await expect.poll(async () => tab.getByTestId("status").getAttribute("data-state"), { timeout: 60_000 })
-    .toMatch(/built|ready/);
-  await tab.waitForTimeout(800);
-}
-
-/** The editor line holding `text`. */
-function line(tab: Page, text: string): Locator {
-  return tab.locator(".cm-line").filter({ hasText: text }).first();
-}
-
-/** A rectangle spanning several elements, for a camera that should hold
- *  a paragraph rather than one line of it. */
-async function span(...targets: Locator[]) {
-  const boxes = (await Promise.all(targets.map((t) => t.boundingBox()))).filter(Boolean) as
-    { x: number; y: number; width: number; height: number }[];
-  const x = Math.min(...boxes.map((b) => b.x));
-  const y = Math.min(...boxes.map((b) => b.y));
-  const right = Math.max(...boxes.map((b) => b.x + b.width));
-  const bottom = Math.max(...boxes.map((b) => b.y + b.height));
-  return { x, y, width: right - x, height: bottom - y };
-}
-
-/** The text layer's span on the page holding `word`. */
-function onPage(tab: Page, word: string): Locator {
-  return tab.locator(".nx-text-layer span").filter({ hasText: word }).first();
-}
-
-/** CodeMirror draws only the lines near the screen, so a line further
- *  down is not in the page until the editor is scrolled to it: scrolled
- *  from the top in steps until it appears, then brought to the middle. */
-async function reveal(tab: Page, text: string): Promise<Locator> {
-  const target = line(tab, text);
-  if (!(await target.count())) {
-    await tab.evaluate(() => { (document.querySelector(".cm-scroller") as HTMLElement).scrollTop = 0; });
-    for (let i = 0; i < 40 && !(await target.count()); i += 1) {
-      await tab.evaluate(() => { (document.querySelector(".cm-scroller") as HTMLElement).scrollBy(0, 300); });
-      await tab.waitForTimeout(60);
-    }
-  }
-  await target.evaluate((el) => el.scrollIntoView({ block: "center" }));
-  await tab.waitForTimeout(150);
-  return target;
-}
-
-async function caretToEndOf(tab: Page, text: string) {
-  const target = await reveal(tab, text);
-  await glide(tab, target);
-  await target.click();
-  await tab.keyboard.press("End");
-}
-
-/** The hero is shown at the README's full width and a tour animation in
- *  half of a table, so the hero is cut at 1280 pixels and the rest at
- *  960, both at 25 frames a second, which is still about twice what the
- *  README draws them at on a fine screen. */
-function animate(scene: string, out: string, extra: string[] = ["--width", "960"]) {
-  mkdirSync(OUT, { recursive: true });
-  const printed = execFileSync(PYTHON, [join(ROOT, "e2e", "shots", "animate.py"), join(FRAMES, scene), join(OUT, out), ...extra], { encoding: "utf8" });
-  console.log(printed.trim());
-}
-
-// --- A: the page follows your typing --------------------------------------
-
-for (const theme of ["light", "dark"] as const) {
-  test(`A, the page follows your typing, ${theme}`, async ({ tab }) => {
-    await dress(tab, theme);
-    // A conversation in the column, as in the hero screenshot: the agent is
-    // part of the picture of the app, though not of this scene's story.
-    const composer = tab.locator("textarea");
-    await composer.fill("#script:edit\nTighten the abstract's first sentence.");
-    await tab.getByRole("button", { name: "Send" }).click();
-    await tab.waitForTimeout(2500);
-    await atRest(tab);
-    await tab.mouse.move(700, 450);
-
-    const rec = new Recorder(tab, `hero-${theme}`, FRAMES);
-    await rec.start();
-    await rec.hold(900);
-
-    await caretToEndOf(tab, "conical intersection, a point");
-    await rec.focus(await span(line(tab, "Molecules that absorb"), line(tab, "conical intersection, a point")), { pad: 70 });
-    await rec.hold(700);
-    await tab.keyboard.type(" We follow the wavepacket through it, femtosecond by femtosecond.", { delay: 55 });
-    await rec.hold(400);
-
-    // The page catches up: the camera crosses to it as the build lands.
-    await rec.quickly(() => expect.poll(async () => onPage(tab, "femtosecond").count(), { timeout: 30_000 }).toBeGreaterThan(0), 3);
-    await rec.focus(await span(onPage(tab, "Abstract"), onPage(tab, "femtosecond")), { pad: 60 });
-    await rec.hold(2200);
-
-    // And back: a double-click on the page finds the line that set it.
-    rec.wide();
-    await rec.hold(900);
-    const word = onPage(tab, "dollars");
-    await glide(tab, word, 24);
-    await rec.hold(300);
-    await word.dblclick();
-    await expect(tab.locator(".cm-activeLine")).toContainText("dollars", { timeout: 10_000 });
-    await rec.focus(tab.locator(".cm-activeLine"), { pad: 90 });
-    await rec.hold(1800);
-    rec.wide();
-    await rec.hold(1200);
-    await rec.stop();
-    animate(`hero-${theme}`, `hero-${theme}.webp`, ["--width", "1280"]);
-  });
-}
+test.use(filmedAt(Number(process.env.NEXTTEX_SHOT_DPR ?? 2)));
 
 // --- B: errors in plain English ---------------------------------------------
 

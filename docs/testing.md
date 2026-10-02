@@ -247,15 +247,22 @@ because they write into the repository and they are two more browsers on
 a machine already running five; run them when the interface changes, look
 at what came out, and commit the images with the change that moved them.
 
-`e2e/shots/tour.spec.ts` films the README's animations the same way, into
-`docs/tour/`: the hero in both themes and five tour scenes in dark, each
-following its storyboard. `e2e/shots/recorder.ts` records the window
-through the DevTools screencast at full resolution, with a drawn pointer
-since headless Chromium has none, and notes where the camera should look
-and which waits to play back quickly; `e2e/shots/animate.py` is the
-camera, gliding a crop between those marks and cutting each frame from the
-full one, so a zoom is as sharp as the screen. Run it with
-`NEXTTEX_SHOT_DPR=2` so the zooms have the pixels. Each animation is an
+`e2e/shots/tour-hero.spec.ts` and `e2e/shots/tour.spec.ts` film the
+README's animations the same way, into `docs/tour/`: the hero in both
+themes, and the tour's scenes in dark, each following its storyboard, with
+what they share in `e2e/shots/tour-kit.ts`. `e2e/shots/recorder.ts`
+records the window through the DevTools screencast at full resolution,
+with a drawn pointer since headless Chromium has none, and notes where the
+camera should look and which waits to play back quickly;
+`e2e/shots/animate.py` is the camera, gliding a crop between those marks
+and cutting each frame from the full one, so a zoom is as sharp as the
+screen. A mark may lift the camera's closest approach for itself, as the
+hero's close-up of the typeset page does. The specs film at two times the
+window's pixels, and the hero at three, by themselves; `NEXTTEX_SHOT_DPR`
+overrides both. The ratio has to be the browser's own, given at launch, as
+well as the page's: the screencast sends frames at the compositor's size
+and ignores the ratio a context emulates, so before 1 October 2026 every
+animation was filmed at one, whatever the variable said. Each animation is an
 animated WebP at 25 frames a second, 1280 pixels wide for the hero and
 960 for the rest, a few seconds of real use in one to five megabytes;
 they were GIFs until 1 October 2026, held by GIF's 256 colours and its

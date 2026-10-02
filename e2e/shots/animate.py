@@ -38,13 +38,18 @@ def ease(u: float) -> float:
     return 4 * u * u * u if u < 0.5 else 1 - (-2 * u + 2) ** 3 / 2
 
 
-def fit(rect: dict, view: dict) -> tuple[float, float, float, float]:
-    """The mark's rectangle grown to the output's shape, kept on screen."""
+def fit(rect: dict, view: dict, zoom: float = MAX_ZOOM) -> tuple[float, float, float, float]:
+    """The mark's rectangle grown to the output's shape, kept on screen.
+
+    `zoom` is the mark's own limit when it gives one: a close-up of the
+    typeset page needs to come nearer than the window's usual 2.6 for its
+    type to be read, and the frames are filmed at twice the pixels or more
+    so that nearer view is still cut from real pixels."""
     vw, vh = view["width"], view["height"]
     aspect = vw / vh
     x, y, w, h = rect["x"], rect["y"], rect["width"], rect["height"]
     cx, cy = x + w / 2, y + h / 2
-    w = max(w, h * aspect, vw / MAX_ZOOM)
+    w = max(w, h * aspect, vw / zoom)
     h = w / aspect
     if w > vw:
         w, h = vw, vh
@@ -56,12 +61,7 @@ def fit(rect: dict, view: dict) -> tuple[float, float, float, float]:
 def camera(scene: dict):
     view = scene["viewport"]
     whole = (0.0, 0.0, float(view["width"]), float(view["height"]))
-    moves = []
-    current = whole
-    for mark in sorted(scene["marks"], key=lambda m: m["t"]):
-        target = whole if mark["kind"] == "wide" else fit(mark["rect"], view)
-        moves.append((mark["t"], mark["ease"], current, target))
-        current = target
+    moves: list[tuple[float, float, tuple, tuple]] = []
 
     def at(t: float) -> tuple[float, float, float, float]:
         rect = whole
@@ -71,6 +71,13 @@ def camera(scene: dict):
             k = ease((t - start) / length) if length > 0 else 1.0
             rect = tuple(a + (b - a) * k for a, b in zip(src, dst))
         return rect
+
+    # Each move starts from where the camera is at that moment, so a mark
+    # that arrives before the last move has ended turns the camera from
+    # where it is rather than jumping it to where it was going.
+    for mark in sorted(scene["marks"], key=lambda m: m["t"]):
+        target = whole if mark["kind"] == "wide" else fit(mark["rect"], view, mark.get("zoom", MAX_ZOOM))
+        moves.append((mark["t"], mark["ease"], at(mark["t"]), target))
 
     return at
 

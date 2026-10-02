@@ -18,7 +18,7 @@ import { join } from "node:path";
  *  on the page that follows the real one and pulses on a click. */
 
 type Rect = { x: number; y: number; width: number; height: number };
-type Mark = { t: number; kind: "focus" | "wide"; rect?: Rect; ease: number };
+type Mark = { t: number; kind: "focus" | "wide"; rect?: Rect; ease: number; zoom?: number };
 type Fast = { from: number; to: number; speed: number };
 
 const POINTER = `
@@ -68,15 +68,23 @@ export class Recorder {
     const scale = await this.page.evaluate(() => window.devicePixelRatio);
     this.session = await this.page.context().newCDPSession(this.page);
     this.t0 = Date.now() / 1000;
+    // JPEG at a high quality rather than PNG, and the frame acknowledged
+    // before it is written, since the browser sends no next frame until the
+    // last is acknowledged. At three times the window's pixels a PNG frame
+    // is several megabytes and a scene several hundred frames; the frames
+    // are scaled down on the way out, which hides what JPEG at 94 loses.
+    // What sets the rate is the capture itself: measured, about sixteen
+    // frames a second at twice the pixels and ten at three, PNG or JPEG.
     this.session.on("Page.screencastFrame", async (frame) => {
-      const file = `f${String(this.count++).padStart(5, "0")}.png`;
-      writeFileSync(join(this.dir, file), Buffer.from(frame.data, "base64"));
+      const file = `f${String(this.count++).padStart(5, "0")}.jpg`;
       const t = (frame.metadata.timestamp ?? Date.now() / 1000) - this.t0;
-      this.frames.push({ t, file });
       await this.session?.send("Page.screencastFrameAck", { sessionId: frame.sessionId }).catch(() => undefined);
+      writeFileSync(join(this.dir, file), Buffer.from(frame.data, "base64"));
+      this.frames.push({ t, file });
     });
     await this.session.send("Page.startScreencast", {
-      format: "png",
+      format: "jpeg",
+      quality: 94,
       maxWidth: Math.round(viewport.width * scale),
       maxHeight: Math.round(viewport.height * scale),
       everyNthFrame: 1,
@@ -90,8 +98,11 @@ export class Recorder {
     return Date.now() / 1000 - this.t0;
   }
 
-  /** Glide the camera to this element, padded, over `ease` seconds. */
-  async focus(target: Locator | Rect, opts: { pad?: number; ease?: number } = {}): Promise<void> {
+  /** Glide the camera to this element, padded, over `ease` seconds.
+   *  `zoom` lifts the camera's closest approach for this mark alone, for a
+   *  close-up of small type such as the typeset page, which at the whole
+   *  window's usual limit stayed too far away to read. */
+  async focus(target: Locator | Rect, opts: { pad?: number; ease?: number; zoom?: number } = {}): Promise<void> {
     const box = "x" in target ? target : await target.boundingBox();
     if (!box) throw new Error(`${this.name}: nothing to focus on`);
     const pad = opts.pad ?? 40;
@@ -100,6 +111,7 @@ export class Recorder {
       kind: "focus",
       rect: { x: box.x - pad, y: box.y - pad, width: box.width + 2 * pad, height: box.height + 2 * pad },
       ease: opts.ease ?? 0.7,
+      ...(opts.zoom ? { zoom: opts.zoom } : {}),
     });
   }
 
