@@ -45,6 +45,29 @@ async function settle(page: Page) {
   await page.emulateMedia({ reducedMotion: "reduce" });
 }
 
+/** The theme under audit.  It is the writer's stored choice, kept under
+ *  `nexttex.theme` and dark until one is made, not the system's scheme:
+ *  emulating `prefers-color-scheme` alone left every "light" test here
+ *  auditing the dark theme.  Stored before any page of the origin loads,
+ *  and a page already open is reloaded so it reads it; the root's
+ *  `data-theme` is asserted, so a test cannot silently audit the other. */
+async function useTheme(page: Page, theme: "light" | "dark") {
+  await page.emulateMedia({ colorScheme: theme });
+  await page.addInitScript((chosen) => {
+    try { localStorage.setItem("nexttex.theme", chosen); } catch { /* a private window */ }
+  }, theme);
+  if (page.url().startsWith("http")) {
+    // Already open: chosen the way the writer chooses it, as the
+    // contrast sweep does, since a reload would leave the project.
+    await page.getByTestId("appearance").first().click();
+    await page.getByTestId("settings-group-look").click();
+    await page.getByTestId(`theme-${theme}`).click();
+    await page.keyboard.press("Escape");
+    await expect(page.getByRole("dialog", { name: "Settings" })).toHaveCount(0);
+    await expect(page.locator("html")).toHaveAttribute("data-theme", theme);
+  }
+}
+
 async function violations(page: Page) {
   const results = await new AxeBuilder({ page })
     .withTags(["wcag2a", "wcag2aa"])
@@ -68,7 +91,7 @@ function describeAll(found: Awaited<ReturnType<typeof violations>>) {
 
 for (const theme of ["light", "dark"] as const) {
   test(`the project list is usable in the ${theme} theme`, async ({ app, page }) => {
-    await page.emulateMedia({ colorScheme: theme });
+    await useTheme(page, theme);
     await settle(page);
     await page.goto(`${app.base}/?token=${app.token}`);
     await page.getByText(/project/i).first().waitFor();
@@ -77,7 +100,7 @@ for (const theme of ["light", "dark"] as const) {
   });
 
   test(`the editor is usable in the ${theme} theme`, async ({ page, tab }) => {
-    await page.emulateMedia({ colorScheme: theme });
+    await useTheme(tab, theme);
     await settle(tab);
     await expect(tab.locator(".cm-editor")).toBeVisible();
     const found = await violations(tab);
@@ -85,7 +108,7 @@ for (const theme of ["light", "dark"] as const) {
   });
 
   test(`the settings sheet is usable in the ${theme} theme, in every group`, async ({ page, tab }) => {
-    await page.emulateMedia({ colorScheme: theme });
+    await useTheme(tab, theme);
     await settle(tab);
     await tab.getByTestId("appearance").click();
     const sheet = tab.getByRole("dialog", { name: "Settings" });
@@ -214,7 +237,7 @@ test("Escape closes the chooser and gives focus back", async ({ tab }) => {
 
 for (const theme of ["light", "dark"] as const) {
   test(`the tutorial is usable in the ${theme} theme`, async ({ page, tab }) => {
-    await page.emulateMedia({ colorScheme: theme });
+    await useTheme(tab, theme);
     await tab.getByTestId("appearance").click();
     await tab.getByTestId("tutorial-open").click();
     await expect(tab.getByTestId("tutorial")).toBeVisible();
@@ -226,7 +249,7 @@ for (const theme of ["light", "dark"] as const) {
     app,
     page,
   }) => {
-    await page.emulateMedia({ colorScheme: theme });
+    await useTheme(page, theme);
     await page.goto(`${app.base}/?token=${app.token}`);
     // `/project/i`, as the test above it does: the screen's own words are
     // "Create project" and "A new project starts blank", never "Projects".
@@ -444,7 +467,7 @@ for (const theme of ["light", "dark"] as const) {
   test(`the Comments drawer is usable in the ${theme} theme`, async ({ page, tab }) => {
     // Q-050: its rows were a role="button" holding Resolve and Delete,
     // axe's nested-interactive, and no sweep opened the drawer.
-    await page.emulateMedia({ colorScheme: theme });
+    await useTheme(tab, theme);
     await settle(tab);
     await aThread(tab);
     const found = await violations(tab);
