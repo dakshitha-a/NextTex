@@ -235,7 +235,7 @@ makes typing slower on the day it happens.
 | A settled edit written to disk | 1.4 ms | 40 ms |
 | The same, with its version recorded | 3.0 ms | 60 ms |
 | Whole project as a zip | 67 ms | 3 s |
-| Interface bundle | 327.4 kB | 400 kB |
+| Interface bundle | 330.2 kB | 400 kB |
 
 The first row is the one worth keeping. The compile rewrites `build/main.pdf`,
 the symbol cache's stamp walk used to count it, and every build therefore
@@ -542,6 +542,14 @@ makes the image.
 go when the pointer moves on.*
 
 ## The agent
+
+With the column folded, or parked off the edge on a narrower window, push
+the pointer against the window's right edge for a moment and the column
+slides in over the page; it goes when the pointer leaves it, and stays
+while you type in it. It docks only from its shortcut, its button or its
+strip. With *No agent* chosen there is no column and nothing that would
+reach one: no strip, button, shortcut or edge, no Reword or Ask on a
+selection, and no Fix on a build error.
 
 ### It edits the project, and asks about everything else
 

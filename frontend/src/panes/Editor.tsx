@@ -1629,7 +1629,7 @@ export default function Editor({
             at={{ left: actions.left, top: actions.top }}
             onMeasure={measureRow}
             onDismiss={() => setActions(null)}
-            verbs={actions.verbs}
+            verbs={actions.verbs && !!onAskAbout}
             onComment={() => {
               if (comments.current?.start()) setActions(null);
             }}

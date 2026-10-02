@@ -7,7 +7,7 @@ import { rank } from "../palette-rank";
 import { Sheet } from "../ui/Sheet";
 import { Field } from "../ui/controls";
 import { SearchIcon } from "../ui/icons";
-import { useStore } from "../store";
+import { get, useStore } from "../store";
 
 /** One box that finds every action, setting and file by typing.
  *
@@ -49,7 +49,12 @@ export default function CommandPalette({
 
   const rows = useMemo<Row[]>(() => {
     const look = storedAppearance();
-    const actions: Row[] = ACTIONS.filter((action: Action) => action.id !== "palette").map(
+    // Without an agent there is no column to show, so its action is not
+    // offered either.
+    const noAgent = get().agent?.provider === "none";
+    const actions: Row[] = ACTIONS.filter(
+      (action: Action) => action.id !== "palette" && !(noAgent && action.id === "agent"),
+    ).map(
       (action) => ({ kind: "action", id: `action:${action.id}`, label: action.label, group: action.group, chord: action.chord }),
     );
     const settings: Row[] = settingItems().map((item) => ({

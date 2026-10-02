@@ -211,6 +211,21 @@ const PEEK_TIME = 120;
 /** How long a peek stays after the pointer has left it and its button:
  *  enough to cross the gap between the button and the peek. */
 const PEEK_LEAVE = 150;
+/** How close to the window's right edge the pointer has to come for the
+ *  Claude column to peek, in CSS pixels: the last few, past any scrollbar,
+ *  where nothing else is pressed. */
+const EDGE = 3;
+
+/** Hands the keyboard back to where it was before a peek took it, or, when
+ *  it was nowhere, lets go of it, so a peek is never left holding focus it
+ *  was not given. */
+function giveFocusBack(to: HTMLElement | null) {
+  if (to && to !== document.body && to.isConnected) {
+    to.focus({ preventScroll: true });
+    return;
+  }
+  (document.activeElement as HTMLElement | null)?.blur();
+}
 
 /** The project the writer was in, so a reload comes back to the document. */
 const LAST_PROJECT = "nexttex.lastProject";
@@ -441,6 +456,108 @@ export default function App() {
       window.removeEventListener("pointerdown", onPress, true);
     };
   }, [peek, hidePeek]);
+
+  // The Claude column peeks too.  The pointer pressed against the window's
+  // right edge, past any scrollbar there, for a moment slides the column in
+  // over the panes while it is folded or parked, in whatever view; it goes
+  // as a drawer's peek goes, and stays while it is typed into.  It never
+  // docks: the shortcut, the column's button and its strip do that.  The
+  // writer's request, 2 October 2026.
+  const [chatPeek, setChatPeek] = useState(false);
+  const chatPeekRef = useRef(false);
+  chatPeekRef.current = chatPeek;
+  const chatPeekStill = useRef(false);
+  const chatPeekFold = useFold(chatPeek, chatPeekStill);
+  const chatPeekTimer = useRef({ open: 0, leave: 0 });
+  const chatPeekFrom = useRef<HTMLElement | null>(null);
+  const chatPeekPressed = useRef(false);
+  const chatEl = useRef<HTMLDivElement | null>(null);
+  const hideChatPeek = useCallback((now: boolean) => {
+    window.clearTimeout(chatPeekTimer.current.open);
+    window.clearTimeout(chatPeekTimer.current.leave);
+    chatPeekPressed.current = false;
+    if (!chatPeekRef.current) return;
+    chatPeekStill.current = now;
+    setChatPeek(false);
+  }, []);
+  useEffect(() => {
+    if (chatPeekFold === "open" || chatPeekFold === "closed") chatPeekStill.current = false;
+  }, [chatPeekFold]);
+  const typingInChat = () => {
+    const active = document.activeElement as HTMLElement | null;
+    return !!active && !!chatEl.current?.contains(active) &&
+      (active.matches("input, textarea, select") || active.isContentEditable);
+  };
+  const chatPeekLeaveSoon = useCallback(() => {
+    window.clearTimeout(chatPeekTimer.current.leave);
+    if (!chatPeekRef.current || typingInChat()) return;
+    chatPeekTimer.current.leave = window.setTimeout(() => {
+      if (!typingInChat()) hideChatPeek(false);
+    }, PEEK_LEAVE);
+  }, [hideChatPeek]);
+  useEffect(() => {
+    if (noAgent) return;
+    const onMove = (event: PointerEvent) => {
+      // A mouse, not a finger, and not one dragging a scrollbar or a
+      // selection to the edge.
+      if (event.pointerType !== "mouse" || event.buttons) return;
+      if (event.clientX < window.innerWidth - EDGE) {
+        window.clearTimeout(chatPeekTimer.current.open);
+        chatPeekTimer.current.open = 0;
+        return;
+      }
+      if (chatPeekRef.current || chatPeekTimer.current.open) return;
+      const visible = chatOverRef.current ? chatOpenRef.current : !foldedRef.current.chat;
+      if (visible) return;
+      chatPeekTimer.current.open = window.setTimeout(() => {
+        chatPeekTimer.current.open = 0;
+        chatPeekFrom.current = document.activeElement as HTMLElement | null;
+        setChatPeek(true);
+      }, PEEK_TIME);
+    };
+    window.addEventListener("pointermove", onMove);
+    return () => window.removeEventListener("pointermove", onMove);
+  }, [noAgent]);
+  useEffect(() => {
+    if (!chatPeek) return;
+    const onKey = (event: KeyboardEvent) => {
+      if (event.key !== "Escape") return;
+      event.stopPropagation();
+      hideChatPeek(true);
+    };
+    const onPress = (event: PointerEvent) => {
+      const target = event.target as Node | null;
+      if (target && chatEl.current?.contains(target)) return;
+      hideChatPeek(true);
+    };
+    // Where the pointer is, read from its position rather than from enter
+    // and leave: the column slides in under a pointer standing at the edge,
+    // and the browser counts the pointer as having entered it only once it
+    // moves again, so a pointer taken straight back off it left no leave
+    // and the peek stayed.
+    const onMove = (event: PointerEvent) => {
+      const box = chatEl.current?.getBoundingClientRect();
+      const inside = !!box && event.clientX >= box.left && event.clientX <= box.right &&
+        event.clientY >= box.top && event.clientY <= box.bottom;
+      if (inside || event.clientX >= window.innerWidth - EDGE) window.clearTimeout(chatPeekTimer.current.leave);
+      else chatPeekLeaveSoon();
+    };
+    window.addEventListener("keydown", onKey, true);
+    window.addEventListener("pointerdown", onPress, true);
+    window.addEventListener("pointermove", onMove);
+    return () => {
+      window.removeEventListener("keydown", onKey, true);
+      window.removeEventListener("pointerdown", onPress, true);
+      window.removeEventListener("pointermove", onMove);
+    };
+  }, [chatPeek, hideChatPeek, chatPeekLeaveSoon]);
+  // Docked or opened by its shortcut, its button or its strip, the column
+  // takes over from the peek, which goes without a slide.
+  useEffect(() => {
+    if (!chatPeekRef.current) return;
+    if (chatOpen && narrow) hideChatPeek(true);
+    if (!folded.chat && !narrow) hideChatPeek(true);
+  }, [chatOpen, folded.chat, narrow, hideChatPeek]);
   // Reading mode and writing mode: one pane with the window to itself.
   const [focus, setFocus] = useState<"editor" | "pdf" | null>(null);
   const beforeFocus = useRef<{
@@ -1580,6 +1697,7 @@ export default function App() {
     });
   }, []);
 
+
   /** Where the tutorial sheet's right edge sits.
    *
    *  Immediately left of the agent when it has a column of its own, and at
@@ -2588,7 +2706,7 @@ export default function App() {
                     {id === "build" ? (
                 <Diagnostics
                   onJump={(file, line) => openFile(file, line)}
-                  onFix={(text) => chat.current?.seed(text)}
+                  onFix={noAgent ? undefined : (text) => chat.current?.seed(text)}
                   onRebuild={(full) => void buildNow(full)}
                 />
                     ) : null}
@@ -2793,7 +2911,7 @@ export default function App() {
           }}
           onFocus={() => {
             if (peekPressed.current) return;
-            peekFrom.current?.focus({ preventScroll: true });
+            giveFocusBack(peekFrom.current);
           }}
         >
           {drawerBody(peekShows.current, true)}
@@ -2935,7 +3053,9 @@ export default function App() {
               <Suspense fallback={<div className="h-full bg-surface" />}>
                 <Editor
                   handleRef={(handle) => (editor.current = handle)}
-                  onAskAbout={askAboutSelection}
+                  // Without an agent the selection's row offers Comment alone:
+                  // its four verbs talk to the agent.
+                  onAskAbout={noAgent ? undefined : askAboutSelection}
                   onOpen={openFile}
                 />
               </Suspense>
@@ -3199,7 +3319,7 @@ export default function App() {
           while it is docked and folded the strip below stands in for it,
           so in both of those the pill would be a second control for one
           act, and it goes. */}
-      {!noAgent && chatOver && !chatOpen ? <AgentButton onShow={toggleChat} /> : null}
+      {!noAgent && chatOver && !chatOpen && !chatPeek ? <AgentButton onShow={toggleChat} /> : null}
       {tutorialOpen ? (
         <Suspense
           fallback={
@@ -3229,8 +3349,9 @@ export default function App() {
       ) : null}
       {noAgent ? null : (
       <div
+        ref={chatEl}
         className={
-          chatOver
+          chatOver || (!shown(chatFold) && shown(chatPeekFold))
             ? "absolute right-0 top-0 z-30 h-full shadow-float"
             : !shown(chatFold)
               ? "hidden"
@@ -3238,6 +3359,19 @@ export default function App() {
         }
         style={{
           width: widths.chat,
+          // Peeked at while docked and folded: in from the right edge on
+          // the arrive token and out on the quick one, as a drawer peeks.
+          ...(!chatOver && !shown(chatFold) && shown(chatPeekFold)
+            ? {
+                transform: away(chatPeekFold) ? "translateX(100%)" : undefined,
+                transition:
+                  chatPeekFold === "opening"
+                    ? "transform var(--dur-arrive) var(--ease)"
+                    : chatPeekFold === "closing"
+                      ? "transform var(--dur-quick) var(--ease)"
+                      : undefined,
+              }
+            : {}),
           // Docked, it slides off the right edge the way it does as an
           // overlay, and the panes to its left take up the space.
           ...(!chatOver && moving(chatFold)
@@ -3246,23 +3380,37 @@ export default function App() {
                 transition: foldTransition(chatFold, "margin-right"),
               }
             : {}),
-          transform: chatOver && !chatOpen ? "translateX(100%)" : undefined,
+          ...(chatOver ? { transform: chatOpen || chatPeek ? undefined : "translateX(100%)" } : {}),
           // Hidden once it has finished sliding out.  A transform leaves it
           // laid out and hit-testable, so a click could land in a panel
           // nobody can see -- and the browser would scroll it into view,
           // taking the rail off the screen with it.  The delay is what
           // keeps the slide visible: on the way out visibility waits for
           // the transform, on the way in it applies at once.
-          visibility: chatOver && !chatOpen ? "hidden" : undefined,
+          visibility: chatOver && !chatOpen && !chatPeek ? "hidden" : undefined,
           ...(chatOver
             ? {
+                // A peek comes and goes on the quicker tokens.
                 transition: chatOpen
                   ? "transform var(--dur-move) var(--ease), visibility 0s linear 0s"
-                  : "transform var(--dur-leave) var(--ease), visibility 0s linear var(--dur-leave)",
+                  : chatPeek
+                    ? "transform var(--dur-arrive) var(--ease), visibility 0s linear 0s"
+                    : chatPeekStill.current
+                      ? "none"
+                      : "transform var(--dur-quick) var(--ease), visibility 0s linear var(--dur-quick)",
               }
             : {}),
         }}
-        aria-hidden={chatOver && !chatOpen}
+        onPointerDown={() => {
+          chatPeekPressed.current = true;
+        }}
+        onFocus={() => {
+          // A peek is looked at until it is pressed; focus the column takes
+          // for itself goes back where it was.
+          if (chatPeekRef.current && !chatPeekPressed.current) giveFocusBack(chatPeekFrom.current);
+        }}
+        data-peeking={chatPeek || undefined}
+        aria-hidden={chatOver && !chatOpen && !chatPeek}
         // `inert` as well as `aria-hidden`, and this is not belt and
         // braces.  The parked overlay is slid off the edge with a
         // transform, so it is still laid out: it adds its own width to the
@@ -3272,7 +3420,7 @@ export default function App() {
         // width -- the rail off the screen and the editor's text clipped at
         // x=0.  `aria-hidden` says "do not announce this"; only `inert`
         // says "this cannot be reached".
-        inert={(chatOver && !chatOpen) || (!chatOver && chatFold === "closing")}
+        inert={(chatOver && !chatOpen && !chatPeek) || (!chatOver && chatFold === "closing") || (!chatOver && chatPeekFold === "closing")}
         // Read by the Escape handler, which has to tell the panel's own
         // composer from every other box on screen.
         data-nx-chat=""
@@ -3298,7 +3446,7 @@ export default function App() {
             else if (foldedRef.current.chat) fold("chat");
             window.setTimeout(() => chat.current?.showReads(kind), 60);
           }}
-          onFold={() => (chatOver ? setChatOpen(false) : fold("chat"))}
+          onFold={() => (chatPeekRef.current ? hideChatPeek(false) : chatOver ? setChatOpen(false) : fold("chat"))}
           onChangeAgent={changeAgent}
           handleRef={(handle) => (chat.current = handle)}
           onShowEdit={(path, line) => openFile(path, line)}

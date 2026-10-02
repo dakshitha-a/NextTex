@@ -231,7 +231,14 @@ else.
   once. It goes 150 ms after the pointer has left the button and the
   peek, at once on Escape or a press outside, and stays only while a
   field in it has the keyboard. Focus that a peeked drawer takes for
-  itself goes back where it was.
+  itself goes back where it was. The Claude column peeks the same way
+  from the window's right edge, the pointer within its last 3 px for
+  120 ms, while it is folded or parked; whether the pointer is over it is
+  read from the pointer's position, since it slides in under a pointer
+  that has not moved.
+- With no agent, the agent is off rather than empty: no column, strip,
+  button, shortcut, edge peek, selection verbs, Fix on a build error or
+  palette action.
 - The tree's file card arms after 400 ms and the editor's hover cards
   after 250, never on touch; a key press, a scroll or a menu opening
   dismisses the card. The editor's card stays while the pointer is over

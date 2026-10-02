@@ -149,7 +149,9 @@ export default function Diagnostics({
   onRebuild,
 }: {
   onJump: (file: string, line: number) => void;
-  onFix: (text: string) => void;
+  /** Hands an error to the agent; absent when there is no agent, and then
+   *  the row offers Copy alone. */
+  onFix?: (text: string) => void;
   onRebuild: (full: boolean) => void;
 }) {
   const compile = useStore((s) => s.diagnostics);
@@ -426,6 +428,7 @@ export default function Diagnostics({
               {/* Fix and Copy under the pointer, and always on a finger,
                   which has no pointer to reveal with. */}
               <span className="flex items-center gap-0.5 hoverable:opacity-0 hoverable:group-hover:opacity-100 hoverable:focus-within:opacity-100">
+                {onFix ? (
                 <Pressable
                   className="px-1.5 text-small text-ink-2 hover:text-ink"
                   onClick={(event) => {
@@ -438,6 +441,7 @@ export default function Diagnostics({
                 >
                   Fix
                 </Pressable>
+                ) : null}
                 {/* The one thing a writer does with an error message that
                     NextTex cannot do for them: take it somewhere else, to
                     a search or to a colleague. It was selectable text

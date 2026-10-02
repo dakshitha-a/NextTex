@@ -10,7 +10,7 @@
     {
       "name": "the frame and the panes",
       "sources": ["frontend/src/App.tsx", "frontend/src/layout.ts", "frontend/src/motion.ts", "frontend/src/folds.ts", "frontend/src/header-gesture.ts", "frontend/src/panes/Collapsed.tsx", "frontend/src/panes/PaneHeader.tsx", "frontend/src/panes/Status.tsx", "frontend/src/viewport.ts", "frontend/src/remember.ts"],
-      "specs": ["layout", "chat-layout", "motion", "peek", "remembered-layout", "feet", "folds", "navigation", "tab-strips", "touch", "reload", "clipping", "parked-tab", "two-tabs", "limits"]
+      "specs": ["layout", "chat-layout", "motion", "peek", "agent-peek", "no-agent", "remembered-layout", "feet", "folds", "navigation", "tab-strips", "touch", "reload", "clipping", "parked-tab", "two-tabs", "limits"]
     },
     {
       "name": "the projects screen",

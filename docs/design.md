@@ -11814,3 +11814,27 @@ of inputs alone keeps them where they were. Every drawer was rendered
 docked and peeked in both themes after the change and looked right.
 `e2e/specs/peek.spec.ts` holds the peek's cases, `outline.test.ts` the
 nesting.
+
+## 105. The Claude column peeks from the edge, and no agent means none
+
+The writer asked on 2 October 2026 for the agent's column to peek as the
+drawers do: in whatever view, the pointer pushed past the window's right
+edge, past any scrollbar there, brings the column in over the panes, and
+it docks only from its shortcut, its button or its strip. It peeks while
+it is folded to its strip or parked off the edge on a narrower window,
+after 120 ms within the last 3 px, at the drawer peek's pace; a pointer
+near the edge but not at it, or one dragging to it, brings nothing.
+Building it showed that a panel sliding in under a still pointer is not
+entered until the pointer moves again, so a pointer taken straight off
+left no leave and the peek stayed; whether the pointer is over it is now
+read from the pointer's position while it shows. The writer also asked
+that the column's slides match the drawer's; measured, both run on the
+same tokens at every frame, and the peek uses the drawer peek's.
+
+They asked too that with No agent chosen nothing about the agent works
+or shows. The column, its strip, its button and its shortcut already
+stood down; the selection's verb row still offered Reword, Shorten,
+Expand and Ask, a build error still offered Fix, and the palette still
+offered the agent. Each is gone without an agent now, and the selection
+offers Comment alone. `e2e/specs/no-agent.spec.ts` checks every one.
+
