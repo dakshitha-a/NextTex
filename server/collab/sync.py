@@ -84,10 +84,19 @@ class Connection:
 
     def close(self) -> None:
         self.alive = False
-        try:
-            self.queue.put_nowait(None)
-        except asyncio.QueueFull:
-            pass
+        # Room for the `None` that ends the pump, made by dropping what is
+        # queued: the browser asks for all of it again when it reconnects.
+        # Without it a connection closed for overflowing never woke its
+        # pump, which drained the queue and then waited for good.
+        while True:
+            try:
+                self.queue.put_nowait(None)
+                return
+            except asyncio.QueueFull:
+                try:
+                    self.queue.get_nowait()
+                except asyncio.QueueEmpty:
+                    pass
 
 
 class SyncHub:
@@ -268,14 +277,30 @@ class SyncHub:
             pump.cancel()
 
     async def _pump(self, websocket: Any, connection: Connection) -> None:
-        """Everything queued for this connection, in order."""
+        """Everything queued for this connection, in order.
+
+        When it stops for any reason but the connection ending, it closes
+        the socket.  It used to stop and leave the socket open: the receive
+        loop went on applying what the browser sent, the browser went on
+        reading live, and nothing reached it again until a reload.  Closed,
+        the browser reconnects and asks for what it missed.
+        """
         try:
             while True:
                 message = await connection.queue.get()
                 if message is None:
                     break
                 await websocket.send_bytes(message)
-        except (asyncio.CancelledError, Exception):
+        except asyncio.CancelledError:
+            # `serve` is already on its way out and closes the socket itself.
+            return
+        except Exception:
+            pass
+        connection.alive = False
+        try:
+            # 1013, try again later: the client reconnects on any close.
+            await websocket.close(code=1013)
+        except Exception:
             pass
 
     def close(self) -> None:
