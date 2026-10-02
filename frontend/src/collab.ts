@@ -496,10 +496,20 @@ export class ProjectCollab {
         doc, text, socket, awareness, undo, users: 0, fileId,
       };
       this.files.set(fileId, made);
-      this.opening.delete(fileId);
       return made;
     })();
     this.opening.set(fileId, pending);
+    // Cleared once settled, and only if it is still this one.  The body
+    // above has no await, so it runs to its end before `set`: the delete
+    // used to sit inside it and ran first, which left every file's
+    // resolved promise here for good.  After a tab closed and `release`
+    // destroyed the document, opening the file again found that promise
+    // and was handed the destroyed document back, its socket closed: a tab
+    // that showed old text, took no outside edit and sent nothing typed,
+    // with the indicator still reading live.
+    void pending.then(() => {
+      if (this.opening.get(fileId) === pending) this.opening.delete(fileId);
+    });
     return pending;
   }
 

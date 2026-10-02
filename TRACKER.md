@@ -24,7 +24,14 @@ things go to be forgotten rather than a list anybody reads.
 
 ## In hand
 
-Nothing is in hand. The venue templates run closed on 2 October 2026 at
+Nothing is in hand. The reopened-tab fix closed on 2 October 2026 at
+4.25.1, with its tracker at
+https://claude.ai/artifact/BZSyPsyYWgmrVGcHr38r1z: a file closed and
+opened again in one page was bound to its destroyed shared document. It
+turned up a server socket that stops being fed without being closed,
+fixed in its own commit.
+
+Before it, the venue templates run closed on 2 October 2026 at
 4.25.0, from 4.24.1, with its tracker at
 https://claude.ai/artifact/8jcpVy2s2vz54xNhFoqsBu. Done: each template's
 shape in a `template.toml` of its own; twelve venue templates on their
@@ -171,6 +178,11 @@ OpenAI provider against OpenAI itself.
 ## Backlog
 
 ### Known gaps, with a cost somebody will eventually pay
+
+- **A Markdown buffer's `.cm-content` read `data-language="stex"`** in a
+  failing spec run on 2 October 2026. Not checked whether Markdown is
+  meant to share the TeX mode or picks it up by mistake; noted while
+  chasing the reopened-tab bug and left because it was not that bug.
 
 - [ ] **Four tour animations are still the soft 1x recordings.** The
       motion, rail and tour run found that every animation had been
