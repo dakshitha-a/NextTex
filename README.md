@@ -221,6 +221,20 @@ in the middle.
 </td>
 <td><img src="docs/tour/together.webp" alt="A co-author's named cursor arrives in the paragraph and types a sentence, live." width="380"></td>
 </tr>
+<tr>
+<td><img src="docs/tour/script.webp" alt="Figure 1 on the page with a grey fit line; in the script that draws it, the colour is changed to crimson and Ctrl-Enter runs it; the new figure appears beside the script, then on the page." width="380"></td>
+<td>
+
+### Figures from a script, run where you write
+
+The script that draws a figure lives in your project and opens in the
+editor like any file. Change it, press Ctrl-Enter, and the figure appears
+beside it. The page picks it up on its next build.
+
+[More on figures →](docs/guide.md#it-draws-a-figure-from-your-data)
+
+</td>
+</tr>
 </table>
 
 <details>

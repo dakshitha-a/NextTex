@@ -1,10 +1,11 @@
 import { execFileSync } from "node:child_process";
-import { readFileSync, writeFileSync } from "node:fs";
+import { copyFileSync, mkdirSync, readFileSync, writeFileSync } from "node:fs";
 import { join } from "node:path";
 import { openProject } from "../fixtures";
+import { ROOT } from "../server";
 import { Recorder, glide } from "./recorder";
 import {
-  FRAMES, animate, atRest, caretToEndOf, dress, expect, filmedAt, line, onPage, prepare, register,
+  FRAMES, PYTHON, animate, atRest, caretToEndOf, dress, expect, filmedAt, line, onPage, prepare, register,
   reveal, span, test, withoutAgent,
 } from "./tour-kit";
 
@@ -316,6 +317,130 @@ test("D, citations it cannot invent", async ({ tab, root }) => {
   await rec.hold(900);
   await rec.stop();
   animate("citations", "citations.webp");
+});
+
+// --- G: a figure from your data ---------------------------------------------
+
+/** The script the paper's Figure 1 is drawn by, through the helper and the
+ *  style sheet the app puts in a project the first time it plots.  One
+ *  obvious thing to change: the fit line's colour, on a line of its own. */
+const DECAY_SCRIPT = `"""The excited state's decay, and the fit to it."""
+import matplotlib.pyplot as plt
+import numpy as np
+
+from figure import figure, save
+
+t = np.linspace(0, 5, 40)  # ps
+rng = np.random.default_rng(7)
+signal = np.exp(-t / 1.2) + rng.normal(0, 0.025, t.size)
+fit = np.exp(-t / 1.2)
+
+fit_colour = "0.6"
+
+fig, ax = figure(aspect=0.5)
+ax.plot(t, signal, "o", color="0.25", markersize=3, label="measured")
+ax.plot(t, fit, color=fit_colour, linewidth=2.5, label="fit, 1.2 ps")
+ax.set_xlabel("time (ps)")
+ax.set_ylabel("signal")
+ax.legend(frameon=False)
+plt.show()
+save(fig, "decay-fit.png")
+`;
+
+test("G, a figure from your data", async ({ tab, root }) => {
+  const scripts = join(root, "scripts");
+  mkdirSync(scripts, { recursive: true });
+  copyFileSync(join(ROOT, "nexttex", "figure_helper.py"), join(scripts, "figure.py"));
+  copyFileSync(join(ROOT, "nexttex", "plotstyle.mplstyle"), join(scripts, "plotstyle.mplstyle"));
+  writeFileSync(join(scripts, "decay.py"), DECAY_SCRIPT);
+  // The figure as the script last drew it, grey, so the page starts from
+  // the script's own figure rather than the synthetic one.
+  execFileSync(PYTHON, [join(scripts, "decay.py")], {
+    cwd: root, env: { ...process.env, MPLBACKEND: "Agg", MPLCONFIGDIR: join(root, ".nexttex", "matplotlib") },
+  });
+  await dress(tab, "dark");
+  await withoutAgent(tab);
+  await atRest(tab);
+  // The project opened before the script drew its figure, so the page is
+  // built again from it, to the end, with every reference resolved.
+  await tab.getByTestId("status-strip").getByRole("button", { name: "Rebuild" }).click();
+  await atRest(tab);
+  await expect.poll(async () => {
+    const resolved = await tab.locator(".nx-text-layer span").filter({ hasText: "Equation (1)" }).count();
+    const pending = await tab.locator(".nx-text-layer span").filter({ hasText: "??" }).count();
+    return resolved > 0 && pending === 0;
+  }, { timeout: 60_000 }).toBe(true);
+  await tab.mouse.move(700, 450);
+
+  // Figure 1 on the page, framed the same way before and after.
+  const caption = onPage(tab, "What the reader should notice");
+  const onFigure = async () => {
+    await expect(caption).toHaveCount(1, { timeout: 30_000 });
+    await caption.evaluate((el) => el.scrollIntoView({ block: "center", behavior: "smooth" }));
+    await tab.waitForTimeout(700);
+    await expect(caption).toBeVisible({ timeout: 15_000 });
+    const under = (await caption.boundingBox())!;
+    const tall = under.width * 0.5;
+    return { x: under.x, y: under.y - tall, width: under.width, height: tall + under.height };
+  };
+  const before = await onFigure();
+
+  const rec = new Recorder(tab, "script", FRAMES);
+  await rec.start();
+  await rec.hold(500);
+  // The figure as it is, grey, before anything is changed.
+  await rec.focus(before, { pad: 16, zoom: 3, ease: 0.8 });
+  await rec.hold(2000);
+  rec.wide();
+  await rec.hold(500);
+
+  // Open the script from the tree.
+  const folder = tab.locator('[role="tree"] [data-path="scripts"]');
+  await glide(tab, folder);
+  if ((await folder.getAttribute("aria-expanded")) !== "true") await folder.click();
+  const row = tab.locator('[role="tree"] [data-path="scripts/decay.py"]');
+  await row.waitFor();
+  await glide(tab, row);
+  await row.click();
+  await expect(tab.locator(".cm-content")).toContainText("fit_colour", { timeout: 15_000 });
+  await rec.hold(500);
+
+  // Change one obvious thing: the fit line from grey to crimson.
+  const colour = line(tab, 'fit_colour = "0.6"');
+  await rec.focus(await span(line(tab, "fit = np.exp"), line(tab, "ax.plot(t, fit")), { pad: 70 });
+  await glide(tab, colour);
+  await colour.click();
+  await tab.keyboard.press("End");
+  await tab.keyboard.press("ArrowLeft");
+  for (let i = 0; i < "0.6".length; i += 1) await tab.keyboard.press("Shift+ArrowLeft");
+  await rec.hold(500);
+  await tab.keyboard.type("crimson", { delay: 90 });
+  await rec.hold(700);
+
+  // Ctrl-Enter runs it, and the figure it drew comes up beside it.
+  await tab.keyboard.press("Control+Enter");
+  const figure = tab.getByTestId("script-figure").first();
+  await rec.quickly(() => expect(figure).toBeVisible({ timeout: 60_000 }), 3);
+  await expect(tab.getByTestId("script-outcome")).toHaveText(/Ran in/, { timeout: 30_000 });
+  await rec.focus(figure, { pad: 16, zoom: 3 });
+  await rec.hold(2400);
+
+  // And the page: the paper's Figure 1, in the same frame, is the figure
+  // the script just drew.
+  rec.wide();
+  const main = tab.locator('[role="tree"] [data-path="main.tex"]');
+  await glide(tab, main);
+  await main.click();
+  await rec.focus(await onFigure(), { pad: 16, zoom: 3, ease: 0.8 });
+  const status = tab.getByTestId("status");
+  await rec.quickly(async () => {
+    await expect(status).toHaveAttribute("data-state", /built|ready/, { timeout: 60_000 });
+  }, 2);
+  await rec.hold(2800);
+  rec.wide();
+  await rec.hold(900);
+  await rec.stop();
+  animate("script", "script.webp");
 });
 
 // --- F: download as Word ----------------------------------------------------
