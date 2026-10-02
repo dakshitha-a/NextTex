@@ -125,3 +125,14 @@ test("a version's controls appear for the finger that chose it", async ({
   await expect(tab.getByText(/viewing/i).first()).toBeVisible();
   await expect(name).toBeVisible();
 });
+
+test("a tap on a bar button is a click, and never a peek", async ({ tab }) => {
+  // A finger has no hover, so the drawer it taps is the drawer it gets,
+  // the same as a click, with no peek shown first or left behind.
+  await expect(tab.getByTestId("activity-bar")).toBeVisible();
+  await tab.getByTestId("bar-sections").tap();
+  await tab.waitForTimeout(500);
+  await expect(tab.getByTestId("drawer-peek")).toHaveCount(0);
+  await expect(tab.getByTestId("drawer")).toHaveAttribute("data-drawer", "sections");
+  await expect(tab.getByTestId("bar-sections")).toHaveAttribute("aria-pressed", "true");
+});

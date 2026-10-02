@@ -1433,6 +1433,9 @@ input, textarea { font: inherit; color: inherit; background: transparent; }
 .nx-bar-button.nx-icon-button { width: 32px; height: 32px; border-radius: 6px; color: var(--ink-2); }
 .nx-bar-button.nx-icon-button:hover { color: var(--ink); }
 .nx-bar-button.nx-icon-button[data-on] { background: var(--wash); color: var(--ink); }
+/* The drawer peeked at keeps its button marked while the pointer is over
+   the peek, the way the docked drawer's button is. */
+.nx-bar-button.nx-icon-button[data-peeking] { background: var(--wash); color: var(--ink); }
 
 .nx-row {
   display: flex; align-items: center; gap: 8px;

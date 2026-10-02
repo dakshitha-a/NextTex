@@ -204,6 +204,12 @@ const BAR_ITEMS: { id: DrawerId; title: string; Icon: () => ReactNode }[] = [
   { id: "trash", title: "Deleted", Icon: () => <TrashIcon size={18} /> },
 ];
 const DRAWER_DEFAULT: DrawerId = "files";
+/** How long the pointer rests on a bar button before its drawer peeks:
+ *  long enough that a sweep down the bar to Settings opens nothing. */
+const PEEK_TIME = 200;
+/** How long a peek stays after the pointer has left it and its button,
+ *  the hover cards' 300 ms (frontend/src/panes/hover-card.ts). */
+const PEEK_LEAVE = 300;
 
 /** The project the writer was in, so a reload comes back to the document. */
 const LAST_PROJECT = "nexttex.lastProject";
@@ -331,6 +337,91 @@ export default function App() {
   const editorFold = useFold(!folded.editor, stillLayout);
   const pdfFold = useFold(!folded.pdf, stillLayout);
   const chatFold = useFold(!folded.chat, stillLayout);
+  // A drawer peeked at: the pointer resting on its bar button shows it over
+  // the panes, which do not move, and a click docks it as before.  The
+  // direction page's "Peeking at a drawer" draws it.  `peek` is the drawer
+  // asked for; `peekShows` keeps the last one on screen while it slides
+  // away.  A peek that is used, clicked or typed in, is held: it no longer
+  // goes when the pointer leaves, so a query typed into it is not lost to
+  // a mouse that wandered off the field.
+  const [peek, setPeek] = useState<DrawerId | null>(null);
+  const peekRef = useRef<DrawerId | null>(null);
+  peekRef.current = peek;
+  const peekShows = useRef<DrawerId>(DRAWER_DEFAULT);
+  if (peek) peekShows.current = peek;
+  const peekHeld = useRef(false);
+  // Where the keyboard was when the peek opened.  A peek is looked at, not
+  // typed into, until it is pressed: a drawer that focuses itself as it
+  // mounts, as History does, would otherwise take the caret out of the
+  // source and hold the peek open as though it had been used.
+  const peekFrom = useRef<HTMLElement | null>(null);
+  const peekStill = useRef(false);
+  const peekFold = useFold(peek !== null, peekStill);
+  const peekEl = useRef<HTMLDivElement | null>(null);
+  const peekTimer = useRef({ open: 0, leave: 0 });
+  // A drawer docked from its peek: the peek stays over the column until the
+  // column has opened under it, then goes without a slide.
+  const dockingPeek = useRef(false);
+  const hidePeek = useCallback((now: boolean) => {
+    window.clearTimeout(peekTimer.current.open);
+    window.clearTimeout(peekTimer.current.leave);
+    peekHeld.current = false;
+    if (!peekRef.current) return;
+    peekStill.current = now;
+    setPeek(null);
+  }, []);
+  useEffect(() => {
+    if (peekFold === "open" || peekFold === "closed") peekStill.current = false;
+  }, [peekFold]);
+  const peekLeaveSoon = useCallback(() => {
+    window.clearTimeout(peekTimer.current.leave);
+    if (!peekRef.current || peekHeld.current) return;
+    peekTimer.current.leave = window.setTimeout(() => hidePeek(false), PEEK_LEAVE);
+  }, [hidePeek]);
+  const peekEnter = useCallback((which: DrawerId, event: React.PointerEvent) => {
+    // A finger has no hover: its tap is the click.
+    if (event.pointerType === "touch") return;
+    window.clearTimeout(peekTimer.current.open);
+    window.clearTimeout(peekTimer.current.leave);
+    const docked = !railHiddenRef.current && !foldedRef.current.rail && drawerIdRef.current === which;
+    if (docked) {
+      peekLeaveSoon();
+      return;
+    }
+    // Along the bar, once one is showing, the content changes at once.
+    if (peekRef.current) {
+      setPeek(which);
+      return;
+    }
+    peekTimer.current.open = window.setTimeout(() => {
+      peekFrom.current = document.activeElement as HTMLElement | null;
+      setPeek(which);
+    }, PEEK_TIME);
+  }, [peekLeaveSoon]);
+  // Escape, or a press anywhere but the peek and the bar, puts it away at
+  // once.  Escape is taken in the capture phase while a peek shows, so it
+  // does not also close whatever else is listening for it.
+  useEffect(() => {
+    if (!peek) return;
+    const onKey = (event: KeyboardEvent) => {
+      if (event.key !== "Escape") return;
+      event.stopPropagation();
+      hidePeek(true);
+    };
+    const onPress = (event: PointerEvent) => {
+      const target = event.target as Node | null;
+      if (!target) return;
+      if (peekEl.current?.contains(target)) return;
+      if ((target as Element).closest?.('[data-testid="activity-bar"]')) return;
+      hidePeek(true);
+    };
+    window.addEventListener("keydown", onKey, true);
+    window.addEventListener("pointerdown", onPress, true);
+    return () => {
+      window.removeEventListener("keydown", onKey, true);
+      window.removeEventListener("pointerdown", onPress, true);
+    };
+  }, [peek, hidePeek]);
   // Reading mode and writing mode: one pane with the window to itself.
   const [focus, setFocus] = useState<"editor" | "pdf" | null>(null);
   const beforeFocus = useRef<{
@@ -756,6 +847,15 @@ export default function App() {
   /** The bar's click: a second press on the drawer that is showing folds
    *  it, any other press shows that one. */
   const toggleDrawer = useCallback((which: DrawerId) => {
+    // A click on the drawer being peeked at docks it, the peek standing over
+    // the column until the column is open under it; any other click puts
+    // the peek away.
+    if (peekRef.current && peekRef.current === which) {
+      dockingPeek.current = true;
+      window.clearTimeout(peekTimer.current.leave);
+    } else {
+      hidePeek(true);
+    }
     const showing = !railHiddenRef.current && !foldedRef.current.rail;
     if (showing && drawerIdRef.current === which) {
       railByHand.current = true;
@@ -767,7 +867,12 @@ export default function App() {
     // walk the bar rather than the thing just opened.
     drawerWantsFocus.current = true;
     openDrawer(which);
-  }, [openDrawer]);
+  }, [openDrawer, hidePeek]);
+  useEffect(() => {
+    if (!dockingPeek.current || drawerFold !== "open" || drawerId !== peekRef.current) return;
+    dockingPeek.current = false;
+    hidePeek(true);
+  }, [drawerFold, drawerId, hidePeek]);
   const drawerWantsFocus = useRef(false);
   const drawerEl = useRef<HTMLDivElement | null>(null);
   // Kept until the drawer is there to take it: the drawer mounts when its
@@ -2318,6 +2423,156 @@ export default function App() {
     transition: foldTransition(phase, side === "left" ? "margin-left" : "margin-right"),
   });
 
+  // What a drawer holds, under its heading: drawn by the docked drawer and
+  // by the peek, which can show a second drawer over the first.
+  const drawerBody = (id: DrawerId, peeking: boolean) => (
+    <>
+            {id === "history" || id === "files" ? (
+              // History and Files draw their own heading rows: History's
+              // carries the file it is about and the close control, Files'
+              // the four buttons that are the tree's own.
+              <Suspense fallback={null}>
+            {id === "files" ? (
+            <FileTree
+            onPreview={startPreviewing}
+            onUnpreview={stopPreviewing}
+              onOpen={openFile}
+              onRefresh={refreshTree}
+              onRename={renameOpenFile}
+              onDeleted={(path) => {
+                const closing = tabsUnder(get().tabs, [path]);
+                if (closing.length) void closeMany(closing);
+              }}
+              onDuplicate={duplicateFile}
+              onHistory={() => openDrawer("history")}
+              onAskAbout={noAgent ? undefined : askAboutSelection}
+              onRunScript={(path) => {
+                openFile(path);
+                void runScript(path);
+              }}
+            />
+            ) : (
+            <HistoryPanel
+              onCompare={async (other) => {
+                const pair = editor.current?.viewed();
+                const shown = get().viewing?.version;
+                if (!projectId || !pair || !shown) return;
+                try {
+                  const path = get().viewing?.path ?? "";
+                  const [fetched, { createTwoFilesPatch }] = await Promise.all([
+                    api.historyVersion(projectId, path, other.sha),
+                    import("diff"),
+                  ]);
+                  // Older on the left, whichever was clicked, so a
+                  // patch always reads forwards in time.
+                  const forwards = other.at >= shown.at;
+                  const name = path.split("/").pop() ?? "";
+                  const when = new Date(other.at).toLocaleTimeString([], {
+                    hour: "2-digit", minute: "2-digit",
+                  });
+                  setPatchView({
+                    title: forwards
+                      ? `From the version on screen to the one from ${when}`
+                      : `From the version from ${when} to the one on screen`,
+                    text: createTwoFilesPatch(
+                      name, name,
+                      forwards ? pair.old : fetched.text,
+                      forwards ? fetched.text : pair.old,
+                      "", "", { context: 2 },
+                    ),
+                  });
+                } catch (error: any) {
+                  set({ error: error.message });
+                }
+              }}
+              docked
+              onView={viewVersion}
+              onOpen={(path) => openFile(path)}
+              onClose={peeking ? () => hidePeek(true) : closeHistory}
+            />
+            )}
+              </Suspense>
+            ) : (
+              <>
+                <div className="flex shrink-0 items-center gap-0.5 pb-1.5 pl-3.5 pr-2 pt-2.5">
+                  <span className="t-ui-lg flex-1 truncate text-ink">
+                    {BAR_ITEMS.find((item) => item.id === id)?.title ?? `What ${agentName(agentProvider as Provider | undefined)} reads`}
+                  </span>
+                  {id === "git" && gitDirty ? (
+                    <span className="t-meta tnum pr-1 text-ink-3">{gitDirty}</span>
+                  ) : null}
+                  {id === "papers" && bibName ? (
+                    <IconButton label="Read a folder of PDFs" onClick={() => setChoosePapers((n) => n + 1)}>
+                      <FolderIcon />
+                    </IconButton>
+                  ) : null}
+                  {id === "people" && shared ? (
+                    <IconButton label="Make an invite" data-testid="make-invite" onClick={() => setInviteNonce((n) => n + 1)}>
+                      <PlusIcon />
+                    </IconButton>
+                  ) : null}
+                  {id === "build" ? (
+                    <IconButton label="Rebuild" title="Rebuild the document" data-testid="rebuild-quick" onClick={() => void buildNow(false)}>
+                      <UpdateIcon />
+                    </IconButton>
+                  ) : null}
+                </div>
+                <div className="flex min-h-0 flex-1 flex-col overflow-y-auto">
+                  {id === "search" ? (
+                    <Suspense fallback={null}>
+                      <SearchPanel
+                        onOpen={openFile}
+                        focusNonce={focusSearch}
+                        takeHeld={() => {
+                          const held = heldSearch.current;
+                          heldSearch.current = null;
+                          return held ? held.stop() : "";
+                        }}
+                      />
+                    </Suspense>
+                  ) : null}
+                  <Suspense fallback={null}>
+                    {id === "sections" ? (
+                      <StructureDrawer
+                        onJump={jumpToHeading}
+                        onOpen={(file, line) => openFile(file, line)}
+                        resolve={resolveInclude}
+                      />
+                    ) : null}
+                    {id === "trash" ? <TrashPanel onRefresh={refreshTree} /> : null}
+                    {id === "comments" ? (
+                      <CommentsPanel onOpen={(file, line) => openFile(file, line)} />
+                    ) : null}
+                    {id === "papers" ? (
+                      <PapersPanel onRefresh={refreshTree} chooseNonce={choosePapers} />
+                    ) : null}
+                    {id === "submit" ? (
+                <SubmitPanel
+                  onJump={(file, line) => openFile(file, line)}
+                  onPage={(page) => pdf.current?.goTo(page)}
+                />
+                    ) : null}
+                    {id === "git" ? (
+                <GitPanel onOpen={openFile} />
+                    ) : null}
+                    {id === "people" ? (
+                <PeoplePanel inviteNonce={inviteNonce} onLeft={leaveProject} />
+                    ) : null}
+                    {id === "download" ? <DownloadPanel /> : null}
+                    {id === "build" ? (
+                <Diagnostics
+                  onJump={(file, line) => openFile(file, line)}
+                  onFix={(text) => chat.current?.seed(text)}
+                  onRebuild={(full) => void buildNow(full)}
+                />
+                    ) : null}
+                  </Suspense>
+                </div>
+              </>
+            )}
+    </>
+  );
+
   return (
     // Two elements rather than one, and which is which matters.  `nx-frame`
     // is the scroll port, so a window narrower than the layout's stated
@@ -2389,6 +2644,12 @@ export default function App() {
             className="nx-bar-button"
             on={drawerShown && drawerId === id}
             aria-pressed={drawerShown && drawerId === id}
+            data-peeking={peek === id || undefined}
+            onPointerEnter={(event) => peekEnter(id, event)}
+            onPointerLeave={() => {
+              window.clearTimeout(peekTimer.current.open);
+              peekLeaveSoon();
+            }}
             // "As a shortcut, double clicking the compiler drawer icon
             // should rebuild": the first click shows the drawer, the
             // second is ignored as a press (it would fold what the first
@@ -2441,149 +2702,7 @@ export default function App() {
             ref={drawerEl}
             tabIndex={-1}
           >
-            {drawerId === "history" || drawerId === "files" ? (
-              // History and Files draw their own heading rows: History's
-              // carries the file it is about and the close control, Files'
-              // the four buttons that are the tree's own.
-              <Suspense fallback={null}>
-            {drawerId === "files" ? (
-            <FileTree
-            onPreview={startPreviewing}
-            onUnpreview={stopPreviewing}
-              onOpen={openFile}
-              onRefresh={refreshTree}
-              onRename={renameOpenFile}
-              onDeleted={(path) => {
-                const closing = tabsUnder(get().tabs, [path]);
-                if (closing.length) void closeMany(closing);
-              }}
-              onDuplicate={duplicateFile}
-              onHistory={() => openDrawer("history")}
-              onAskAbout={noAgent ? undefined : askAboutSelection}
-              onRunScript={(path) => {
-                openFile(path);
-                void runScript(path);
-              }}
-            />
-            ) : (
-            <HistoryPanel
-              onCompare={async (other) => {
-                const pair = editor.current?.viewed();
-                const shown = get().viewing?.version;
-                if (!projectId || !pair || !shown) return;
-                try {
-                  const path = get().viewing?.path ?? "";
-                  const [fetched, { createTwoFilesPatch }] = await Promise.all([
-                    api.historyVersion(projectId, path, other.sha),
-                    import("diff"),
-                  ]);
-                  // Older on the left, whichever was clicked, so a
-                  // patch always reads forwards in time.
-                  const forwards = other.at >= shown.at;
-                  const name = path.split("/").pop() ?? "";
-                  const when = new Date(other.at).toLocaleTimeString([], {
-                    hour: "2-digit", minute: "2-digit",
-                  });
-                  setPatchView({
-                    title: forwards
-                      ? `From the version on screen to the one from ${when}`
-                      : `From the version from ${when} to the one on screen`,
-                    text: createTwoFilesPatch(
-                      name, name,
-                      forwards ? pair.old : fetched.text,
-                      forwards ? fetched.text : pair.old,
-                      "", "", { context: 2 },
-                    ),
-                  });
-                } catch (error: any) {
-                  set({ error: error.message });
-                }
-              }}
-              docked
-              onView={viewVersion}
-              onOpen={(path) => openFile(path)}
-              onClose={closeHistory}
-            />
-            )}
-              </Suspense>
-            ) : (
-              <>
-                <div className="flex shrink-0 items-center gap-0.5 pb-1.5 pl-3.5 pr-2 pt-2.5">
-                  <span className="t-ui-lg flex-1 truncate text-ink">
-                    {BAR_ITEMS.find((item) => item.id === drawerId)?.title ?? `What ${agentName(agentProvider as Provider | undefined)} reads`}
-                  </span>
-                  {drawerId === "git" && gitDirty ? (
-                    <span className="t-meta tnum pr-1 text-ink-3">{gitDirty}</span>
-                  ) : null}
-                  {drawerId === "papers" && bibName ? (
-                    <IconButton label="Read a folder of PDFs" onClick={() => setChoosePapers((n) => n + 1)}>
-                      <FolderIcon />
-                    </IconButton>
-                  ) : null}
-                  {drawerId === "people" && shared ? (
-                    <IconButton label="Make an invite" data-testid="make-invite" onClick={() => setInviteNonce((n) => n + 1)}>
-                      <PlusIcon />
-                    </IconButton>
-                  ) : null}
-                  {drawerId === "build" ? (
-                    <IconButton label="Rebuild" title="Rebuild the document" data-testid="rebuild-quick" onClick={() => void buildNow(false)}>
-                      <UpdateIcon />
-                    </IconButton>
-                  ) : null}
-                </div>
-                <div className="flex min-h-0 flex-1 flex-col overflow-y-auto">
-                  {drawerId === "search" ? (
-                    <Suspense fallback={null}>
-                      <SearchPanel
-                        onOpen={openFile}
-                        focusNonce={focusSearch}
-                        takeHeld={() => {
-                          const held = heldSearch.current;
-                          heldSearch.current = null;
-                          return held ? held.stop() : "";
-                        }}
-                      />
-                    </Suspense>
-                  ) : null}
-                  <Suspense fallback={null}>
-                    {drawerId === "sections" ? (
-                      <StructureDrawer
-                        onJump={jumpToHeading}
-                        onOpen={(file, line) => openFile(file, line)}
-                        resolve={resolveInclude}
-                      />
-                    ) : null}
-                    {drawerId === "trash" ? <TrashPanel onRefresh={refreshTree} /> : null}
-                    {drawerId === "comments" ? (
-                      <CommentsPanel onOpen={(file, line) => openFile(file, line)} />
-                    ) : null}
-                    {drawerId === "papers" ? (
-                      <PapersPanel onRefresh={refreshTree} chooseNonce={choosePapers} />
-                    ) : null}
-                    {drawerId === "submit" ? (
-                <SubmitPanel
-                  onJump={(file, line) => openFile(file, line)}
-                  onPage={(page) => pdf.current?.goTo(page)}
-                />
-                    ) : null}
-                    {drawerId === "git" ? (
-                <GitPanel onOpen={openFile} />
-                    ) : null}
-                    {drawerId === "people" ? (
-                <PeoplePanel inviteNonce={inviteNonce} onLeft={leaveProject} />
-                    ) : null}
-                    {drawerId === "download" ? <DownloadPanel /> : null}
-                    {drawerId === "build" ? (
-                <Diagnostics
-                  onJump={(file, line) => openFile(file, line)}
-                  onFix={(text) => chat.current?.seed(text)}
-                  onRebuild={(full) => void buildNow(full)}
-                />
-                    ) : null}
-                  </Suspense>
-                </div>
-              </>
-            )}
+            {drawerBody(drawerId, false)}
             {/* The drawer's foot, level with the strips under the source and
                 the preview: the one way to report a problem from inside a
                 project, where a problem is usually met. */}
@@ -2614,6 +2733,44 @@ export default function App() {
       ) : null}
         </div>
       </div>
+      {/* The peek: the drawer over the panes while the pointer rests on its
+          bar button, the overlay the drawer is below the rail breakpoint,
+          at the docked width, sliding out from under the bar.  Outside the
+          left column, which clips while the docked drawer slides, since a
+          click docks the peeked drawer under the peek. */}
+      {shown(peekFold) ? (
+        <div
+          ref={peekEl}
+          className="nx-pane absolute left-11 top-9 z-30 flex h-[calc(100%-36px)] flex-col bg-surface-2 shadow-float outline-none"
+          style={{
+            width: widths.rail,
+            transform: away(peekFold) ? "translateX(-100%)" : undefined,
+            transition: foldTransition(peekFold, "transform"),
+          }}
+          inert={peekFold === "closing"}
+          aria-hidden={peekFold === "closing" || undefined}
+          data-testid="drawer-peek"
+          data-drawer={peekShows.current}
+          onPointerEnter={() => window.clearTimeout(peekTimer.current.leave)}
+          onPointerLeave={peekLeaveSoon}
+          onPointerDown={() => {
+            peekHeld.current = true;
+            window.clearTimeout(peekTimer.current.leave);
+          }}
+          onFocus={() => {
+            if (peekHeld.current) return;
+            peekFrom.current?.focus({ preventScroll: true });
+          }}
+        >
+          {drawerBody(peekShows.current, true)}
+          <div className="nx-foot t-meta flex h-7 shrink-0 items-center px-3 text-ink-2">
+            <Pressable className="flex items-center gap-1.5 hover:text-ink" onClick={() => setReporting(true)}>
+              <ReportIcon size={13} />
+              Report a problem
+            </Pressable>
+          </div>
+        </div>
+      ) : null}
 
       <div className={`flex min-w-0 flex-1 ${moving(editorFold) || moving(pdfFold) ? "overflow-clip" : ""}`}>
         {!tight ? (

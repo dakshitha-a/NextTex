@@ -223,6 +223,12 @@ else.
 - Hover-revealed actions stay in the DOM, show on `:focus-within`, and
   are always visible under `pointer: coarse` and `hover: none`, so a
   keyboard and a finger reach them.
+- A bar button's drawer peeks, over the panes and without moving them,
+  after the pointer has rested on the button 200 ms, never on touch and
+  never on keyboard focus; it goes 300 ms after the pointer has left the
+  button and the peek, at once on Escape or a press outside, and not at
+  all once it has been pressed. Focus that a peeked drawer takes for
+  itself goes back where it was.
 - The tree's file card arms after 400 ms and the editor's hover cards
   after 250, never on touch; a key press, a scroll or a menu opening
   dismisses the card. The editor's card stays while the pointer is over

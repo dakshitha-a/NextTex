@@ -82,7 +82,9 @@ a **Tutorial** button at its foot, and the projects screen's app bar has an
   full height, so the tree or the outline can stay open for as long as a
   chapter takes without pushing the other out. People is who is in the
   project and the invite to send; Build is the errors, the log and
-  Rebuild, and a double-click on its button rebuilds.
+  Rebuild, and a double-click on its button rebuilds. Rest the pointer on
+  a button and its drawer shows over the panes without moving them, for a
+  glance; a click docks it.
 - **A reply to the reviewers.** *Write the reply letter* at the foot of
   Comments turns every open comment into a point of `reply.tex`, each with
   a `\source` that a Ctrl-click follows back to its text.
@@ -233,7 +235,7 @@ makes typing slower on the day it happens.
 | A settled edit written to disk | 1.4 ms | 40 ms |
 | The same, with its version recorded | 3.0 ms | 60 ms |
 | Whole project as a zip | 67 ms | 3 s |
-| Interface bundle | 324.1 kB | 400 kB |
+| Interface bundle | 327.4 kB | 400 kB |
 
 The first row is the one worth keeping. The compile rewrites `build/main.pdf`,
 the symbol cache's stamp walk used to count it, and every build therefore
@@ -502,7 +504,11 @@ The bar down the left edge has twelve buttons, Files, Sections, Search,
 References, History, Git, People, Comments, Build, Before you submit,
 Download and Deleted, and one drawer beside it shows whichever you chose at full
 height; a second press on the lit button folds the drawer away, and
-`⌘B` / `Ctrl-B` hides the whole column. The project's name heads the
+`⌘B` / `Ctrl-B` hides the whole column. Resting the pointer on a button
+for a moment shows its drawer over the panes instead, which stay where
+they are: it goes when the pointer leaves it, or on Escape or a click
+elsewhere, and stays put once you click or type in it. A click on the
+button docks it as usual. The project's name heads the
 column, and the top of every pane is one band across the window.
 The Files drawer's heading row holds New file, New folder, Upload and Find
 a file: type into the field and the tree narrows to what matches, through

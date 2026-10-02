@@ -11759,3 +11759,30 @@ did the slide that was cut short under load. `e2e/specs/motion.spec.ts`
 now reads the neighbour's width in the frames after the pane is hidden,
 where the snap was, and checks that the page is not redrawn during the
 slide.
+
+## 103. Peeking at a drawer
+
+The writer asked on 1 October 2026 for the bar to work two ways:
+resting the pointer on a button opens that drawer over whatever panes
+are open, in whatever arrangement, and a click contracts the panes and
+docks the drawer, as before. They asked to see it drawn first, and the
+direction page's "Peeking at a drawer" was approved after one fix to the
+drawing, a column it had left blank beside the bar.
+
+The peek is the overlay the drawer already is below 1100 px: the docked
+width, under the band, on the float shadow, with no scrim, sliding out
+from under the bar. It opens once the pointer has rested on a button for
+200 ms, so a sweep down the bar to Settings opens nothing, and along the
+bar it changes at once. It goes 300 ms after the pointer has left both
+the button and the peek, the hover cards' time, and at once on Escape or
+a press outside. Once it has been pressed, to open a file or to type a
+query, it stays until one of those. Hovering the docked drawer's own
+button does nothing; another button peeks over the docked one from the
+same edge. A click docks the peeked drawer, the peek standing over the
+column until the column is open under it. Touch and keyboard focus never
+peek. Building it showed one thing the drawing had not: History takes
+the keyboard as it mounts, so a peek at it took the caret out of the
+source and, holding focus, kept itself open; focus a peeked drawer takes
+for itself now goes back where it was. `e2e/specs/peek.spec.ts` holds
+each case, `touch.spec.ts` the tap, and the contrast sweep measures the
+peek over the source.

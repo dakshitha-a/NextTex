@@ -101,6 +101,24 @@ const SURFACES: Surface[] = [
     close: async () => undefined,
   },
   {
+    // A drawer peeked at over the docked one: the drawer's own surface on
+    // the float shadow, over the source, with no scrim.
+    name: "the History drawer peeked at over the panes",
+    open: async (tab) => {
+      await tab.mouse.move(700, 450);
+      await tab.getByTestId("bar-history").hover();
+      const peek = tab.getByTestId("drawer-peek");
+      await expect(peek).toHaveAttribute("data-drawer", "history");
+      await tab.waitForTimeout(300);
+      return peek;
+    },
+    close: async (tab) => {
+      await tab.keyboard.press("Escape");
+      await tab.mouse.move(700, 450);
+      await expect(tab.getByTestId("drawer-peek")).toHaveCount(0);
+    },
+  },
+  {
     name: "the source tab menu",
     open: async (tab) => {
       // From the tree, since the strip overflows and the tab may be in
