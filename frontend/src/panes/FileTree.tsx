@@ -13,6 +13,7 @@ import {
   ChevronDownIcon, ChevronRightIcon, FolderIcon as FolderGlyph, MoreIcon, PlusIcon, SearchIcon, UploadIcon,
 } from "../ui/icons";
 import { countFiles } from "../tree";
+import { useOpenFolders } from "./open-folders";
 import { NX_PATH, iconFor, isBib, isData, isScript } from "./file-kinds";
 import api, { type TreeNode } from "../api";
 import { readStored } from "../appearance";
@@ -119,7 +120,7 @@ export default function FileTree({
    *  It is deliberately not remembered between visits.  Remembering would
    *  make what you see on opening depend on what you did last week, and the
    *  whole value of collapsed-on-open is that it is the same every time. */
-  const [expanded, setExpanded] = useState<Set<string>>(new Set());
+  const [expanded, setExpanded] = useOpenFolders(useStore((state) => state.projectId));
   /** Which file the menu is asking about clearing, if any. */
   const [purging, setPurging] = useState<string | null>(null);
   /** What the last clearing did, so the writer is told rather than left to

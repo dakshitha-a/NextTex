@@ -205,11 +205,12 @@ const BAR_ITEMS: { id: DrawerId; title: string; Icon: () => ReactNode }[] = [
 ];
 const DRAWER_DEFAULT: DrawerId = "files";
 /** How long the pointer rests on a bar button before its drawer peeks:
- *  long enough that a sweep down the bar to Settings opens nothing. */
-const PEEK_TIME = 200;
-/** How long a peek stays after the pointer has left it and its button,
- *  the hover cards' 300 ms (frontend/src/panes/hover-card.ts). */
-const PEEK_LEAVE = 300;
+ *  long enough that a sweep down the bar to Settings opens nothing, and
+ *  short, since the writer asked for peeking to feel fast. */
+const PEEK_TIME = 120;
+/** How long a peek stays after the pointer has left it and its button:
+ *  enough to cross the gap between the button and the peek. */
+const PEEK_LEAVE = 150;
 
 /** The project the writer was in, so a reload comes back to the document. */
 const LAST_PROJECT = "nexttex.lastProject";
@@ -341,15 +342,24 @@ export default function App() {
   // the panes, which do not move, and a click docks it as before.  The
   // direction page's "Peeking at a drawer" draws it.  `peek` is the drawer
   // asked for; `peekShows` keeps the last one on screen while it slides
-  // away.  A peek that is used, clicked or typed in, is held: it no longer
-  // goes when the pointer leaves, so a query typed into it is not lost to
-  // a mouse that wandered off the field.
+  // away.  Over a folded drawer it slides out from under the bar, quickly;
+  // over a drawer that is showing, docked or as the overlay, it is there at
+  // once and gone at once, since the drawer it lies over is already out
+  // and a slide would only re-enact it (the writer's word, 2 October
+  // 2026).  A peek being typed
+  // into stays when the pointer leaves, so a query is not lost to a mouse
+  // that wandered off the field; anything else, a folder opened, a file
+  // opened, a picture's card, leaves it free to go (it was held by any
+  // press, and the writer found a peek that would not go after opening a
+  // folder in it to look at a figure).
   const [peek, setPeek] = useState<DrawerId | null>(null);
   const peekRef = useRef<DrawerId | null>(null);
   peekRef.current = peek;
   const peekShows = useRef<DrawerId>(DRAWER_DEFAULT);
   if (peek) peekShows.current = peek;
-  const peekHeld = useRef(false);
+  // Set by a press inside the peek, so focus that follows it is the
+  // writer's and stays.
+  const peekPressed = useRef(false);
   // Where the keyboard was when the peek opened.  A peek is looked at, not
   // typed into, until it is pressed: a drawer that focuses itself as it
   // mounts, as History does, would otherwise take the caret out of the
@@ -365,26 +375,34 @@ export default function App() {
   const hidePeek = useCallback((now: boolean) => {
     window.clearTimeout(peekTimer.current.open);
     window.clearTimeout(peekTimer.current.leave);
-    peekHeld.current = false;
+    peekPressed.current = false;
     if (!peekRef.current) return;
-    peekStill.current = now;
+    peekStill.current = now || (!railHiddenRef.current && !foldedRef.current.rail);
     setPeek(null);
   }, []);
   useEffect(() => {
     if (peekFold === "open" || peekFold === "closed") peekStill.current = false;
   }, [peekFold]);
+  const typingInPeek = () => {
+    const active = document.activeElement as HTMLElement | null;
+    return !!active && !!peekEl.current?.contains(active) &&
+      (active.matches("input, textarea, select") || active.isContentEditable);
+  };
   const peekLeaveSoon = useCallback(() => {
     window.clearTimeout(peekTimer.current.leave);
-    if (!peekRef.current || peekHeld.current) return;
-    peekTimer.current.leave = window.setTimeout(() => hidePeek(false), PEEK_LEAVE);
+    if (!peekRef.current || typingInPeek()) return;
+    peekTimer.current.leave = window.setTimeout(() => {
+      if (!typingInPeek()) hidePeek(false);
+    }, PEEK_LEAVE);
   }, [hidePeek]);
   const peekEnter = useCallback((which: DrawerId, event: React.PointerEvent) => {
     // A finger has no hover: its tap is the click.
     if (event.pointerType === "touch") return;
     window.clearTimeout(peekTimer.current.open);
     window.clearTimeout(peekTimer.current.leave);
-    const docked = !railHiddenRef.current && !foldedRef.current.rail && drawerIdRef.current === which;
-    if (docked) {
+    // Over a drawer that is showing, the peek neither slides in nor out.
+    const over = !railHiddenRef.current && !foldedRef.current.rail;
+    if (over && drawerIdRef.current === which) {
       peekLeaveSoon();
       return;
     }
@@ -395,6 +413,7 @@ export default function App() {
     }
     peekTimer.current.open = window.setTimeout(() => {
       peekFrom.current = document.activeElement as HTMLElement | null;
+      peekStill.current = over;
       setPeek(which);
     }, PEEK_TIME);
   }, [peekLeaveSoon]);
@@ -869,7 +888,14 @@ export default function App() {
     openDrawer(which);
   }, [openDrawer, hidePeek]);
   useEffect(() => {
-    if (!dockingPeek.current || drawerFold !== "open" || drawerId !== peekRef.current) return;
+    if (!peekRef.current || drawerFold === "closed") return;
+    // A drawer that changes by another way, Ctrl-B or a focus mode put
+    // away, ends the peek, which was laid over the drawer as it was.
+    if (!dockingPeek.current) {
+      hidePeek(true);
+      return;
+    }
+    if (drawerFold !== "open" || drawerId !== peekRef.current) return;
     dockingPeek.current = false;
     hidePeek(true);
   }, [drawerFold, drawerId, hidePeek]);
@@ -2633,7 +2659,7 @@ export default function App() {
       <nav
         aria-label="Drawers"
         data-testid="activity-bar"
-        className="flex w-11 shrink-0 flex-col items-center gap-0.5 bg-surround pt-2"
+        className="relative z-[31] flex w-11 shrink-0 flex-col items-center gap-0.5 bg-surround pt-2"
       >
         {BAR_ITEMS.map(({ id, title, Icon }) => (
           <IconButton
@@ -2737,7 +2763,9 @@ export default function App() {
           bar button, the overlay the drawer is below the rail breakpoint,
           at the docked width, sliding out from under the bar.  Outside the
           left column, which clips while the docked drawer slides, since a
-          click docks the peeked drawer under the peek. */}
+          click docks the peeked drawer under the peek.  Under the bar, which
+          is lifted over it, so the peek slides out from beneath the bar and
+          never crosses it. */}
       {shown(peekFold) ? (
         <div
           ref={peekEl}
@@ -2745,7 +2773,13 @@ export default function App() {
           style={{
             width: widths.rail,
             transform: away(peekFold) ? "translateX(-100%)" : undefined,
-            transition: foldTransition(peekFold, "transform"),
+            // Quicker than a pane's move: a glance, not a change of layout.
+            transition:
+              peekFold === "opening"
+                ? "transform var(--dur-arrive) var(--ease)"
+                : peekFold === "closing"
+                  ? "transform var(--dur-quick) var(--ease)"
+                  : undefined,
           }}
           inert={peekFold === "closing"}
           aria-hidden={peekFold === "closing" || undefined}
@@ -2754,11 +2788,11 @@ export default function App() {
           onPointerEnter={() => window.clearTimeout(peekTimer.current.leave)}
           onPointerLeave={peekLeaveSoon}
           onPointerDown={() => {
-            peekHeld.current = true;
+            peekPressed.current = true;
             window.clearTimeout(peekTimer.current.leave);
           }}
           onFocus={() => {
-            if (peekHeld.current) return;
+            if (peekPressed.current) return;
             peekFrom.current?.focus({ preventScroll: true });
           }}
         >

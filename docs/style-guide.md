@@ -224,10 +224,13 @@ else.
   are always visible under `pointer: coarse` and `hover: none`, so a
   keyboard and a finger reach them.
 - A bar button's drawer peeks, over the panes and without moving them,
-  after the pointer has rested on the button 200 ms, never on touch and
-  never on keyboard focus; it goes 300 ms after the pointer has left the
-  button and the peek, at once on Escape or a press outside, and not at
-  all once it has been pressed. Focus that a peeked drawer takes for
+  after the pointer has rested on the button 120 ms, never on touch and
+  never on keyboard focus. Over a folded drawer it slides out from under
+  the bar, which stays on top of it, on `--dur-arrive`, and back on
+  `--dur-quick`; over a drawer that is showing it appears and goes at
+  once. It goes 150 ms after the pointer has left the button and the
+  peek, at once on Escape or a press outside, and stays only while a
+  field in it has the keyboard. Focus that a peeked drawer takes for
   itself goes back where it was.
 - The tree's file card arms after 400 ms and the editor's hover cards
   after 250, never on touch; a key press, a scroll or a menu opening

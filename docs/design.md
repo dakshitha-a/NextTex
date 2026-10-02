@@ -11786,3 +11786,31 @@ source and, holding focus, kept itself open; focus a peeked drawer takes
 for itself now goes back where it was. `e2e/specs/peek.spec.ts` holds
 each case, `touch.spec.ts` the tap, and the contrast sweep measures the
 peek over the source.
+
+## 104. A faster peek, under the bar, and a Sections list that starts at its edge
+
+The writer used the peek on 2 October 2026 and found four things. It
+flew in over the icon bar; it would not go after a folder had been
+opened in it to look at a figure's card; it took long to come and go;
+and the Sections drawer, in their methylamine chapter, stood every
+heading two steps in, with a table's `\input` sitting at the left edge
+as though the heading after it were its child.
+
+The bar is now lifted over the peek, so the peek slides out from under
+it and the icons are never covered. It opens after 120 ms of rest, slides
+in on `--dur-arrive` and back on `--dur-quick`, and goes 150 ms after the
+pointer leaves. Over a docked drawer it is there at once and gone at
+once, since that drawer is already out; the writer weighed allowing a
+peek only while the drawer was folded and settled on this instead. Only
+a field holding the keyboard keeps it open now, where any press did.
+And the docked tree and a peek at Files share one set of open folders,
+since each had kept its own and the peek showed every folder shut.
+
+The outline's included file had the chapter's level whatever the file
+around it held, so in a file of subsections the `\input` of a table set
+the drawer's left edge. An included file now takes the level below the
+heading it follows, or the shallowest heading's before any, and a file
+of inputs alone keeps them where they were. Every drawer was rendered
+docked and peeked in both themes after the change and looked right.
+`e2e/specs/peek.spec.ts` holds the peek's cases, `outline.test.ts` the
+nesting.

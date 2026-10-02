@@ -507,7 +507,7 @@ height; a second press on the lit button folds the drawer away, and
 `⌘B` / `Ctrl-B` hides the whole column. Resting the pointer on a button
 for a moment shows its drawer over the panes instead, which stay where
 they are: it goes when the pointer leaves it, or on Escape or a click
-elsewhere, and stays put once you click or type in it. A click on the
+elsewhere, and stays while you type in it. A click on the
 button docks it as usual. The project's name heads the
 column, and the top of every pane is one band across the window.
 The Files drawer's heading row holds New file, New folder, Upload and Find
