@@ -1760,11 +1760,27 @@ with `ctrlKey` set. Two things make it more than ten lines. The listener has
 to be a native, non-passive one: React registers `wheel` passively on its
 root, so `preventDefault` inside `onWheel` is ignored and the browser zooms
 the whole application instead of the document. And a gesture must not
-relayout the document sixty times a second: each page is a canvas sized by
-its container, so the handler resizes the containers, which rescales what is
+redraw the document sixty times a second: each page is a canvas sized by its
+container, so each frame resizes the containers, which rescales what is
 already drawn at the right scroll extents, and the crisp redraw runs once,
-140 ms after the gesture stops. The point under the pointer stays under the
+260 ms after the gesture stops. The point under the pointer stays under the
 pointer, and the range is the one the zoom buttons already offered.
+
+That point is held by measurement, not by arithmetic. The gesture first
+scaled the scroll offset by the zoom's ratio, as though everything above the
+pointer grew with the pages; the padding and the gaps between pages do not,
+nor does a page centred in a pane wider than it. Five pages into a document
+the page slid 38 px under the fingers over one pinch, and with every box
+rounded to a whole pixel each frame it shimmered as it went, which read as
+the page vibrating. Now the frame finds the page under the pointer and where
+on it, once while the pointer is still, writes the boxes, measures where that
+page landed and scrolls by the difference. The layout and the commit size a
+page through one function, `boxAt`, so the end of a gesture moves nothing,
+and the layout reads where the reader is after its awaits, so a pinch that
+goes on through a commit is not pulled back. A page a pinch reveals gets its
+picture at once and its selectable text at the end. `pdf-zoom.spec.ts` reads
+a page's place on every frame of a slow pinch on page six, from the fitted
+width outwards, and across a pause past the commit, and allows 2 px.
 
 **A file created through the API never appeared in the tree.** A save
 broadcasts `structural: False` so that a keystroke burst in one window does

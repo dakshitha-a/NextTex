@@ -174,7 +174,20 @@ type PageView = {
   naturalWidth: number;
   naturalHeight: number;
   rotation: Rotation;
+  /** The page's box at a scale of one, as turned, unrounded. */
+  baseWidth: number;
+  baseHeight: number;
 };
+
+/** A page's box at a scale, in whole pixels.
+ *
+ *  The one rounding the layout, a pinch and a pane's live resize all use.
+ *  The pinch used to scale the box it had been given and the layout to
+ *  floor the page's own size, so the two disagreed by a pixel a page and
+ *  the end of a pinch moved everything below the first page. */
+function boxAt(view: Pick<PageView, "baseWidth" | "baseHeight">, scale: number) {
+  return { width: Math.floor(view.baseWidth * scale), height: Math.floor(view.baseHeight * scale) };
+}
 
 /** How long a new picture takes to fade in over the old one: the swap
  *  token in styles.css, so the stylesheet is the one place it is set. */
@@ -700,7 +713,11 @@ export default function Pdf({
         reading = index;
       }
       renderPage(index);
-      renderText(index);
+      // A page a pinch reveals gets its picture now and its text when the
+      // pinch ends: building several hundred spans is a hitch in the
+      // middle of a gesture, and the commit rebuilds them at its scale
+      // anyway.
+      if (!zooming.current) renderText(index);
     }
     const now = reading >= 0 ? reading : first;
     if (now >= 0 && now + 1 !== currentRef.current) setCurrent(now + 1);
@@ -792,7 +809,6 @@ export default function Pdf({
     async (document: pdfjs.PDFDocumentProxy, keep: boolean) => {
       const container = sheet.current;
       if (!container) return;
-      const position = keep ? anchor() : { index: 0, fraction: 0 };
       const mine = (generation.current += 1);
       // Every await below is a place a newer layout can start and finish
       // first -- a rebuild landing while the split handle is being dragged
@@ -834,13 +850,17 @@ export default function Pdf({
         ),
       );
       if (superseded()) return;
+      // Where the reader is, read after the awaits rather than before them.
+      // A pinch that went on through them had scrolled by the time they
+      // returned, and putting back the place from before pulled the page
+      // out from under the fingers.
+      const position = keep ? anchor() : { index: 0, fraction: 0 };
       const views: PageView[] = [];
       for (let index = 0; index < count; index += 1) {
         const page = sheets[index];
-        const viewport = page.getViewport({ scale: effective, rotation: (page.rotate + turn) % 360 });
+        const base = page.getViewport({ scale: 1, rotation: (page.rotate + turn) % 360 });
         const upright = page.getViewport({ scale: 1 });
-        const width = Math.floor(viewport.width);
-        const height = Math.floor(viewport.height);
+        const { width, height } = boxAt({ baseWidth: base.width, baseHeight: base.height }, effective);
         if (reusable) {
           const view = pages.current[index];
           view.task?.cancel();
@@ -851,6 +871,8 @@ export default function Pdf({
           view.naturalWidth = upright.width;
           view.naturalHeight = upright.height;
           view.rotation = turn;
+          view.baseWidth = base.width;
+          view.baseHeight = base.height;
           view.container.style.width = `${width}px`;
           view.container.style.height = `${height}px`;
           views.push(view);
@@ -874,6 +896,7 @@ export default function Pdf({
           container: element, layer, canvas, painted: false, text, width, height,
           scale: effective, drawnFor: -1, drawnAt: 0, textFor: -1, textScale: 0, task: null,
           figures: null, naturalWidth: upright.width, naturalHeight: upright.height, rotation: turn,
+          baseWidth: base.width, baseHeight: base.height,
         });
       }
 
@@ -1092,8 +1115,9 @@ export default function Pdf({
         const live = drawn.current * (widthFor(now) / widthFor(fittedFor.current));
         for (const view of pages.current) {
           if (!view.scale) continue;
-          view.container.style.width = `${Math.floor((view.width / view.scale) * live)}px`;
-          view.container.style.height = `${Math.floor((view.height / view.scale) * live)}px`;
+          const size = boxAt(view, live);
+          view.container.style.width = `${size.width}px`;
+          view.container.style.height = `${size.height}px`;
           view.text.style.transform = `scale(${live / view.scale})`;
         }
       }
@@ -1146,7 +1170,7 @@ export default function Pdf({
   // on its root, so `preventDefault` inside `onWheel` is ignored and the
   // browser zooms the whole application instead of the document.
   //
-  // And the gesture must not relayout the document sixty times a second.
+  // And the gesture must not redraw the document sixty times a second.
   // Each page is a canvas sized by its container, so resizing the
   // containers rescales what is already drawn -- instantly, at the right
   // scroll extents, slightly soft.  The crisp redraw happens once, when the
@@ -1167,22 +1191,41 @@ export default function Pdf({
     // trackpad reports -- faster than frames, and each one used to resize
     // every page and then read the scroller back, which forces the browser
     // to lay the document out again mid-event.  The events are accumulated
-    // instead and applied once per frame, and within that frame every read
-    // happens before every write, so the layout the browser already has is
-    // still valid when it is read.
+    // instead and applied once per frame, and that frame lays the document
+    // out once: the boxes are written, the one page the pointer is on is
+    // measured, and the scroll that follows invalidates nothing.
     let pending: { deltaY: number; x: number; y: number } | null = null;
     let frame = 0;
-    let box: DOMRect | null = null;
+
+    // The point the gesture holds still: a page, and where on it the
+    // pointer was, as fractions of its box.  Found once and kept while the
+    // pointer stays where it is, so a long gesture cannot drift by finding
+    // it again from a box rounded to whole pixels every frame.
+    let held: { index: number; fx: number; fy: number; x: number; y: number } | null = null;
+
+    /** The page under a point on the screen, or the nearest one to it. */
+    const pageAt = (x: number, y: number) => {
+      let best: { index: number; fx: number; fy: number; x: number; y: number } | null = null;
+      let nearest = Infinity;
+      pages.current.forEach((view, index) => {
+        if (!view.container.offsetHeight) return;   // hidden in page mode
+        const box = view.container.getBoundingClientRect();
+        const away = Math.hypot(
+          Math.max(box.left - x, 0, x - box.right),
+          Math.max(box.top - y, 0, y - box.bottom),
+        );
+        if (away >= nearest) return;
+        nearest = away;
+        best = { index, fx: (x - box.left) / box.width, fy: (y - box.top) / box.height, x, y };
+      });
+      return best;
+    };
 
     const apply = () => {
       frame = 0;
       const gesture = pending;
       pending = null;
-      if (!gesture || !box) return;
-
-      // --- reads, all of them, before anything is written ---
-      const scrollLeft = root.scrollLeft;
-      const scrollTop = root.scrollTop;
+      if (!gesture) return;
 
       const from = liveScale.current || drawn.current || 1;
       const next = Math.min(
@@ -1192,36 +1235,49 @@ export default function Pdf({
       if (next === from) return;
       liveScale.current = next;
 
-      // --- writes ---
-      // Keep what is under the pointer under the pointer.  Sizes come from
-      // each page's committed scale rather than the last frame's, so a long
-      // gesture cannot drift by accumulating rounding.
+      // --- the read before anything is written: where the pointer is ---
+      if (!held || Math.abs(held.x - gesture.x) > 0.5 || Math.abs(held.y - gesture.y) > 0.5) {
+        held = pageAt(gesture.x, gesture.y);
+      }
+
+      // --- the boxes, at the one rounding the layout uses ---
       for (const view of pages.current) {
         if (!view.scale) continue;
-        view.container.style.width = `${Math.floor((view.width / view.scale) * next)}px`;
-        view.container.style.height = `${Math.floor((view.height / view.scale) * next)}px`;
+        const size = boxAt(view, next);
+        view.container.style.width = `${size.width}px`;
+        view.container.style.height = `${size.height}px`;
         // The text is positioned in pixels computed at the scale it was
         // built for, so without this it stays where it was while the page
         // grows under it and a selection made mid-gesture lands a word
-        // out.  A transform rather than a rebuild: the compositor does it,
-        // and rebuilding several hundred spans per frame is the cost this
-        // whole handler exists to avoid.
+        // out.  A transform rather than a rebuild: rebuilding several
+        // hundred spans per frame is a cost no frame can afford.
         view.text.style.transform = `scale(${next / view.scale})`;
       }
-      // The pointer position is the frame's last one, not its first: a
-      // pinch that travels across the page has to anchor to where the
-      // fingers are now.
-      const offsetX = gesture.x - box.left;
-      const offsetY = gesture.y - box.top;
-      const ratio = next / from;
-      root.scrollLeft = (scrollLeft + offsetX) * ratio - offsetX;
-      root.scrollTop = (scrollTop + offsetY) * ratio - offsetY;
+
+      // --- then where the held point landed, and the scroll that puts it
+      // back under the pointer ---
+      // Measured, not predicted.  This scaled the scroll offset by the
+      // zoom's ratio, as though everything above the pointer grew with the
+      // pages, but the padding and the gaps between pages do not, nor does
+      // a page centred in a pane wider than it.  Five pages down that was
+      // 38 px of slide over one pinch, and with each frame's box rounded to
+      // a whole pixel it shimmered as it went.  The read is the layout the
+      // frame needs anyway, and the scroll writes after it invalidate
+      // nothing.
+      if (held) {
+        const view = pages.current[held.index];
+        if (view) {
+          const box = view.container.getBoundingClientRect();
+          root.scrollLeft += toShell(box.left + held.fx * box.width - held.x);
+          root.scrollTop += toShell(box.top + held.fy * box.height - held.y);
+        }
+      }
       showZoom(next);
 
       window.clearTimeout(commit.current);
       commit.current = window.setTimeout(() => {
         zooming.current = false;
-        box = null;
+        held = null;
         setScale(next);
       }, ZOOM_SETTLE);
     };
@@ -1236,10 +1292,6 @@ export default function Pdf({
         x: event.clientX,
         y: event.clientY,
       };
-      // The scroller does not move during a pinch, so its box is read once
-      // rather than after every batch of size changes -- reading it there
-      // was the forced reflow.
-      if (!box) box = root.getBoundingClientRect();
       zooming.current = true;
       if (!frame) frame = window.requestAnimationFrame(apply);
     };
@@ -1262,7 +1314,6 @@ export default function Pdf({
       if (event.touches.length !== 2) return;
       event.preventDefault();
       spread = between(event.touches);
-      if (!box) box = root.getBoundingClientRect();
       zooming.current = true;
     };
 
@@ -1277,7 +1328,6 @@ export default function Pdf({
         y: (a.clientY + b.clientY) / 2,
       };
       spread = now;
-      if (!box) box = root.getBoundingClientRect();
       if (!frame) frame = window.requestAnimationFrame(apply);
     };
 
@@ -1288,6 +1338,7 @@ export default function Pdf({
       window.clearTimeout(commit.current);
       commit.current = window.setTimeout(() => {
         zooming.current = false;
+        held = null;
         setScale(liveScale.current);
       }, 0);
     };
