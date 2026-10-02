@@ -255,6 +255,10 @@ test("the source keeps its width through a fold and back", async ({ tab }) => {
  *  the new width. */
 test("the page is redrawn for its new width once the slide ends, not during it", async ({ tab }) => {
   await expect(tab.locator('[data-testid="preview-pane"] canvas').first()).toBeVisible({ timeout: 30_000 });
+  // The project's first build has landed and been drawn, so a page that
+  // arrives from it cannot be mistaken for a redraw inside the slide.
+  await expect(tab.getByTestId("status")).toHaveAttribute("data-state", "built", { timeout: 45_000 });
+  await tab.waitForTimeout(1000);
   const canvas = () => tab.evaluate(() =>
     (document.querySelector('[data-testid="preview-pane"] canvas') as HTMLCanvasElement).width);
   const before = await canvas();
