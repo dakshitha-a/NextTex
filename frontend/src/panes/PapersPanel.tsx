@@ -196,13 +196,25 @@ export default function PapersPanel({
             trailing={
               // The publisher, once there is something to ask it; a DOI
               // needs none, and an empty field is the sentence alone.
+              // A native select is as wide as its longest option, so it
+              // held Semantic Scholar's width with Crossref chosen, a gap
+              // before its chevron, and the query squeezed to a third of
+              // the field. The chosen name, unseen, sizes the frame and the
+              // select lies over it, out of the flow, so the chooser is as
+              // wide as what it says.
               query.trim() ? (
-                <span className="relative flex shrink-0 items-center text-meta text-ink-3 hover:text-ink">
+                <span
+                  className="relative flex shrink-0 items-center text-meta text-ink-3 hover:text-ink"
+                  data-testid="papers-source-frame"
+                >
+                  <span aria-hidden="true" className="invisible whitespace-nowrap pr-3.5">
+                    {SOURCE_NAMES[source]}
+                  </span>
                   <Select
                     value={source}
                     aria-label="Which publisher to ask"
                     data-testid="papers-source"
-                    className="appearance-none bg-transparent pr-3.5"
+                    className="absolute inset-0 w-full appearance-none bg-transparent pr-3.5"
                     onChange={(event) => setSource(event.target.value as keyof typeof SOURCE_NAMES)}
                   >
                     <option value="crossref">Crossref</option>

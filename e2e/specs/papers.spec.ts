@@ -268,6 +268,28 @@ test("the literature can be searched without an agent, and a result added by its
   await expect(rows.nth(0).getByTestId("papers-result-added")).toHaveText("added as LeCun2015deep");
 });
 
+test("the publisher chooser is as wide as the name it shows, and the query keeps the field", async ({ tab }) => {
+  /* A native select took its longest option's width, Semantic Scholar's,
+     whichever was chosen: Crossref sat at the left of a wide box with its
+     chevron far off, and the query had about a third of the field. */
+  await tab.getByTestId("bar-papers").click();
+  const search = tab.getByTestId("papers-search");
+  await search.fill("surface hopping electronic transitions");
+  const frame = tab.getByTestId("papers-source-frame");
+  const measure = async () => {
+    const chooser = (await frame.boundingBox())!;
+    const field = (await search.boundingBox())!;
+    return { chooser: chooser.width, field: field.width };
+  };
+  const crossref = await measure();
+  await tab.getByTestId("papers-source").selectOption("semanticscholar");
+  const scholar = await measure();
+  // The chooser follows its label, and Crossref is the shorter name.
+  expect(crossref.chooser).toBeLessThan(scholar.chooser - 15);
+  // With Crossref chosen, the query has the larger part of the field.
+  expect(crossref.field).toBeGreaterThan(crossref.chooser * 2);
+});
+
 test("the drawer says nothing about the bibliography until it knows", async ({ tab }) => {
   // The writer: the "Read a folder of PDFs" button "appears for a
   // fraction of a second and flashes out".  The drawer's counts started at
