@@ -319,6 +319,56 @@ test("D, citations it cannot invent", async ({ tab, root }) => {
   animate("citations", "citations.webp");
 });
 
+// --- F: download as Word ----------------------------------------------------
+
+test("F, download as Word", async ({ tab, home }) => {
+  await dress(tab, "dark");
+  await withoutAgent(tab);
+  await atRest(tab);
+  await tab.mouse.move(700, 450);
+
+  const rec = new Recorder(tab, "download", FRAMES);
+  await rec.start();
+  await rec.hold(600);
+
+  await glide(tab, tab.getByTestId("bar-download"));
+  await tab.getByTestId("bar-download").click();
+  const panel = tab.getByTestId("download-panel");
+  const row = panel.locator('[data-testid="download-row"][data-document="main.tex"]');
+  await rec.quickly(() => expect(row).toHaveAttribute("data-built", "true", { timeout: 60_000 }));
+  await rec.focus(row, { pad: 70 });
+  await rec.hold(1200);
+  const word = row.getByTestId("download-export").first();
+  await glide(tab, word);
+  const waiting = tab.waitForEvent("download");
+  await word.click();
+  const download = await rec.quickly(() => waiting);
+  const docx = join(home, "main.docx");
+  await download.saveAs(docx);
+  await rec.hold(1200);
+
+  // What arrived: the Word file, its citations and its figure in place,
+  // drawn from the document itself through pandoc.
+  const pandoc = join(process.env.HOME ?? "", ".local", "bin", "pandoc");
+  const html = execFileSync(pandoc, [docx, "-t", "html", "--embed-resources", "--standalone"], { cwd: home, encoding: "utf8" });
+  const body = html.slice(html.indexOf("<body>") + 6, html.lastIndexOf("</body>"));
+  rec.wide(0.01);
+  await tab.setContent(`<!doctype html><html><head><style>
+    body{margin:0;background:#2b2f33;font:15px/1.5 Cambria,Georgia,serif;color:#111}
+    .bar{background:#185abd;color:#fff;font:600 13px system-ui,sans-serif;padding:9px 18px}
+    .page{width:760px;margin:26px auto;background:#fff;padding:64px 80px;box-shadow:0 2px 12px rgba(0,0,0,.4);min-height:900px}
+    img{max-width:60%;display:block;margin:12px auto} h1{font-size:22px;text-align:center} h2{font-size:17px}
+  </style></head><body><div class="bar">main.docx</div><div class="page">${body}</div></body></html>`);
+  await Recorder.install(tab);
+  await rec.hold(800);
+  await rec.focus({ x: 340, y: 40, width: 760, height: 420 }, { pad: 0, ease: 0.9 });
+  await rec.hold(2400);
+  rec.wide();
+  await rec.hold(900);
+  await rec.stop();
+  animate("download", "download.webp");
+});
+
 // --- G: a figure from your data ---------------------------------------------
 
 /** The script the paper's Figure 1 is drawn by, through the helper and the
@@ -441,56 +491,6 @@ test("G, a figure from your data", async ({ tab, root }) => {
   await rec.hold(900);
   await rec.stop();
   animate("script", "script.webp");
-});
-
-// --- F: download as Word ----------------------------------------------------
-
-test("F, download as Word", async ({ tab, home }) => {
-  await dress(tab, "dark");
-  await withoutAgent(tab);
-  await atRest(tab);
-  await tab.mouse.move(700, 450);
-
-  const rec = new Recorder(tab, "download", FRAMES);
-  await rec.start();
-  await rec.hold(600);
-
-  await glide(tab, tab.getByTestId("bar-download"));
-  await tab.getByTestId("bar-download").click();
-  const panel = tab.getByTestId("download-panel");
-  const row = panel.locator('[data-testid="download-row"][data-document="main.tex"]');
-  await rec.quickly(() => expect(row).toHaveAttribute("data-built", "true", { timeout: 60_000 }));
-  await rec.focus(row, { pad: 70 });
-  await rec.hold(1200);
-  const word = row.getByTestId("download-export").first();
-  await glide(tab, word);
-  const waiting = tab.waitForEvent("download");
-  await word.click();
-  const download = await rec.quickly(() => waiting);
-  const docx = join(home, "main.docx");
-  await download.saveAs(docx);
-  await rec.hold(1200);
-
-  // What arrived: the Word file, its citations and its figure in place,
-  // drawn from the document itself through pandoc.
-  const pandoc = join(process.env.HOME ?? "", ".local", "bin", "pandoc");
-  const html = execFileSync(pandoc, [docx, "-t", "html", "--embed-resources", "--standalone"], { cwd: home, encoding: "utf8" });
-  const body = html.slice(html.indexOf("<body>") + 6, html.lastIndexOf("</body>"));
-  rec.wide(0.01);
-  await tab.setContent(`<!doctype html><html><head><style>
-    body{margin:0;background:#2b2f33;font:15px/1.5 Cambria,Georgia,serif;color:#111}
-    .bar{background:#185abd;color:#fff;font:600 13px system-ui,sans-serif;padding:9px 18px}
-    .page{width:760px;margin:26px auto;background:#fff;padding:64px 80px;box-shadow:0 2px 12px rgba(0,0,0,.4);min-height:900px}
-    img{max-width:60%;display:block;margin:12px auto} h1{font-size:22px;text-align:center} h2{font-size:17px}
-  </style></head><body><div class="bar">main.docx</div><div class="page">${body}</div></body></html>`);
-  await Recorder.install(tab);
-  await rec.hold(800);
-  await rec.focus({ x: 340, y: 40, width: 760, height: 420 }, { pad: 0, ease: 0.9 });
-  await rec.hold(2400);
-  rec.wide();
-  await rec.hold(900);
-  await rec.stop();
-  animate("download", "download.webp");
 });
 
 // --- E: write together ------------------------------------------------------
