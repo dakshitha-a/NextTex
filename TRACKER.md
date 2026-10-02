@@ -235,6 +235,13 @@ OpenAI provider against OpenAI itself.
 
 ### Never run against the real thing
 
+- [ ] **A venue template's install on MiKTeX.** Each template's
+      `[needs]` names TeX Live packages, and `texpkg.install_argv` hands
+      the name to MiKTeX unchanged; most names coincide, some may not.
+      MiKTeX also installs on the fly during a build, so a name it does
+      not know shows the "did not install" notice and the build may
+      still succeed. Tried only on TinyTeX; worth one ACM project on the
+      owner's Windows laptop.
 - [ ] **The OpenAI provider has never spoken to OpenAI itself.**
       Everything above the transport runs for real against a stub, and
       since the backlog close-out against a real local server too:

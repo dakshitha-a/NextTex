@@ -11888,7 +11888,7 @@ opens another in the editor.
 The last item of the roadmap, built on 2 October 2026. A writer starting
 a paper looks first for the venue's template, and New project offered
 six, as a row of buttons that had already wrapped. There are now
-eighteen, and a dozen guides to venues NextTex cannot ship, which a row
+eighteen, and eleven guides to venues NextTex cannot ship, which a row
 of buttons cannot hold.
 
 **What ships, and why only that.** The licences were read first. Every
