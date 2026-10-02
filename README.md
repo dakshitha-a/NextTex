@@ -19,7 +19,7 @@ Like a Jupyter notebook for papers.
 
 <picture>
   <source media="(prefers-color-scheme: dark)" srcset="docs/tour/hero-dark.webp">
-  <img alt="Typing a sentence into the abstract; the typeset page redraws a moment later, and a double-click on the page puts the caret back on the line that set it." src="docs/tour/hero-light.webp" width="880">
+  <img alt="Typing a sentence into the abstract; up close on the typeset page, the new sentence appears a moment later, and a double-click on the page puts the caret back on the line that set it." src="docs/tour/hero-light.webp" width="880">
 </picture>
 
 <sub>Type a sentence, and the page catches up. Double-click the page, and you are back on the line.</sub>
@@ -190,7 +190,7 @@ no path from the model's memory to your `.bib` file.
 [More on references →](docs/guide.md#it-cannot-invent-a-citation)
 
 </td>
-<td><img src="docs/tour/citations.webp" alt="A search in the References drawer, Add, and the new key chosen from the completion list after typing \cite{." width="380"></td>
+<td><img src="docs/tour/citations.webp" alt="A search in the References drawer and Add; the new key chosen from the completion list after typing \cite{; then, up close on the page, its number in the sentence and its entry in the reference list, set from the publisher's record." width="380"></td>
 </tr>
 <tr>
 <td><img src="docs/tour/download.webp" alt="The Download drawer: one block per document, a chip per format, and the Word file it makes." width="380"></td>

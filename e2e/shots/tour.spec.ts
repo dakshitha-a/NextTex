@@ -253,7 +253,10 @@ test("D, citations it cannot invent", async ({ tab, root }) => {
   const panel = tab.getByTestId("papers-panel");
   const search = panel.getByTestId("papers-search");
   await search.waitFor();
-  await rec.focus(panel, { pad: 10 });
+  // The field and the first results, rather than the whole drawer, which
+  // is a tall thin column the camera could hardly close in on.
+  const head = (await search.boundingBox())!;
+  await rec.focus({ ...head, height: 240 }, { pad: 16 });
   await glide(tab, search);
   await search.click();
   await search.pressSequentially("surface hopping electronic transitions", { delay: 45 });
@@ -265,21 +268,26 @@ test("D, citations it cannot invent", async ({ tab, root }) => {
   await glide(tab, add);
   await add.click();
   await expect(result.getByTestId("papers-result-added")).toContainText("Tully1990molecular");
-  await rec.focus(result, { pad: 30 });
+  await rec.focus(result, { pad: 24, zoom: 3.4 });
   await rec.hold(1600);
 
-  // Into the text: \cite{ offers the key that just arrived.
+  // Into the text: \cite{ offers the key that just arrived, and only the
+  // keys the bibliography holds.
   rec.wide();
   await caretToEndOf(tab, "conical intersection, a point");
   await tab.keyboard.press("ArrowLeft");
-  await rec.focus(await span(line(tab, "Molecules that absorb"), line(tab, "conical intersection, a point")), { pad: 110 });
+  await rec.focus(await span(line(tab, "Molecules that absorb"), line(tab, "conical intersection, a point")), { pad: 90 });
   // The completion list reads the keys a build found, so the tilde goes
   // in first and its build, which reads the new entry, lands before the
   // \cite{ that wants it.
   await tab.keyboard.type("~", { delay: 90 });
+  const status = tab.getByTestId("status");
+  const built = async () => {
+    await expect(status).toHaveAttribute("data-state", /compiling|stale/, { timeout: 15_000 }).catch(() => undefined);
+    await expect(status).toHaveAttribute("data-state", /built|ready/, { timeout: 60_000 });
+  };
   await rec.quickly(async () => {
-    await expect(tab.getByTestId("status")).toHaveAttribute("data-state", /compiling|stale/, { timeout: 15_000 }).catch(() => undefined);
-    await expect(tab.getByTestId("status")).toHaveAttribute("data-state", /built|ready/, { timeout: 45_000 });
+    await built();
     await tab.waitForTimeout(800);
   });
   await tab.keyboard.type("\\cite{Tul", { delay: 90 });
@@ -287,7 +295,23 @@ test("D, citations it cannot invent", async ({ tab, root }) => {
   await rec.quickly(() => expect(list).toContainText("Tully1990molecular", { timeout: 10_000 }), 3);
   await rec.hold(1200);
   await tab.keyboard.press("Enter");
-  await rec.hold(1500);
+  await rec.hold(1200);
+
+  // And the page: the camera is on the abstract before the build lands,
+  // so the citation's number arrives up close, then it reads the entry
+  // the number points at, set from the publisher's record.
+  const abstract = await span(onPage(tab, "Abstract"), onPage(tab, "Molecules"), onPage(tab, "meet"));
+  await rec.focus({ ...abstract, height: abstract.height * 1.3 }, { pad: 20, zoom: 3.6, ease: 0.8 });
+  await rec.hold(800);
+  await rec.quickly(built, 2);
+  await expect.poll(async () => onPage(tab, "Tully").count(), { timeout: 30_000 }).toBeGreaterThan(0);
+  await rec.hold(2200);
+  rec.wide(0.6);
+  const entry = onPage(tab, "Tully");
+  await entry.evaluate((el) => el.scrollIntoView({ block: "center", behavior: "smooth" }));
+  await rec.hold(900);
+  await rec.focus(await span(entry, onPage(tab, "1061")), { pad: 24, zoom: 3.6, ease: 0.8 });
+  await rec.hold(2600);
   rec.wide();
   await rec.hold(900);
   await rec.stop();
