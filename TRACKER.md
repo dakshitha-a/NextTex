@@ -66,8 +66,7 @@ ms; and the middleware is a fraction of a millisecond and the security
 gate. It turned up and fixed a closing pane hidden part way through its
 slide, and, from the writer's report during the run, figure tabs that
 left `main.tex` empty and the pane offline. The feature survey of the
-same day went to `ROADMAP.md`. Its tracker page is
-https://claude.ai/artifact/XJHE3kBwz6wkBWpYXcJxZ6.
+same day went to `ROADMAP.md`.
 
 The README run closed on 1 October 2026 at 4.12.1,
 at the writer's request: the README is a front door of about 450 lines,
@@ -86,8 +85,7 @@ space, every tab, a projects row, the typeset page, and the rows of the
 Comments, Deleted and History drawers open their own actions on a
 right-click, by one rule in the style guide, and Shift with a right-click
 is always the browser's. It turned up and fixed History's Escape closing
-the panel under a menu that had already claimed the key. Its tracker page
-is https://claude.ai/artifact/XU4Kb38EP82iYRdXrBbvk6.
+the panel under a menu that had already claimed the key.
 
 The collaboration merge and host run closed on 29
 September 2026 at 4.10.2: two versions of a paragraph written apart are
@@ -97,8 +95,7 @@ writers' shared projects. It turned up and fixed two shared projects on
 one install answering for each other, fields for invites, keys and paths
 drawn in the sans, and, in a check between two real installs, peers that
 forgot each other's address and never reconnected, and a merge that
-doubled a whole document rather than its paragraph. Its tracker page is
-https://claude.ai/artifact/SKmTRSrLXXe2BYXDT6Peyd.
+doubled a whole document rather than its paragraph.
 
 Torn build files closed on 28 September 2026 at
 4.6.0, from a writing agent's report of a cut-short `.aux`, an empty
@@ -107,8 +104,7 @@ it touched, a cancelled task no longer leaves an engine running beside
 the next one, the agent's build and compile as you type no longer
 supersede each other, a damaged file is cleared once without being
 asked, and Rebuild everything starts clean. It turned up and fixed the
-e2e harness leaving its builds running. Its tracker page is
-https://claude.ai/artifact/L17MEaxrgQgBMUNoewDJUJ.
+e2e harness leaving its builds running.
 
 Citations and Word figures closed on 27 September
 2026 at 4.2.0: citation completion that reopens after each comma,
@@ -116,8 +112,7 @@ matches author, year and title words and offers the document's own
 bibliography, and figures that reach a Word download whatever they are
 drawn in. It turned up and fixed the completion popup's underline and
 italics, which CodeMirror's theme had been adding since the overhaul,
-and a race in the Markdown history spec. Its tracker page is
-https://claude.ai/artifact/8GQZBbDqKPk47aNifYXj7q.
+and a race in the Markdown history spec.
 
 The backlog close-out closed on 26 September 2026 at
 4.1.0, one push per step from 3.19.1: a script's escaped grandchild ended
@@ -127,14 +122,12 @@ with the build's Node floor at 22.13 as 4.0.0, every control and size
 from the kit, and the agent answering comments. It turned up and fixed a
 reload that lost the answer being streamed, a name save that took the
 caret from a password, and a pdf.js text layer sized by the old rules.
-Its tracker page is https://claude.ai/artifact/BRABBddBZDD4j9iF1yHAkc.
 One item stays open below, OpenAI against OpenAI, by the owner's choice;
 the laptop's task was checked there the same day.
 
 The fix run closed on 25 September 2026 at 3.19.0,
 having fixed the probe's findings in the order its report proposed, one
-push per step, 3.18.2 to 3.19.0. Its tracker page is
-https://claude.ai/artifact/1PHFeRFMcKicS3PZFCqCzW. The findings were
+push per step, 3.18.2 to 3.19.0. The findings were
 `REVIEW.md`, 73 records with the four the Windows laptop sent after the
 probe closed, and the file was deleted at the close once every record was
 fixed or set down below: the cgroup half of Q-007, the kit's remaining
@@ -144,11 +137,9 @@ change (Q-070), and the major upgrades Q-036 weighed.
 The probe itself closed on 25 September 2026 at 3.18.1. Its report page
 is https://claude.ai/artifact/4mdUwu1mLwVYquc7Bm7vkS.
 
-Before the probe: the pass after Opus 5.5 closed at 3.18.0 on 24 September 2026;
-its tracker page is https://claude.ai/artifact/SqdkLWZHqSaMBS5nvKCRtF.
+Before the probe: the pass after Opus 5.5 closed at 3.18.0 on 24 September 2026.
 It left nothing new in the backlog. The run before it, the roadmap, the
-rest of the backlog and comments, closed at 3.17.4; its tracker page is
-https://claude.ai/artifact/7LzPbY8jvhfg3xSbAMqMwY. What that one left is
+rest of the backlog and comments, closed at 3.17.4. What that one left is
 below: six rare browser flakes, named with the traces read, and the
 OpenAI provider against OpenAI itself.
 
