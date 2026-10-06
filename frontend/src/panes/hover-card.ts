@@ -35,7 +35,19 @@
  *  the card is kept from the editor, so a press on one of the card's
  *  buttons is an ordinary click that neither moves the selection nor
  *  closes the card before the click lands; the card closes after the
- *  button has done its work.  Never on touch.
+ *  button has done its work.  Never on touch, and never while a button
+ *  is held, since a drag is choosing text rather than resting on it.
+ *
+ *  Quiet: a thing the writer has turned to work on does not bring its
+ *  card back while they work on it.  Escape on an open card, or a press
+ *  in the text, quiets the thing the card or the press was on: no card
+ *  arms anywhere inside it, a formula in a quieted table's cell
+ *  included, until the pointer has been off it for `QUIET_TIME`.  The
+ *  quieted range is carried through edits, so typing in the thing keeps
+ *  it quiet.  The writer's report was that a table's card, closed with
+ *  Escape, came back "every time I use the mouse to navigate to a point
+ *  on the table's source"; a fixed timeout would have brought it back
+ *  mid edit, so the clock runs from the pointer leaving instead.
  *
  *  The card's `data-side` says which side of the text it is on, so the
  *  stylesheet can put the button row on the edge nearest the text.
@@ -54,6 +66,9 @@ export const LEAVE_TIME = 300;
  *  with them, so the gap between the two and a hand that wavers do not
  *  start the leave clock. */
 const MARGIN = 6;
+/** How long the pointer is off a quieted thing before its card may come
+ *  back. */
+export const QUIET_TIME = 1500;
 
 type Source = (view: EditorView, pos: number) => Tooltip | null;
 
@@ -81,6 +96,10 @@ export function hoverCard(source: Source): Extension {
        *  changed meanwhile, a build having landed the reference's number;
        *  one that comes back to the card keeps it. */
       away = false;
+      /** The thing quieted by Escape or a press, and the clock that ends
+       *  the quiet once the pointer is off it. */
+      quiet: { from: number; to: number } | null = null;
+      unquiet: ReturnType<typeof setTimeout> | null = null;
       readonly listeners: Array<[EventTarget, string, (event: any) => void, boolean | AddEventListenerOptions]>;
 
       constructor(readonly view: EditorView) {
@@ -89,7 +108,7 @@ export function hoverCard(source: Source): Extension {
           [view.dom, "pointermove", (event: PointerEvent) => this.moved(event), false],
           [view.dom, "pointerleave", () => this.left(), false],
           [view.dom, "mousedown", (event: MouseEvent) => this.pressed(event), true],
-          [view.dom, "keydown", close, false],
+          [view.dom, "keydown", (event: KeyboardEvent) => this.keyed(event), false],
           [view.scrollDOM, "scroll", close, { passive: true }],
           [window, "blur", close, false],
         ];
@@ -99,12 +118,19 @@ export function hoverCard(source: Source): Extension {
       }
 
       update(update: ViewUpdate) {
-        if (this.open && update.docChanged) this.close();
+        if (!update.docChanged) return;
+        if (this.open) this.close();
+        if (this.quiet) {
+          const from = update.changes.mapPos(this.quiet.from, -1);
+          const to = update.changes.mapPos(this.quiet.to, 1);
+          this.quiet = to > from ? { from, to } : null;
+        }
       }
 
       destroy() {
         this.close();
         this.disarm();
+        this.speak();
         for (const [target, name, handler, options] of this.listeners) {
           target.removeEventListener(name, handler, options);
         }
@@ -113,6 +139,14 @@ export function hoverCard(source: Source): Extension {
       moved(event: PointerEvent) {
         if (event.pointerType === "touch") return;
         this.last = { x: event.clientX, y: event.clientY };
+        if (this.quiet) {
+          if (this.over(this.quiet, event.clientX, event.clientY)) this.hush();
+          else this.leavingQuiet();
+        }
+        if (event.buttons !== 0) {
+          this.disarm();
+          return;
+        }
         if (this.open) {
           if (this.open.dom.contains(event.target as Node)) {
             // On the card.  The text behind it is not being hovered,
@@ -138,6 +172,12 @@ export function hoverCard(source: Source): Extension {
       left() {
         this.disarm();
         if (this.open) this.leaving();
+        if (this.quiet) this.leavingQuiet();
+      }
+
+      keyed(event: KeyboardEvent) {
+        if (event.key === "Escape" && this.open) this.quieten(this.open);
+        this.close();
       }
 
       pressed(event: MouseEvent) {
@@ -149,7 +189,14 @@ export function hoverCard(source: Source): Extension {
           event.stopPropagation();
           return;
         }
+        // A press in the text is the writer going to work there.  The arm
+        // from the move before it would otherwise draw the card over the
+        // caret just placed, and the next rest would draw it again.
+        this.disarm();
         this.close();
+        const pos = this.view.posAtCoords({ x: event.clientX, y: event.clientY });
+        const thing = pos === null ? null : source(this.view, pos);
+        if (thing) this.quieten({ from: thing.pos, to: thing.end ?? thing.pos });
       }
 
       /** The pointer has rested: draw the card for what is under it, or
@@ -159,6 +206,7 @@ export function hoverCard(source: Source): Extension {
         if (!at) return;
         const pos = this.view.posAtCoords(at);
         if (pos === null) return;
+        if (this.quiet && pos >= this.quiet.from && pos <= this.quiet.to) return;
         const same = this.open !== null && pos >= this.open.from && pos <= this.open.to;
         if (same && !this.away) return;
         const tooltip = source(this.view, pos);
@@ -227,31 +275,28 @@ export function hoverCard(source: Source): Extension {
       with(x: number, y: number): boolean {
         const open = this.open;
         if (!open) return false;
-        for (const rect of [open.dom.getBoundingClientRect(), ...this.rangeRects()]) {
-          if (
-            x >= rect.left - MARGIN && x <= rect.right + MARGIN &&
-            y >= rect.top - MARGIN && y <= rect.bottom + MARGIN
-          ) return true;
-        }
-        return false;
+        return inside([open.dom.getBoundingClientRect(), ...this.rangeRects(open)], x, y);
       }
 
-      /** The hovered range on screen: the token's own box on one line,
-       *  every line of it across several. */
-      rangeRects(): Rect[] {
-        const open = this.open;
-        if (!open) return [];
+      /** Whether a viewport point is over a range's lines. */
+      over(range: { from: number; to: number }, x: number, y: number): boolean {
+        return inside(this.rangeRects(range), x, y);
+      }
+
+      /** A range on screen: the token's own box on one line, every line
+       *  of it across several. */
+      rangeRects(range: { from: number; to: number }): Rect[] {
         const view = this.view;
-        const start = view.coordsAtPos(open.from);
-        const end = view.coordsAtPos(open.to, -1);
+        const start = view.coordsAtPos(range.from);
+        const end = view.coordsAtPos(range.to, -1);
         if (start && end && Math.abs(start.top - end.top) < 2) {
           return [{ left: start.left, top: start.top, right: end.right, bottom: end.bottom }];
         }
         // Line blocks are measured in the same pixels as `documentTop`,
         // so the two add to a viewport coordinate without conversion.
         const box = view.contentDOM.getBoundingClientRect();
-        const first = view.lineBlockAt(open.from);
-        const last = view.lineBlockAt(open.to);
+        const first = view.lineBlockAt(range.from);
+        const last = view.lineBlockAt(range.to);
         return [{
           left: box.left, top: view.documentTop + first.top,
           right: box.right, bottom: view.documentTop + last.bottom,
@@ -274,6 +319,33 @@ export function hoverCard(source: Source): Extension {
         }, LEAVE_TIME);
       }
 
+      quieten(range: { from: number; to: number }) {
+        this.speak();
+        this.quiet = { from: range.from, to: range.to };
+      }
+
+      /** The pointer is on the quieted thing: the quiet holds. */
+      hush() {
+        if (this.unquiet !== null) {
+          clearTimeout(this.unquiet);
+          this.unquiet = null;
+        }
+      }
+
+      leavingQuiet() {
+        if (this.unquiet !== null) return;
+        this.unquiet = setTimeout(() => {
+          this.unquiet = null;
+          this.quiet = null;
+        }, QUIET_TIME);
+      }
+
+      /** The quiet ends now. */
+      speak() {
+        this.hush();
+        this.quiet = null;
+      }
+
       disarm() {
         if (this.arm !== null) {
           clearTimeout(this.arm);
@@ -292,4 +364,10 @@ export function hoverCard(source: Source): Extension {
       }
     },
   );
+}
+
+function inside(rects: Rect[], x: number, y: number): boolean {
+  return rects.some((rect) =>
+    x >= rect.left - MARGIN && x <= rect.right + MARGIN &&
+    y >= rect.top - MARGIN && y <= rect.bottom + MARGIN);
 }

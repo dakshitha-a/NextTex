@@ -106,3 +106,59 @@ test("a table longer than the card draws says how many more rows there are", asy
   await expect(card.locator("table tr")).toHaveCount(30);
   await expect(card.locator(".nx-table-more")).toHaveText("and 4 more rows");
 });
+
+/** Rest on a character once, no retries, and say whether a card came. */
+async function rest(tab: Page, lineText: string, needle: string, card: string) {
+  const point = await pointAt(tab, lineText, needle);
+  if (!point) throw new Error(`no ${needle} on screen`);
+  await tab.mouse.move(point.x - 4, point.y);
+  await tab.mouse.move(point.x, point.y);
+  await tab.mouse.move(point.x + 1, point.y);
+  await tab.waitForTimeout(700);
+  return tab.locator(card).count();
+}
+
+/** Raised by the writer on 6 October 2026: a table's card closed with
+ *  Escape came back "every time I use the mouse to navigate to a point
+ *  on the table's source".  Escape quiets the table until the pointer
+ *  has been off it for `QUIET_TIME`, 1.5 s, typing in it included. */
+test("Escape quiets the table's card while the writer works in it", async ({ tab }) => {
+  await hover(tab, "Acetonitrile", "Aceto", ".nx-table-tooltip");
+  await tab.keyboard.press("Escape");
+  await expect(tab.locator(".nx-table-tooltip")).toHaveCount(0);
+  expect(await rest(tab, "Hexane", "Hexane", ".nx-table-tooltip")).toBe(0);
+  // A formula in a quieted table's cell is quiet too.
+  expect(await rest(tab, "Solvent", "varepsilon", ".nx-hover-card")).toBe(0);
+  // Clicked into a cell and typed: the quiet follows the edit.
+  const point = await pointAt(tab, "Water", "Water");
+  await tab.mouse.click(point!.x, point!.y);
+  await tab.keyboard.type("y");
+  expect(await rest(tab, "Acetonitrile", "Aceto", ".nx-table-tooltip")).toBe(0);
+  // Off the table for longer than the quiet: the card comes back.
+  await tab.mouse.move(5, 5);
+  await tab.waitForTimeout(2000);
+  await hover(tab, "Acetonitrile", "Aceto", ".nx-table-tooltip");
+});
+
+test("a click in the table puts the card off, and so does a drag", async ({ tab }) => {
+  const point = await pointAt(tab, "Hexane", "Hexane");
+  await tab.mouse.move(point!.x, point!.y);
+  await tab.mouse.down();
+  await tab.mouse.up();
+  expect(await rest(tab, "Water", "Water", ".nx-table-tooltip")).toBe(0);
+  // A drag that rests with the button held draws nothing either.
+  await tab.mouse.move(5, 5);
+  await tab.waitForTimeout(2000);
+  // From the blank line above the table, so the press quiets nothing.
+  const begin = await pointAt(tab, "begin{tabular}{lcr}", "begin");
+  const hexane = await pointAt(tab, "Hexane", "Hexane");
+  const water = await pointAt(tab, "Water", "Water");
+  const line = (water!.y - hexane!.y) / 2;
+  await tab.mouse.move(begin!.x, begin!.y - line);
+  await tab.mouse.down();
+  const to = water;
+  await tab.mouse.move(to!.x, to!.y, { steps: 4 });
+  await tab.waitForTimeout(700);
+  await expect(tab.locator(".nx-table-tooltip")).toHaveCount(0);
+  await tab.mouse.up();
+});

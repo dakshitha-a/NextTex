@@ -11948,3 +11948,36 @@ CTAN for each class's current version and each guide's page whether it
 still answers, and writes what moved into the run's summary. It never
 fails the release: a class that moved is a skeleton to build again, not
 a fault in the push.
+
+## 108. A card put away stays away while the writer works
+
+Raised by the writer on 6 October 2026: a table's hover card closed with
+Escape came back "every time I use the mouse to navigate to a point on
+the table's source", which was a nuisance while editing a table. They
+suggested a timeout before it shows again, or a card only on the
+`\begin{tabular}` line, and left the choice open.
+
+**Why neither as proposed.** A fixed timeout brings the card back in the
+middle of the edit it was put away for. A card on the opening line alone
+takes away the cell hover the writer asked for during the visual
+overhaul, where resting on any row shows the table. The trouble was
+narrower than either: the card had no memory of being put away, and a
+click in the text did not cancel the rest that came before it, so a card
+could arm after the click and land beside the caret just placed.
+
+**Quiet, until the pointer leaves.** Escape on an open card, or a press
+in the text, quiets the thing it was on. No card arms anywhere inside
+it, so a formula in a quieted table's cell stays quiet too. The quiet
+ends once the pointer has been off the thing for 1.5 s, which is the
+timeout the writer asked for, counted from leaving rather than from the
+key. Typing in the thing keeps it quiet, since the range follows the
+edit. A drag with the button held arms nothing. The rule lives in
+`hover-card.ts`, so every card has it: maths, tables, figures,
+references, citations and files.
+
+`table-hover.spec.ts` puts a table's card away with Escape, rests on
+other cells, a formula in one and a cell after typing in it, and sees
+no card; then leaves the table for two seconds and sees it come back. A
+second test clicks a cell and rests on another, then drags across the
+table, and sees no card either time.
+
