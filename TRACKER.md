@@ -24,7 +24,22 @@ things go to be forgotten rather than a list anybody reads.
 
 ## In hand
 
-Nothing is in hand. On 8 October 2026, at 4.30.1, the run on the flash
+The backlog close-out of 8 October 2026, from 4.30.1, at the writer's
+request: the known gaps and the flaky specs. Done and pushed as 4.31.0:
+publishing a build with thousands of undefined citations no longer takes
+23 seconds, which was the build loop's flake on CI; a hover card stays
+while someone types elsewhere, which was the reference hover's; the menus
+sweep finds its line wherever the editor scrolled, and the other flaky
+specs passed 304 runs under load without failing for their own reasons;
+Markdown has its own editor mode and the checkers read it as prose; a
+display is found row by row by the flash and by the double-click, and an
+agent's edit to a file no tab holds is flashed by its own text; non-UTF-8
+text stays a download, at the owner's word. Left in hand, both raised by the writer: the
+build flash and the double-click tested and made robust in a project of
+several documents and included files, across source files and preview
+tabs; and the four tour animations re-filmed at twice the pixels.
+
+Before it, on 8 October 2026, at 4.30.1, the run on the flash
 after a build closed, from 4.30.0. Done: a census of the flash in
 `bench/forward-search/`; the server's forward search returning every box
 SyncTeX gives rather than the first; the caret's line and column carried
