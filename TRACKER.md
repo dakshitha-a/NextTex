@@ -24,15 +24,17 @@ things go to be forgotten rather than a list anybody reads.
 
 ## In hand
 
-The double-click run, from 4.29.0, at the writer's request. Done: a
-census of every way the jump from the page to the source went wrong, in
+Nothing is in hand. On 8 October 2026, at 4.30.0, the double-click
+run closed, from 4.29.0, at the writer's request. Done: a census of every
+way the jump from the page to the source went wrong, in
 `bench/inverse-search/`; the matcher rebuilt to line the page's text up
 with the source, so a repeated word, maths, a colour's name, a heading,
 an accent and a hyphenated word land where they were clicked, and text
 TeX made up selects its command; the line carried through writing done
 since the build; the word selected and flashed in the page's own mark.
-Waiting: the refinements to the page's text overlay the writer raised
-mid-run, and the version.
+The writer's mid-run request for the page's text overlay gave a drag
+that keeps its selection over the gaps, a copy that reads as the page
+does, and a zoom that rescales the text instead of rebuilding it.
 
 Before it, on 8 October 2026, at 4.29.0, English spelling came
 to know the words of science papers, about 25,000 of them chosen from
@@ -197,6 +199,22 @@ OpenAI provider against OpenAI itself.
 ## Backlog
 
 ### Known gaps, with a cost somebody will eventually pay
+
+- [ ] **A click inside a displayed equation can select the wrong symbol.**
+      The census has "N", the upper limit of a sum, selecting `\sum`: the
+      page sets a display's pieces in an order the source does not write,
+      so the text around a glyph agrees with the source less than it does
+      in prose. Inline maths and every word of prose land; mapping a
+      display's layout back to its source would take a TeX parser.
+
+- [ ] **The source snapshot behind a double-click is one for the whole
+      project.** `BuildLines` keeps the open files from the start of the
+      last build of any document, so with two documents previewed, a build
+      of the second resets the snapshot the first one's page was built
+      from. A writer previewing two documents and writing between builds
+      of both would see a jump fall back to the word search near a stale
+      line; keeping one snapshot per document needs the build event to
+      say which files each read.
 
 - [ ] **A text file that is not UTF-8 cannot be opened.** The tree reads
       the first 8 kB of a file it has no name for, so an old program's
