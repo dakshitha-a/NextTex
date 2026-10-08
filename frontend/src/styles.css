@@ -856,6 +856,7 @@ input, textarea { font: inherit; color: inherit; background: transparent; }
 .nx-text-layer {
   position: absolute;
   inset: 0;
+  isolation: isolate;
   overflow: hidden;
   opacity: 1;
   line-height: 1;
@@ -911,15 +912,25 @@ input, textarea { font: inherit; color: inherit; background: transparent; }
   background: color-mix(in oklab, var(--hint) 42%, transparent);
   color: transparent;
 }
-/* pdf.js parks a hidden marker at the end of the layer for its own find
-   logic; it is not text anybody selected. */
+/* The end of the layer, added by pdf-select.ts as pdf.js's own viewer
+   adds it. At rest it is a sliver under the page and takes nothing. While
+   a drag is selecting it covers the layer under the spans, placed in the
+   layer's order beside the selection's moving end, so the pointer over a
+   gap between lines is over it rather than over nothing, and the selection grows from there instead
+   of jumping. It is never text anybody selected. */
 .nx-text-layer .endOfContent {
   display: block;
   position: absolute;
   inset: 100% 0 0;
+  /* Under every span, so a click on a word is always the word's: the
+     layer isolates, so under the spans is still over the page's picture. */
   z-index: -1;
   cursor: default;
   user-select: none;
+}
+.nx-text-layer.selecting .endOfContent {
+  top: 0;
+  pointer-events: auto;
 }
 
 /* The agent is working.  A slow breath rather than a spinner: it may run

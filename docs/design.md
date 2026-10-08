@@ -12193,3 +12193,38 @@ clicks a repeated word, `S_0`, a colour's name, a heading, a table cell, a
 caption and an accented word in Chromium and checks what is selected and
 where, and adds sixty lines above a paragraph with compiling off before
 clicking the page built without them.
+
+
+## 113. The page's text, selected and copied
+
+Raised by the writer while §112 was being built: refine the text layer
+over the typeset page wherever there is room, in how it looks, what it
+does or what it costs. An audit drove it in Chromium over the stress
+document and found three things; the selection's look, the hint's wash
+at 42 %, was checked over text, maths and a figure in both themes and
+kept.
+
+**A drag no longer drops what it selected.** Dragging down a paragraph
+selected 146, 304, then 561 characters, and the moment the pointer
+reached the gap under the paragraph the selection fell to 15. The page's
+spans are transparent boxes over the glyphs with nothing between them,
+so over a gap the browser put the selection's end wherever the gap's
+nearest node was. pdf.js's own viewer guards this with an element at the
+end of each layer that, while a drag is under way, lies under the spans
+and moves beside the selection's moving end; NextTex's stylesheet had the
+rule for it and nothing ever made the element. It is made now, and the
+same drag grows 561, 561, 749.
+
+**A copy reads as the page does.** A font with no accented letters sets
+the accent as a glyph of its own before the letter, so a copy of
+"Schrödinger" carried "Schr¨odinger", "café" carried "caf´e", "naïve"
+carried "na¨ıve", and a word TeX hyphenated carried "misrep-", a line
+break and "resentations". The copy puts each accent on its letter and
+joins a hyphenated word when the next line goes on in lower case, which
+is how TeX's hyphenation looks; a capital after the break keeps the
+hyphen, and every other line break is kept.
+
+`pdf-select.test.ts` holds the copy's cases; `e2e/specs/pdf-overlay.spec.ts`
+drags from a paragraph into the gap under it and fails if the selection
+ever shrinks, which it did on the first step into the gap before the
+guard, and copies accented and hyphenated words from the page.

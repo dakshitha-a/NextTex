@@ -2,6 +2,7 @@ import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { duration, panesMoving, whenPanesRest } from "../motion";
 import * as pdfjs from "pdfjs-dist";
 import { textAtPoint } from "./pdf-click";
+import { addEndOfContent, guardSelection } from "./pdf-select";
 import { pdfWorker } from "./pdf-worker";
 import api from "../api";
 import { download, stemOf } from "../chrome";
@@ -522,7 +523,10 @@ export default function Pdf({
       });
       await layer.render();
       if (mine !== generation.current) view.text.replaceChildren();
-      else markHit(index);
+      else {
+        addEndOfContent(view.text);
+        markHit(index);
+      }
     } catch {
       // A page whose text cannot be read is still a page you can look at.
       view.textFor = -1;
@@ -739,6 +743,11 @@ export default function Pdf({
     }
     drawVisible();
   }, [drawVisible]);
+
+  // A drag across the page's text keeps its selection over the gaps
+  // between lines, and a copy carries the words as the page reads them:
+  // see pdf-select.ts. Installed once for the whole page.
+  useEffect(() => guardSelection(), []);
 
   useEffect(() => {
     window.addEventListener(APPEARANCE_CHANGED, invalidateRaster);
