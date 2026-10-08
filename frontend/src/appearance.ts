@@ -95,6 +95,11 @@ export type Appearance = {
    *  ignore underlines.  Choosing a variety tightens it, so the other
    *  spelling is flagged. */
   spellingVariety: SpellingVariety;
+  /** Whether English spelling accepts the science vocabulary too, the
+   *  words of papers the everyday list lacks.  On by default: they are
+   *  what a writer here writes, and a checker that underlines "enthalpy"
+   *  is one that gets switched off. */
+  spellingScience: boolean;
   /** Whether the prose is checked for grammar and style, by Harper, in
    *  the browser. Off by default, for the reason spelling is, and because
    *  its WebAssembly is sixteen megabytes fetched on first use. English
@@ -161,7 +166,7 @@ export const WEIGHT_NAMES: Record<number, string> = {
 export const DEFAULTS: Appearance = {
   theme: "dark", scale: 100, editor: 13.5, editorTheme: "match",
   weight: 400, syntax: "subtle", emphasis: "bold", preview: "balanced",
-  spelling: false, spellingVariety: "follow", grammar: false, keymap: "default",
+  spelling: false, spellingVariety: "follow", spellingScience: true, grammar: false, keymap: "default",
   hover: true,
   hoverKinds: { maths: true, tables: true, figures: true, refs: true, cites: true, files: true },
 };
@@ -177,6 +182,7 @@ const KEYS = {
   preview: "nexttex.preview.quality",
   spelling: "nexttex.editor.spelling",
   spellingVariety: "nexttex.editor.spelling.variety",
+  spellingScience: "nexttex.editor.spelling.science",
   grammar: "nexttex.editor.grammar",
   keymap: "nexttex.editor.keymap",
   hover: "nexttex.editor.hover",
@@ -235,6 +241,7 @@ export function storedAppearance(): Appearance {
   const preview = readStored(KEYS.preview);
   const spelling = readStored(KEYS.spelling);
   const spellingVariety = readStored(KEYS.spellingVariety);
+  const spellingScience = readStored(KEYS.spellingScience);
   const grammar = readStored(KEYS.grammar);
   const keymap = readStored(KEYS.keymap);
   const hover = readStored(KEYS.hover);
@@ -260,6 +267,7 @@ export function storedAppearance(): Appearance {
       spellingVariety === "american" || spellingVariety === "british"
         ? spellingVariety
         : DEFAULTS.spellingVariety,
+    spellingScience: spellingScience !== "off",
     keymap: keymap === "vim" || keymap === "emacs" ? keymap : DEFAULTS.keymap,
     hover: hover !== "off",
     // The stored value lists the kinds turned off, so a kind this build
@@ -346,6 +354,7 @@ export function applyAppearance(appearance: Appearance): void {
   root.dataset.previewQuality = appearance.preview;
   root.dataset.spelling = appearance.spelling ? "on" : "off";
   root.dataset.spellingVariety = appearance.spellingVariety;
+  root.dataset.spellingScience = appearance.spellingScience ? "on" : "off";
   root.dataset.grammar = appearance.grammar ? "on" : "off";
   root.dataset.keymap = appearance.keymap;
   // The kinds that are on, space separated, or nothing at all while the
@@ -363,6 +372,7 @@ export function applyAppearance(appearance: Appearance): void {
   writeStored(KEYS.preview, appearance.preview);
   writeStored(KEYS.spelling, appearance.spelling ? "on" : "off");
   writeStored(KEYS.spellingVariety, appearance.spellingVariety);
+  writeStored(KEYS.spellingScience, appearance.spellingScience ? "on" : "off");
   writeStored(KEYS.grammar, appearance.grammar ? "on" : "off");
   writeStored(KEYS.keymap, appearance.keymap);
   writeStored(KEYS.hover, appearance.hover ? "on" : "off");
@@ -390,6 +400,7 @@ export function isDefault(appearance: Appearance): boolean {
     appearance.preview === DEFAULTS.preview &&
     appearance.spelling === DEFAULTS.spelling &&
     appearance.spellingVariety === DEFAULTS.spellingVariety &&
+    appearance.spellingScience === DEFAULTS.spellingScience &&
     appearance.grammar === DEFAULTS.grammar &&
     // The keymap was left out when it was added, so Reset this
     // computer's choices was disabled for a writer whose only choice was

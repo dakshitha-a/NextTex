@@ -383,6 +383,20 @@ export default function SettingsSheet({
                     onChange={(spellingVariety) => change({ spellingVariety })}
                   />
                 </SRow>
+                {/* On by default: the words of papers, which the everyday
+                    list lacks. English only, since the other languages
+                    are checked against Hunspell's own lists. */}
+                <SRow title="Science terms" note="Words from mathematics, physics, chemistry, biology and computing. English only.">
+                  <Segmented
+                    label="Science terms"
+                    value={look.spellingScience ? "on" : "off"}
+                    options={[
+                      { value: "off", label: "Off", testid: "science-off", ariaLabel: "Science terms off" },
+                      { value: "on", label: "On", testid: "science-on", ariaLabel: "Science terms on" },
+                    ]}
+                    onChange={(science) => change({ spellingScience: science === "on" })}
+                  />
+                </SRow>
                 {hasProject ? <AddedWords /> : null}
               </>
             ) : null}

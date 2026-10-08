@@ -445,6 +445,32 @@ const SURFACES: Record<string, Surface> = {
     },
     close: escape,
   },
+  "settings-science": {
+    // While you write with spelling on, as "Science terms in the spell
+    // checker" draws it: Science terms under Variety, on.
+    open: async (tab) => {
+      await tab.getByTestId("appearance").click();
+      await tab.getByTestId("settings-group-write").click();
+      await tab.getByTestId("spelling-on").click();
+      await tab.getByTestId("science-on").click();
+      return tab.getByTestId("settings-sheet");
+    },
+    close: escape,
+  },
+  "settings-science-off": {
+    // The same, with Science terms turned off.
+    open: async (tab) => {
+      await tab.getByTestId("appearance").click();
+      await tab.getByTestId("settings-group-write").click();
+      await tab.getByTestId("spelling-on").click();
+      await tab.getByTestId("science-off").click();
+      return tab.getByTestId("settings-sheet");
+    },
+    close: async (tab) => {
+      await tab.getByTestId("science-on").click();
+      await escape(tab);
+    },
+  },
   "settings-project": {
     open: async (tab) => {
       await tab.getByTestId("appearance").click();

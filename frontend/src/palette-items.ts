@@ -87,6 +87,13 @@ export function settingItems(): SettingItem[] {
   }
   for (const on of [true, false]) {
     items.push({
+      id: `science:${on ? "on" : "off"}`, label: `Science terms: ${on ? "on" : "off"}`,
+      current: (look) => look.spellingScience === on,
+      apply: (look) => ({ ...look, spellingScience: on }),
+    });
+  }
+  for (const on of [true, false]) {
+    items.push({
       id: `hover:${on ? "on" : "off"}`, label: `Hover cards: ${on ? "on" : "off"}`,
       current: (look) => look.hover === on,
       apply: (look) => ({ ...look, hover: on }),

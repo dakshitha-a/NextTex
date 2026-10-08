@@ -75,6 +75,19 @@ export function useSpellingVariety(): SpellingVariety {
   return variety;
 }
 
+/** Whether English spelling accepts the science vocabulary, live.  Read
+ *  like the others; on unless the writer turned it off. */
+export function useSpellingScience(): boolean {
+  const read = () => document.documentElement.dataset.spellingScience !== "off";
+  const [on, setOn] = useState(read);
+  useEffect(() => {
+    const onChange = () => setOn(read());
+    window.addEventListener(APPEARANCE_CHANGED, onChange);
+    return () => window.removeEventListener(APPEARANCE_CHANGED, onChange);
+  }, []);
+  return on;
+}
+
 /** Whether the prose is spell checked, live.  Read like the others. */
 export function useSpelling(): boolean {
   const read = () => document.documentElement.dataset.spelling === "on";

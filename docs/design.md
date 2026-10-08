@@ -12059,3 +12059,60 @@ under a second class name, `nx-drawer-switch`.
 and from the file's menu and reads the archive's names, and turns the
 switch on in the drawer and off on the settings sheet.
 
+
+## 111. Science terms in the spell checker
+
+Raised by the writer on 7 October 2026: the spell checker should know the
+words of STEM writing, chemistry, mathematics, physics and biology, if it
+could without slowing the app or swelling the install. Drawn on the
+direction page under "Science terms in the spell checker" before it was
+built.
+
+**The problem was the list, not the checker.** The English list is SCOWL's
+everyday size, 73,604 words, and it missed 57 of 80 common terms from the
+four fields: "eigenvector", "enthalpy", "aldehyde", "mitochondria",
+"fermion", "dataset". A page of results was a page of dotted lines under
+correct words, the state §8's note on spell checking says a checker gets
+switched off in.
+
+**Two sources, each with one job.** SCOWL's largest lists, the same
+author and licence as the everyday one, vouch that a spelling is real;
+they hold half a million words, most of them no use to a writer here. A
+count of how many of 3.4 million arXiv and PubMed abstracts use each word
+says which of those papers use, and adds the few modern words SCOWL lacks,
+"proteome" and "hyperparameter", when enough abstracts use them. Only the
+words are kept; no abstract's text is. `scripts/make-wordlist.py` says how
+they were chosen.
+
+**Guards, because a corpus holds typos too.** A first reading of the
+counts let in names, acronyms, the halves of accented names cut by the
+tokeniser, and Spanish. Five guards came out of reading samples by hand:
+a word written with a capital inside it is an acronym or a formula; a word
+written in lower case by under half its documents is a name, kept only if
+it is very common, which keeps Lyapunov and leaves Kowalski; a spelling
+one edit from one twenty times as common is its typo, unless the two are
+one word's forms; the tail of a far commoner word is a hyphen's leftover;
+and a short list of known misspellings. 136 common misspellings, none of
+them on that list, are all still underlined.
+
+**The result.** 24,801 words, 160 kB on disk and 63 kB after brotli. They
+travel in the English list's own chunk, so nothing is fetched while
+spelling is off, and building the set costs about 15 ms more, once per
+page. They accept 99.8 % of a 403-word sample from the six fields where
+the everyday list accepts 34 %, and 93 % of 132 rarer terms the selection
+was never tuned against, where it accepts 5 %. A smaller list, 45 kB,
+cost seven points on the rarer terms to save 18 kB, so it was not taken.
+
+**On by default, with one switch.** Science terms sits under Variety on
+While you write, an Off and On control like the two above it, per
+computer like them, on until the writer turns it off. Its note says what
+it covers and that it is English only, since German, French, Spanish and
+Portuguese are checked against Hunspell's own lists (§71). It follows
+Variety: a British document accepts "ionisation" and not "ionization", as
+it accepts "colour" and not "color". The command palette has "Science
+terms: on" and "off".
+
+`frontend/src/dictionary/words.test.ts` holds each field's terms, the two
+spellings, and the misspellings; `e2e/specs/spelling.spec.ts` types a
+sentence of terms with a typo in it, sees only the typo marked, turns the
+switch off and sees every term marked, and after a reload still.

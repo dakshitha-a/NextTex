@@ -24,7 +24,13 @@ things go to be forgotten rather than a list anybody reads.
 
 ## In hand
 
-Nothing is in hand. On 7 October 2026, at 4.28.0, a file's history came
+Nothing is in hand. On 8 October 2026, at 4.29.0, English spelling came
+to know the words of science papers, about 25,000 of them chosen from
+arXiv and PubMed abstracts, on by default with a Science terms switch
+under Variety. It turned up and fixed a licence notice that carried only
+the first part of SCOWL's, which the everyday list already owed in full.
+
+Before it, on 7 October 2026, at 4.28.0, a file's history came
 to download as an audit trail, from its menu or the History drawer, and
 a project gained a switch that keeps every version instead of thinning,
 off by default.
@@ -206,6 +212,15 @@ OpenAI provider against OpenAI itself.
 
 ### Measured and left, worth revisiting with a measurement
 
+- [ ] **The science vocabulary's arXiv half stops in 2021.** The only CC0
+      copy of arXiv's abstracts found was the 2021 one, so words that
+      papers took up since are thin: "tokenizer" is used by 41 abstracts
+      in it and stays out. A newer snapshot run through
+      `scripts/count-corpus.py` would bring them in. The typo guard also
+      keeps out "squark", one letter from the far commoner "square"; a
+      writer adds it with one click, and a rule loose enough to let it in
+      let "occuring" in too.
+
 - [ ] **A save syncs to disk eight times.** Each flush of a typed edit
       writes the file, a history blob, the history log and the
       projection record, each with an fsync of the file and of its
@@ -243,7 +258,10 @@ OpenAI provider against OpenAI itself.
       indenting) on the 4.18.0 check, `menus-contrast.spec.ts:650` and
       `share-panel.spec.ts:135` on the 4.19.0 check, each passing on its
       retry; the first two passed 10 of 10 alone. Not read further,
-      since none recurred in the two runs after.
+      since none recurred in the two runs after. `menus-contrast.spec.ts:668`
+      failed once more on the 4.29.0 check, the light shell's card over a
+      cross-reference not opening, and passed on its retry; that is the
+      reference hover under load below.
 - [ ] **`e2e/specs/latex-links.spec.ts:112`, the reference hover, under
       load.** Run with `writing.spec.ts` at `--repeat-each=6` it failed
       2 of 156 on 4.13.1's interface and on 4.13.3's alike, the card

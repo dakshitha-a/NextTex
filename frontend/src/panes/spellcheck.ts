@@ -35,6 +35,10 @@ export type Spelling = {
    *  are fetched, "de", "fr", "es" or "pt".  The editor resolves the
    *  project's setting and the document's preamble to one. */
   language?: string;
+  /** Whether English accepts the science vocabulary as well, "enthalpy"
+   *  and "eigenvector".  On unless the writer turned it off; the other
+   *  languages have Hunspell's own lists and ignore it. */
+  science?: boolean;
 };
 
 /** Turn checking on or off, or hand it a new list of accepted words. */
@@ -51,7 +55,7 @@ const spelling = StateField.define<Resolved>({
       if (effect.is(setSpelling)) {
         // The variety is module state rather than field state: one page,
         // one list in use, and the lookup below reads it without a view.
-        use(effect.value.variety ?? "either", effect.value.language ?? "en");
+        use(effect.value.variety ?? "either", effect.value.language ?? "en", effect.value.science ?? true);
         return {
           on: effect.value.on,
           custom: new Set(effect.value.custom.map(normalise).filter(Boolean)),
@@ -67,6 +71,7 @@ const spelling = StateField.define<Resolved>({
 let lists: typeof import("../dictionary/words") | null = null;
 let words: Set<string> | null = null;
 let variety: Variety = "either";
+let science = true;
 let loading = false;
 /** The language in use, and for any but English, its Hunspell once it
  *  has arrived. */
@@ -77,9 +82,10 @@ let hunspellLoading = "";
 /** Hold the prose to this English, or this language, from now on.
  *  Synchronous for English once the chunk is here, since every variety is
  *  decoded from the same text; another language waits for its speller. */
-function use(wanted: Variety, lang: string): void {
+function use(wanted: Variety, lang: string, withScience: boolean): void {
   variety = wanted;
-  if (lists) words = lists.dictionary(wanted);
+  science = withScience;
+  if (lists) words = lists.dictionary(wanted, withScience);
   if (lang !== language) {
     language = lang;
     hunspell = null;
@@ -114,7 +120,7 @@ function load(view: EditorView): void {
   import("../dictionary/words")
     .then((module) => {
       lists = module;
-      words = module.dictionary(variety);
+      words = module.dictionary(variety, science);
       // The editor is already mounted and showing nothing; tell it the
       // ground has moved rather than waiting for the next keystroke.
       view.dispatch({ effects: dictionaryReady.of(null) });

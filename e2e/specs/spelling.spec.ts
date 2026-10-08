@@ -70,9 +70,11 @@ test("a word the writer accepts stops being underlined, for good", async ({
 }) => {
   await expect(tab.locator(".cm-editor")).toBeVisible({ timeout: 30_000 });
   await turnOn(tab);
-  await type(tab, "The nitrophenol dissociates.");
+  // A compound rare enough that the science vocabulary, which took
+  // "nitrophenol" from the papers that use it, has never met it.
+  await type(tab, "The chloronitrobenzene dissociates.");
   await expect(marked(tab).first()).toBeVisible({ timeout: 20_000 });
-  await expect(marked(tab)).toHaveText(["nitrophenol"]);
+  await expect(marked(tab)).toHaveText(["chloronitrobenzene"]);
 
   // The right button, not the left: the left one places the caret, and a
   // word does not stop being editable because it is underlined.
@@ -115,6 +117,29 @@ test("turning it off takes every mark away", async ({ tab }) => {
   await tab.getByTestId("spelling-off").click();
   await tab.keyboard.press("Escape");
   await expect(marked(tab)).toHaveCount(0);
+});
+
+test("science terms are words, until they are turned off", async ({ tab }) => {
+  // The everyday list missed most of what a paper is written in, so a page
+  // of results was a page of underlines under correct words. The science
+  // vocabulary is on with spelling; its own switch takes it away again,
+  // and a typo is marked either way.
+  await expect(tab.locator(".cm-editor")).toBeVisible({ timeout: 30_000 });
+  await turnOn(tab);
+  await type(tab, "The eigenvectors wiht the enthalpy of the aldehyde.");
+  await expect(marked(tab).first()).toBeVisible({ timeout: 20_000 });
+  await expect(marked(tab)).toHaveText(["wiht"]);
+
+  await tab.getByTestId("appearance").first().click();
+  await tab.getByTestId("settings-group-write").click();
+  await tab.getByTestId("science-off").click();
+  await tab.keyboard.press("Escape");
+  await expect(marked(tab)).toHaveText(["eigenvectors", "wiht", "enthalpy", "aldehyde"]);
+
+  // Per computer, like the variety beside it.
+  await tab.reload();
+  await expect(tab.locator(".cm-editor")).toBeVisible({ timeout: 30_000 });
+  await expect(marked(tab)).toHaveText(["eigenvectors", "wiht", "enthalpy", "aldehyde"], { timeout: 20_000 });
 });
 
 test("a displayed equation is not prose, however many lines it runs to", async ({
@@ -250,7 +275,7 @@ test("a word added by mistake can be taken back", async ({ tab }) => {
   // back.
   await expect(tab.locator(".cm-editor")).toBeVisible({ timeout: 30_000 });
   await turnOn(tab);
-  await type(tab, "The nitrophenol dissociates.");
+  await type(tab, "The chloronitrobenzene dissociates.");
   await expect(marked(tab).first()).toBeVisible({ timeout: 20_000 });
   await marked(tab).first().click({ button: "right" });
   await tab.getByTestId("spelling-menu").waitFor();
@@ -260,7 +285,7 @@ test("a word added by mistake can be taken back", async ({ tab }) => {
   await tab.getByTestId("appearance").first().click();
   await tab.getByTestId("settings-group-write").click();
   await expect(tab.getByText("Words you added")).toBeVisible();
-  await tab.getByRole("button", { name: "Forget nitrophenol" }).click();
+  await tab.getByRole("button", { name: "Forget chloronitrobenzene" }).click();
   await expect(tab.getByText("Words you added")).toHaveCount(0);
   await tab.keyboard.press("Escape");
 

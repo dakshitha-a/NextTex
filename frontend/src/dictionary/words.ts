@@ -9,11 +9,19 @@
 // and the words it takes away, 19 kB of text and a few after brotli, in
 // the same chunk.
 //
-// See COPYRIGHT beside this file: both lists are SCOWL, and its licence
+// `science.txt` is the vocabulary of papers, "eigenvector" to
+// "mitochondria", which the everyday list lacks: about 25,000 words, 160 kB
+// of text and 63 kB after brotli, in the same chunk again, since the
+// setting that uses it is on by default and a second request for it would
+// be one nearly every writer makes.  `scripts/make-wordlist.py` says how
+// its words were chosen.
+//
+// See COPYRIGHT beside this file: every list is SCOWL's, and its licence
 // asks that the notice travel with them.
 
 import encoded from "./words.txt?raw";
 import delta from "./british.txt?raw";
+import science from "./science.txt?raw";
 
 /** Which English a text is checked against.  `either` accepts both
  *  spellings of every word, which is what a project with no stated
@@ -21,7 +29,7 @@ import delta from "./british.txt?raw";
  *  underline under every `colour` teaches people to ignore underlines. */
 export type Variety = "american" | "british" | "either";
 
-const cached = new Map<Variety, Set<string>>();
+const cached = new Map<string, Set<string>>();
 
 /** The list, expanded from the front-coded form it is stored in.
  *
@@ -52,11 +60,31 @@ function halves(): { adds: string[]; removes: string[] } {
   return { adds: decode(added), removes: decode(removed) };
 }
 
-export function dictionary(variety: Variety = "american"): Set<string> {
-  const held = cached.get(variety);
+/** The science vocabulary's three parts, each front-coded: the words both
+ *  Englishes share, then after a `-` line the words only British English
+ *  has, then after another the words only American English has.  A word
+ *  is in one English's part only where the other has its other spelling,
+ *  "ionisation" beside "ionization", so the Variety setting means the same
+ *  with these words as without them. */
+function sciences(): { shared: string[]; british: string[]; american: string[] } {
+  const [shared = "", british = "", american = ""] = science.split("\n-\n");
+  return { shared: decode(shared), british: decode(british), american: decode(american) };
+}
+
+/** The words a variety accepts, and with `withScience` the science
+ *  vocabulary too, in that variety's spelling. */
+export function dictionary(variety: Variety = "american", withScience = false): Set<string> {
+  const key = withScience ? `${variety}+science` : variety;
+  const held = cached.get(key);
   if (held) return held;
   let words: Set<string>;
-  if (variety === "american") {
+  if (withScience) {
+    const parts = sciences();
+    words = new Set(dictionary(variety));
+    for (const word of parts.shared) words.add(word);
+    if (variety !== "american") for (const word of parts.british) words.add(word);
+    if (variety !== "british") for (const word of parts.american) words.add(word);
+  } else if (variety === "american") {
     words = new Set(decode(encoded));
   } else {
     const { adds, removes } = halves();
@@ -64,6 +92,6 @@ export function dictionary(variety: Variety = "american"): Set<string> {
     for (const word of adds) words.add(word);
     if (variety === "british") for (const word of removes) words.delete(word);
   }
-  cached.set(variety, words);
+  cached.set(key, words);
   return words;
 }

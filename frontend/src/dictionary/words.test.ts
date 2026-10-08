@@ -90,3 +90,88 @@ describe("the word lists", () => {
     expect(dictionary("british")).toBe(british);
   });
 });
+
+/** Terms from each field the science vocabulary is for, none of which the
+ *  everyday list holds. */
+const SCIENCE = [
+  "eigenvector", "eigenvectors", "isomorphism", "holomorphic", "surjective",
+  "heteroscedasticity", "covariate", "hyperparameter", "backpropagation",
+  "enthalpy", "aldehyde", "ketone", "nucleophile", "enantiomer", "chromatography",
+  "mitochondria", "apoptosis", "phosphorylation", "eukaryote", "proteome",
+  "fermion", "boson", "gluon", "lepton", "renormalizable", "lanczos",
+];
+
+/** One word in each English, which the vocabulary keeps apart as the
+ *  everyday list keeps "colour" and "color" apart. */
+const PAIRS: [string, string][] = [
+  ["quantisation", "quantization"], ["haematoma", "hematoma"],
+  ["renormalisation", "renormalization"], ["ischaemia", "ischemia"],
+  ["hybridisation", "hybridization"], ["parameterised", "parameterized"],
+];
+
+/** Common misspellings, in papers and out of them. The vocabulary was
+ *  chosen from abstracts, where a typo used often enough looks like a
+ *  word, so none of these may have come with it. */
+const TYPOS = [
+  "accross", "adress", "agressive", "apparant", "basicly", "becuase",
+  "beggining", "buisness", "cemetary", "collegue", "comitee", "completly",
+  "concieve", "critisism", "dilemna", "disapear", "dissapoint", "exellent",
+  "existant", "experiance", "facinating", "foward", "garantee", "guage",
+  "happend", "hygene", "imediate", "independance", "intrest", "irrelevent",
+  "knowlegeable", "lisence", "mantain", "minature", "mispell", "neice",
+  "nieghbor", "occuring", "oppurtunity", "orignal", "particulary", "peice",
+  "perminent", "posible", "potentialy", "practicly", "presance", "pressence",
+  "propoganda", "recived", "reffered", "repitition", "rember", "sentance",
+  "sieze", "strengh", "sufficent", "suprised", "tendancy", "tommorrow",
+  "tounge", "transfering", "unfortunatly", "usualy", "vegtable", "visibile",
+  "wheather", "whith", "wiht", "accesible", "aproximately", "aproach",
+  "assymetric", "assymptotic", "asymetric", "anomolous", "comparision",
+  "corelation", "emperical", "experimantal", "funtion", "heirarchy",
+  "hypothosis", "imaginery", "intial", "intergral", "interpretion",
+  "mesurement", "minimun", "neglible", "nonlinar", "optimun", "perameter",
+  "posterier", "quantitive", "resolusion", "sinusoidial", "spectum",
+  "stastistical", "statisical", "thier", "veriable", "simmilar", "differnt",
+  "diffrent", "approximatly", "calulate", "calcualte", "caculate",
+  "eigenvetor", "eigenvaue", "hamiltonain", "lagrangain", "langrangian",
+  "fourrier", "gausian", "bayseian", "probablistic", "stochastical",
+  "orthogonl", "polynomal", "matirx", "matrcies", "tensr", "vectr",
+  "tempature", "presure", "moleculs", "proteinn", "enzime", "bacteriaa",
+  "mitochondira", "ribosme", "phosphorilation", "chromatograpy",
+  "spectroscophy",
+];
+
+describe("the science vocabulary", () => {
+  const either = dictionary("either", true);
+
+  it("is a few tens of thousands of words beside the everyday list", () => {
+    const added = either.size - dictionary("either").size;
+    expect(added).toBeGreaterThan(20_000);
+    expect(added).toBeLessThan(40_000);
+  });
+
+  it.each(SCIENCE)("accepts %s only when asked to", (word) => {
+    expect(dictionary("either").has(word)).toBe(false);
+    expect(either.has(word)).toBe(true);
+    expect(dictionary("american", true).has(word)).toBe(true);
+    expect(dictionary("british", true).has(word)).toBe(true);
+  });
+
+  it.each(PAIRS)("holds %s to British and %s to American", (uk, us) => {
+    expect(dictionary("british", true).has(uk)).toBe(true);
+    expect(dictionary("british", true).has(us)).toBe(false);
+    expect(dictionary("american", true).has(us)).toBe(true);
+    expect(dictionary("american", true).has(uk)).toBe(false);
+    expect(either.has(uk) && either.has(us)).toBe(true);
+  });
+
+  it("keeps every typo out", () => {
+    expect(TYPOS.filter((word) => either.has(word))).toEqual([]);
+    expect(MISSPELT.filter((word) => either.has(word))).toEqual([]);
+  });
+
+  it("leaves the everyday lists as they were", () => {
+    expect(dictionary("either")).toBe(dictionary("either"));
+    expect(dictionary("either", true)).not.toBe(dictionary("either"));
+    expect(dictionary("either").has("enthalpy")).toBe(false);
+  });
+});

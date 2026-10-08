@@ -40,6 +40,7 @@ import {
   useKeymap,
   useSpelling,
   useGrammar,
+  useSpellingScience,
   useSpellingVariety,
 } from "../use-editor-theme";
 import { toShell, uiScale } from "../viewport";
@@ -171,6 +172,7 @@ export default function Editor({
   const grammarRef = useRef(grammarOn);
   grammarRef.current = grammarOn;
   const spellingVariety = useSpellingVariety();
+  const spellingScience = useSpellingScience();
   const spellingLanguage = useStore((s) => s.settings.language);
   const keymapChoice = useKeymap();
   const keymapRef = useRef(keymapChoice);
@@ -231,6 +233,8 @@ export default function Editor({
   spellingRef.current = spelling;
   const varietyRef = useRef(spellingVariety);
   varietyRef.current = spellingVariety;
+  const scienceRef = useRef(spellingScience);
+  scienceRef.current = spellingScience;
   const acceptedRef = useRef(accepted);
   acceptedRef.current = accepted;
   /** Put the checker into whatever state the view holds now.
@@ -288,7 +292,7 @@ export default function Editor({
     now.dispatch({
       effects: module.setSpelling.of({
         on: true, custom: [...acceptedRef.current, ...forNow.current.words], variety: resolveVariety(),
-        language: resolveLanguage(),
+        language: resolveLanguage(), science: scienceRef.current,
       }),
     });
   }, []);
@@ -1387,10 +1391,10 @@ export default function Editor({
     if (speller.current) tell(speller.current);
     else import("./spellcheck").then(tell).catch(() => undefined);
     return () => { live = false; };
-    // `spellingVariety` and `builtAt` are read through refs inside
-    // `applySpelling`; they are here so a changed setting, or a symbol
-    // table refreshed by a build, re-applies the checker.
-  }, [spelling, accepted, applySpelling, spellingVariety, builtAt, activePreview, spellingLanguage, forNowStamp]);
+    // `spellingVariety`, `spellingScience` and `builtAt` are read through
+    // refs inside `applySpelling`; they are here so a changed setting, or a
+    // symbol table refreshed by a build, re-applies the checker.
+  }, [spelling, accepted, applySpelling, spellingVariety, spellingScience, builtAt, activePreview, spellingLanguage, forNowStamp]);
 
   // ---- grammar ------------------------------------------------------------
   useEffect(() => {

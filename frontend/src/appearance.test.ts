@@ -86,13 +86,13 @@ describe("what is remembered", () => {
     applyAppearance({
       theme: "light", scale: 125, editor: 17, editorTheme: "match",
       weight: 500, syntax: "colour", emphasis: "plain", preview: "sharper",
-      spelling: true, spellingVariety: "british", grammar: true, keymap: "vim",
+      spelling: true, spellingVariety: "british", spellingScience: false, grammar: true, keymap: "vim",
       hover: false, hoverKinds: { ...DEFAULTS.hoverKinds, figures: false },
     });
     expect(storedAppearance()).toEqual({
       theme: "light", scale: 125, editor: 17, editorTheme: "match",
       weight: 500, syntax: "colour", emphasis: "plain", preview: "sharper",
-      spelling: true, spellingVariety: "british", grammar: true, keymap: "vim",
+      spelling: true, spellingVariety: "british", spellingScience: false, grammar: true, keymap: "vim",
       hover: false, hoverKinds: { ...DEFAULTS.hoverKinds, figures: false },
     });
   });
@@ -119,7 +119,7 @@ describe("what is remembered", () => {
     applyAppearance({
       theme: "light", scale: 150, editor: 21, editorTheme: "match",
       weight: 300, syntax: "colour", emphasis: "plain", preview: "sharper",
-      spelling: true, spellingVariety: "american", grammar: true, keymap: "emacs",
+      spelling: true, spellingVariety: "american", spellingScience: false, grammar: true, keymap: "emacs",
       hover: true, hoverKinds: { ...DEFAULTS.hoverKinds, maths: false, cites: false },
     });
     const root = document.documentElement;
@@ -133,6 +133,18 @@ describe("what is remembered", () => {
     expect(root.dataset.emphasis).toBe("plain");
     expect(root.dataset.spelling).toBe("on");
     expect(root.dataset.spellingVariety).toBe("american");
+    expect(root.dataset.spellingScience).toBe("off");
+  });
+
+  it("accepts science terms until they are turned off", () => {
+    // On by default: a checker that underlines "enthalpy" in a chemistry
+    // thesis is one that gets switched off. Only "off" turns them off, so
+    // a value from a later build reads as the default.
+    expect(storedAppearance().spellingScience).toBe(true);
+    window.localStorage.setItem("nexttex.editor.spelling.science", "off");
+    expect(storedAppearance().spellingScience).toBe(false);
+    window.localStorage.setItem("nexttex.editor.spelling.science", "maybe");
+    expect(storedAppearance().spellingScience).toBe(true);
   });
 
   it("follows the document's English until a variety is chosen", () => {
