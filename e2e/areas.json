@@ -24,7 +24,7 @@
     },
     {
       "name": "spelling, grammar and the hover cards",
-      "sources": ["frontend/src/panes/spell*.ts", "frontend/src/panes/hunspell-speller.ts", "frontend/src/panes/grammar*.ts", "frontend/src/panes/WordMenu.tsx", "frontend/src/panes/hover-card.ts", "frontend/src/panes/math-hover.ts", "frontend/src/panes/table-hover.ts", "frontend/src/panes/place-clear.ts", "frontend/src/panes/thumbnails.ts", "frontend/src/panes/equation-verbs.ts", "nexttex/dictionaries.py", "nexttex/dictionary.py", "nexttex/equation.py"],
+      "sources": ["frontend/src/panes/spell*.ts", "frontend/src/dictionary/*", "frontend/src/panes/hunspell-speller.ts", "frontend/src/panes/grammar*.ts", "frontend/src/panes/WordMenu.tsx", "frontend/src/panes/hover-card.ts", "frontend/src/panes/math-hover.ts", "frontend/src/panes/table-hover.ts", "frontend/src/panes/place-clear.ts", "frontend/src/panes/thumbnails.ts", "frontend/src/panes/equation-verbs.ts", "nexttex/dictionaries.py", "nexttex/dictionary.py", "nexttex/equation.py"],
       "specs": ["spelling", "grammar", "hover-cards", "hover-card-placement", "table-hover", "equation", "file-card"]
     },
     {
