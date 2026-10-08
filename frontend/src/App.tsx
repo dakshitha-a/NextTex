@@ -1410,8 +1410,10 @@ export default function App() {
     // costs.
     handlers.onCompileStart = () => {
       followCaret.current = agentWrote.current === null && busyTyping();
+      editor.current?.buildStarted();
     };
-    handlers.onCompileDone = () => {
+    handlers.onCompileDone = (result) => {
+      editor.current?.buildFinished(Boolean(result.pdfKept));
       const wrote = agentWrote.current;
       if (wrote) {
         agentWrote.current = null;

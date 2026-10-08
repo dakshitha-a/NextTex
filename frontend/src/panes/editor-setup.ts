@@ -427,9 +427,29 @@ export function tokenAt(
 export const setMarks = StateEffect.define<Mark[]>();
 /** Lines that differ from the live file, while an old version is on screen. */
 export const setDiff = StateEffect.define<number[]>();
-export const flashRange = StateEffect.define<{ from: number; to: number } | null>();
+/** A range to flash. `word` flashes the range alone, outlined, for a jump
+ *  that selected a word; otherwise the whole line flashes with it. */
+export const flashRange = StateEffect.define<{ from: number; to: number; word?: boolean } | null>();
 /** Drop the fading highlight once it has finished fading. */
 export const clearFlash = StateEffect.define<null>();
+
+/** The selection is the word a double-click on a preview landed on.
+ *
+ *  Rendered beside its drawing, the jump's selection was the faintest
+ *  thing on its line: the editor marks every other copy of a selected word
+ *  in green, so a paragraph with the word four times showed three loud
+ *  copies and one quiet one, and the selection's Comment row came up over
+ *  it. Neither is asked for by a jump, so both wait until the writer
+ *  changes the selection or the text. */
+export const jumpSelected = StateEffect.define<boolean>();
+export const jumpedField = StateField.define<boolean>({
+  create: () => false,
+  update(value, tr) {
+    for (const effect of tr.effects) if (effect.is(jumpSelected)) return effect.value;
+    return tr.selection || tr.docChanged ? false : value;
+  },
+  provide: (field) => EditorView.editorAttributes.from(field, (on): Record<string, string> => (on ? { class: "cm-jumped" } : {})),
+});
 
 const markField = StateField.define<DecorationSet>({
   create: () => Decoration.none,
@@ -519,18 +539,22 @@ const flashField = StateField.define<DecorationSet>({
         const existing: any[] = [];
         current.between(0, tr.state.doc.length, (from, to, value) => {
           const spec = (value as any).spec ?? {};
-          const fading = spec.class?.includes("cm-line-flash");
-          if (!fading) return;
+          const word = spec.class?.includes("cm-word-flash");
+          if (!word && !spec.class?.includes("cm-line-flash")) return;
+          const fading = word ? "cm-word-fading" : "cm-line-fading";
           existing.push(
             (spec.widget || to === from
-              ? Decoration.line({ class: "cm-line-fading" })
-              : Decoration.mark({ class: "cm-line-fading" })
+              ? Decoration.line({ class: fading })
+              : Decoration.mark({ class: fading })
             ).range(from, to === from ? undefined : to) as any,
           );
         });
         return existing.length ? Decoration.set(existing, true) : Decoration.none;
       }
-      const { from, to } = effect.value;
+      const { from, to, word } = effect.value;
+      if (word && to > from) {
+        return Decoration.set([Decoration.mark({ class: "cm-word-flash" }).range(from, to)]);
+      }
       return Decoration.set([
         Decoration.line({ class: "cm-line-flash" }).range(
           tr.state.doc.lineAt(from).from,
@@ -897,6 +921,7 @@ export function extensions(
     ...base(),
     markField,
     flashField,
+    jumpedField,
     // Every file type the merge can mark, not only LaTeX, and never the
     // read-only version view, where nothing can be chosen.
     conflictBars(),

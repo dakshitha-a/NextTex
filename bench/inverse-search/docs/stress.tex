@@ -1,0 +1,89 @@
+\documentclass{article}
+\usepackage{amsmath,amssymb,xcolor,float,graphicx}
+\pagestyle{plain}
+\begin{document}
+
+\section{Introduction}
+
+The model predicts the state, and the model then corrects the state using the model of the noise. When the state drifts, the model is told about the drift, and the state is pulled back towards what the model expected of the state. Every step of the model repeats this, so the state and the model stay close, and the noise in the state is what the model learns from. The last state the model sees is the state it reports.
+
+Introduction of the method comes after the introduction of the notation, which is why the method section opens with notation and closes with the method itself.
+
+\subsection{Inline mathematics}
+
+The ground state $S_0$ and the excited state $S_1$ differ by an energy $E = mc^2$, and the coefficients $\alpha_i$ weight each term. The rate $\mathrm{d}x/\mathrm{d}t$ is small compared with $\omega_0$, so $S_0$ dominates again and $x^2 + y^2 = r^2$ holds.
+
+\subsection{Colour and emphasis}
+
+Some \textcolor{red}{important content} sits beside \textcolor{blue}{other content}, and red appears also as a plain word in this sentence about red things. A \textbf{bold claim} and an \emph{emphasised phrase} and a \textbf{wo}rd split by a macro, then \textit{\textbf{nested styles}} at the end.
+
+\subsection{Words that are also commands}
+
+We left the section about the item to the ref note, and $\left( x \right)$ was left alone; the item in this section is what we left.
+
+\section{Displayed equations}
+
+The energy of the whole system is
+\begin{equation}
+  E = \sum_{i=1}^{N} \alpha_i x_i + \frac{1}{2} \beta
+  \label{eq:energy}
+\end{equation}
+where the energy is given by Equation~\ref{eq:energy} and the sum runs over all states.
+\begin{align}
+  a &= b + c \\
+  d &= e f
+\end{align}
+After the alignment the text resumes with ordinary words.
+
+\section{Tables and figures}
+
+\begin{table}[H]
+  \centering
+  \caption{Results of the model for each state of the system}
+  \begin{tabular}{lcc}
+    \textbf{State} & \textbf{Energy} & \textbf{Model} \\
+    ground & 1.0 & harmonic \\
+    excited & 2.5 & anharmonic \\
+  \end{tabular}
+\end{table}
+
+\begin{figure}[H]
+  \centering
+  \rule{3cm}{1cm}
+  \caption{A schematic of the apparatus with the detector labelled.}
+\end{figure}
+
+The method\footnote{See the appendix for marginalia details.} works well, as the table shows.
+
+\begin{itemize}
+  \item First bullet point about apples.
+  \item Second bullet point about pears.
+\end{itemize}
+\begin{enumerate}
+  \item Numbered step about cutting.
+  \item Numbered step about cooking.
+\end{enumerate}
+
+\section{Spelling}
+
+Schr\"odinger wrote it, and Schrödinger is the same name; the café and the caf\'e are the same place, and na\"ive readers agree.
+
+Efficient office staff affine the flow of fluffy waffles.
+
+Pages 1--3 and ``quoted words'' and an em---dash sit together here.
+
+Some exceedingly long words: internationalization, electroencephalography, counterrevolutionaries, incomprehensibilities, and thermodynamically, misrepresentations, characteristically, interdisciplinary, uncharacteristically, institutionalization, and electrochemically.
+
+\section*{Unnumbered heading}
+
+Plain text under an unnumbered heading.
+
+\subsection{Results and discussion}
+
+Results show that the discussion follows the results.
+
+\paragraph{Run-in} A run-in heading opens this paragraph with words after it.
+
+\input{chapter}
+
+\end{document}

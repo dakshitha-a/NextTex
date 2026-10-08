@@ -14,6 +14,8 @@ import {
   clearFlash,
   extensions,
   flashRange,
+  jumpSelected,
+  jumpedField,
   freshState,
   keymapCompartment,
   swapCompartment,
@@ -46,7 +48,8 @@ import {
 import { toShell, uiScale } from "../viewport";
 import { get, markStale, set, useStore } from "../store";
 import type { ProjectCollab } from "../collab";
-import type { WordHint } from "./locate-word";
+import type { Landing, WordHint } from "./locate-word";
+import { BuildLines } from "./build-lines";
 import { noteTyping, onFrame } from "../timing";
 
 /** Fetched when a writer first selects something rather than before
@@ -114,6 +117,12 @@ export type EditorHandle = {
   flash(line: number, endLine?: number): void;
   saveNow(): Promise<void>;
   textOf(path: string): string | null;
+  /** A build started: remember every open file as it stands, so a line
+   *  of the PDF it makes can be found again after more writing. */
+  buildStarted(): void;
+  /** A build finished; `kept` when the PDF on screen is still an older
+   *  one. See build-lines.ts. */
+  buildFinished(kept: boolean): void;
 };
 
 export default function Editor({
@@ -131,6 +140,8 @@ export default function Editor({
   onOpen?: (path: string, line?: number) => void;
 }) {
   const host = useRef<HTMLDivElement | null>(null);
+  /** The open files as the PDF on screen was built from them. */
+  const buildLines = useRef(new BuildLines());
   // How tall the editor's top panels are, when there are any: the section
   // bar sits over the scroller, and with find open it sat over the find
   // panel instead, covering its controls once the pane had scrolled past
@@ -706,7 +717,11 @@ export default function Editor({
       // double-click on one word happens constantly while reading, and a
       // row of verbs appearing over it every time would be the diagnostics
       // drawer's mistake in a third place.
-      if (!view.current || !span || !selection.trim() || viewing.current) {
+      if (
+        !view.current || !span || !selection.trim() || viewing.current
+        // The word a jump from a preview selected: see jumpedField.
+        || view.current.state.field(jumpedField, false)
+      ) {
         setActions((open) => (open === null ? open : null));
         return;
       }
@@ -864,40 +879,66 @@ export default function Editor({
       if (!editor) return;
       // A double-click on the page knows which word it landed on, and
       // synctex does not: it answers every query with `Column:-1`, so
-      // without this the cursor can only arrive at the start of the line.
-      // Near, and not on the words you were looking at. The word finder is
-      // a chunk of its own, fetched with the first such jump: only a
-      // double-click on the page needs it.
+      // without this the cursor can only arrive at the start of the line,
+      // which for a paragraph written on one line is the start of the
+      // paragraph. The word finder is a chunk of its own, fetched with the
+      // first such jump: only a double-click on a preview needs it.
       if (word) {
+        // The line is one of the source the PDF on screen was built from;
+        // carried to where it is now if the file was written in since. A
+        // Markdown preview's line is the live text's already.
+        const plain = typeof word !== "string" && word.plain;
+        const path = current.current;
+        const at = !plain && path
+          ? buildLines.current.map(path, line, editor.state.doc.toString())
+          : line;
         void import("./locate-word")
-          .then(({ locateWord }) => land(line, endLine, steal, hold, (total, number) => locateWord(
-            (at) => view.current!.state.doc.line(at).text, total, number, word,
+          .then(({ locateWord }) => land(at, endLine, steal, hold, (total, number) => locateWord(
+            (n) => view.current!.state.doc.line(n).text, total, number, word,
           )))
-          .catch(() => land(line, endLine, steal, hold));
+          .catch(() => land(at, endLine, steal, hold));
         return;
       }
       land(line, endLine, steal, hold);
     };
 
-    /** The second half of a jump: the caret, the scroll and the flash,
-     *  once any word on the line has been found. */
+    /** The second half of a jump: the selection, the scroll and the
+     *  flash, once any word on the line has been found.
+     *
+     *  A word that was found is selected and flashed alone, outlined, so
+     *  the eye finds it at once on a line that may be a whole paragraph
+     *  long, and the flash fades to the selection. A jump that found no
+     *  word, or that was asked for a line and not a word, puts the caret
+     *  at the start of the line and flashes the line, as it always has. */
     const land = (
       line: number,
       endLine: number | undefined,
       steal: boolean,
       hold: number,
-      find?: (total: number, line: number) => { line: number; column: number } | null,
+      find?: (total: number, line: number) => Landing | null,
     ) => {
       const editor = view.current;
       if (!editor) return;
       const total = editor.state.doc.lines;
       let target = editor.state.doc.line(Math.min(Math.max(line, 1), total));
-      let at = target.from;
       const found = find?.(total, target.number);
       if (found) {
         target = editor.state.doc.line(found.line);
-        at = target.from + found.column - 1;
+        const from = target.from + Math.min(found.from, target.length);
+        const to = target.from + Math.min(Math.max(found.to, found.from), target.length);
+        editor.dispatch({
+          ...(steal ? { selection: { anchor: from, head: to } } : {}),
+          effects: [
+            EditorView.scrollIntoView(from, { y: "center" }),
+            flashRange.of({ from, to, word: to > from }),
+            ...(steal && to > from ? [jumpSelected.of(true)] : []),
+          ],
+        });
+        if (steal) editor.focus();
+        fade(hold);
+        return;
       }
+      const at = target.from;
       const end = endLine
         ? editor.state.doc.line(Math.min(Math.max(endLine, 1), total))
         : target;
@@ -909,11 +950,15 @@ export default function Editor({
         ],
       });
       if (steal) editor.focus();
-      // 700ms, matching the SyncTeX highlight in the spec: long enough to
-      // find with the eye after a jump, short enough not to linger.  The
-      // agent's own announcement holds longer, because the write it points
-      // at has not happened yet and a highlight that has faded before the
-      // text changes has pointed at nothing.
+      fade(hold);
+    };
+
+    /** The flash's teardown. 700ms, matching the SyncTeX highlight in the
+     *  spec: long enough to find with the eye after a jump, short enough
+     *  not to linger.  The agent's own announcement holds longer, because
+     *  the write it points at has not happened yet and a highlight that has
+     *  faded before the text changes has pointed at nothing. */
+    const fade = (hold: number) => {
       window.setTimeout(() => {
         view.current?.dispatch({ effects: flashRange.of(null) });
       }, hold);
@@ -1206,6 +1251,12 @@ export default function Editor({
       });
     };
 
+    const textOf = (path: string): string | null => {
+      if (current.current === path && view.current) {
+        return view.current.state.doc.toString();
+      }
+      return parkedText(buffers.current.get(path));
+    };
     publish.current({
       open: openBuffer,
       view: viewVersion,
@@ -1273,12 +1324,16 @@ export default function Editor({
       },
       flash: jump,
       saveNow: flush,
-      textOf: (path) => {
-        if (current.current === path && view.current) {
-          return view.current.state.doc.toString();
+      textOf,
+      buildStarted: () => {
+        const texts = new Map<string, string>();
+        for (const path of buffers.current.keys()) {
+          const text = textOf(path);
+          if (text !== null) texts.set(path, text);
         }
-        return parkedText(buffers.current.get(path));
+        buildLines.current.started(texts);
       },
+      buildFinished: (kept) => buildLines.current.finished(kept),
     });
 
     return () => {

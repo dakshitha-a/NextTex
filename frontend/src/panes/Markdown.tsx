@@ -142,7 +142,23 @@ export default function Markdown({
     // Read before anything else can clear it: the second click selected
     // the word, and that word is what says which line of a paragraph
     // this was, and where on it the caret should land.
-    const word = String(window.getSelection() ?? "");
+    const selection = window.getSelection();
+    const word = String(selection ?? "");
+    // And the block's text on either side of it, which is what tells one
+    // "the" in a paragraph from another.
+    let before = "";
+    let after = "";
+    if (selection && selection.rangeCount && target.contains(selection.anchorNode)) {
+      const picked = selection.getRangeAt(0);
+      const head = document.createRange();
+      head.selectNodeContents(target);
+      head.setEnd(picked.startContainer, picked.startOffset);
+      const tail = document.createRange();
+      tail.selectNodeContents(target);
+      tail.setStart(picked.endContainer, picked.endOffset);
+      before = head.toString().slice(-120);
+      after = tail.toString().slice(0, 120);
+    }
     const line = Number(target.dataset.line);
     if (!Number.isFinite(line) || line < 1) return;
     // A list item's line and a table row's are their own; every other
@@ -150,7 +166,7 @@ export default function Markdown({
     // inside the block.
     const own = target.tagName === "LI" || target.tagName === "TR";
     const block = own ? undefined : blocks.find((b) => b.line === line);
-    onNavigate(tab.path, block ? lineOf(block, word) : line, { word, plain: true });
+    onNavigate(tab.path, block ? lineOf(block, word) : line, { word, before, after, plain: true });
   };
 
   return (

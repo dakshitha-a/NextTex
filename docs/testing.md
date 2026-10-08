@@ -165,6 +165,16 @@ the budgets in `bench/thresholds.json`. Those are budgets rather than
 records: the point is to notice a change that makes typing slower, on the
 day it happens.
 
+`bench/inverse-search/` is the census of the double-click from the page to
+the source: it compiles two stress documents, clicks every word on their
+pages through pdf.js and `synctex`, and again after lines are added or
+deleted above, and writes what each click selected and where the word
+really is to `bench/inverse-search/out/`. Run it with `npx vitest run
+--config ../bench/inverse-search/vitest.config.ts` from `frontend/`.
+`e2e/review/inverse-census.spec.ts` does the same in Chromium through the
+real app. Neither is a check; what each failure class taught is a case in
+`locate-word.test.ts` and `e2e/specs/inverse-word.spec.ts`.
+
 
 ## The live check that is run by hand
 

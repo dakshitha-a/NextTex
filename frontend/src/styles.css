@@ -1058,6 +1058,24 @@ input, textarea { font: inherit; color: inherit; background: transparent; }
   transition: background 700ms var(--ease);
 }
 .cm-line-fading { background: transparent; transition: background 450ms var(--ease); }
+/* The word a double-click on a preview selected: the page's own flash, the
+   pen's wash inside the pen's outline, over the selection, so the eye finds
+   one word on a line that is a whole paragraph. It fades as the line flash
+   does and leaves the ordinary selection. */
+.cm-word-flash {
+  background: var(--pen-wash);
+  box-shadow: 0 0 0 1px var(--pen);
+  border-radius: 2px;
+  transition: background 700ms var(--ease), box-shadow 700ms var(--ease);
+}
+/* Other copies of a word a jump selected are not marked: see jumpedField. */
+.cm-jumped .cm-selectionMatch { background: transparent; }
+.cm-word-fading {
+  background: transparent;
+  box-shadow: 0 0 0 1px transparent;
+  border-radius: 2px;
+  transition: background 450ms var(--ease), box-shadow 450ms var(--ease);
+}
 .cm-editor .cm-lint-marker { display: none; }
 .cm-tooltip { background: var(--float-ground) !important; color: var(--ink);
   border: 0 !important; border-radius: var(--nx-radius-card); font-size: 12px; box-shadow: var(--float); }

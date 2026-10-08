@@ -410,7 +410,7 @@ table](docs/install.md#requirements)
 |---|---|---|
 | <kbd>⌘</kbd> <kbd>K</kbd> | <kbd>Ctrl</kbd> <kbd>K</kbd> | Find any action, setting or file |
 | <kbd>⌘</kbd> <kbd>↵</kbd> | <kbd>Ctrl</kbd> <kbd>↵</kbd> | Show this line on the page |
-| Double-click the page | Double-click the page | Go to the line that set it |
+| Double-click the page | Double-click the page | Select the word in the source that set it |
 | <kbd>F8</kbd> | <kbd>F8</kbd> | Next error |
 | <kbd>⌘</kbd> <kbd>B</kbd> | <kbd>Ctrl</kbd> <kbd>B</kbd> | Hide or show the side drawer |
 | <kbd>⌘</kbd> <kbd>⌥</kbd> <kbd>A</kbd> | <kbd>Ctrl</kbd> <kbd>Alt</kbd> <kbd>A</kbd> | Open the agent |

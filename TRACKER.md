@@ -24,7 +24,17 @@ things go to be forgotten rather than a list anybody reads.
 
 ## In hand
 
-Nothing is in hand. On 8 October 2026, at 4.29.0, English spelling came
+The double-click run, from 4.29.0, at the writer's request. Done: a
+census of every way the jump from the page to the source went wrong, in
+`bench/inverse-search/`; the matcher rebuilt to line the page's text up
+with the source, so a repeated word, maths, a colour's name, a heading,
+an accent and a hyphenated word land where they were clicked, and text
+TeX made up selects its command; the line carried through writing done
+since the build; the word selected and flashed in the page's own mark.
+Waiting: the refinements to the page's text overlay the writer raised
+mid-run, and the version.
+
+Before it, on 8 October 2026, at 4.29.0, English spelling came
 to know the words of science papers, about 25,000 of them chosen from
 arXiv and PubMed abstracts, on by default with a Science terms switch
 under Variety. It turned up and fixed a licence notice that carried only

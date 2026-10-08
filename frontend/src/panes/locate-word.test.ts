@@ -1,195 +1,209 @@
 import { describe, expect, it } from "vitest";
-import { locateWord, normaliseWord, stripKeys } from "./locate-word";
+import { agreement, foldText, locateWord, normaliseWord, project, type WordHint } from "./locate-word";
 
-const SOURCE = [
-  "\\section{Writing}",                                          // 1
-  "",                                                            // 2
-  "Text goes here. A citation looks like this~\\cite{knuth1984},", // 3
-  "and a cross-reference to Section~\\ref{sec:maths} looks like",  // 4
-  "that. The theory of the thing is not the thing.",              // 5
-  "",                                                            // 6
-  "An efficient method, and a second efficient one.",             // 7
-];
+/** A double-click, written as the page reads with the clicked word in
+ *  brackets: "the model [predicts] the state". */
+function click(page: string, extra: Partial<WordHint> = {}): WordHint {
+  const open = page.indexOf("[");
+  const close = page.indexOf("]", open);
+  return {
+    word: page.slice(open + 1, close),
+    before: page.slice(0, open),
+    after: page.slice(close + 1),
+    ...extra,
+  };
+}
 
-const read = (line: number) => SOURCE[line - 1] ?? "";
-const near = (line: number, word: string, radius?: number) =>
-  locateWord(read, SOURCE.length, line, word, radius);
+/** Where a click lands in `source`, given the line synctex named, as the
+ *  selected text and its line. */
+function land(source: string[], near: number, hint: WordHint | string, radius?: number) {
+  const found = locateWord((line) => source[line - 1] ?? "", source.length, near, hint, radius);
+  if (!found) return null;
+  return { line: found.line, text: source[found.line - 1].slice(found.from, found.to), from: found.from };
+}
 
-describe("normaliseWord", () => {
-  it("undoes the ligatures a PDF sets as one glyph", () => {
-    expect(normaliseWord("eﬃcient")).toBe("efficient");
-    expect(normaliseWord("ﬁgure")).toBe("figure");
+describe("project", () => {
+  it("keeps what TeX sets and drops commands, keys and comments", () => {
+    expect(project("See~\\ref{sec:a} and \\cite{knuth} % note").text).toBe("seeand");
+    expect(project("\\textcolor{red}{important} words").text).toBe("importantwords");
+    expect(project("\\section{Results}\\label{sec:results}").text).toBe("results");
   });
 
-  it("drops the punctuation the typesetter attached", () => {
-    expect(normaliseWord("this~")).toBe("this");
-    expect(normaliseWord("(citation),")).toBe("citation");
-    expect(normaliseWord("“quoted”")).toBe("quoted");
+  it("maps every letter back to the column that set it", () => {
+    const line = "a \\textbf{wo}rd";
+    const { text, from, to } = project(line);
+    expect(text).toBe("aword");
+    expect(line.slice(from[1], to[4])).toBe("wo}rd");
   });
 
-  it("refuses anything too short to be worth trusting", () => {
-    // A one-character match would move the cursor confidently to the wrong
-    // place, which is worse than not moving it at all.
-    expect(normaliseWord("a")).toBe("");
-    expect(normaliseWord(".")).toBe("");
-    expect(normaliseWord("42")).toBe("");
-    expect(normaliseWord("   ")).toBe("");
+  it("reads an accent macro as the letter it sets, covering the macro", () => {
+    const line = "Schr\\\"odinger, caf\\'{e}, na\\\"\\i ve, \\v{c}";
+    const { text, from, to } = project(line);
+    expect(text).toBe("schrodingercafenaivec");
+    expect(line.slice(from[4], to[4])).toBe("\\\"o");
+  });
+
+  it("sets maths as its glyphs: S_0 is s0, \\alpha_i is αi", () => {
+    expect(project("$S_0$ and $\\alpha_i x^2$").text).toBe("s0andαix2");
+  });
+
+  it("does not take a table's column specification or a float's placement for text", () => {
+    expect(project("\\begin{tabular}{@{}lrr@{}}").text).toBe("");
+    expect(project("\\begin{figure}[h!]").text).toBe("");
+  });
+
+  it("keeps a theorem's title and a citation's notes, which are typeset", () => {
+    expect(project("\\begin{theorem}[Main result]").text).toBe("mainresult");
+    expect(project("Jones~\\cite[p.~4]{jones2019} found").text).toBe("jonesp4found");
+  });
+
+  it("reads plain prose whole, but not a link's address", () => {
+    expect(project("About 50% of [users](http://x.org) read", true).text).toBe("about50ofusersread");
+  });
+});
+
+describe("foldText", () => {
+  it("lowers case, drops accents, expands ligatures and sets dotless i as i", () => {
+    expect(foldText("Eﬃcient Schr¨odinger café na¨ıve")).toBe("efficientschrodingercafenaive");
+  });
+});
+
+describe("agreement", () => {
+  it("counts what agrees, and skips past a little that does not", () => {
+    expect(agreement("abcdef", "abcdef", 60)).toBe(6);
+    // A section number on the page that the source does not have.
+    expect(agreement("1introduction", "introduction", 60)).toBe(11);
+    expect(agreement("abc", "xyz", 60)).toBe(0);
   });
 });
 
 describe("locateWord", () => {
-  it("finds the word on the line synctex named", () => {
-    expect(near(3, "citation")).toEqual({ line: 3, column: 19 });
+  const PARAGRAPH = [
+    "\\section{Introduction}",
+    "",
+    "The model predicts the state, and the model then corrects the state using the model of the noise.",
+  ];
+
+  it("lands on the occurrence that was clicked, not the first one in the paragraph", () => {
+    // The paragraph is one line, so the line alone is the whole paragraph.
+    const third = land(PARAGRAPH, 3, click("then corrects the state using the [model] of the noise."))!;
+    expect(third).toEqual({ line: 3, text: "model", from: PARAGRAPH[2].lastIndexOf("model") });
+    const second = land(PARAGRAPH, 3, click("predicts the state, and the [model] then corrects"))!;
+    expect(second.from).toBe(PARAGRAPH[2].indexOf("model then"));
   });
 
-  it("is 1-based in both directions, like synctex and CodeMirror", () => {
-    const at = near(1, "section")!;
-    expect(read(at.line).slice(at.column - 1, at.column + 6)).toBe("section");
+  it("finds a single letter and a short word by what is around them", () => {
+    const source = ["We take a sample and a control, then a third."];
+    const found = land(source, 1, click("and a control, then [a] third."))!;
+    expect(found.from).toBe(source[0].lastIndexOf(" a ") + 1);
   });
 
-  it("searches outwards when the line is a little out", () => {
-    // The whole point: synctex is approximate around macros and floats, and
-    // a jump that is three lines off still lands on the right words.
-    expect(near(2, "cross-reference")?.line).toBe(4);
-    expect(near(7, "theory")?.line).toBe(5);
+  it("finds maths the page sets as S0, αi and mc2", () => {
+    const source = ["The ground state $S_0$ and the energy $E = mc^2$ with $\\alpha_i$ terms."];
+    expect(land(source, 1, click("The ground state [S0] and the energy"))?.text).toBe("S_0");
+    expect(land(source, 1, click("and the energy E = [mc2] with αi"))?.text).toBe("mc^2");
+    expect(land(source, 1, click("E = mc2 with [αi] terms."))?.text).toBe("\\alpha_i");
   });
 
-  it("prefers the named line over a nearer word elsewhere", () => {
-    // "the" is on line 5 twice and nowhere else; asked about line 5 it must
-    // take the first one on that line rather than wandering.
-    // "The", capitalised, at column 7 -- matching is case-insensitive
-    // because the page may set small caps or a title case the source does
-    // not have.
-    expect(near(5, "the")).toEqual({ line: 5, column: 7 });
+  it("never lands in a command or its key", () => {
+    const source = ["Some \\textcolor{red}{important content} and a red word, \\left( x \\right) left alone."];
+    expect(land(source, 1, click("content and a [red] word,"))?.from).toBe(source[0].indexOf("red word"));
+    expect(land(source, 1, click("( x ) [left] alone."))?.from).toBe(source[0].indexOf("left alone"));
   });
 
-  it("takes the first occurrence on a line, left to right", () => {
-    expect(near(7, "efficient")).toEqual({ line: 7, column: 4 });
+  it("finds a heading's word in the heading, not in the paragraph under it", () => {
+    const source = ["\\section{Results}", "\\label{sec:results}", "Results show that the results hold."];
+    // synctex names the paragraph for the lower half of a heading.
+    expect(land(source, 3, click("[Results] Results show that"))).toEqual({ line: 1, text: "Results", from: 9 });
+    expect(land(source, 3, click("Results [Results] show that"))?.line).toBe(3);
   });
 
-  it("does not match inside a longer word", () => {
-    // "the" must not land in "theory", which is the failure that makes a
-    // jump land somewhere baffling.
-    const found = near(5, "the")!;
-    expect(read(found.line).slice(found.column - 1, found.column + 2).toLowerCase())
-      .toBe("the");
-    expect(read(found.line)[found.column + 2]).toBe(" ");
+  it("selects the whole word when the page split it at an accent or a line end", () => {
+    const source = ["Schr\\\"odinger wrote it; misrepresentations followed."];
+    expect(land(source, 1, click("[Schr¨odinger] wrote it;"))?.text).toBe("Schr\\\"odinger");
+    expect(land(source, 1, click("wrote it; [misrep-\nresentations] followed."))?.text).toBe("misrepresentations");
   });
 
-  it("gives up rather than guessing", () => {
-    // A word the source spells with a macro -- \LaTeX, a \ref that set as
-    // "2" -- simply is not there, and the caller falls back to the line.
-    expect(near(3, "notinthisdocument")).toBeNull();
-    expect(near(3, "a")).toBeNull();
+  it("selects the command that made a word the source does not have", () => {
+    const source = [
+      "Before the section.",
+      "\\section{Methods}",
+      "The method\\footnote{See the appendix.} works, as Figure~\\ref{fig:a} shows.",
+      "\\begin{figure}[h]",
+      "  \\centering",
+      "  \\caption{A schematic.}",
+      "\\end{figure}",
+      "\\begin{enumerate}",
+      "  \\item Cutting.",
+      "\\end{enumerate}",
+    ];
+    expect(land(source, 2, click("Before the section. [2] Methods The method"))?.text).toBe("\\section");
+    expect(land(source, 3, click("Methods The [method1] works, as"))?.text).toBe("method");
+    expect(land(source, 3, click("works, as Figure [1] shows."))?.text).toBe("\\ref");
+    expect(land(source, 6, click("shows. [Figure] 1: A schematic."))?.text).toBe("\\caption");
+    expect(land(source, 9, click("A schematic. [1]. Cutting."))?.text).toBe("\\item");
   });
 
-  it("stays inside the document", () => {
-    expect(near(1, "thing")?.line).toBe(5);
-    // A line the file no longer has, because the PDF is older than the
-    // source. Clamped to the end and searched from there rather than
-    // scanning a range entirely off the document.
-    expect(locateWord(read, SOURCE.length, 999, "efficient")).toEqual({
-      line: 7,
-      column: 4,
+  it("takes an environment's name with it", () => {
+    const source = ["Text before.", "\\begin{theorem}", "Every bounded sequence converges."];
+    expect(land(source, 2, click("Text before. [Theorem] 1. Every bounded"))?.text).toBe("\\begin{theorem}");
+  });
+
+  it("reads a paragraph wrapped by hand as the one paragraph it is", () => {
+    const source = [
+      "the word appears here,",
+      "and the word",
+      "appears here again.",
+    ];
+    expect(land(source, 2, click("appears here, and the word [appears] here again."))).toEqual({ line: 3, text: "appears", from: 0 });
+  });
+
+  it("finds a paragraph that moved further than the window since the build", () => {
+    const source = [
+      ...Array.from({ length: 100 }, (_, i) => `Filler paragraph ${i} about something else.`),
+      "The model predicts the state of the system.",
+    ];
+    expect(land(source, 1, click("The model predicts [the] state of the system."))).toEqual({
+      line: 101, text: "the", from: source[100].indexOf("the state"),
     });
   });
 
-  it("honours the radius, so a huge file is not scanned twice over", () => {
-    expect(near(1, "efficient", 2)).toBeNull();
-    expect(near(1, "efficient", 6)?.line).toBe(7);
+  it("is never confident about a page number", () => {
+    const source = ["The last words on the page."];
+    expect(land(source, 1, click("last words on the page. [12]"))).toBeNull();
+  });
+
+  it("gives up rather than guessing when nothing agrees", () => {
+    const source = ["Nothing here is like the page."];
+    expect(land(source, 1, click("[zebra]"))).toBeNull();
+    expect(land(source, 1, { word: "" })).toBeNull();
+  });
+
+  it("does not match inside a comment or a key", () => {
+    const source = ["Results are shown. % results again", "\\label{sec:again}"];
+    expect(land(source, 1, click("[again]"))).toBeNull();
+  });
+
+  it("clamps a line the file no longer has", () => {
+    const source = ["An efficient method."];
+    expect(land(source, 999, click("An [efficient] method."))?.text).toBe("efficient");
+  });
+
+  it("keeps the words after a percent sign in plain prose", () => {
+    const source = ["# Findings", "", "About 50% of users read on, and 50% do not."];
+    expect(land(source, 3, click("About 50% of [users] read on", { plain: true }))?.text).toBe("users");
+    expect(land(source, 3, click("About 50% of [users] read on"))).toBeNull();
+  });
+
+  it("accepts a bare word, as the Markdown pane once sent", () => {
+    expect(land(["An efficient method."], 1, "efficient")?.text).toBe("efficient");
   });
 });
 
-/** The heading case, which is the one the writer reported.
- *
- *  A heading's synctex box ends at its baseline, so a click in the lower
- *  part of the heading is answered with the paragraph beneath it, and that
- *  paragraph very often opens with the heading's own word, while the line
- *  between them is a `\label{sec:results}` that holds the word too.
- */
-const HEADED = [
-  "\\section{Introduction}",                                     // 1
-  "\\label{sec:intro}",                                           // 2
-  "Introduction to the problem, see Section~\\ref{sec:results}.", // 3
-  "",                                                             // 4
-  "\\section{Results}",                                           // 5
-  "\\label{sec:results}",                                         // 6
-  "Results are shown below. % results, again, in a comment",      // 7
-  "",                                                             // 8
-  "\\subsection{Discussion of the results}",                      // 9
-  "\\label{sec:discussion}",                                      // 10
-  "Discussion of the results follows here.",                      // 11
-];
-const readHeaded = (line: number) => HEADED[line - 1] ?? "";
-
-describe("stripKeys", () => {
-  it("blanks a key's argument at the same length, and a comment to the end", () => {
-    expect(stripKeys("\\label{sec:results}")).toBe("\\label{           }");
-    expect(stripKeys("see~\\ref{sec:results} now")).toBe("see~\\ref{           } now");
-    expect(stripKeys("Results. % results")).toBe("Results.          ");
-    expect(stripKeys("a \\% is not a comment")).toBe("a \\% is not a comment");
-  });
-
-  it("leaves a heading's argument alone, because a heading is prose", () => {
-    expect(stripKeys("\\section{Results}")).toBe("\\section{Results}");
-  });
-});
-
-describe("locateWord, on a heading", () => {
-  const near = (line: number, hint: Parameters<typeof locateWord>[3]) =>
-    locateWord(readHeaded, HEADED.length, line, hint);
-
-  it("does not match the heading's word inside a \\label", () => {
-    // From the body line synctex named, the old search went +1, -1, and
-    // -1 is the label.
-    const found = near(7, "Results");
-    expect(found?.line).not.toBe(6);
-  });
-
-  it("does not match inside a comment", () => {
-    expect(near(7, "again")).toBeNull();
-  });
-
-  it("prefers the \\section line when the click said it was a heading", () => {
-    // The body paragraph opens with the same word and is the line synctex
-    // named, so without the hint it wins on distance.
-    expect(near(7, "Results")?.line).toBe(7);
-    expect(near(7, { word: "Results", heading: true })).toEqual({ line: 5, column: 10 });
-    expect(near(11, { word: "Discussion", heading: true })).toEqual({ line: 9, column: 13 });
-  });
-
-  it("lets the typeset line around the word break a tie", () => {
-    // "of the results" is on the subsection line and on the paragraph
-    // under it; the paragraph is nearer to the line synctex named, and the
-    // context is what the heading's span says.
-    expect(near(11, { word: "results", context: "2.1 Discussion of the results" })?.line).toBe(11);
-    expect(near(10, { word: "results", context: "2.1 Discussion of the results" })?.line).toBe(11);
-    expect(near(10, { word: "results", context: "Discussion of the results follows here." })?.line)
-      .toBe(11);
-  });
-
-  it("stands the nearest heading in for a number, which is no word", () => {
-    expect(near(7, { word: "2", heading: true })).toEqual({ line: 5, column: 1 });
-    expect(near(7, { word: "2" })).toBeNull();
-  });
-});
-
-describe("locateWord, on plain prose", () => {
-  // A Markdown file's line, where `%` is a percent sign and nothing is a
-  // key.  The LaTeX reading blanks everything after the `%`, and it is
-  // what the Markdown pane's double-click would otherwise get.
-  const PROSE = ["# Findings", "", "About 50% of users read on, and 50% do not."];
-  const readProse = (line: number) => PROSE[line - 1] ?? "";
-  const near = (hint: Parameters<typeof locateWord>[3]) =>
-    locateWord(readProse, PROSE.length, 3, hint);
-
-  it("keeps the words after a percent sign when told the source is plain", () => {
-    expect(near({ word: "users", plain: true })).toEqual({ line: 3, column: 14 });
-    expect(near({ word: "read", plain: true })).toEqual({ line: 3, column: 20 });
-  });
-
-  it("would lose them under the LaTeX reading, which is why the flag exists", () => {
-    expect(near({ word: "users" })).toBeNull();
-    expect(near("read")).toBeNull();
+describe("normaliseWord", () => {
+  it("undoes ligatures and drops attached punctuation", () => {
+    expect(normaliseWord("eﬃcient,")).toBe("efficient");
+    expect(normaliseWord("“quoted”")).toBe("quoted");
+    expect(normaliseWord("a")).toBe("");
   });
 });

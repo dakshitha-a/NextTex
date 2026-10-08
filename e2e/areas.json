@@ -5,7 +5,7 @@
     {
       "name": "the preview",
       "sources": ["frontend/src/panes/Pdf.tsx", "frontend/src/panes/pdf-*.ts", "frontend/src/panes/PageWindow.tsx", "frontend/src/panes/PreviewHeader.tsx", "frontend/src/page-window.ts", "frontend/src/follow-preview.ts", "frontend/src/panes/Markdown.tsx", "frontend/src/panes/markdown-source.ts", "nexttex/synctex.py"],
-      "specs": ["pdf-*", "preview-swap", "kept-pdf", "previews", "page-window", "appearance", "latex-links", "markdown-preview", "navigation"]
+      "specs": ["pdf-*", "preview-swap", "kept-pdf", "previews", "page-window", "appearance", "latex-links", "markdown-preview", "navigation", "inverse-word"]
     },
     {
       "name": "the frame and the panes",
@@ -19,8 +19,8 @@
     },
     {
       "name": "the editor",
-      "sources": ["frontend/src/panes/Editor.tsx", "frontend/src/panes/locate-word.ts", "frontend/src/panes/editor-setup.ts", "frontend/src/panes/keymaps.ts", "frontend/src/panes/latex-*.ts", "frontend/src/panes/bib-complete.ts", "frontend/src/panes/cite-match.ts", "frontend/src/panes/close-environment.ts", "frontend/src/panes/paste.ts", "frontend/src/paste-table.ts", "frontend/src/panes/find-panel.ts", "frontend/src/panes/SelectionActions.tsx", "frontend/src/panes/SourceHeader.tsx", "frontend/src/panes/TabStrip.tsx", "frontend/src/panes/tab-overflow.tsx", "frontend/src/tabs.ts", "frontend/src/keys.ts", "frontend/src/panes/after-end.ts", "frontend/src/panes/conflicts.ts"],
-      "specs": ["any-text", "writing", "keymaps", "toolbar", "undo", "paste", "altgr", "cite-completion-comma", "ref-completion-brace", "column-select", "tab-menu", "tab-strips", "related-tabs", "verb-row-scale", "fix-run-comforts", "outside-write", "outside-utf8", "merge-conflict", "navigation"]
+      "sources": ["frontend/src/panes/Editor.tsx", "frontend/src/panes/locate-word.ts", "frontend/src/panes/build-lines.ts", "frontend/src/panes/editor-setup.ts", "frontend/src/panes/keymaps.ts", "frontend/src/panes/latex-*.ts", "frontend/src/panes/bib-complete.ts", "frontend/src/panes/cite-match.ts", "frontend/src/panes/close-environment.ts", "frontend/src/panes/paste.ts", "frontend/src/paste-table.ts", "frontend/src/panes/find-panel.ts", "frontend/src/panes/SelectionActions.tsx", "frontend/src/panes/SourceHeader.tsx", "frontend/src/panes/TabStrip.tsx", "frontend/src/panes/tab-overflow.tsx", "frontend/src/tabs.ts", "frontend/src/keys.ts", "frontend/src/panes/after-end.ts", "frontend/src/panes/conflicts.ts"],
+      "specs": ["any-text", "writing", "keymaps", "toolbar", "undo", "paste", "altgr", "cite-completion-comma", "ref-completion-brace", "column-select", "tab-menu", "tab-strips", "related-tabs", "verb-row-scale", "fix-run-comforts", "outside-write", "outside-utf8", "merge-conflict", "navigation", "inverse-word"]
     },
     {
       "name": "spelling, grammar and the hover cards",

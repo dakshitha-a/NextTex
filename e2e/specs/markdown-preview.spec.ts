@@ -158,7 +158,7 @@ test("choosing the Markdown tab brings its file to the source pane", async ({
     .toBeVisible();
 });
 
-test("double-clicking the rendering puts the caret on that word in the source", async ({
+test("double-clicking the rendering selects that word in the source", async ({
   app, project, page,
 }) => {
   // The page has SyncTeX for this; the rendering knows its lines itself.
@@ -177,7 +177,9 @@ test("double-clicking the rendering puts the caret on that word in the source", 
 
   const caret = () => page.getByText(/^Ln \d+, Col \d+$/).innerText();
   await view.locator("strong").dblclick();
-  await expect.poll(caret).toBe("Ln 3, Col 25");
+  // The word is selected, so the status bar names its end, the head.
+  await expect.poll(caret).toBe("Ln 3, Col 31");
+  expect(await page.evaluate(() => String(window.getSelection()))).toBe("weight");
 
   await view.locator("li").nth(1).dblclick();
   await expect.poll(caret).toMatch(/^Ln 6, Col \d+$/);
@@ -189,7 +191,7 @@ test("double-clicking the rendering puts the caret on that word in the source", 
   await view.locator("td", { hasText: "Water" }).dblclick();
   await expect.poll(caret).toMatch(/^Ln 17, Col \d+$/);
 
-  // The caret is in the editor now, on the word, and the file is still
+  // The editor has the keyboard now, on the word, and the file is still
   // the one in front: nothing else moved.
   await expect(page.locator(".cm-content")).toBeFocused();
   await expect(page.locator('[data-tab][data-path="notes.md"] [aria-current="true"]'))

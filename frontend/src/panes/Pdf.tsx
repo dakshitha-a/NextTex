@@ -1,7 +1,7 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { duration, panesMoving, whenPanesRest } from "../motion";
 import * as pdfjs from "pdfjs-dist";
-import { headingHint, isBoldFont, tagSpans } from "./pdf-heading";
+import { textAtPoint } from "./pdf-click";
 import { pdfWorker } from "./pdf-worker";
 import api from "../api";
 import { download, stemOf } from "../chrome";
@@ -522,10 +522,7 @@ export default function Pdf({
       });
       await layer.render();
       if (mine !== generation.current) view.text.replaceChildren();
-      else {
-        tagSpans(layer.textDivs, content.items);
-        markHit(index);
-      }
+      else markHit(index);
     } catch {
       // A page whose text cannot be read is still a page you can look at.
       view.textFor = -1;
@@ -1393,32 +1390,18 @@ export default function Pdf({
       if (!target) return;
       const index = pages.current.findIndex((view) => view.container === target);
       if (index < 0) return;
-      // Read before the await, and before anything else can clear it: the
-      // second click of a double-click selects a word, and by the time
-      // synctex has answered the selection is gone. It is what makes the
-      // jump land on the word rather than at the start of its line --
-      // synctex reports `Column:-1` and never anything else.
-      const word = String(window.getSelection() ?? "");
+      // The word under the pointer and the page's text around it, read from
+      // the text layer rather than from the selection the second click
+      // made: Chromium selects nothing on a one-letter span, which is all
+      // of maths, and the matcher needs the neighbours to tell one "the"
+      // in a paragraph from another. See pdf-click.ts.
       const span = (event.target as HTMLElement).closest(".nx-text-layer span") as
         | HTMLElement
         | null;
-      // Whether the span's font is bold, from the name pdf.js loaded it
-      // under: the span keeps only a generic family, and the page has
-      // been drawn by the time anybody can double-click it, so the font
-      // is there to ask.
-      let bold = false;
-      const font = span?.dataset.font;
-      if (font && doc.current) {
-        try {
-          const proxy = await doc.current.getPage(index + 1);
-          if (proxy.commonObjs.has(font)) {
-            bold = isBoldFont((proxy.commonObjs.get(font) as { name?: string })?.name);
-          }
-        } catch {
-          /* the document went away under the click */
-        }
-      }
-      const hint = headingHint(target, span, word, bold);
+      const layer = span?.closest(".nx-text-layer") as HTMLElement | null;
+      const hint = span && layer
+        ? textAtPoint(layer, span, event.clientX, event.clientY) ?? undefined
+        : undefined;
       const box = target.getBoundingClientRect();
       // SyncTeX works in PDF points from the top-left corner, and so does
       // the canvas, so the conversion is the scale factor and nothing else.

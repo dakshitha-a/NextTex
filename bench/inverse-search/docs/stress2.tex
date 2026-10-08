@@ -1,0 +1,54 @@
+\documentclass[twocolumn]{article}
+\usepackage[T1]{fontenc}
+\usepackage{lmodern,amsmath,amsthm,booktabs}
+\newtheorem{theorem}{Theorem}
+\begin{document}
+
+\section{Background}
+
+Earlier work by Smith~\cite{smith2020} and by Jones~\cite[p.~4]{jones2019} measured the effect, and the effect was confirmed again in Section~\ref{sec:method}, where the effect is defined. Schrödinger's café was naïve about the effect, and the effect of the café on Schrödinger was small.
+
+A \emph{very} important result is that results repeat: the result of one run predicts the result of the next run, and every run has a result. Each run is short, and the next run is shorter than the run before it.
+
+\section{Method}\label{sec:method}
+
+\begin{theorem}[Main result]
+Every bounded sequence has a convergent subsequence, and every convergent sequence is bounded.
+\end{theorem}
+
+\begin{proof}
+Take a bounded sequence and split the interval in half; one half holds infinitely many terms of the sequence.
+\end{proof}
+
+\begin{table}[t]
+  \centering
+  \begin{tabular}{@{}lrr@{}}
+    \toprule
+    \multicolumn{3}{c}{Measured values} \\
+    \midrule
+    Sample & Mass & Width \\
+    alpha & 12.5 & 3.1 \\
+    beta & 13.0 & 2.9 \\
+    \bottomrule
+  \end{tabular}
+  \caption{Values for every sample, with the mass and the width of each sample.}
+  \label{tab:values}
+\end{table}
+
+\begin{description}
+  \item[Mass] The mass of the sample, in grams.
+  \item[Width] The width of the sample, in millimetres.
+\end{description}
+
+\begin{quote}
+A quoted passage about the sample, set apart from the text around the sample.
+\end{quote}
+
+Table~\ref{tab:values} lists the values; the mass of each sample is in the second column and the width of each sample is in the third.
+
+\begin{thebibliography}{9}
+\bibitem{smith2020} A. Smith, \emph{A study of effects}, 2020.
+\bibitem{jones2019} B. Jones, \emph{More effects}, 2019.
+\end{thebibliography}
+
+\end{document}

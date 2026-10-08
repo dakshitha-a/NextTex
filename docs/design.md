@@ -6379,12 +6379,17 @@ red before them and green after:
   the ordinary search until 24 September 2026; a third reading catches
   it now, a span whose font is bold, which begins its line and is short.
   pdf.js keeps neither the font nor the line on the span, so
-  `tagSpans` in `frontend/src/panes/pdf-heading.ts` marks each span with
-  its font's key and whether it begins a line when the text layer is
-  built, and the double-click asks the page's loaded fonts for the name,
+  `tagSpans` marked each span with its font's key and whether it begins
+  a line when the text layer was built, and the double-click asks the page's loaded fonts for the name,
   which says bold for `CMBX10`, `LMRoman10-Bold` or Times's
   `NimbusRomNo9L-Medi`. A bold word inside a sentence does not begin its
   line, so it stays the ordinary search.
+
+**Since 8 October 2026 none of the three readings is used** (§112): the
+word search they steered was replaced by lining the page's text up with
+the source, which finds a heading's word in its `\section` line because
+the heading's neighbours on the page are there and nowhere else. The
+middle of the span is still where the page is asked.
 
 The writer also asked, mid-run, that with several documents previewed a
 double-click open the source of the one on screen. It did: the preview
@@ -8193,8 +8198,8 @@ it: the parser read the file's lines itself, so every block carries the
 line it starts on and every list item its own, in `data-line`, and a
 double-click on the rendering names the line. Which line of a paragraph
 that spans several is answered by the word the second click selected,
-looked for on the block's own lines; the editor then puts the caret on
-that word with the same `locateWord` the page's jump uses, told the
+looked for on the block's own lines; the editor then selects that word
+with the same `locateWord` the page's jump uses (§112), told the
 source is plain prose so a `%` on the line is a percent sign and not a
 comment, the case that would otherwise blank "users" out of "50% of
 users". A code block's text is one line below its fence, and a click on
@@ -8209,9 +8214,8 @@ to be drawn again or its double-click would name the old line.
 of a fence, and under Windows line endings and runs of blanks;
 `markdown-source.test.ts` holds the word's line inside a block and the
 comparison; `locate-word.test.ts` holds the plain case both ways; and
-the browser spec double-clicks the bold word and finds the caret at
-exactly its line and column, which the page's spec, depending on the
-typesetting, cannot claim.
+the browser spec double-clicks the bold word and finds it selected, its
+end at exactly its line and column.
 
 ### The whole project downloads from inside it
 
@@ -12116,3 +12120,76 @@ terms: on" and "off".
 spellings, and the misspellings; `e2e/specs/spelling.spec.ts` types a
 sentence of terms with a typo in it, sees only the typo marked, turns the
 switch off and sees every term marked, and after a reload still.
+
+
+## 112. A double-click on the page selects its word
+
+The writer found the jump from the typeset page to the source unreliable:
+the caret often went to the start of the paragraph, or to the same word
+somewhere else in it, and maths, a coloured phrase and a heading were the
+worst. They asked for every way it breaks to be found first, then fixed,
+and for the word to be selected in the source rather than the caret put
+in front of it, so it is easy to spot.
+
+**The census.** `bench/inverse-search/` compiles two stress documents and
+clicks every word on their pages the way the preview does, through pdf.js
+for the text layer and the `synctex` binary for the line, then again after
+5, 50 and 500 lines are added above and 2 deleted; the same pass runs in
+Chromium through the app. Of 528 words in Chromium, 333 landed right. The
+rest fell into these causes, largest first:
+
+- **A word used twice in a paragraph** landed on its first use. A writer's
+  paragraph is one line, and the search took the first match on the line.
+- **A single letter, a number, anything in maths** was never searched
+  for, so the caret went to the line's start, which is the paragraph's.
+  `$S_0$` is set as an "S" and a "0", and Chromium's double-click selects
+  nothing on a one-letter span.
+- **A word inside a command**: "red" in `\textcolor{red}`, "section" in
+  `\section`, "left" in `\left(`.
+- **The heading guess misfired**: a numbered list item counted as a
+  heading, and a paragraph's words were sent to the heading line.
+- **An accent set as a glyph of its own**, `Schr\"odinger`, reads
+  "Schr¨odinger" on the page in two pieces, and a word hyphenated at a
+  line end is two words there.
+- **Text TeX made up**, a section number, "Figure 1", a footnote mark,
+  went to the line's start.
+- **Writing since the build**: with 50 lines added above, 337 of about 510
+  clicks found nothing, since the search looked forty lines away.
+
+**What it does now.** The word and 120 characters of the page either side
+are read from the text layer, not from the browser's selection. Both they
+and the source are reduced to the letters and digits TeX sets, the source
+without its commands, keys, comments, colour names and column
+specifications, its accent macros and Greek turned into letters, with a
+map back to the columns. Every place the word's letters occur near the
+line synctex named is scored by how far the two texts agree outwards from
+it, and the best one is selected. A word with no letters in the source
+selects the command between its neighbours: `\section` for its number,
+`\caption` for "Figure", `\item` for a list's label, `\cite` for "[3]",
+`\begin{theorem}` for "Theorem 2". A number at the very end of a page is
+its page number and moves nothing. The line synctex named is first carried
+through what was written since the build the page came from, by keeping
+each open file's text from the moment that build started. On the same
+stress document 447 of the same words land on the word that was clicked;
+what remains is the census's own ground truth being wrong where a footnote
+or a float reorders the page, and a display equation's superscripts.
+
+**What the writer sees.** The word is selected and the editor has the
+keyboard, so typing replaces it. For the 700 ms the line flash took it
+wears the page's own SyncTeX mark, the pen's wash inside a 1 px pen
+outline, then fades over 450 ms to the selection alone; no line flashes.
+Rendered beside its drawing, the selection was the faintest thing on its
+line: the editor marks every other copy of a selected word, and a
+paragraph that uses the word four times showed three loud copies around
+one quiet one, with the Comment row over it. So the other copies are not
+marked, and the row does not come, until the writer changes the selection
+or the text. A jump that finds nothing does what it did: the caret at the
+line's start and the line flashed. The Markdown preview's double-click
+does the same, with its block's text as the context.
+
+`locate-word.test.ts`, `pdf-click.test.ts` and `build-lines.test.ts` hold
+a case for every cause above; `e2e/specs/inverse-word.spec.ts` double-
+clicks a repeated word, `S_0`, a colour's name, a heading, a table cell, a
+caption and an accented word in Chromium and checks what is selected and
+where, and adds sixty lines above a paragraph with compiling off before
+clicking the page built without them.

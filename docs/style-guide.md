@@ -49,7 +49,7 @@ surface moves the inks with it, so that `--ink-3` keeps 4.5:1 on
 | `--surface-2` | the chrome inside the frame: the drawer, the Claude column, the app bar, a field |
 | `--surface-3` | the deepest step, a segmented control's track |
 | `--ink`, `--ink-2`, `--ink-3` | text and glyphs, in three weights of attention; on `--surround` only the first two, since the third does not clear 4.5:1 on the light theme's frame |
-| `--pen`, `--on-pen`, `--pen-wash` | the agent, and only the agent: its turns, its diff chips, the tab it is editing, the one filled button that sends or confirms |
+| `--pen`, `--on-pen`, `--pen-wash` | the agent: its turns, its diff chips, the tab it is editing, the one filled button that sends or confirms; and the SyncTeX mark, the wash inside a 1 px outline that says where a jump between the page and the source landed, on the page and on the word it selects in the editor |
 | `--hint`, `--hint-wash` | focus rings, the chosen radio, a completion's match, where a drop will land, "safe and interactive" |
 | `--warn`, `--error`, `--ok` | states: a missing folder, a failed build, a connected peer |
 | `--line` | the one hairline, where an edge is information |
