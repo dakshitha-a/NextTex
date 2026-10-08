@@ -41,7 +41,7 @@
 | stress:5 | ` ` | p1 y135 | 6 | p1 y135 |
 | stress:7 | ` ` | p1 y194 | 6 | p1 y135 |
 | stress:9 | ` ` | p1 y242 | 8 | p1 y218 |
-| stress:11 | ` ` | p1 y252 | 10 | p1 y242 |
+| stress:11 | ` ` | p1 y252 | 10 | p1 y252 |
 | stress:13 | ` ` | p1 y300 | 12 | p1 y280 |
 | stress:15 | ` ` | p1 y353 | 14 | p1 y324 |
 | stress:17 | ` ` | p1 y371 | 16 | p1 y353 |

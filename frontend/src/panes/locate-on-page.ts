@@ -19,7 +19,7 @@
  *  `bench/forward-search/` runs this in Node through pdf.js.
  */
 
-import { agreement, foldText, project } from "./locate-word";
+import { agreement, foldText, project, type Projection } from "./locate-word";
 
 /** A box as the forward search returns it: page points from the page's
  *  top-left corner, upright, `y` at the box's bottom. */
@@ -60,8 +60,11 @@ export async function placeOnPage(
   text: (page: number) => Promise<PageRun[] | null>,
 ): Promise<PageBox[]> {
   const unique = dedupe(boxes);
-  if (unique.length <= 1) return unique;
-  const source = project(line);
+  // One box is the answer unless it is taller than a line of type: a
+  // caption, a table's cell, a column, whose line the caret is on is
+  // still to be found inside it.
+  if (!unique.length || (unique.length === 1 && unique[0].height <= ONE_LINE)) return unique;
+  const source = stream(project(line), line, column);
   // The letters before the caret and after it.
   let caret = 0;
   while (caret < source.text.length && source.from[caret] < column) caret += 1;
@@ -83,27 +86,29 @@ export async function placeOnPage(
   // across rows, and lining up the caret's context there chose the wrong
   // one. Only for a row: a paragraph's letters are spread over its lines
   // of type, and there the caret's context is what decides.
-  if (isRow(line)) {
-    const row = await byLetters(source.text, unique, runsOf);
-    if (row) return row;
+  const row = isRow(line);
+  if (row) {
+    const found = await byLetters(source.text, unique, runsOf);
+    if (found) return found;
   }
   if (left.length + right.length < LEAST) return (await byLetters(source.text, unique, runsOf)) ?? outermost(unique);
 
-  let best: { box: PageBox; score: number } | null = null;
-  for (const page of [...new Set(unique.map((box) => box.page))]) {
-    const runs = await runsOf(page);
-    if (!runs) return outermost(unique);
-    const mine = unique.filter((box) => box.page === page);
-    // The page's letters inside this line's boxes, in reading order, and
-    // for each the box it is in.
+  type Found = { box: PageBox; run: PageRun; runs: PageRun[]; score: number; outside?: boolean };
+  /** The best place on `page` for the caret among the runs `owns` gives
+   *  a box to, in reading order. */
+  const scan = (runs: PageRun[], owns: (run: PageRun) => PageBox | null, best: Found | null) => {
     let letters = "";
     const owner: PageBox[] = [];
+    const from: PageRun[] = [];
     for (const run of runs) {
-      const box = boxOf(mine, run);
+      const box = owns(run);
       if (!box) continue;
       const folded = foldText(run.str);
       letters += folded;
-      for (let i = 0; i < folded.length; i += 1) owner.push(box);
+      for (let i = 0; i < folded.length; i += 1) {
+        owner.push(box);
+        from.push(run);
+      }
     }
     for (let at = 0; at <= letters.length; at += 1) {
       // Only where at least one side starts agreeing: the score of any
@@ -121,16 +126,135 @@ export async function placeOnPage(
         // Where a line of type ends between the two sides, the caret goes
         // with the word it is in or before, and after a word's last letter
         // with that word: the end of a line, not the start of the next.
-        const box = (after ? owner[at] ?? owner[at - 1] : owner[at - 1] ?? owner[at]);
-        if (box) best = { box, score };
+        const k = after ? (owner[at] ? at : at - 1) : (owner[at - 1] ? at - 1 : at);
+        if (owner[k]) best = { box: owner[k], run: from[k], runs, score };
       }
+    }
+    return best;
+  };
+
+  let best: Found | null = null;
+  const onPages = [...new Set(unique.map((box) => box.page))];
+  for (const page of onPages) {
+    const runs = await runsOf(page);
+    if (!runs) return outermost(unique);
+    const mine = unique.filter((box) => box.page === page);
+    best = scan(runs, (run) => boxOf(mine, run), best);
+  }
+  // The most the caret's context can score, and how much of it is
+  // agreement nobody gets by chance.
+  const full = after ? left.length + 2 * right.length : 2 * left.length + right.length;
+  const strong = full >= STRONG_LEAST ? STRONG * full : Infinity;
+  if (!best || best.score < strong) {
+    // SyncTeX's boxes do not always hold the line: revtex answers a
+    // caption's lines with the box of the figure above it. The rest of
+    // the page is looked through, and a place the caret's context agrees
+    // with that well is taken, the line of type there being flashed.
+    for (const page of onPages) {
+      const runs = (await runsOf(page))!;
+      const whole: PageBox = { page, x: -1e5, y: 1e5, width: 2e5, height: 2e5 };
+      const found = scan(runs, () => whole, null);
+      if (found && found.score >= strong && (!best || found.score > best.score)) best = { ...found, outside: true };
     }
   }
   const available = left.length + right.length;
   if (!best || best.score < Math.min(LEAST, available / 2)) {
     return (await byLetters(source.text, unique, runsOf)) ?? outermost(unique);
   }
-  return [best.box];
+  // A display's row is its own line already, and a display's pieces sit
+  // on several baselines that are one line to the reader.
+  return [row && !best.outside ? best.box : lineOf(best.box, best.run, best.runs)];
+}
+
+/** How much of the most it could score the caret's context has to agree
+ *  with to be taken from outside SyncTeX's boxes, and how much context
+ *  there has to be at all. */
+const STRONG = 0.75;
+const STRONG_LEAST = 30;
+
+/** A box no taller than this, in points, is one line of type: a body
+ *  line is about nine, a heading or a line with a fraction in it twenty. */
+const ONE_LINE = 20;
+
+/** The line of type inside `box` that `run` is on, as a box: `box` itself
+ *  when it is no more than that line.
+ *
+ *  SyncTeX speaks of the boxes TeX made, and for a caption or a table's
+ *  cell, and in a two-column class for a whole column, that is a box
+ *  around many lines. Flashing it drew a frame around the paragraph. The
+ *  page's runs say which of its lines the caret's context was found on:
+ *  the runs on that baseline, side by side without a gap as wide as a
+ *  column's gutter between them, are the line, and the flash is drawn
+ *  around them, as tall as SyncTeX draws a line of type. */
+function lineOf(box: PageBox, run: PageRun, runs: PageRun[]): PageBox {
+  if (box.height <= ONE_LINE) return box;
+  const size = Math.max((run.bottom - run.top) / 0.75, 1);
+  const baseline = run.bottom;
+  const inBox = runs.filter((each) => boxOf([box], each));
+  if (!inBox.some((each) => Math.abs(each.bottom - baseline) > size)) return box;
+  const level = inBox
+    .filter((each) => Math.abs(each.bottom - baseline) <= size / 2)
+    .sort((a, b) => a.left - b.left);
+  // Out from the matched run while the next run on the baseline is near.
+  const at = level.indexOf(run);
+  let first = at;
+  let last = at;
+  const gap = 1.5 * size;
+  while (first > 0 && level[first].left - (level[first - 1].left + level[first - 1].width) < gap) first -= 1;
+  while (last < level.length - 1 && level[last + 1].left - (level[last].left + level[last].width) < gap) last += 1;
+  const line = level.slice(first, last + 1);
+  const left = Math.min(...line.map((each) => each.left));
+  const right = Math.max(...line.map((each) => each.left + each.width));
+  const top = Math.min(...line.map((each) => each.top));
+  return {
+    page: box.page,
+    x: left,
+    y: baseline,
+    width: right - left,
+    height: Math.max(baseline - top, 0.89 * size),
+  };
+}
+
+/** The footnotes on a source line, as ranges of columns inside their
+ *  braces. */
+function footnotes(line: string): Array<[number, number]> {
+  const found: Array<[number, number]> = [];
+  for (const match of line.matchAll(/\\(?:footnote|footnotetext|thanks)\s*(?:\[[^\]]*\])?\s*\{/g)) {
+    const open = match.index! + match[0].length - 1;
+    let depth = 0;
+    let close = line.length;
+    for (let i = open; i < line.length; i += 1) {
+      if (line[i] === "\\") { i += 1; continue; }
+      if (line[i] === "{") depth += 1;
+      else if (line[i] === "}" && (depth -= 1) === 0) { close = i; break; }
+    }
+    found.push([open + 1, close]);
+  }
+  return found;
+}
+
+/** The source's letters that are set in the same stream as the caret.
+ *
+ *  A footnote is in the middle of its line in the source and at the foot
+ *  of the page in type, so its letters are not the neighbours of the
+ *  words around it there. With the caret in the footnote the caret's
+ *  context is the footnote's own letters; with it outside, the line's
+ *  letters without the footnote's. */
+function stream(projected: Projection, line: string, column: number): Projection {
+  const notes = footnotes(line);
+  if (!notes.length) return projected;
+  const mine = notes.find(([start, end]) => column >= start && column <= end);
+  const keep = (at: number) => mine
+    ? at >= mine[0] && at < mine[1]
+    : !notes.some(([start, end]) => at >= start && at < end);
+  const out: Projection = { text: "", from: [], to: [], commands: projected.commands };
+  for (let i = 0; i < projected.text.length; i += 1) {
+    if (!keep(projected.from[i])) continue;
+    out.text += projected.text[i];
+    out.from.push(projected.from[i]);
+    out.to.push(projected.to[i]);
+  }
+  return out;
 }
 
 /** How much of the line's letters must a row hold, and by how much more
@@ -249,15 +373,21 @@ export function settingLine(
   return { line, column };
 }
 
-/** The box a run of text stands in, when it stands in one. */
+/** The box a run of text stands in, when it stands in one: the
+ *  innermost, when boxes nest. SyncTeX can answer with a column's box or
+ *  a paragraph's beside the lines of type inside it, and the first box
+ *  holding the run was often the column, which then owned every letter
+ *  and was flashed whole. */
 function boxOf(boxes: PageBox[], run: PageRun): PageBox | null {
   const middle = (run.top + run.bottom) / 2;
   const centre = run.left + run.width / 2;
+  let found: PageBox | null = null;
   for (const box of boxes) {
     if (middle >= box.y - box.height - SLACK && middle <= box.y + SLACK
-        && centre >= box.x - SLACK && centre <= box.x + box.width + SLACK) return box;
+        && centre >= box.x - SLACK && centre <= box.x + box.width + SLACK
+        && (!found || box.height * box.width < found.height * found.width)) found = box;
   }
-  return null;
+  return found;
 }
 
 /** SyncTeX lists a line of type once for every node of it the source line

@@ -92,11 +92,11 @@ async function flashesOver(page: Page, word: string) {
       const on = pages[flash.page];
       const span = on && [...on.querySelectorAll(".nx-text-layer span")]
         .find((s) => !s.querySelector("span") && (s.textContent ?? "").includes(word));
-      if (!on || !span) return { ...flash, covers: false };
+      if (!on || !span) return { ...flash, covers: false, line: 0 };
       const box = on.getBoundingClientRect();
       const rect = span.getBoundingClientRect();
       const middle = rect.top + rect.height / 2 - box.top - on.clientTop;
-      return { ...flash, covers: middle >= flash.top && middle <= flash.top + flash.height };
+      return { ...flash, covers: middle >= flash.top && middle <= flash.top + flash.height, line: rect.height };
     });
   }, word);
 }
@@ -110,6 +110,8 @@ async function expectOneFlashOver(page: Page, word: string, pageIndex?: number) 
   const flashes = await flashesOver(page, word);
   expect(flashes, "one line of type, not the paragraph").toHaveLength(1);
   expect(flashes[0].covers, `the flash covers "${word}"`).toBe(true);
+  // One line of type, not a box around the paragraph that holds it.
+  expect(flashes[0].height, "no taller than a line").toBeLessThanOrEqual(Math.max(12, flashes[0].line * 2.2));
   if (pageIndex !== undefined) expect(flashes[0].page).toBe(pageIndex);
 }
 

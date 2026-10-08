@@ -59,6 +59,7 @@ async function flashedOver(page: Page, word: string) {
       const middle = rect.top + rect.height / 2 - box.top - on.clientTop;
       const top = parseFloat(flash.style.top);
       if (middle < top || middle > top + parseFloat(flash.style.height)) return `the flash misses "${word}"`;
+      if (parseFloat(flash.style.height) > Math.max(12, rect.height * 2.2)) return `the flash is taller than a line`;
     }
     return "ok";
   }, word);

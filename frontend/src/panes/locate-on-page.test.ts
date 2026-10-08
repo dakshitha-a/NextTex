@@ -112,6 +112,53 @@ describe("placeOnPage", () => {
     expect(got).toEqual([body.boxes[0]]);
   });
 
+  it("finds the line of type inside a column's box beside it", async () => {
+    // A two-column class answers with the column as well as the lines,
+    // and the column came first and owned every letter.
+    const column: PageBox = { page: 1, x: 72, y: 700, width: 345, height: 660 };
+    const got = await placeOnPage(source, source.indexOf("When the state") + 2, [column, ...answer], text);
+    expect(got).toEqual([boxes[1]]);
+  });
+
+  it("narrows a caption's box to the line of type the caret is on", async () => {
+    // A float's caption comes back as one box around all of it.
+    const caption: PageBox = { page: 1, x: 72, y: 140, width: 345, height: 50 };
+    const [got] = await placeOnPage(source, source.indexOf("pulled back") + 2, [caption], text);
+    expect(got.height).toBeLessThan(12);
+    expect(got.y).toBe(runs[2].bottom);
+    expect(got.x).toBe(72);
+  });
+
+  it("keeps the other column out of a narrowed line", async () => {
+    const caption: PageBox = { page: 1, x: 72, y: 140, width: 700, height: 50 };
+    const other: PageRun = { str: "words in the other column", left: 420, top: runs[1].top, bottom: runs[1].bottom, width: 200 };
+    const [got] = await placeOnPage(source, source.indexOf("When the state") + 2, [caption],
+      async () => [...runs, other]);
+    expect(got.x + got.width).toBeLessThanOrEqual(72 + 300);
+  });
+
+  it("leaves a lone box of one line as it is", async () => {
+    expect(await placeOnPage(source, 10, [boxes[0]], text)).toEqual([boxes[0]]);
+  });
+
+  it("finds the footnote's line for a caret in the footnote", async () => {
+    // The words after the footnote agreed with the body's line better
+    // than the footnote's few words agreed with its own.
+    const body = page([
+      "A paragraph with maths x2 + y2 = z2 in it and a footnote1 and then the armadillo carries on to",
+      "the end of the paragraph, which runs long enough to be set over three lines of type on the",
+      "page at least, so that the flash can be wrong.",
+    ], 136, 1);
+    const note = page(["1The footnote talks of a lemur."], 675, 1);
+    const line = "A paragraph with maths $x^2 + y^2 = z^2$ in it and a footnote\\footnote{The footnote talks "
+      + "of a lemur.} and then the armadillo carries on to the end of the paragraph, which runs long enough "
+      + "to be set over three lines of type on the page at least, so that the flash can be wrong.";
+    const all = [...body.boxes, note.boxes[0]];
+    const text = async () => [...body.runs, ...note.runs];
+    expect(await placeOnPage(line, line.indexOf("lemur") + 2, all, text)).toEqual([note.boxes[0]]);
+    expect(await placeOnPage(line, line.indexOf("armadillo") + 2, all, text)).toEqual([body.boxes[0]]);
+  });
+
   it("flashes every box when the page's text cannot be had", async () => {
     expect(await placeOnPage(source, 10, answer, async () => null)).toHaveLength(4);
   });

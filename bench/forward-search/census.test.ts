@@ -4,7 +4,8 @@
  *  caret stood when a build ran. The forward search is asked the way the
  *  server asks it, and the boxes it answers with are narrowed the way the
  *  preview narrows them. A flash is right when the box it draws holds that
- *  word as the page set it; it is exact when it is one line of type. The
+ *  word as the page set it; it is exact when it is one box no taller than
+ *  a line of type, since a box around the paragraph holds the word too. The
  *  first box alone, which is what the preview flashed before, is counted
  *  beside it. Lines that set nothing are listed with what each flashes.
  *
@@ -132,7 +133,10 @@ async function census(doc: string): Promise<{ rows: Row[]; blank: string[] }> {
       boxes: boxes.length,
       first: boxes.length > 0 && holds([boxes[0]], where),
       now: holds(flashed, where),
-      exact: flashed.length === 1 && holds(flashed, where),
+      // One line of type: a box around the paragraph holds the word too.
+      // A display is as tall as its fractions make it, and is one line.
+      exact: flashed.length === 1 && holds(flashed, where)
+        && (flashed[0].height <= 20 || !/[A-Za-z]{3,}/.test(lines[token.line - 1].replace(/\\[a-zA-Z]+/g, " "))),
     });
   }
 
