@@ -92,6 +92,8 @@ export function limitsOf(raw: unknown): Record<string, number> {
 
 export type CompileResult = {
   outcome: "ok" | "errors" | "cancelled" | "timeout" | "failed" | "no_engine";
+  /** The document built, as its preview tab names it. */
+  document?: string;
   scope: string;
   enginePass: "fast" | "full";
   /** Which engine ran, or was asked for and not found. */

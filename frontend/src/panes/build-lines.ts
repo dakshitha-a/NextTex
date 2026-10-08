@@ -18,30 +18,37 @@ import { diffArrays } from "diff";
  *  before it reads the files, so a keystroke in that moment is counted as
  *  after the build. That moves a line by the keystroke at most, and the
  *  word search either side of the line puts it right.
+ *
+ *  One snapshot per document. With two documents previewed, one snapshot
+ *  for the project meant a build of the second replaced the text the
+ *  first one's page was built from, and a jump from that page mapped its
+ *  line through the wrong text.
  */
 export class BuildLines {
-  private pending = new Map<string, string>();
-  private shown = new Map<string, string>();
+  private pending = new Map<string, Map<string, string>>();
+  private shown = new Map<string, Map<string, string>>();
 
-  /** A build started: these are the files as they stand. */
-  started(texts: Map<string, string>): void {
-    this.pending = texts;
+  /** A build of `document` started: these are the files as they stand. */
+  started(document: string, texts: Map<string, string>): void {
+    this.pending.set(document, texts);
   }
 
-  /** A build finished. Its PDF is the one on screen unless the build kept
-   *  the last one that worked. */
-  finished(kept: boolean): void {
-    if (!kept) this.shown = this.pending;
+  /** A build of `document` finished. Its PDF is the one on screen unless
+   *  the build kept the last one that worked. */
+  finished(document: string, kept: boolean): void {
+    const texts = this.pending.get(document);
+    this.pending.delete(document);
+    if (!kept && texts) this.shown.set(document, texts);
   }
 
-  /** The text the PDF on screen was built from, when it is known. */
-  builtText(path: string): string | undefined {
-    return this.shown.get(path);
+  /** The text `document`'s PDF on screen was built from, when it is known. */
+  builtText(document: string, path: string): string | undefined {
+    return this.shown.get(document)?.get(path);
   }
 
   /** `line` of the built text, as a line of `now`. */
-  map(path: string, line: number, now: string): number {
-    const built = this.shown.get(path);
+  map(document: string, path: string, line: number, now: string): number {
+    const built = this.builtText(document, path);
     return built === undefined ? line : mapLine(built, now, line);
   }
 }

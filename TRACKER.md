@@ -207,15 +207,6 @@ OpenAI provider against OpenAI itself.
       in prose. Inline maths and every word of prose land; mapping a
       display's layout back to its source would take a TeX parser.
 
-- [ ] **The source snapshot behind a double-click is one for the whole
-      project.** `BuildLines` keeps the open files from the start of the
-      last build of any document, so with two documents previewed, a build
-      of the second resets the snapshot the first one's page was built
-      from. A writer previewing two documents and writing between builds
-      of both would see a jump fall back to the word search near a stale
-      line; keeping one snapshot per document needs the build event to
-      say which files each read.
-
 - [ ] **A text file that is not UTF-8 cannot be opened.** The tree reads
       the first 8 kB of a file it has no name for, so an old program's
       output in Latin-1 is a download, and one that turns to Latin-1 past

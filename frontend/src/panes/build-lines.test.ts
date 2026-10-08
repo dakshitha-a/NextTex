@@ -42,26 +42,40 @@ describe("BuildLines", () => {
   it("maps through the build whose PDF is on screen, not one still running", () => {
     const b = new BuildLines();
     const built = lines(5).join("\n");
-    b.started(new Map([["main.tex", built]]));
-    b.finished(false);
+    b.started("main", new Map([["main.tex", built]]));
+    b.finished("main", false);
     // A second build starts after more writing, and has not finished.
     const later = ["added", ...lines(5)].join("\n");
-    b.started(new Map([["main.tex", later]]));
+    b.started("main", new Map([["main.tex", later]]));
     const now = ["added", "added again", ...lines(5)].join("\n");
-    expect(b.map("main.tex", 3, now)).toBe(5);
+    expect(b.map("main", "main.tex", 3, now)).toBe(5);
   });
 
   it("keeps the old snapshot when the build kept the last PDF", () => {
     const b = new BuildLines();
-    b.started(new Map([["main.tex", lines(5).join("\n")]]));
-    b.finished(false);
-    b.started(new Map([["main.tex", ["broken {", ...lines(5)].join("\n")]]));
-    b.finished(true);
+    b.started("main", new Map([["main.tex", lines(5).join("\n")]]));
+    b.finished("main", false);
+    b.started("main", new Map([["main.tex", ["broken {", ...lines(5)].join("\n")]]));
+    b.finished("main", true);
     const now = ["broken {", ...lines(5)].join("\n");
-    expect(b.map("main.tex", 2, now)).toBe(3);
+    expect(b.map("main", "main.tex", 2, now)).toBe(3);
+  });
+
+  it("keeps each document's snapshot through a build of the other", () => {
+    const b = new BuildLines();
+    const built = lines(5).join("\n");
+    b.started("main", new Map([["chapter.tex", built]]));
+    b.finished("main", false);
+    // Fifty lines written, then the supplement, which inputs the same
+    // chapter, is built and shown in its own tab.
+    const now = [...lines(50, "new"), ...lines(5)].join("\n");
+    b.started("si", new Map([["chapter.tex", now]]));
+    b.finished("si", false);
+    expect(b.map("main", "chapter.tex", 3, now)).toBe(53);
+    expect(b.map("si", "chapter.tex", 53, now)).toBe(53);
   });
 
   it("knows nothing of a file it has no snapshot of", () => {
-    expect(new BuildLines().map("other.tex", 12, "x")).toBe(12);
+    expect(new BuildLines().map("main", "other.tex", 12, "x")).toBe(12);
   });
 });

@@ -117,12 +117,13 @@ export type EditorHandle = {
   flash(line: number, endLine?: number): void;
   saveNow(): Promise<void>;
   textOf(path: string): string | null;
-  /** A build started: remember every open file as it stands, so a line
-   *  of the PDF it makes can be found again after more writing. */
-  buildStarted(): void;
-  /** A build finished; `kept` when the PDF on screen is still an older
-   *  one. See build-lines.ts. */
-  buildFinished(kept: boolean): void;
+  /** A build of `document` started: remember every open file as it
+   *  stands, so a line of the PDF it makes can be found again after more
+   *  writing. */
+  buildStarted(document: string): void;
+  /** A build of `document` finished; `kept` when the PDF on screen is
+   *  still an older one. See build-lines.ts. */
+  buildFinished(document: string, kept: boolean): void;
 };
 
 export default function Editor({
@@ -890,7 +891,7 @@ export default function Editor({
         const plain = typeof word !== "string" && word.plain;
         const path = current.current;
         const at = !plain && path
-          ? buildLines.current.map(path, line, editor.state.doc.toString())
+          ? buildLines.current.map(get().activePreview, path, line, editor.state.doc.toString())
           : line;
         void import("./locate-word")
           .then(({ locateWord }) => land(at, endLine, steal, hold, (total, number) => locateWord(
@@ -1325,15 +1326,15 @@ export default function Editor({
       flash: jump,
       saveNow: flush,
       textOf,
-      buildStarted: () => {
+      buildStarted: (document) => {
         const texts = new Map<string, string>();
         for (const path of buffers.current.keys()) {
           const text = textOf(path);
           if (text !== null) texts.set(path, text);
         }
-        buildLines.current.started(texts);
+        buildLines.current.started(document, texts);
       },
-      buildFinished: (kept) => buildLines.current.finished(kept),
+      buildFinished: (document, kept) => buildLines.current.finished(document, kept),
     });
 
     return () => {

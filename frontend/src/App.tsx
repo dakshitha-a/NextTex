@@ -1408,12 +1408,12 @@ export default function App() {
     // and the preview would follow a chapter build and not a thesis one.
     // At the start the question has a stable answer whatever the build
     // costs.
-    handlers.onCompileStart = () => {
+    handlers.onCompileStart = (document) => {
       followCaret.current = agentWrote.current === null && busyTyping();
-      editor.current?.buildStarted();
+      editor.current?.buildStarted(document);
     };
     handlers.onCompileDone = (result) => {
-      editor.current?.buildFinished(Boolean(result.pdfKept));
+      editor.current?.buildFinished(result.document ?? get().activePreview, Boolean(result.pdfKept));
       const wrote = agentWrote.current;
       if (wrote) {
         agentWrote.current = null;
