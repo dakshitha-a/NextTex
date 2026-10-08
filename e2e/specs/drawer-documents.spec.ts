@@ -234,3 +234,27 @@ test("a Typeset row lands on its heading after lines are written above it, befor
   await expect.poll(() => flashes.length, { timeout: 10_000 }).toBeGreaterThan(0);
   expect(flashes).toEqual(["ok"]);
 });
+
+test("a Typeset row the page cannot place opens its source rather than doing nothing", async ({
+  app, project, page,
+}) => {
+  // A document whose build has never made a PDF, while another has one.
+  writeFileSync(join(project.root, "broken.tex"), String.raw`\documentclass{article}
+\begin{document}
+\section{Never typeset}
+\input{chapters/not-there}
+\end{document}
+`);
+  await setUp(app, project, page);
+  await page.getByTestId("add-preview").click();
+  await page.getByRole("menuitem", { name: "broken.tex" }).click();
+  await expect(page.getByTestId("preview-tab-broken.tex")).toHaveAttribute("aria-current", "true");
+  await page.getByTestId("structure-typeset").click();
+  const row = page.getByTestId("typeset-row").filter({ hasText: "Never typeset" });
+  await expect(row).toBeVisible({ timeout: 30_000 });
+  // Long enough for the build to have failed.
+  await page.waitForTimeout(4000);
+  await row.click();
+  await expect(page.locator('[data-tab][data-path="broken.tex"] button[aria-current="true"]')).toBeVisible({ timeout: 10_000 });
+  await expect(page.locator(".cm-activeLine")).toContainText("Never typeset");
+});

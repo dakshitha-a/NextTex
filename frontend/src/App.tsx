@@ -1751,10 +1751,16 @@ export default function App() {
     // short.
     const nearest = kind ? editor.current?.headingNear(file, kind, line) ?? null : null;
     const place = nearest === null ? null : editor.current?.builtPlace(file, nearest, 0);
-    window.setTimeout(() => void pdf.current?.reveal(file, place?.line ?? line, {
-      source: place ? { lines: place.lines, column: place.column } : undefined,
-    }), folded ? 260 : 0);
-  }, [fold]);
+    window.setTimeout(async () => {
+      const shown = await pdf.current?.reveal(file, place?.line ?? line, {
+        source: place ? { lines: place.lines, column: place.column } : undefined,
+      });
+      // A heading the page cannot place, in a document not built since it
+      // was written or a file the map does not know, opens its source, as
+      // a press did before there was a page: a press is never silent.
+      if (!shown) void openFile(file, line);
+    }, folded ? 260 : 0);
+  }, [fold, openFile]);
 
 
   /** Where the tutorial sheet's right edge sits.
