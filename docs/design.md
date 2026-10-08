@@ -12224,7 +12224,16 @@ joins a hyphenated word when the next line goes on in lower case, which
 is how TeX's hyphenation looks; a capital after the break keeps the
 hyphen, and every other line break is kept.
 
+**A zoom rescales the text instead of rebuilding it.** Each step of a
+zoom asked the worker for the text of every page in view and built every
+span again, about 80 ms for a page before its text could be selected at
+the new size. The layer is kept with the document it came from, and a new
+size of the same document resizes the spans where they are, through
+pdf.js's own `update`. Nothing on screen changes but how soon the text is
+there.
+
 `pdf-select.test.ts` holds the copy's cases; `e2e/specs/pdf-overlay.spec.ts`
 drags from a paragraph into the gap under it and fails if the selection
 ever shrinks, which it did on the first step into the gap before the
-guard, and copies accented and hyphenated words from the page.
+guard, copies accented and hyphenated words from the page, and zooms in and
+finds the first span the same element, larger.

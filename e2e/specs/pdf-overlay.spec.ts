@@ -4,12 +4,13 @@ import { join } from "node:path";
 import type { Page } from "@playwright/test";
 
 /** The text over the typeset page: a drag that crosses the gap under a
- *  paragraph, and what a copy carries.
+ *  paragraph, what a copy carries, and a zoom that keeps the spans.
  *
  *  Each is a fault an audit of the layer found: the selection dropped from
- *  561 characters to 15 when a drag reached the gap below a paragraph; and
- *  a copy carried "Schr¨odinger" and "misrep-" with a line break, as the
- *  PDF holds them.
+ *  561 characters to 15 when a drag reached the gap below a paragraph; a
+ *  copy carried "Schr¨odinger" and "misrep-" with a line break, as the PDF
+ *  holds them; and every zoom asked the worker for every visible page's
+ *  text again and built each span anew.
  */
 
 const MAIN = String.raw`\documentclass{article}
@@ -87,4 +88,17 @@ test("a copy from the page carries its words as the page reads them", async ({ a
   const words = await copy("Some", null, "The last paragraph");
   expect(words).not.toMatch(/\p{L}-\n\p{Ll}/u);
   expect(words).toContain("misrepresentations");
+});
+
+test("zooming rescales the page's text where it is", async ({ app, project, page }) => {
+  await open(app, project, page);
+  await page.evaluate(() => {
+    (window as unknown as { kept: Element }).kept = document.querySelector(".nx-text-layer span")!;
+  });
+  const before = await page.locator(".nx-text-layer span").first().evaluate((el) => el.getBoundingClientRect().width);
+  await page.getByRole("button", { name: "Zoom in" }).click();
+  // The span grows with the page, and is the same element it was.
+  await expect.poll(() => page.locator(".nx-text-layer span").first().evaluate((el) => el.getBoundingClientRect().width))
+    .toBeGreaterThan(before * 1.05);
+  expect(await page.evaluate(() => (window as unknown as { kept: Element }).kept.isConnected)).toBe(true);
 });

@@ -158,6 +158,14 @@ type PageView = {
    *  when the canvas beneath it is redrawn and not on every scroll. */
   textFor: number;
   textScale: number;
+  /** The text layer itself, kept so a new scale or turn of the same text
+   *  rescales its spans in place rather than asking the worker for the
+   *  page's text and building every span again. */
+  textLayer: pdfjs.TextLayer | null;
+  /** The document that layer's text came from. Every layout, a zoom's
+   *  too, moves the generation, so the generation cannot say whether the
+   *  text is still the same; the document can. */
+  textDoc: pdfjs.PDFDocumentProxy | null;
   width: number;
   height: number;
   scale: number;
@@ -502,18 +510,30 @@ export default function Pdf({
     if (!view || !document) return;
     if (view.textFor === generation.current && view.textScale === view.scale) return;
     const mine = generation.current;
+    // The same document's text, only drawn at another size or turn: the
+    // spans are rescaled where they are. Rebuilding them cost a round trip
+    // to the worker and every span made again, on every visible page, at
+    // every step of a zoom.
+    const same = view.textLayer !== null && view.textDoc === document;
     view.textFor = mine;
     view.textScale = view.scale;
     try {
       const page = await document.getPage(index + 1);
       if (mine !== generation.current) return;
       const viewport = page.getViewport({ scale: view.scale, rotation: (page.rotate + view.rotation) % 360 });
-      view.text.replaceChildren();
       // Built at the committed scale, so any gesture transform is spent.
       view.text.style.transform = "";
       // pdf.js 6 sizes its spans and the layer by this; see the text
       // layer's rules in styles.css.
       view.text.style.setProperty("--total-scale-factor", String(view.scale));
+      if (same && view.textLayer) {
+        view.textLayer.update({ viewport });
+        markHit(index);
+        return;
+      }
+      view.textLayer = null;
+      view.textDoc = null;
+      view.text.replaceChildren();
       const content = await page.getTextContent();
       if (mine !== generation.current) return;
       const layer = new pdfjs.TextLayer({
@@ -524,12 +544,16 @@ export default function Pdf({
       await layer.render();
       if (mine !== generation.current) view.text.replaceChildren();
       else {
+        view.textLayer = layer;
+        view.textDoc = document;
         addEndOfContent(view.text);
         markHit(index);
       }
     } catch {
       // A page whose text cannot be read is still a page you can look at.
       view.textFor = -1;
+      view.textLayer = null;
+      view.textDoc = null;
     }
   }, [markHit]);
 
@@ -900,7 +924,7 @@ export default function Pdf({
         element.appendChild(text);
         views.push({
           container: element, layer, canvas, painted: false, text, width, height,
-          scale: effective, drawnFor: -1, drawnAt: 0, textFor: -1, textScale: 0, task: null,
+          scale: effective, drawnFor: -1, drawnAt: 0, textFor: -1, textScale: 0, textLayer: null, textDoc: null, task: null,
           figures: null, naturalWidth: upright.width, naturalHeight: upright.height, rotation: turn,
           baseWidth: base.width, baseHeight: base.height,
         });
