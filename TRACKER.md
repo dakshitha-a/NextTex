@@ -34,10 +34,12 @@ specs passed 304 runs under load without failing for their own reasons;
 Markdown has its own editor mode and the checkers read it as prose; a
 display is found row by row by the flash and by the double-click, and an
 agent's edit to a file no tab holds is flashed by its own text; non-UTF-8
-text stays a download, at the owner's word. Left in hand, both raised by the writer: the
-build flash and the double-click tested and made robust in a project of
-several documents and included files, across source files and preview
-tabs; and the four tour animations re-filmed at twice the pixels.
+text stays a download, at the owner's word. After the push, the build flash and the
+double-click were tested across several documents and included files, at
+the writer's request in a comment on the run's tracker: fourteen paths
+held, so nothing changed, and three of them are kept as
+`e2e/specs/multidoc.spec.ts`. Left in hand: the four tour animations
+re-filmed at twice the pixels.
 
 Before it, on 8 October 2026, at 4.30.1, the run on the flash
 after a build closed, from 4.30.0. Done: a census of the flash in

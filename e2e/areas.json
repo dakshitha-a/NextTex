@@ -5,7 +5,7 @@
     {
       "name": "the preview",
       "sources": ["frontend/src/panes/Pdf.tsx", "frontend/src/panes/pdf-*.ts", "frontend/src/panes/PageWindow.tsx", "frontend/src/panes/PreviewHeader.tsx", "frontend/src/page-window.ts", "frontend/src/follow-preview.ts", "frontend/src/panes/Markdown.tsx", "frontend/src/panes/markdown-source.ts", "frontend/src/panes/locate-on-page.ts", "nexttex/synctex.py"],
-      "specs": ["pdf-*", "preview-swap", "kept-pdf", "previews", "page-window", "appearance", "latex-links", "markdown-preview", "navigation", "inverse-word", "build-flash"]
+      "specs": ["pdf-*", "preview-swap", "kept-pdf", "previews", "page-window", "appearance", "latex-links", "markdown-preview", "navigation", "inverse-word", "build-flash", "multidoc"]
     },
     {
       "name": "the frame and the panes",

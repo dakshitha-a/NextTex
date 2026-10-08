@@ -12322,3 +12322,21 @@ a fenced block is skipped as a display is. `spell-scan.test.ts` holds the
 masks, and `e2e/specs/spelling.spec.ts` marks "teh" after "50%" in a note
 and leaves its inline code alone.
 
+**Across documents.** The writer asked, in a comment on the run's
+tracker, for the flash and the double-click to be tested in a project of
+several documents. `e2e/review/multidoc-probe.spec.ts` walks fourteen
+paths: a chapter one document reads and a chapter two documents read,
+typed in with each document's page in front; a file opened while the
+other document is in front; a double-click on each document's own text
+and on the shared chapter, from another file and after switching tabs; a
+word used in two chapters; an outside write to one chapter while another
+is typed in; two chapters of one name in two folders; and a caret on the
+third page of a long chapter. Every path held, so nothing in the app
+changed. The probe's own first failures were its own: a click on the
+preview tab already in front folds the pane, by design, and a tree click
+leaves the keyboard in the tree. A thesis on the `subfiles` package, where
+each chapter is a document too, is not covered, since this machine's TeX
+does not have it. `e2e/specs/multidoc.spec.ts` keeps the shared chapter
+under both documents, the double-click into it, and the two chapters of
+one name in the check.
+
