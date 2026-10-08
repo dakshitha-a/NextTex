@@ -178,6 +178,11 @@ test("C, history and git", async ({ app, home, page }) => {
     if (await changed.isVisible().catch(() => false)) await changed.click();
     const change = tab.getByTestId("git-change").filter({ hasText: "main.tex" }).first();
     await change.waitFor({ timeout: 15_000 });
+    // Off the bar before going into the drawer: a glide from the Git
+    // button to the change crossed History, rested, and its peek came out
+    // over the drawer and took the click.
+    await tab.mouse.move(700, 450, { steps: 8 });
+    await expect(tab.getByTestId("drawer-peek")).toHaveCount(0);
     await rec.focus(tab.getByTestId("drawer"), { pad: 10 });
     await rec.hold(600);
     await glide(tab, change.getByTestId("git-change-toggle"));

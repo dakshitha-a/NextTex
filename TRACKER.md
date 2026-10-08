@@ -24,9 +24,9 @@ things go to be forgotten rather than a list anybody reads.
 
 ## In hand
 
-The backlog close-out of 8 October 2026, from 4.30.1, at the writer's
-request: the known gaps and the flaky specs. Done and pushed as 4.31.0:
-publishing a build with thousands of undefined citations no longer takes
+Nothing is in hand. On 8 October 2026, at 4.31.0, the backlog close-out
+closed, from 4.30.1, at the writer's request: the known gaps and the
+flaky specs. Done and pushed as 4.31.0: publishing a build with thousands of undefined citations no longer takes
 23 seconds, which was the build loop's flake on CI; a hover card stays
 while someone types elsewhere, which was the reference hover's; the menus
 sweep finds its line wherever the editor scrolled, and the other flaky
@@ -34,12 +34,13 @@ specs passed 304 runs under load without failing for their own reasons;
 Markdown has its own editor mode and the checkers read it as prose; a
 display is found row by row by the flash and by the double-click, and an
 agent's edit to a file no tab holds is flashed by its own text; non-UTF-8
-text stays a download, at the owner's word. After the push, the build flash and the
-double-click were tested across several documents and included files, at
+text stays a download, at the owner's word. After the push, the build
+flash and the double-click were tested across several documents and included files, at
 the writer's request in a comment on the run's tracker: fourteen paths
 held, so nothing changed, and three of them are kept as
-`e2e/specs/multidoc.spec.ts`. Left in hand: the four tour animations
-re-filmed at twice the pixels.
+`e2e/specs/multidoc.spec.ts`. The four tour animations left at one pixel
+per point, Errors, History and git, Download and Write together, were
+filmed again at two.
 
 Before it, on 8 October 2026, at 4.30.1, the run on the flash
 after a build closed, from 4.30.0. Done: a census of the flash in
@@ -228,15 +229,7 @@ OpenAI provider against OpenAI itself.
 
 ### Known gaps, with a cost somebody will eventually pay
 
-- [ ] **Four tour animations are still the soft 1x recordings.** The
-      motion, rail and tour run found that every animation had been
-      filmed at one pixel per point, since the screencast ignores the
-      ratio a context emulates, and re-filmed the hero, citations and
-      the new script row at two and three. Errors, History and git,
-      Download and Write together were left as they were because the
-      writer asked about the first two only; their close-ups are as soft
-      as the hero's were. Re-filming each is one run of its scene in
-      `e2e/shots/tour.spec.ts`.
+Nothing at present. The last entries were closed on 8 October 2026.
 
 ### Measured and left, worth revisiting with a measurement
 
