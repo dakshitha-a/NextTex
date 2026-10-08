@@ -282,19 +282,8 @@ OpenAI provider against OpenAI itself.
 
 ### Flaky, with the trace read
 
-- [ ] **`e2e/specs/history-panel.spec.ts:117` failed once under the
-      quick tier's full run for 4.24.2** and passed on its retry. It was
-      on the earlier flaky list; not read further this time.
-
-- [ ] **Four specs that failed once each under the full run's load
-      in the roadmap run**: `bib-check.spec.ts:76` (the
-      `\bibliographystyle` completion) and `writing.spec.ts:237` (Tab
-      indenting) on the 4.18.0 check, `menus-contrast.spec.ts:650` and
-      `share-panel.spec.ts:135` on the 4.19.0 check, each passing on its
-      retry; the first two passed 10 of 10 alone. Not read further,
-      since none recurred in the two runs after. `menus-contrast.spec.ts:668`
-      failed once more on the 4.29.0 check, the light shell's card over a
-      cross-reference not opening, and passed on its retry.
+Nothing at present. The last entries were read and closed on 8 October
+2026, and the commits that closed them say how.
 
 ### Never run against the real thing
 

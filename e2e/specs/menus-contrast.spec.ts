@@ -215,12 +215,25 @@ const SURFACES: Surface[] = [
       // The editor's hover card, placed by `hover-card.ts` inside the
       // editor rather than by CodeMirror's tooltip layer, so it has to
       // be listed here to be measured and swept.
-      const point = await tab.evaluate(() => {
-        const line = [...document.querySelectorAll(".cm-line")].find((el) => el.textContent?.includes("sec:results}."));
+      const point = await tab.evaluate(async () => {
+        const find = () => [...document.querySelectorAll(".cm-line")].find((el) => el.textContent?.includes("sec:results}."));
+        // CodeMirror draws only the lines near the screen, and a surface
+        // before this one may have scrolled the editor away from line 41,
+        // where `prepare` left it: under load the line was not drawn and
+        // the card could not be opened, twice in 160 runs. So the editor
+        // is walked from the top until the line is drawn.
+        const scroller = document.querySelector(".cm-scroller") as HTMLElement;
+        const frame = () => new Promise((done) => requestAnimationFrame(() => requestAnimationFrame(done)));
+        let line = find();
+        for (let top = 0; !line && top <= scroller.scrollHeight; top += scroller.clientHeight / 2) {
+          scroller.scrollTop = top;
+          await frame();
+          line = find();
+        }
         if (!line) return null;
-        // Rendered is not the same as on screen: the line sits below the
-        // fold after `prepare` leaves the caret on line 41.
+        // Rendered is not the same as on screen.
         line.scrollIntoView({ block: "center" });
+        await frame();
         const at = line.textContent!.indexOf("sec:results") + 5;
         const walker = document.createTreeWalker(line, NodeFilter.SHOW_TEXT);
         let seen = 0;
