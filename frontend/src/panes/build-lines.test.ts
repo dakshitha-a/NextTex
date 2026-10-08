@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { BuildLines, mapLine } from "./build-lines";
+import { BuildLines, carryColumn, mapLine } from "./build-lines";
 
 const lines = (n: number, prefix = "line") => Array.from({ length: n }, (_, i) => `${prefix} ${i + 1}`);
 
@@ -77,5 +77,39 @@ describe("BuildLines", () => {
 
   it("knows nothing of a file it has no snapshot of", () => {
     expect(new BuildLines().map("main", "other.tex", 12, "x")).toBe(12);
+  });
+});
+
+describe("toBuilt", () => {
+  it("carries the caret back past lines written while the build ran", () => {
+    const b = new BuildLines();
+    const built = ["\\begin{document}", "First paragraph.", "", "Second paragraph."].join("\n");
+    b.started("main", new Map([["main.tex", built]]));
+    b.finished("main", false);
+    const now = ["\\begin{document}", "A new one.", "", "First paragraph.", "", "Second paragraph."].join("\n");
+    expect(b.toBuilt("main", "main.tex", 6, 7, now)).toMatchObject({ line: 4, column: 7 });
+  });
+
+  it("reads the text as it is when no build of the document is known", () => {
+    const b = new BuildLines();
+    expect(b.toBuilt("main", "main.tex", 2, 3, "a\nbcdef")).toEqual({ lines: ["a", "bcdef"], line: 2, column: 3 });
+  });
+
+  it("keeps a column before an edit on the line and after it", () => {
+    expect(carryColumn("the cat sat", "the black cat sat", 2)).toBe(2);
+    expect(carryColumn("the cat sat", "the black cat sat", 9)).toBe(15);
+    expect(carryColumn("the cat sat", "the dog sat", 5)).toBe(4);
+  });
+});
+
+describe("changedColumn", () => {
+  it("finds where on its line the last build differs from the one before", () => {
+    const b = new BuildLines();
+    b.started("main", new Map([["main.tex", "intro\nThe model is good."]]));
+    b.finished("main", false);
+    b.started("main", new Map([["main.tex", "intro\nadded\nThe model is very good."]]));
+    b.finished("main", false);
+    expect(b.changedColumn("main", "main.tex", 3)).toBe(13);
+    expect(b.changedColumn("main", "main.tex", 1)).toBe(0);
   });
 });

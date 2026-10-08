@@ -4,8 +4,8 @@
   "areas": [
     {
       "name": "the preview",
-      "sources": ["frontend/src/panes/Pdf.tsx", "frontend/src/panes/pdf-*.ts", "frontend/src/panes/PageWindow.tsx", "frontend/src/panes/PreviewHeader.tsx", "frontend/src/page-window.ts", "frontend/src/follow-preview.ts", "frontend/src/panes/Markdown.tsx", "frontend/src/panes/markdown-source.ts", "nexttex/synctex.py"],
-      "specs": ["pdf-*", "preview-swap", "kept-pdf", "previews", "page-window", "appearance", "latex-links", "markdown-preview", "navigation", "inverse-word"]
+      "sources": ["frontend/src/panes/Pdf.tsx", "frontend/src/panes/pdf-*.ts", "frontend/src/panes/PageWindow.tsx", "frontend/src/panes/PreviewHeader.tsx", "frontend/src/page-window.ts", "frontend/src/follow-preview.ts", "frontend/src/panes/Markdown.tsx", "frontend/src/panes/markdown-source.ts", "frontend/src/panes/locate-on-page.ts", "nexttex/synctex.py"],
+      "specs": ["pdf-*", "preview-swap", "kept-pdf", "previews", "page-window", "appearance", "latex-links", "markdown-preview", "navigation", "inverse-word", "build-flash"]
     },
     {
       "name": "the frame and the panes",
@@ -20,7 +20,7 @@
     {
       "name": "the editor",
       "sources": ["frontend/src/panes/Editor.tsx", "frontend/src/panes/locate-word.ts", "frontend/src/panes/build-lines.ts", "frontend/src/panes/editor-setup.ts", "frontend/src/panes/keymaps.ts", "frontend/src/panes/latex-*.ts", "frontend/src/panes/bib-complete.ts", "frontend/src/panes/cite-match.ts", "frontend/src/panes/close-environment.ts", "frontend/src/panes/paste.ts", "frontend/src/paste-table.ts", "frontend/src/panes/find-panel.ts", "frontend/src/panes/SelectionActions.tsx", "frontend/src/panes/SourceHeader.tsx", "frontend/src/panes/TabStrip.tsx", "frontend/src/panes/tab-overflow.tsx", "frontend/src/tabs.ts", "frontend/src/keys.ts", "frontend/src/panes/after-end.ts", "frontend/src/panes/conflicts.ts"],
-      "specs": ["any-text", "writing", "keymaps", "toolbar", "undo", "paste", "altgr", "cite-completion-comma", "ref-completion-brace", "column-select", "tab-menu", "tab-strips", "related-tabs", "verb-row-scale", "fix-run-comforts", "outside-write", "outside-utf8", "merge-conflict", "navigation", "inverse-word"]
+      "specs": ["any-text", "writing", "keymaps", "toolbar", "undo", "paste", "altgr", "cite-completion-comma", "ref-completion-brace", "column-select", "tab-menu", "tab-strips", "related-tabs", "verb-row-scale", "fix-run-comforts", "outside-write", "outside-utf8", "merge-conflict", "navigation", "inverse-word", "build-flash"]
     },
     {
       "name": "spelling, grammar and the hover cards",
@@ -50,7 +50,7 @@
     {
       "name": "building",
       "sources": ["nexttex/compile.py", "nexttex/passes.py", "nexttex/latexlog.py", "nexttex/lint_explain.py", "nexttex/explain.py", "nexttex/texpkg.py", "nexttex/deps.py", "nexttex/auxlabels.py", "server/session.py"],
-      "specs": ["clean-rebuild", "settling", "build-cap", "scoped-diagnostics", "compile-state", "kept-pdf", "previews", "tex-install", "engine", "outside-write", "preview-swap", "navigation"]
+      "specs": ["clean-rebuild", "settling", "build-cap", "scoped-diagnostics", "compile-state", "kept-pdf", "previews", "tex-install", "engine", "outside-write", "preview-swap", "navigation", "build-flash"]
     },
     {
       "name": "the server's routes and its lifetime",

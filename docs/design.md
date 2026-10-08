@@ -4310,6 +4310,8 @@ So both move it, and one rule does the work of keeping it quiet. **The move is g
 
 So a rebuild the writer asked for explicitly while reading moves nothing, a collaborator's edit moves nothing, and neither does an agent edit landing while the writer is mid-sentence. There is a browser spec for the negative case as well as the positive one, because the negative one is the anti-jump rule and it is the half that would rot silently.
 
+*Revised 8 October 2026.* The flash is the line of type the writer is on. It had been the first box SyncTeX listed for the source line, and since a writer's paragraph is one source line, that was one line of the paragraph chosen by SyncTeX's order, seldom the one being written; a footnote's line could win it too. Now the text around the caret is lined up with the page's own text, the way the double-click lines the page up with the source, and the one line that holds the caret is flashed, or every line of the paragraph when the page's text does not agree. A caret on a blank line, a `\label` or an `\end{equation}` flashes the nearest line that sets something, and a caret in the preamble flashes nothing, because nothing on the page is that line's. The look of the mark is unchanged.
+
 ### Select a paragraph and say what to do with it
 
 The selection already reached the store undebounced, already travelled with the question, and the composer already showed a chip saying which lines went with it. Two things were missing, and one of them is not an interface problem at all.

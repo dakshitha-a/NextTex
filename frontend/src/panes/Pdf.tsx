@@ -19,6 +19,7 @@ import {
 import { toShell, uiScale } from "../viewport";
 import { absenceFrom, type Absence } from "./pdf-absence";
 import type { WordHint } from "./locate-word";
+import type { PageRun } from "./locate-on-page";
 import { findIn, spanFor, textOf, type PageHit } from "./pdf-find";
 import { APPEARANCE_CHANGED, readStored, writeStored } from "../appearance";
 import {
@@ -105,7 +106,22 @@ export type PdfHandle = {
    *  when the target is not already in front of the reader: section 6's
    *  anti-jump rule exists because a preview that shifts under somebody
    *  reading it is worse than one that has not caught up. */
-  reveal(path: string, line: number, gentle?: boolean): Promise<boolean>;
+  reveal(path: string, line: number, options?: Reveal): Promise<boolean>;
+};
+
+/** How a reveal goes. */
+export type Reveal = {
+  /** Move the view only when the place is not in front of the reader. */
+  gentle?: boolean;
+  /** Asked as a build lands: the place is in the PDF that build made, so
+   *  it waits for that PDF to be laid out rather than drawing on the
+   *  pages it replaces. */
+  afterBuild?: boolean;
+  /** The source as the page was built from it, `line` being one of its
+   *  lines, and the caret's 0-based column on it: with these the flash is
+   *  the line of type the caret is on rather than every line the source
+   *  line set. See locate-on-page.ts. */
+  source?: { lines: string[]; column: number };
 };
 
 type Mode = "scroll" | "page";
@@ -134,6 +150,25 @@ function flash(
   view.container.appendChild(mark);
   window.setTimeout(() => (mark.style.opacity = "0"), 250);
   window.setTimeout(() => mark.remove(), 950);
+}
+
+/** A page's text as runs in points from its top-left corner, upright,
+ *  which is how SyncTeX speaks of the page. */
+async function runsOf(document: pdfjs.PDFDocumentProxy, number: number): Promise<PageRun[] | null> {
+  if (number < 1 || number > document.numPages) return null;
+  const page = await document.getPage(number);
+  const [left, , , top] = page.view;
+  const runs: PageRun[] = [];
+  for (const item of (await page.getTextContent()).items) {
+    if (!("str" in item)) continue;
+    const size = Math.hypot(item.transform[2], item.transform[3]);
+    const baseline = top - item.transform[5];
+    runs.push({
+      str: item.str, left: item.transform[4] - left, top: baseline - size * 0.75,
+      bottom: baseline, width: item.width,
+    });
+  }
+  return runs;
 }
 
 type PageView = {
@@ -1017,6 +1052,23 @@ export default function Pdf({
   layoutRef.current = layout;
 
   // ---- fetching ---------------------------------------------------------
+  /** Reveals waiting for the next document this pane fetches to be laid
+   *  out. A build's event reaches the reveal before the render that
+   *  fetches its PDF, so a reveal asked then measured the pages it was
+   *  about to lose, and found no page at all for a place on a page the
+   *  build had just added. */
+  const layoutWaiters = useRef<(() => void)[]>([]);
+  const nextLayout = useCallback(() => new Promise<void>((resolve) => {
+    layoutWaiters.current.push(resolve);
+    // A build of a document this pane is not showing fetches nothing.
+    window.setTimeout(resolve, 8000);
+  }), []);
+  const laidOut = () => {
+    const waiting = layoutWaiters.current;
+    layoutWaiters.current = [];
+    for (const resolve of waiting) resolve();
+  };
+
   useEffect(() => {
     if (!projectId) return;
     let cancelled = false;
@@ -1059,6 +1111,10 @@ export default function Pdf({
         // there is nothing to show.
         if (cancelled) return;
         setAbsence(absenceFrom(null, buildRef.current));
+      } finally {
+        // Laid out, or nothing new to lay out: either way the pages on
+        // screen are now the ones there will be.
+        if (!cancelled) laidOut();
       }
     })();
     return () => {
@@ -1497,35 +1553,71 @@ export default function Pdf({
           wantedPage.current = page;
         }
       },
-      reveal: async (path: string, line: number, gentle = false) => {
+      reveal: async (path: string, line: number, options: Reveal = {}) => {
+        const { gentle = false, afterBuild = false, source } = options;
         const projectId = get().projectId;
         if (!projectId) return false;
+        // Asked for before anything is awaited: the build's PDF is fetched
+        // and laid out from the render this build's event causes, and on a
+        // short document that can finish before the place finder's chunk
+        // has loaded.
+        const laid = afterBuild ? nextLayout() : null;
         try {
+          const finder = await import("./locate-on-page");
+          let column = 0;
+          if (source) {
+            // A caret on a line that sets nothing is placed on the nearest
+            // one that does, and in the preamble on nothing at all.
+            const at = finder.settingLine(source.lines, line, source.column);
+            if (!at) return false;
+            ({ line, column } = at);
+          }
+          await laid;
           const result = await api.forward(projectId, path, line, showing);
-          const position = result.positions?.[0];
+          const document = doc.current;
+          const positions = await finder.placeOnPage(
+            source?.lines[line - 1] ?? "", column, result.positions ?? [],
+            async (page) => (document ? runsOf(document, page) : null),
+          );
+          // The earliest on the page first: the one the view moves to.
+          positions.sort((a, b) => a.page - b.page || a.y - a.height - (b.y - b.height));
+          const position = positions[0];
           if (!position) return false;
           const view = pages.current[position.page - 1];
           const root = scroller.current;
           if (!view || !root) return false;
           const zoom = drawn.current;
-          const box = boxOnTurned(view.rotation, view.naturalWidth, view.naturalHeight, position);
+          const flashAll = () => {
+            for (const each of positions) {
+              const on = pages.current[each.page - 1];
+              if (on) flash(on, each, zoom);
+            }
+          };
           // Both modes need this and they need different arithmetic, which
           // is why it is here rather than in the caller: in page mode there
           // is one page on screen and the question is whether it is this
           // one, and in scroll mode the question is whether the box is
           // inside the part of the document the reader can see.
-          const top = view.container.offsetTop + box.top * zoom;
-          const alreadyInFront =
-            modeRef.current === "page"
-              ? currentRef.current === position.page
-              : top >= root.scrollTop &&
-                top <= root.scrollTop + root.clientHeight - 24;
-          if (gentle && alreadyInFront) {
+          const inFront = (each: (typeof positions)[number]) => {
+            const on = pages.current[each.page - 1];
+            if (!on) return false;
+            const box = boxOnTurned(on.rotation, on.naturalWidth, on.naturalHeight, each);
+            const top = on.container.offsetTop + box.top * zoom;
+            if (modeRef.current === "page") {
+              const index = currentRef.current - 1;
+              const pair = spreadRef.current ? index - (index % 2) : index;
+              return each.page - 1 === index
+                || (spreadRef.current && (each.page - 1 === pair || each.page - 1 === pair + 1));
+            }
+            return top >= root.scrollTop && top <= root.scrollTop + root.clientHeight - 24;
+          };
+          if (gentle && positions.some(inFront)) {
             // The reader is already looking at it. Flash it, because
             // something did change there, and move nothing.
-            flash(view, position, zoom);
+            flashAll();
             return true;
           }
+          const box = boxOnTurned(view.rotation, view.naturalWidth, view.naturalHeight, position);
           if (modeRef.current === "page") {
             setCurrent(position.page);
             await renderPage(position.page - 1);
@@ -1534,7 +1626,7 @@ export default function Pdf({
               top: Math.max(view.container.offsetTop + box.top * zoom - root.clientHeight / 3, 0),
             });
           }
-          flash(view, position, zoom);
+          flashAll();
           return true;
         } catch {
           return false;
@@ -1544,7 +1636,7 @@ export default function Pdf({
     // `showing` for the same reason as the handler above: forward search
     // would look up a line in whichever document was open when this was
     // last built.
-  }, [handleRef, renderPage, showing, pageCount, goTo]);
+  }, [handleRef, renderPage, showing, pageCount, goTo, nextLayout]);
 
   // A page asked for before the document had it: the count has moved.
   useEffect(() => {

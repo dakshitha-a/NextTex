@@ -124,6 +124,12 @@ export type EditorHandle = {
   /** A build of `document` finished; `kept` when the PDF on screen is
    *  still an older one. See build-lines.ts. */
   buildFinished(document: string, kept: boolean): void;
+  /** A place in an open file, 1-based line and 0-based column, as a place
+   *  in the text the page on screen was built from, with its lines; null
+   *  when the file is not open. See build-lines.ts. */
+  builtPlace(path: string, line: number, column: number): { lines: string[]; line: number; column: number } | null;
+  /** Where on a line of the page's text the build before it differed. */
+  changedColumn(path: string, line: number): number;
 };
 
 export default function Editor({
@@ -1335,6 +1341,13 @@ export default function Editor({
         buildLines.current.started(document, texts);
       },
       buildFinished: (document, kept) => buildLines.current.finished(document, kept),
+      builtPlace: (path, line, column) => {
+        const now = textOf(path);
+        return now === null
+          ? null
+          : buildLines.current.toBuilt(get().activePreview, path, line, column, now);
+      },
+      changedColumn: (path, line) => buildLines.current.changedColumn(get().activePreview, path, line),
     });
 
     return () => {

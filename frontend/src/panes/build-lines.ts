@@ -27,6 +27,8 @@ import { diffArrays } from "diff";
 export class BuildLines {
   private pending = new Map<string, Map<string, string>>();
   private shown = new Map<string, Map<string, string>>();
+  /** The snapshot each document's page showed before the last one. */
+  private before = new Map<string, Map<string, string>>();
 
   /** A build of `document` started: these are the files as they stand. */
   started(document: string, texts: Map<string, string>): void {
@@ -38,7 +40,12 @@ export class BuildLines {
   finished(document: string, kept: boolean): void {
     const texts = this.pending.get(document);
     this.pending.delete(document);
-    if (!kept && texts) this.shown.set(document, texts);
+    if (!kept && texts) {
+      const was = this.shown.get(document);
+      if (was) this.before.set(document, was);
+      else this.before.delete(document);
+      this.shown.set(document, texts);
+    }
   }
 
   /** The text `document`'s PDF on screen was built from, when it is known. */
@@ -51,6 +58,55 @@ export class BuildLines {
     const built = this.builtText(document, path);
     return built === undefined ? line : mapLine(built, now, line);
   }
+
+  /** The other way: a place in `now`, 1-based line and 0-based column, as
+   *  a place in the text `document`'s page was built from, with that
+   *  text's lines.
+   *
+   *  The flash after a build asks the forward search about the caret, and
+   *  the forward search answers about the source as the build read it.
+   *  The caret is where the writer is now, which is lines away after an
+   *  Enter or a paste made while the build ran. */
+  toBuilt(
+    document: string, path: string, line: number, column: number, now: string,
+  ): { lines: string[]; line: number; column: number } {
+    const built = this.builtText(document, path) ?? now;
+    const lines = built.split("\n");
+    const at = mapLine(now, built, line);
+    const was = now.split("\n")[line - 1] ?? "";
+    return { lines, line: at, column: carryColumn(was, lines[at - 1] ?? "", column) };
+  }
+
+  /** The first column of `line` of the built text that the build before
+   *  it set differently, or 0 when there is no build before it to ask.
+   *  An agent's edit names its line and not where on it it wrote. */
+  changedColumn(document: string, path: string, line: number): number {
+    const built = this.builtText(document, path);
+    const earlier = this.before.get(document)?.get(path);
+    if (built === undefined || earlier === undefined) return 0;
+    const now = built.split("\n")[line - 1] ?? "";
+    const was = earlier.split("\n")[mapLine(built, earlier, line) - 1] ?? "";
+    let at = 0;
+    while (at < now.length && at < was.length && now[at] === was[at]) at += 1;
+    return at === now.length && at === was.length ? 0 : at;
+  }
+}
+
+/** `column` of `from` as a column of `to`, the same line with an edit in
+ *  it: kept before the edit, kept from the end after it, and at the edit's
+ *  start inside it. */
+export function carryColumn(from: string, to: string, column: number): number {
+  if (from === to) return column;
+  let head = 0;
+  while (head < from.length && head < to.length && from[head] === to[head]) head += 1;
+  if (column <= head) return column;
+  let tail = 0;
+  while (
+    tail < from.length - head && tail < to.length - head
+    && from[from.length - 1 - tail] === to[to.length - 1 - tail]
+  ) tail += 1;
+  if (column >= from.length - tail) return to.length - (from.length - column);
+  return head;
 }
 
 /** Above this many changed lines on each side the diff is not worth its

@@ -69,7 +69,13 @@ def _run(args: list[str], cwd: Path) -> str:
 
 
 def _blocks(output: str) -> list[dict[str, str]]:
-    """Split synctex's output into its `begin`/`end` record blocks."""
+    """Split synctex's output into its records.
+
+    One `begin`/`end` pair holds every record of an answer, each starting
+    at `Output:`. Read as one, the first value of each key won, so a
+    forward search that set a paragraph as six lines of type answered with
+    one of them, the first in SyncTeX's order rather than the page's.
+    """
     blocks, current = [], None
     for line in output.splitlines():
         if line.startswith("SyncTeX result begin"):
@@ -80,7 +86,11 @@ def _blocks(output: str) -> list[dict[str, str]]:
             current = None
         elif current is not None and ":" in line:
             key, _, value = line.partition(":")
-            current.setdefault(key.strip(), value.strip())
+            key = key.strip()
+            if key == "Output" and current:
+                blocks.append(current)
+                current = {}
+            current.setdefault(key, value.strip())
     return blocks
 
 
@@ -239,9 +249,10 @@ def source_to_pdf(
 ) -> list[PdfPosition]:
     """Forward search: where on the page did this source line end up?
 
-    Returns every box synctex knows about for that line, nearest match
-    first. A line often produces several -- one per line of set type --
-    so the caller highlights them all rather than guessing.
+    Returns every box synctex knows about for that line, in SyncTeX's own
+    order, which is not the page's. A line often produces several, one per
+    line of set type, a footnote's among them, so the caller chooses
+    among them: see `frontend/src/panes/locate-on-page.ts`.
     """
     output = _run(
         ["view", "-i", f"{line}:{column}:{source}", "-o", str(pdf)],

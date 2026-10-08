@@ -115,7 +115,7 @@ const SearchPanel = lazy(loadSearch);
 const ViewingBanner = lazy(() =>
   import("./panes/History").then((m) => ({ default: m.ViewingBanner })),
 );
-import { type PdfHandle } from "./panes/Pdf";
+import { type PdfHandle, type Reveal } from "./panes/Pdf";
 import { type ChatHandle } from "./panes/Chat";
 const Chat = lazy(loadChat);
 import SourceHeader from "./panes/SourceHeader";
@@ -605,6 +605,18 @@ export default function App() {
   // in, over whichever screen is showing.
   const [agentOpen, setAgentOpen] = useState(false);
   const pdf = useRef<PdfHandle | null>(null);
+  /** Show the caret's place on the page. The caret is read in the text
+   *  the page was built from, which writing since the build has moved
+   *  away from, and its column goes too, so the flash is the line of type
+   *  it is on. */
+  const revealCaret = useCallback((path: string, options: Reveal = {}) => {
+    const { line, column } = get().cursor;
+    const place = editor.current?.builtPlace(path, line, column - 1);
+    return pdf.current?.reveal(path, place?.line ?? line, {
+      ...options,
+      source: place ? { lines: place.lines, column: place.column } : undefined,
+    });
+  }, []);
   /** Tabs closed in this session, newest last, so the last one can come
    *  back. A ref rather than state: nothing draws it, and putting it in
    *  the store would redraw the strip every time a tab was closed. */
@@ -1413,7 +1425,11 @@ export default function App() {
       editor.current?.buildStarted(document);
     };
     handlers.onCompileDone = (result) => {
-      editor.current?.buildFinished(result.document ?? get().activePreview, Boolean(result.pdfKept));
+      const built = result.document ?? get().activePreview;
+      editor.current?.buildFinished(built, Boolean(result.pdfKept));
+      // A build of a document in another preview tab moves nothing here:
+      // the page on screen is not the one it made.
+      if (built !== get().activePreview) return;
       const wrote = agentWrote.current;
       if (wrote) {
         agentWrote.current = null;
@@ -1421,7 +1437,16 @@ export default function App() {
         if (busyTyping()) return;
         // Gentle: it moves the view only if the reader is not already
         // looking at that part of the page, and flashes the box either way.
-        void pdf.current?.reveal(wrote.path, wrote.line, true);
+        // The agent's line is one of the text just built; where on it the
+        // agent wrote is where this build differs from the one before.
+        const place = editor.current?.builtPlace(wrote.path, wrote.line, 0);
+        void pdf.current?.reveal(wrote.path, place?.line ?? wrote.line, {
+          gentle: true,
+          afterBuild: true,
+          source: place
+            ? { lines: place.lines, column: editor.current?.changedColumn(wrote.path, place.line) ?? 0 }
+            : undefined,
+        });
         return;
       }
       // The writer's own build, so the page goes to where they are writing.
@@ -1435,7 +1460,7 @@ export default function App() {
       followCaret.current = false;
       const state = get();
       if (!state.activePath || state.viewing) return;
-      void pdf.current?.reveal(state.activePath, state.cursor.line, true);
+      void revealCaret(state.activePath, { gentle: true, afterBuild: true });
     };
     return () => {
       handlers.onFilesChanged = undefined;
@@ -2229,7 +2254,7 @@ export default function App() {
         const path = state.activePath;
         if (!path) break;
         if (isScript(path)) void runScript(path);
-        else pdf.current?.reveal(path, state.cursor.line);
+        else void revealCaret(path);
         break;
       }
       case "rail":

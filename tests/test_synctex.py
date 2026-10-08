@@ -42,6 +42,21 @@ def test_blocks_are_split_on_the_record_separator():
     assert parsed[0]["Input"] == "/p/main.tex"
 
 
+def test_every_box_of_a_forward_search_is_its_own_record():
+    # `synctex view` prints every box a source line set inside one
+    # begin/end pair, each starting again at `Output:`. Read as one record,
+    # the first value of each key won, so a paragraph's six lines of type
+    # came back as one, chosen by SyncTeX's order rather than the page's.
+    record = "Output:main.pdf\nPage:1\nx:1\ny:2\nh:{h}\nv:{v}\nW:300\nH:9\nbefore:\noffset:-1\n"
+    output = (
+        "This is SyncTeX command line utility, version 1.5\n"
+        "SyncTeX result begin\n"
+        + record.format(h=72, v=194) + record.format(h=72, v=170) + record.format(h=72, v=158)
+        + "SyncTeX result end\n"
+    )
+    assert [block["v"] for block in _blocks(output)] == ["194", "170", "158"]
+
+
 # --- the line the stand-in main file inserts ---------------------------------
 
 
