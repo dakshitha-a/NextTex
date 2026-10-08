@@ -22,7 +22,7 @@ export default function StructureDrawer({
   onJump: (heading: Heading) => void;
   onOpen: (file: string, line: number) => void;
   /** Shows a source line's place on the typeset page. */
-  onShow: (file: string, line: number) => void;
+  onShow: (file: string, line: number, kind: string) => void;
   resolve: (path: string) => string | undefined;
 }) {
   const [which, setWhich] = useState<Which>(() => {

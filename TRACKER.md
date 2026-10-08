@@ -24,7 +24,21 @@ things go to be forgotten rather than a list anybody reads.
 
 ## In hand
 
-Nothing is in hand. On 8 October 2026, at 4.31.0, the backlog close-out
+Nothing is in hand. On 8 October 2026, at 4.32.0, the run on the jump to
+the page and the Sections drawer closed, from 4.31.0, at the writer's
+request: Mod-Enter drew a box around a whole paragraph. Done: the flash is
+the line of type in a two-column class, a caption, a revtex `figure*`
+caption and a footnote, and right after a project opens; the census and
+the flash specs bound the flash's height; the drawer's titles and captions
+read as typeset, with the writer's macros, a long caption whole and a
+`\texorpdfstring` once; a class's back-matter headings are listed; a
+starred heading's contents line no longer shifts the numbers after it, and
+a starred heading has its page. Over copies of six of the writer's
+documents the flashes taller than a line fell from 714 of 5144 caret
+places to 158, the rest TikZ source and table rows whose cells wrap, where
+the row is the line.
+
+Before it, on 8 October 2026, at 4.31.0, the backlog close-out
 closed, from 4.30.1, at the writer's request: the known gaps and the
 flaky specs. Done and pushed as 4.31.0: publishing a build with thousands of undefined citations no longer takes
 23 seconds, which was the build loop's flake on CI; a hover card stays
@@ -232,6 +246,16 @@ OpenAI provider against OpenAI itself.
 Nothing at present. The last entries were closed on 8 October 2026.
 
 ### Measured and left, worth revisiting with a measurement
+
+- [ ] **A revtex column's box is tested below the browser.** In the
+      writer's methylamine paper SyncTeX answers a line in the middle of
+      a paragraph with the whole column's box beside the line's, and the
+      innermost box now wins; no document small enough to commit made
+      revtex or article do the same, where the column's box goes to a
+      blank line, which Mod-Enter never asks about. The unit test in
+      `locate-on-page.test.ts` holds it, and the census over the writer's
+      copy measured it; a document that reproduces it would let
+      `jump-to-page.spec.ts` press the key there.
 
 - [ ] **The science vocabulary's arXiv half stops in 2021.** The only CC0
       copy of arXiv's abstracts found was the 2021 one, so words that

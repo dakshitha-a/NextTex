@@ -17,7 +17,7 @@ export default function TypesetPanel({
   onShow,
   onOpen,
 }: {
-  onShow: (file: string, line: number) => void;
+  onShow: (file: string, line: number, kind: string) => void;
   onOpen: (file: string, line: number) => void;
 }) {
   const projectId = useStore((s) => s.projectId);
@@ -49,7 +49,10 @@ export default function TypesetPanel({
   return (
     <div className="flex min-h-0 flex-1 flex-col overflow-auto px-2 py-1" data-testid="typeset-list">
       {entries.map((entry) => {
-        const built = entry.page !== null;
+        // Shown on the page whenever there is a page, the forward search
+        // finding it: a starred heading has no contents line to give its
+        // page, and a press on one opened the source instead.
+        const built = Boolean(builtAt);
         return (
           <div
             key={`${entry.file}:${entry.line}`}
@@ -61,12 +64,12 @@ export default function TypesetPanel({
               data-file={entry.file}
               data-line={entry.line}
               className="nx-section-jump"
-              title={`${entry.title}, ${entry.file} line ${entry.line}${built ? `, page ${entry.page}` : ""}`}
-              onClick={() => (built ? onShow(entry.file, entry.line) : onOpen(entry.file, entry.line))}
+              title={`${entry.title}, ${entry.file} line ${entry.line}${entry.page !== null ? `, page ${entry.page}` : ""}`}
+              onClick={() => (built ? onShow(entry.file, entry.line, entry.kind) : onOpen(entry.file, entry.line))}
             >
               {entry.number ? <span className="nx-typeset-number">{entry.number}</span> : null}
               <span className="nx-row-label">{entry.title}</span>
-              {built ? <span className="nx-typeset-page">p. {entry.page}</span> : null}
+              {entry.page !== null ? <span className="nx-typeset-page">p. {entry.page}</span> : null}
             </Pressable>
             <span className="nx-row-trailing">
               <Button size="inline" data-testid="typeset-source" title={`Open ${entry.file} at line ${entry.line}`} onClick={() => onOpen(entry.file, entry.line)}>

@@ -4734,9 +4734,27 @@ async def headings_list(project_id: str, document: str = ""):
     texts.update({path: body for path, body in live.items() if path in texts})
 
     def run() -> list[dict]:
-        return headings.listing(texts, state.path, headings.read_toc(paths.build_dir, paths.jobname))
+        entries = headings.listing(texts, state.path, headings.read_toc(paths.build_dir, paths.jobname))
+        # A starred heading with no contents line of its own has no page
+        # there, and the forward search knows it: at most a few dozen of
+        # them are asked, so a document of nothing but starred headings
+        # does not hold the list up.
+        if paths.pdf.is_file():
+            for entry in [entry for entry in entries if entry["page"] is None][:HEADING_PAGE_LOOKUPS]:
+                places = synctex.source_to_pdf(
+                    paths.pdf, session.project.root / entry["file"], entry["line"],
+                    session.project.root, base=paths.workdir,
+                )
+                if places:
+                    entry["page"] = places[0].page
+        return entries
 
     return {"document": state.path, "entries": await asyncio.to_thread(run)}
+
+
+#: How many headings without a contents line the Typeset list asks the
+#: forward search for a page.
+HEADING_PAGE_LOOKUPS = 40
 
 
 def _cited_entries(texts: dict[str, str]) -> list[dict]:

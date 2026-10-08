@@ -12340,3 +12340,37 @@ does not have it. `e2e/specs/multidoc.spec.ts` keeps the shared chapter
 under both documents, the double-click into it, and the two chapters of
 one name in the check.
 
+
+## 116. One line on the page, and the drawer read as it is typeset
+
+The writer saw Mod-Enter draw a box around a whole paragraph on 8 October
+2026, and asked for the Sections drawer to be audited, both tested with
+several documents edited and built at once.
+
+**The flash is one line of type.** A census of the matcher over copies of
+six of the writer's own documents found one caret place in seven flashed
+a box taller than a line: in a two-column class SyncTeX answers some
+lines with the column's box beside the lines of type, a caption with the
+float's box, and a revtex `figure*` caption's lines with the picture
+alone. The flash is now the line of type the caret's words are on, in a
+caption and a footnote too, and right after a project opens, before its
+first build of the session has come back. What the flash looks like is
+unchanged; only its size and place are.
+
+**The drawer reads as the page does.** Titles and captions in all three
+lists set their maths as typeset, CH₄, S₁, ωB97XD, NH(X³Σ⁻), where they
+read "CH _4" or lost the Greek altogether; a `\texorpdfstring` title
+appears once where it appeared twice; a caption keeps the writer's own
+macros, written out, where it dropped them; a caption longer than twelve
+hundred characters reads whole where it read as empty; and a reference
+in a caption is its number. A heading made by a class's command, such as
+a journal template's back matter, is a row of Typeset, and of Sections
+once the project's commands are known. In Typeset a starred heading that
+adds its own contents line no longer gives every heading after it the
+number and page of the one before, and a starred heading with no
+contents line shows its page and is shown on the page by a press, where
+before a press opened its source.
+
+`e2e/specs/jump-to-page.spec.ts` and `e2e/specs/drawer-documents.spec.ts`
+hold both across two documents that share a chapter.
+

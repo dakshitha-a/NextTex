@@ -1740,10 +1740,20 @@ export default function App() {
   /** Show a source line's place on the typeset page, for the Typeset
    *  list: the preview unfolded first if it was folded, and given a moment
    *  to be there before it is asked. */
-  const showOnPage = useCallback((file: string, line: number) => {
+  const showOnPage = useCallback((file: string, line: number, kind?: string) => {
     const folded = foldedRef.current.pdf;
     if (folded) fold("pdf");
-    window.setTimeout(() => void pdf.current?.reveal(file, line), folded ? 260 : 0);
+    // The list's line is the text as it stood when the list was last
+    // asked for, and the page is the last build's. With the file open,
+    // the heading is found in the text as it is now, the nearest of its
+    // kind to that line, and carried back to the build's text as the
+    // caret is: a heading two lines down since was looked up two lines
+    // short.
+    const nearest = kind ? editor.current?.headingNear(file, kind, line) ?? null : null;
+    const place = nearest === null ? null : editor.current?.builtPlace(file, nearest, 0);
+    window.setTimeout(() => void pdf.current?.reveal(file, place?.line ?? line, {
+      source: place ? { lines: place.lines, column: place.column } : undefined,
+    }), folded ? 260 : 0);
   }, [fold]);
 
 
