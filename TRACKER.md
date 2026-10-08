@@ -24,7 +24,18 @@ things go to be forgotten rather than a list anybody reads.
 
 ## In hand
 
-Nothing is in hand. On 8 October 2026, at 4.30.0, the double-click
+Nothing is in hand. On 8 October 2026, at 4.30.1, the run on the flash
+after a build closed, from 4.30.0. Done: a census of the flash in
+`bench/forward-search/`; the server's forward search returning every box
+SyncTeX gives rather than the first; the caret's line and column carried
+into the text the build read; the line of type holding the caret chosen
+by lining its text up with the page's; a caret on a line that sets
+nothing moved to its neighbour, and none in the preamble; the flash drawn
+on the build's own PDF once it is laid out. It turned up and fixed a fatal
+build's kept PDF coming back without its SyncTeX map, and closed the gap
+of one source snapshot for the whole project.
+
+Before it, on 8 October 2026, at 4.30.0, the double-click
 run closed, from 4.29.0, at the writer's request. Done: a census of every
 way the jump from the page to the source went wrong, in
 `bench/inverse-search/`; the matcher rebuilt to line the page's text up
@@ -199,6 +210,15 @@ OpenAI provider against OpenAI itself.
 ## Backlog
 
 ### Known gaps, with a cost somebody will eventually pay
+
+- [ ] **The flash after a build covers a whole display for a caret in
+      it.** The page sets a display's symbols in an order the source does
+      not write, as the double-click's own gap below says, so the letters
+      around a caret inside `\begin{equation}` seldom agree with the page
+      and every box of the display is flashed. The census counts these as
+      held but not as one line of type. A caret in a file no editor tab
+      holds, which an agent's edit can name, flashes every line its
+      source line set, since there is no text to line up.
 
 - [ ] **A click inside a displayed equation can select the wrong symbol.**
       The census has "N", the upper limit of a sum, selecting `\sum`: the
