@@ -214,6 +214,10 @@ The script that draws a figure lives in your project and opens in the
 editor like any file. Change it, press Ctrl-Enter, and the figure appears
 beside it. The page picks it up on its next build.
 
+Any text file opens the same way: a program's input or output, a
+molecule's `.xyz`, source in Fortran, C++ or Julia, drawn in its own
+language.
+
 [More on figures →](docs/guide.md#it-draws-a-figure-from-your-data)
 
 </td>

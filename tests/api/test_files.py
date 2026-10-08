@@ -54,10 +54,24 @@ def test_reading_a_file_that_is_not_text(client, opened, project_dir):
     assert response.status_code == 415
 
 
+def test_a_file_that_is_not_utf8_says_so(client, opened, project_dir):
+    """The tree reads only the head of a file, so an output that turns to
+    Latin-1 further down is called text and then refused here. The refusal
+    names the reason rather than calling a text file not text."""
+    (project_dir / "run.out").write_bytes(b"SCF done\n" * 2000 + "\u00c5\n".encode("latin-1"))
+    response = client.get(
+        f"/api/projects/{opened['id']}/file", params={"path": "run.out"}
+    )
+    assert response.status_code == 415
+    assert "UTF-8" in response.json()["detail"]
+
+
 @pytest.mark.parametrize("name, text", [
     ("scripts/fig.py", "from figure import figure, save\n"),
     ("scripts/plotstyle.mplstyle", "font.size: 9\n"),
     ("data/runs.csv", "x,y\n1,2\n"),
+    ("geom/benzene.xyz", "12\nbenzene\nC 0.000 1.396 0.000\n"),
+    ("calc/water.inp", "! B3LYP def2-SVP Opt\n* xyz 0 1\nO 0 0 0\n*\n"),
 ])
 def test_a_script_and_what_it_reads_are_text(client, opened, project_dir, name, text):
     """The README promised the two files the plot tool seeds could be opened

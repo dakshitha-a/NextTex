@@ -15,12 +15,12 @@
     {
       "name": "the projects screen",
       "sources": ["frontend/src/panes/Projects.tsx", "frontend/src/project-*.ts", "frontend/src/panes/FolderPicker.tsx", "frontend/src/panes/FolderBrowser.tsx", "frontend/src/panes/FolderChooser.tsx", "frontend/src/panes/JoinOfferCard.tsx", "frontend/src/templates.ts", "frontend/src/panes/TemplateBrowser.tsx", "nexttex/project.py", "nexttex/venues.py", "nexttex/templates/**"],
-      "specs": ["projects-*", "template-browser", "share-from-list", "download", "moved-project", "first-run", "open-speed"]
+      "specs": ["any-text", "projects-*", "template-browser", "share-from-list", "download", "moved-project", "first-run", "open-speed"]
     },
     {
       "name": "the editor",
       "sources": ["frontend/src/panes/Editor.tsx", "frontend/src/panes/editor-setup.ts", "frontend/src/panes/keymaps.ts", "frontend/src/panes/latex-*.ts", "frontend/src/panes/bib-complete.ts", "frontend/src/panes/cite-match.ts", "frontend/src/panes/close-environment.ts", "frontend/src/panes/paste.ts", "frontend/src/paste-table.ts", "frontend/src/panes/find-panel.ts", "frontend/src/panes/SelectionActions.tsx", "frontend/src/panes/SourceHeader.tsx", "frontend/src/panes/TabStrip.tsx", "frontend/src/panes/tab-overflow.tsx", "frontend/src/tabs.ts", "frontend/src/keys.ts", "frontend/src/panes/after-end.ts", "frontend/src/panes/conflicts.ts"],
-      "specs": ["writing", "keymaps", "toolbar", "undo", "paste", "altgr", "cite-completion-comma", "ref-completion-brace", "column-select", "tab-menu", "tab-strips", "related-tabs", "verb-row-scale", "fix-run-comforts", "outside-write", "outside-utf8", "merge-conflict"]
+      "specs": ["any-text", "writing", "keymaps", "toolbar", "undo", "paste", "altgr", "cite-completion-comma", "ref-completion-brace", "column-select", "tab-menu", "tab-strips", "related-tabs", "verb-row-scale", "fix-run-comforts", "outside-write", "outside-utf8", "merge-conflict"]
     },
     {
       "name": "spelling, grammar and the hover cards",
@@ -35,7 +35,7 @@
     {
       "name": "the drawers",
       "sources": ["frontend/src/panes/FileTree.tsx", "frontend/src/panes/open-folders.ts", "frontend/src/copy-path.ts", "frontend/src/panes/FileCard.tsx", "frontend/src/panes/FileIcon.tsx", "frontend/src/panes/file-kinds.ts", "frontend/src/tree.ts", "frontend/src/panes/UploadStaging.tsx", "frontend/src/upload-report.ts", "frontend/src/panes/FileView.tsx", "frontend/src/panes/image-zoom.ts", "frontend/src/panes/History.tsx", "frontend/src/panes/TrashPanel.tsx", "frontend/src/panes/SectionsPanel.tsx", "frontend/src/panes/FiguresPanel.tsx", "frontend/src/panes/TypesetPanel.tsx", "nexttex/headings.py", "frontend/src/panes/StructureDrawer.tsx", "frontend/src/outline.ts", "frontend/src/words.ts", "frontend/src/panes/SearchPanel.tsx", "frontend/src/panes/PapersPanel.tsx", "frontend/src/panes/PapersChooser.tsx", "frontend/src/panes/GitPanel.tsx", "frontend/src/panes/Patch.tsx", "frontend/src/panes/patch-hunks.ts", "frontend/src/panes/PeoplePanel.tsx", "frontend/src/panes/SharePanel.tsx", "frontend/src/panes/Diagnostics.tsx", "frontend/src/panes/diagnostic-rows.ts", "frontend/src/panes/DownloadPanel.tsx", "frontend/src/panes/SubmitPanel.tsx", "frontend/src/panes/Comments*.tsx", "frontend/src/panes/CommentCards.tsx", "frontend/src/panes/EditorComments.tsx", "frontend/src/panes/comment-*.ts", "frontend/src/panes/Script.tsx", "frontend/src/script-run.ts"],
-      "specs": ["files", "tree-menu", "file-card", "tree-kinds", "rename", "drop-note", "deleted-open-file", "image-view", "image-tabs", "history-*", "sections", "limits", "figures", "typeset", "project-search", "papers", "bib-check", "git", "share-panel", "build-cap", "scoped-diagnostics", "consistency", "compile-state", "export", "submit", "comments", "reply", "agent-comments", "scripts", "download"]
+      "specs": ["any-text", "files", "tree-menu", "file-card", "tree-kinds", "rename", "drop-note", "deleted-open-file", "image-view", "image-tabs", "history-*", "sections", "limits", "figures", "typeset", "project-search", "papers", "bib-check", "git", "share-panel", "build-cap", "scoped-diagnostics", "consistency", "compile-state", "export", "submit", "comments", "reply", "agent-comments", "scripts", "download"]
     },
     {
       "name": "settings and the front door",

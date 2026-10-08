@@ -2,7 +2,7 @@ import { Suspense, lazy, useEffect, useMemo, useRef, useState } from "react";
 import api from "../api";
 import { download } from "../chrome";
 import { useStore } from "../store";
-import { kindOf } from "./file-kinds";
+import { READABLE_TEXT_BYTES, kindOf } from "./file-kinds";
 import { fitScale, nextStep } from "./image-zoom";
 import { Button } from "../ui/Button";
 import { Pressable } from "../ui/controls";
@@ -238,6 +238,12 @@ export default function FileView({
         {name}
         {size ? ` · ${readableSize(size)}` : ""}
       </p>
+      {kind === "text" ? (
+        <p className="t-meta mt-1 text-ink-3" data-testid="file-view-too-large">
+          Too large to open here. The editor opens text files up to{" "}
+          {readableSize(READABLE_TEXT_BYTES)}.
+        </p>
+      ) : null}
       <Button
         variant="ghost"
         className="mt-3"

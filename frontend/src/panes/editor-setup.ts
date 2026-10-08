@@ -48,6 +48,7 @@ import {
 } from "@codemirror/language";
 import { foldEnclosing, latexFolding } from "../folds";
 import { tags } from "@lezer/highlight";
+import type { StreamParser } from "@codemirror/language";
 import { stex } from "@codemirror/legacy-modes/mode/stex";
 import { python } from "@codemirror/legacy-modes/mode/python";
 import { closeBrackets, closeBracketsKeymap } from "@codemirror/autocomplete";
@@ -57,7 +58,7 @@ import type { CiteScope } from "./cite-match";
 import { bibCompletions } from "./bib-complete";
 import { environmentToClose, indentOf, opensEnvironment } from "./close-environment";
 import { isEscaped } from "./escaping";
-import { isBib, isScript } from "./file-kinds";
+import { extensionOf, isBib, isCode, isScript } from "./file-kinds";
 import { inputTarget, labelTarget, linkAt, sourceTarget } from "./latex-links";
 import { mac } from "./math-hover";
 import { mathHover, type FigureFacts, type OnEquation, type OnSymbol } from "./math-hover";
@@ -133,7 +134,7 @@ const latexHighlight = HighlightStyle.define([
  *  provides, which is what the preamble does.  The keyword's inner
  *  fallback is the plain-emphasis colour, so a script with the weight
  *  turned off reads its `def` the way a chapter reads its `\textbf`. */
-const pythonHighlight = HighlightStyle.define([
+const scriptRules = [
   { tag: tags.comment, color: "var(--ink-3)", fontStyle: "italic" },
   {
     tag: tags.keyword,
@@ -153,7 +154,85 @@ const pythonHighlight = HighlightStyle.define([
   { tag: tags.propertyName, color: "var(--ink-2)" },
   { tag: tags.special(tags.variableName), color: "var(--ink-2)" },
   { tag: tags.operator, color: "var(--ink)" },
-], { scope: PYTHON });
+];
+const pythonHighlight = HighlightStyle.define(scriptRules, { scope: PYTHON });
+
+/** The same look for every other language, so a Fortran source or a shell
+ *  script reads like a figure script and takes the same colour switch.
+ *  Unscoped, because it is only ever installed beside one code language;
+ *  the type and the atom are what a mode for a typed language adds. */
+const codeHighlight = HighlightStyle.define([
+  ...scriptRules,
+  { tag: tags.typeName, color: "var(--nx-py-builtin, var(--ink-2))" },
+  { tag: tags.atom, color: "var(--nx-py-number, var(--ink-2))" },
+]);
+
+/** The languages a code file is drawn in, by extension, each fetched the
+ *  first time a file of it is opened.  Fetched rather than bundled because
+ *  the editor is in the first paint and its budget has no room for twenty
+ *  modes nobody may open; a file whose language is still on its way, or is
+ *  not here, is shown as plain text, which for a program's input or output
+ *  (`.inp`, `.gjf`, `.out`, `.xyz`) is what it is anyway. */
+const CODE_MODES: Record<string, () => Promise<StreamParser<unknown>>> = {};
+const mode = (
+  extensions: string[],
+  load: () => Promise<StreamParser<unknown>>,
+) => {
+  for (const extension of extensions) CODE_MODES[extension] = load;
+};
+mode([".c", ".h"], () => import("@codemirror/legacy-modes/mode/clike").then((m) => m.c));
+mode([".cpp", ".cc", ".cxx", ".hpp", ".hh", ".hxx", ".cu"],
+  () => import("@codemirror/legacy-modes/mode/clike").then((m) => m.cpp));
+mode([".java"], () => import("@codemirror/legacy-modes/mode/clike").then((m) => m.java));
+mode([".cs"], () => import("@codemirror/legacy-modes/mode/clike").then((m) => m.csharp));
+mode([".kt"], () => import("@codemirror/legacy-modes/mode/clike").then((m) => m.kotlin));
+mode([".scala"], () => import("@codemirror/legacy-modes/mode/clike").then((m) => m.scala));
+mode([".f", ".for", ".f77", ".f90", ".f95", ".f03", ".f08", ".fpp"],
+  () => import("@codemirror/legacy-modes/mode/fortran").then((m) => m.fortran));
+mode([".sh", ".bash", ".zsh", ".slurm", ".sbatch", ".pbs"],
+  () => import("@codemirror/legacy-modes/mode/shell").then((m) => m.shell));
+mode([".jl"], () => import("@codemirror/legacy-modes/mode/julia").then((m) => m.julia));
+mode([".r"], () => import("@codemirror/legacy-modes/mode/r").then((m) => m.r));
+mode([".m"], () => import("@codemirror/legacy-modes/mode/octave").then((m) => m.octave));
+mode([".js", ".mjs", ".cjs"],
+  () => import("@codemirror/legacy-modes/mode/javascript").then((m) => m.javascript));
+mode([".ts"], () => import("@codemirror/legacy-modes/mode/javascript").then((m) => m.typescript));
+mode([".json"], () => import("@codemirror/legacy-modes/mode/javascript").then((m) => m.json));
+mode([".toml"], () => import("@codemirror/legacy-modes/mode/toml").then((m) => m.toml));
+mode([".yml", ".yaml"], () => import("@codemirror/legacy-modes/mode/yaml").then((m) => m.yaml));
+mode([".xml"], () => import("@codemirror/legacy-modes/mode/xml").then((m) => m.xml));
+mode([".html", ".htm"], () => import("@codemirror/legacy-modes/mode/xml").then((m) => m.html));
+mode([".rs"], () => import("@codemirror/legacy-modes/mode/rust").then((m) => m.rust));
+mode([".go"], () => import("@codemirror/legacy-modes/mode/go").then((m) => m.go));
+mode([".lua"], () => import("@codemirror/legacy-modes/mode/lua").then((m) => m.lua));
+mode([".pl", ".pm"], () => import("@codemirror/legacy-modes/mode/perl").then((m) => m.perl));
+mode([".rb"], () => import("@codemirror/legacy-modes/mode/ruby").then((m) => m.ruby));
+mode([".sql"], () => import("@codemirror/legacy-modes/mode/sql").then((m) => m.standardSQL));
+mode([".css"], () => import("@codemirror/legacy-modes/mode/css").then((m) => m.css));
+mode([".diff", ".patch"], () => import("@codemirror/legacy-modes/mode/diff").then((m) => m.diff));
+mode([".ini", ".cfg", ".conf", ".properties"],
+  () => import("@codemirror/legacy-modes/mode/properties").then((m) => m.properties));
+mode([".wl", ".nb"],
+  () => import("@codemirror/legacy-modes/mode/mathematica").then((m) => m.mathematica));
+mode([".cmake"], () => import("@codemirror/legacy-modes/mode/cmake").then((m) => m.cmake));
+
+/** Each code language once it has arrived, by extension. */
+const codeLanguages = new Map<string, StreamLanguage<unknown>>();
+
+/** Fetch the language `path` is drawn in, if it has one and it is not here
+ *  yet.  The editor awaits this before it builds a file's state, so the
+ *  file is drawn in its language from its first paint; a fetch that fails
+ *  leaves it plain, which is still the file. */
+export async function languageReady(path: string): Promise<void> {
+  const extension = extensionOf(path);
+  const load = CODE_MODES[extension];
+  if (!load || codeLanguages.has(extension) || isScript(path) || !isCode(path)) return;
+  try {
+    codeLanguages.set(extension, StreamLanguage.define(await load()));
+  } catch {
+    /* plain text, which is what it is */
+  }
+}
 
 /** Colour by family, over the lines actually on screen.
  *
@@ -751,6 +830,14 @@ export function languageFor(
       // agent writes use, and what Tab inserts.
       indentUnit.of("    "),
     ];
+  }
+  if (isCode(path)) {
+    // Anything that is not prose: a source file in its language once
+    // `languageReady` has fetched it, and a program's input, output or
+    // coordinates as plain text. LaTeX's mode was the default for these,
+    // and drew every `%mem=` as a comment and every `$` as maths.
+    const language = codeLanguages.get(extensionOf(path));
+    return language ? [language, syntaxHighlighting(codeHighlight)] : [];
   }
   if (isBib(path)) {
     // The stex mode reads a .bib well enough: braces pair and a field name

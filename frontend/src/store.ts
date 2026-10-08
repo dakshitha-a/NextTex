@@ -9,6 +9,7 @@ import type { Heading } from "./outline";
 import { afterReconcile } from "./agent-state";
 import { agentChangedScript, resultFrom } from "./script-run";
 import { renamePaths } from "./tabs";
+import { learnKinds } from "./panes/file-kinds";
 import api, {
   clientId,
   countOf,
@@ -549,6 +550,10 @@ export function set(patch: Partial<State>) {
   } else if (patch.error === null && patch.notices === undefined) {
     patch = { ...patch, notices: [] };
   }
+  // The tree carries what the server read in each file's bytes, which is
+  // the only answer to whether a `.out` is text; the registry takes it here
+  // so every pane asking by path hears it before anything renders.
+  if (patch.tree !== undefined && patch.tree !== state.tree) learnKinds(patch.tree);
   Object.assign(state, patch);
   commit();
 }

@@ -18,6 +18,7 @@ import {
   keymapCompartment,
   swapCompartment,
   languageFor,
+  languageReady,
   marksFor,
   setDiff,
   setMarks,
@@ -26,7 +27,7 @@ import {
   viewExtensions,
 } from "./editor-setup";
 import { documentOf } from "./cite-match";
-import { isCode, isMarkdown, isTeX } from "./file-kinds";
+import { EDITABLE_TEXT_BYTES, isCode, isMarkdown, isTeX } from "./file-kinds";
 import { pasteExtension } from "./paste";
 import { reconciled } from "./parked";
 
@@ -1054,8 +1055,15 @@ export default function Editor({
         // else has open is exactly what is on disk.
         let shared: Awaited<ReturnType<typeof connect>>;
         let opened: Awaited<ReturnType<NonNullable<typeof shared>["open"]>> | null;
+        // A text file larger than a shared document may be has no document
+        // to bind to, and binding to it anyway showed an empty page marked
+        // offline that kept nothing typed into it. Such a file is a
+        // program's output far more often than something to edit, so it
+        // is read, and said to be.
+        const size = findNode(get().tree, path)?.size ?? 0;
+        const tooLarge = size > EDITABLE_TEXT_BYTES;
         try {
-          shared = await connect(projectId);
+          shared = tooLarge ? null : await connect(projectId);
           opened = shared ? await shared.open(path) : null;
         } catch (error) {
           // A swap that cannot finish must still give the editor back, or
@@ -1080,7 +1088,7 @@ export default function Editor({
           // loud rather than left for the writer to discover.
           let file: Awaited<ReturnType<typeof api.readFile>>;
           try {
-            file = await api.readFile(projectId, path);
+            [file] = await Promise.all([api.readFile(projectId, path), languageReady(path)]);
           } catch (error) {
             if (!overtaken()) openAgain();
             throw error;
@@ -1091,9 +1099,12 @@ export default function Editor({
             release: () => {},
           };
           set({
-            error:
-              `${path} is not connected to this project's shared documents, ` +
-              "so it is open for reading only. Reloading usually fixes it.",
+            error: tooLarge
+              ? `${path} is ${(size / 1024 / 1024).toFixed(1)} MB, so it is open ` +
+                `for reading only. The editor edits files up to ` +
+                `${EDITABLE_TEXT_BYTES / 1024 / 1024} MB.`
+              : `${path} is not connected to this project's shared documents, ` +
+                "so it is open for reading only. Reloading usually fixes it.",
           });
         } else {
           // The document is handed back before the server's first answer
@@ -1103,7 +1114,7 @@ export default function Editor({
           // the line it asked for was clamped against an empty document.
           // The state is built after the wait so the pane never shows the
           // empty document either.
-          await opened.synced;
+          await Promise.all([opened.synced, languageReady(path)]);
           if (overtaken()) {
             // Another file was asked for while this one waited. Putting
             // this one on screen now is what showed an empty main.tex:
@@ -1160,7 +1171,9 @@ export default function Editor({
       if (!buffer) return;
       buffer.state = editor.state;
 
-      const file = await api.historyVersion(projectId, path, sha);
+      const [file] = await Promise.all([
+        api.historyVersion(projectId, path, sha), languageReady(path),
+      ]);
       // Nothing below can arm a save: `current.current` is null, so every
       // early return in onChange, saveFile, flush and the beacon fires.
       // Where the reader is, as a line rather than a pixel: the old

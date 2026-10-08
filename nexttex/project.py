@@ -41,8 +41,10 @@ STATE_DIR = ".nexttex"
 # importable yet.
 
 
-# Files the editor should offer to open.  Anything else is treated as an
-# asset: downloadable, referenceable from LaTeX, but not editable as text.
+# Files the editor opens without reading them first.  Not the list of what
+# it can open: that is anything whose bytes are text, which `kind_of_file`
+# decides by reading the head of the file.  This list only says which names
+# are text often enough that the read is not worth making.
 TEXT_SUFFIXES = {
     ".tex", ".ltx", ".sty", ".cls", ".bib", ".bst", ".md", ".txt",
     ".toml", ".yaml", ".yml", ".json", ".cfg", ".gitignore",
@@ -52,20 +54,46 @@ TEXT_SUFFIXES = {
     # showed a download card.  The columns a figure is drawn from are text
     # too, and a dataset too large for a shared document becomes a blob at
     # `MAX_TEXT_BYTES` in the collaboration store rather than here.
-    ".py", ".mplstyle", ".csv", ".tsv", ".dat",
+    # `.dat` is not here: as often as not it is a program's unformatted
+    # binary, so it is read like any name this list does not know.
+    ".py", ".mplstyle", ".csv", ".tsv",
 }
 IMAGE_SUFFIXES = {".png", ".jpg", ".jpeg", ".gif", ".webp", ".svg", ".pdf", ".eps"}
+# Names that are binary often enough to say so without reading them.  The
+# same list is `BINARY` in `frontend/src/panes/file-kinds.ts`, which has no
+# bytes to read and answers from the name alone; the vitest beside it holds
+# the two together.  Quantum chemistry's checkpoints are here by name
+# (`.chk`, `.gbw`, `.rwf`) because they are the binaries most likely to sit
+# beside a thesis.
+BINARY_SUFFIXES = {
+    ".zip", ".gz", ".tgz", ".bz2", ".xz", ".zst", ".7z", ".rar", ".tar",
+    ".docx", ".doc", ".xlsx", ".xls", ".pptx", ".ppt", ".odt", ".ods", ".odp",
+    ".npy", ".npz", ".h5", ".hdf5", ".nc", ".pkl", ".pickle", ".parquet",
+    ".feather", ".mat", ".sqlite", ".db",
+    ".pyc", ".o", ".so", ".a", ".dll", ".dylib", ".exe", ".class", ".wasm", ".bin",
+    ".tif", ".tiff", ".bmp", ".heic", ".heif", ".avif", ".ico",
+    ".mp3", ".mp4", ".wav", ".mov", ".avi", ".ogg", ".webm",
+    ".ttf", ".otf", ".woff", ".woff2", ".dvi", ".xdv",
+    ".chk", ".gbw", ".rwf", ".trr", ".xtc", ".dcd", ".tpr", ".edr", ".cpt",
+}
+
+#: How much of a file is read to decide whether it is text.
+SNIFF_BYTES = 8192
 
 
 def kind_of(name: str) -> str:
-    """Text, image, or binary, from a file's name.
+    """Text, image, or binary, from a file's name alone.
+
+    The answer for a name with no file behind it, and the fast half of
+    `kind_of_file`, which is what a file on disk is asked.  A name nothing
+    lists is text here: that is the guess that costs least when it is wrong.
 
     An extensionless name is text. It is a README, a LICENSE, a Makefile or
     a `.gitkeep` far more often than it is a binary, and being wrong the
     other way costs the writer a file they cannot open. The interface has
     always said so, in `frontend/src/panes/file-kinds.ts`, and this side
     said the opposite: `Path(".gitignore").suffix` is empty, so the entry
-    for it in the list below never matched anything.
+    for it in `TEXT_SUFFIXES` never matched anything.
 
     The two disagreeing was not cosmetic. A file the collaboration layer
     calls binary gets no shared document, and blob transfer carries history
@@ -78,9 +106,69 @@ def kind_of(name: str) -> str:
     suffix = Path(name).suffix.lower()
     if suffix in IMAGE_SUFFIXES:
         return "image"
-    if not suffix or suffix in TEXT_SUFFIXES:
-        return "text"
-    return "binary"
+    if suffix in BINARY_SUFFIXES:
+        return "binary"
+    return "text"
+
+
+def looks_like_text(head: bytes, whole: bool) -> bool:
+    """Whether these first bytes of a file are UTF-8 text.
+
+    A NUL is the mark of a binary; no text format a writer keeps uses one.
+    Otherwise the bytes must decode as UTF-8, the encoding the file route
+    reads and writes, so a file called text here is one the editor can
+    open.  When `head` is only the start of the file, a character cut in
+    two at its end is forgiven, since the next byte would have finished it.
+    """
+    if b"\0" in head:
+        return False
+    try:
+        head.decode("utf-8")
+    except UnicodeDecodeError as error:
+        cut = error.reason == "unexpected end of data"
+        return not whole and cut and error.start >= len(head) - 3
+    return True
+
+
+#: `kind_of_file`'s answers by path, each with the size and time it was
+#: read at, so a tree asked again after every change reads only what moved.
+_SNIFFED: dict[str, tuple[int, int, str]] = {}
+
+
+def kind_of_file(path: Path, size: int | None = None, mtime_ns: int | None = None) -> str:
+    """Text, image, or binary, for a file on disk.
+
+    The name answers when it can: an image, a known binary, or a suffix in
+    `TEXT_SUFFIXES`.  Any other name is decided by its first bytes, so a
+    program's input or output, a molecule's `.xyz`, a Fortran source or a
+    file with a suffix nobody here has heard of opens in the editor when it
+    is text and is offered as a download when it is not.  A file that
+    cannot be read is called by its name.
+    """
+    suffix = path.suffix.lower()
+    by_name = kind_of(path.name)
+    if by_name != "text" or not suffix or suffix in TEXT_SUFFIXES:
+        return by_name
+    if size is None or mtime_ns is None:
+        try:
+            stat = path.stat()
+        except OSError:
+            return by_name
+        size, mtime_ns = stat.st_size, stat.st_mtime_ns
+    key = str(path)
+    known = _SNIFFED.get(key)
+    if known and known[0] == size and known[1] == mtime_ns:
+        return known[2]
+    try:
+        with open(path, "rb") as handle:
+            head = handle.read(SNIFF_BYTES)
+    except OSError:
+        return by_name
+    kind = "text" if looks_like_text(head, whole=size <= len(head)) else "binary"
+    if len(_SNIFFED) > 50_000:
+        _SNIFFED.clear()
+    _SNIFFED[key] = (size, mtime_ns, kind)
+    return kind
 
 # Directories never worth showing in a file tree.  Build output is the big
 # one: a LaTeX build directory mirrors the whole chapter tree in .aux files.
@@ -602,13 +690,15 @@ class Project:
                     try:
                         stat = entry.stat()
                         size, mtime = stat.st_size, stat.st_mtime
+                        kind = kind_of_file(path, size, stat.st_mtime_ns)
                     except OSError:
                         size, mtime = 0, 0.0
+                        kind = kind_of(name)
                     entries.append({
                         "name": name,
                         "path": relative,
                         "type": "file",
-                        "kind": kind_of(name),
+                        "kind": kind,
                         "size": size,
                         # So a thumbnail cached per file is redrawn when
                         # the file is, and not before.

@@ -166,7 +166,7 @@ const StructureDrawer = lazy(() => import("./panes/StructureDrawer"));
 const PapersPanel = lazy(() => import("./panes/PapersPanel"));
 const SubmitPanel = lazy(() => import("./panes/SubmitPanel"));
 const GitPanel = lazy(() => import("./panes/GitPanel"));
-import { isScript, isTeX, isText, isViewable } from "./panes/file-kinds";
+import { READABLE_TEXT_BYTES, isScript, isTeX, isText, isViewable } from "./panes/file-kinds";
 import { Pressable } from "./ui/controls";
 
 const DEFAULTS: Widths = { rail: 240, editor: 0.5, chat: 380 };
@@ -230,8 +230,8 @@ function giveFocusBack(to: HTMLElement | null) {
 /** The project the writer was in, so a reload comes back to the document. */
 const LAST_PROJECT = "nexttex.lastProject";
 
-/** How a file can be shown, from the tree the store already holds. */
-function kindOf(tree: any, path: string): string | undefined {
+/** A file's row in the tree the store already holds. */
+function nodeOf(tree: any, path: string): any {
   const find = (node: any): any =>
     node?.path === path
       ? node
@@ -239,15 +239,21 @@ function kindOf(tree: any, path: string): string | undefined {
           (hit: any, child: any) => hit ?? find(child),
           null,
         );
-  return find(tree)?.kind;
+  return find(tree);
+}
+
+/** Whether a tree row is shown by the file view rather than the editor: a
+ *  figure, a binary, or text too large for the file route to hand over. */
+function forFileView(node: any): boolean {
+  if (!node || node.type !== "file" || !node.kind) return false;
+  return node.kind !== "text" || (node.size ?? 0) > READABLE_TEXT_BYTES;
 }
 
 /** Whether a file is the editor's to open: text, or a file the tree has
  *  not heard of yet, which a moment ago somebody made. A figure is shown
  *  by the file view over the editor and never handed to it. */
 function opensInEditor(tree: any, path: string): boolean {
-  const kind = kindOf(tree, path);
-  return kind === "text" || !kind;
+  return !forFileView(nodeOf(tree, path));
 }
 
 /** Every file path in a tree, flattened. */
@@ -2468,17 +2474,8 @@ export default function App() {
   const gitDirty = gitStatus?.repository ? gitStatus.changes.length : 0;
   const activeBinary = useMemo(() => {
     if (!activePath) return null;
-    const find = (node: any): any =>
-      node?.path === activePath
-        ? node
-        : (node?.children ?? []).reduce(
-            (hit: any, child: any) => hit ?? find(child),
-            null,
-          );
-    const node = find(tree);
-    return node && node.type === "file" && node.kind && node.kind !== "text"
-      ? node
-      : null;
+    const node = nodeOf(tree, activePath);
+    return forFileView(node) ? node : null;
   }, [activePath, tree]);
 
   /** The version of the open figure being looked at, if one is.

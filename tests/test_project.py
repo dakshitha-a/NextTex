@@ -304,3 +304,99 @@ def test_the_tree_skips_machinery_sorts_folders_first_and_follows_a_linked_folde
     assert [child["path"] for child in linked["children"]] == ["linked/plot.png"]
     image = next(c for c in tree["children"] if c["name"] == "Figures")["children"][0]
     assert image["kind"] == "image" and image["size"] == 1 and image["mtime"] > 0
+
+
+# --- what the editor may open --------------------------------------------
+
+#: A Gaussian input, an ORCA output, a molecule and a Fortran source: the
+#: files a computational chemist keeps beside a thesis, none of whose
+#: suffixes any list names.
+TEXT_FILES = {
+    "calc/water.gjf": "%mem=4GB\n# B3LYP/6-31G(d) opt\n\nwater\n\n0 1\nO 0 0 0\n",
+    "calc/water.out": "ORCA TERMINATED NORMALLY\nTotal Energy : -76.4 Eh\n",
+    "geom/benzene.xyz": "12\nbenzene\nC 0.000 1.396 0.000\n",
+    "src/integrals.f90": "program integrals\n  implicit none\nend program\n",
+    "md/run.mdp": "integrator = md\nnsteps = 500000\n",
+    "notes.unheardof": "Å and ü are text too.\n",
+}
+
+
+@pytest.mark.parametrize("name, text", TEXT_FILES.items())
+def test_any_file_whose_bytes_are_text_is_text(tmp_path, name, text):
+    """The editor used to open a file only when its suffix was on a list of
+    eighteen, so a `.xyz`, an `.inp` or a `.f90` was offered as a download.
+    What decides it now is the bytes."""
+    from nexttex.project import kind_of_file
+
+    target = tmp_path / name
+    target.parent.mkdir(parents=True, exist_ok=True)
+    target.write_text(text, encoding="utf-8")
+    assert kind_of_file(target) == "text"
+
+
+@pytest.mark.parametrize("name, body", [
+    # A suffix nobody lists, holding a binary: a checkpoint under a name a
+    # program chose, an unformatted Fortran `.dat`.
+    ("calc/run.gbw2", bytes(range(256)) * 40),
+    ("data/unformatted.dat", b"\x10\x00\x00\x00" + b"\x9a\x99\x99\x99" * 4),
+    ("calc/latin1.out", "Energie in \u00c5ngstr\u00f6m\n".encode("latin-1")),
+])
+def test_a_file_whose_bytes_are_not_text_is_binary(tmp_path, name, body):
+    from nexttex.project import kind_of_file
+
+    target = tmp_path / name
+    target.parent.mkdir(parents=True, exist_ok=True)
+    target.write_bytes(body)
+    assert kind_of_file(target) == "binary"
+
+
+def test_a_character_cut_by_the_sniff_is_forgiven_and_a_cut_file_is_not(tmp_path):
+    """Only the head of a file is read, so a multibyte character can straddle
+    its end. That is the reading stopping, not the file being binary; a
+    file that really ends halfway through a character is not UTF-8."""
+    from nexttex.project import SNIFF_BYTES, kind_of_file, looks_like_text
+
+    long = tmp_path / "long.log2"
+    long.write_bytes(b"a" * (SNIFF_BYTES - 1) + "Å".encode() + b"\nmore\n")
+    assert kind_of_file(long) == "text"
+    assert looks_like_text("Å".encode()[:1], whole=True) is False
+
+
+def test_the_name_answers_without_reading_when_it_can(tmp_path):
+    """A known suffix is never opened, which is what keeps the tree, asked
+    after every change, as fast as it was: a `.png` full of text is still a
+    picture and a `.zip` is still an archive."""
+    from nexttex.project import kind_of, kind_of_file
+
+    (tmp_path / "plot.png").write_text("not really a png")
+    (tmp_path / "bundle.zip").write_text("not really a zip")
+    assert kind_of_file(tmp_path / "plot.png") == "image"
+    assert kind_of_file(tmp_path / "bundle.zip") == "binary"
+    assert kind_of("geom/benzene.xyz") == "text"
+    assert kind_of("calc/water.chk") == "binary"
+
+
+def test_a_file_that_changes_is_read_again(tmp_path):
+    """The answer is kept by size and modification time, so the tree reads a
+    thousand output files once rather than on every change; a file that
+    becomes binary must not keep its old answer."""
+    import os
+
+    from nexttex.project import kind_of_file
+
+    target = tmp_path / "run.out"
+    target.write_text("SCF converged\n")
+    assert kind_of_file(target) == "text"
+    target.write_bytes(b"\x00\x01\x02 binary now")
+    stat = target.stat()
+    os.utime(target, ns=(stat.st_atime_ns, stat.st_mtime_ns + 1_000_000))
+    assert kind_of_file(target) == "binary"
+
+
+def test_the_tree_calls_a_file_by_its_bytes(tmp_path):
+    root = tmp_path / "paper"
+    root.mkdir()
+    (root / "benzene.xyz").write_text("12\nbenzene\n")
+    (root / "run.gbw2").write_bytes(bytes(range(256)))
+    kinds = {c["name"]: c["kind"] for c in Project.open(root).tree()["children"]}
+    assert kinds == {"benzene.xyz": "text", "run.gbw2": "binary"}

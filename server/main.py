@@ -77,7 +77,7 @@ from nexttex.paths import shares_home, state_home
 from nexttex.trash import Trash
 from nexttex.project import (
     Project, ProjectConfig, Registry, id_for, instance_name, is_control_path,
-    ignored_directory, is_ours, kind_of, under_ignored_directory,
+    ignored_directory, is_ours, kind_of_file, under_ignored_directory,
     PROJECT_STATES, clean_limits,
 )
 from nexttex.symbols import walk_project
@@ -2944,7 +2944,12 @@ async def read_file(project_id: str, path: str):
     try:
         text = target.read_text(encoding="utf-8")
     except UnicodeDecodeError:
-        raise HTTPException(415, "not a text file")
+        # Said plainly, because the tree calls a file text from its first
+        # eight kilobytes: an old program's output with one Latin-1 letter
+        # further down is the case that reaches here.
+        raise HTTPException(
+            415, "That file is not UTF-8 text, so the editor cannot open it."
+        )
     return {
         "path": path, "text": text,
         "mtime": stat.st_mtime, "size": stat.st_size,
@@ -3073,7 +3078,7 @@ def _project_texts(session: ProjectSession) -> dict[str, str]:
     texts: dict[str, str] = {}
     project = session.project
     for path in walk_project(project.root, build_dir=project.build_dir):
-        if kind_of(path.name) != "text" or is_ours(path.name):
+        if kind_of_file(path) != "text" or is_ours(path.name):
             continue
         try:
             if path.stat().st_size > MAX_TEXT_BYTES:
@@ -3466,7 +3471,7 @@ async def duplicate_entry(project_id: str, path: str = Body(..., embed=True)):
                 relative = session.project.relative(copy)
                 copied.append(relative)
                 text = read_text(copy)
-                if text is not None and kind_of(copy.name) == "text":
+                if text is not None and kind_of_file(copy) == "text":
                     origin = source / copy.relative_to(target)
                     session.record_version(
                         copy, text, by="you", op="create",

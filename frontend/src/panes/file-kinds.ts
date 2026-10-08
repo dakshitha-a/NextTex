@@ -29,23 +29,58 @@ const IMAGE = new Set([".png", ".jpg", ".jpeg", ".gif", ".webp", ".svg", ".avif"
 /** Drawn by PDF.js, which the preview pane already carries. */
 const PDF = new Set([".pdf"]);
 
-/** Opened in the editor.  A superset of the server's list rather than a
- *  copy of it: a file the server will hand over as text and this set did
- *  not know about would be shown as an unopenable binary, so the vitest
- *  beside this file asserts the containment rather than the equality. */
-const TEXT = new Set([
-  ".tex", ".ltx", ".sty", ".cls", ".bib", ".bst", ".bbl", ".txt", ".md",
-  ".json", ".yml", ".yaml", ".csv", ".tsv", ".dat", ".toml", ".cfg", ".ini",
-  ".log", ".py", ".sh", ".r", ".m", ".mplstyle", ".gitignore",
-  ".gitattributes", ".env",
+/** Never opened in the editor, said from the name alone.  The server's
+ *  `BINARY_SUFFIXES` in `nexttex/project.py`, which the vitest beside this
+ *  file holds this to.  Any other name is text until the server, which has
+ *  the bytes, says otherwise: it reads the head of every file whose name
+ *  it does not know, and `learnKinds` hands its answers to this module. */
+const BINARY = new Set([
+  ".zip", ".gz", ".tgz", ".bz2", ".xz", ".zst", ".7z", ".rar", ".tar",
+  ".docx", ".doc", ".xlsx", ".xls", ".pptx", ".ppt", ".odt", ".ods", ".odp",
+  ".npy", ".npz", ".h5", ".hdf5", ".nc", ".pkl", ".pickle", ".parquet",
+  ".feather", ".mat", ".sqlite", ".db",
+  ".pyc", ".o", ".so", ".a", ".dll", ".dylib", ".exe", ".class", ".wasm", ".bin",
+  ".tif", ".tiff", ".bmp", ".heic", ".heif", ".avif", ".ico",
+  ".mp3", ".mp4", ".wav", ".mov", ".avi", ".ogg", ".webm",
+  ".ttf", ".otf", ".woff", ".woff2", ".dvi", ".xdv",
+  ".chk", ".gbw", ".rwf", ".trr", ".xtc", ".dcd", ".tpr", ".edr", ".cpt",
+  // Not the server's: it calls PostScript an image, for LaTeX's sake, and
+  // nothing here can draw one.
+  ".eps",
 ]);
 
-/** Text that is code rather than prose.  The spell checker stays off it
- *  and the editor picks a language for it; nothing else asks. */
-const CODE = new Set([
-  ".py", ".sh", ".r", ".m", ".json", ".yml", ".yaml", ".toml", ".cfg",
-  ".ini", ".mplstyle", ".csv", ".tsv", ".dat",
+/** Text that is prose, which the spell checker reads and the editor gives
+ *  LaTeX's mode.  Every other text file is code, or a program's input or
+ *  output, and is spared both: a `.xyz` is a column of coordinates and a
+ *  Fortran source is identifiers, and red underlines under either say
+ *  nothing about their spelling.  A name with no extension is prose, the
+ *  README it usually is, rather than the Makefile it sometimes is. */
+const PROSE = new Set([
+  "", ".tex", ".ltx", ".sty", ".cls", ".bib", ".bst", ".bbl", ".txt",
+  ".md", ".markdown",
 ]);
+
+/** What the server said about each file in the tree, by path.  The tree is
+ *  the only place the bytes speak, so a `.out` that is really a binary is
+ *  known as one here once the tree has been read, and before then is text,
+ *  which is what the name alone would say. */
+let heard = new Map<string, string>();
+
+/** Take the server's kinds from a project tree.  Called whenever the store
+ *  holds a new one; a tree is the whole project, so it replaces what was
+ *  heard rather than adding to it. */
+export function learnKinds(tree: unknown): void {
+  const next = new Map<string, string>();
+  const walk = (node: any) => {
+    if (!node) return;
+    if (node.type === "file" && typeof node.path === "string" && node.kind) {
+      next.set(node.path, node.kind);
+    }
+    for (const child of node.children ?? []) walk(child);
+  };
+  walk(tree);
+  heard = next;
+}
 
 export type FileKind = "text" | "image" | "pdf" | "other";
 
@@ -61,11 +96,12 @@ export function kindOf(path: string): FileKind {
   const extension = extensionOf(path);
   if (IMAGE.has(extension)) return "image";
   if (PDF.has(extension)) return "pdf";
-  // No extension means a README or a LICENSE far more often than it means
-  // a binary, and being wrong the other way costs the writer a file they
-  // cannot open.
-  if (!extension || TEXT.has(extension)) return "text";
-  return "other";
+  if (BINARY.has(extension) || heard.get(path) === "binary") return "other";
+  // Anything else is text: a README with no extension, a program's input,
+  // a molecule, a source file in any language. Being wrong this way costs
+  // a refusal the server words plainly; being wrong the other way cost the
+  // writer every file whose suffix nobody had thought to list.
+  return "text";
 }
 
 /** Whether an `<img>` will simply draw it.  Kept under its original name
@@ -86,8 +122,19 @@ export function isText(path: string): boolean {
   return kindOf(path) === "text";
 }
 
+/** The largest text file with a shared document behind it, and so the
+ *  largest the editor edits: `MAX_TEXT_BYTES` in `server/collab/store.py`.
+ *  A larger one is a blob there, and an editor bound to it showed an empty
+ *  page marked offline that kept nothing typed into it. */
+export const EDITABLE_TEXT_BYTES = 2 * 1024 * 1024;
+
+/** The largest text file the file route hands over at all, for reading:
+ *  `MAX_TEXT_BYTES` in `server/main.py`. A program's output past this is
+ *  offered as a download. */
+export const READABLE_TEXT_BYTES = 10 * 1024 * 1024;
+
 export function isCode(path: string): boolean {
-  return CODE.has(extensionOf(path));
+  return isText(path) && !PROSE.has(extensionOf(path));
 }
 
 /** A Python script, which is the one kind of file the editor can run. */

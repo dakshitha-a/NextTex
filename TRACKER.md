@@ -24,7 +24,13 @@ things go to be forgotten rather than a list anybody reads.
 
 ## In hand
 
-Nothing is in hand. The reopened-tab fix closed on 2 October 2026 at
+Nothing is in hand. On 7 October 2026, at 4.27.0, any file whose bytes
+are text came to open in the editor, where only eighteen suffixes had:
+a program's input or output, a molecule, a source file in any language,
+drawn in its language when one is known. It turned up and fixed a text
+file over 2 MB opening as an empty editable page that kept nothing.
+
+The reopened-tab fix closed on 2 October 2026 at
 4.25.1, with its tracker at
 https://claude.ai/artifact/BZSyPsyYWgmrVGcHr38r1z: a file closed and
 opened again in one page was bound to its destroyed shared document. It
@@ -178,6 +184,13 @@ OpenAI provider against OpenAI itself.
 ## Backlog
 
 ### Known gaps, with a cost somebody will eventually pay
+
+- [ ] **A text file that is not UTF-8 cannot be opened.** The tree reads
+      the first 8 kB of a file it has no name for, so an old program's
+      output in Latin-1 is a download, and one that turns to Latin-1 past
+      the first 8 kB is called text and then refused by the file route,
+      which says it is not UTF-8. Opening it would mean choosing an
+      encoding to write it back in, which nothing asked for yet.
 
 - **A Markdown buffer's `.cm-content` read `data-language="stex"`** in a
   failing spec run on 2 October 2026. Not checked whether Markdown is

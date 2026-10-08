@@ -11981,3 +11981,45 @@ no card; then leaves the table for two seconds and sees it come back. A
 second test clicks a cell and rests on another, then drags across the
 table, and sees no card either time.
 
+## 109. Any text file opens in the editor
+
+Raised by the writer on 7 October 2026: anything that can be opened as
+text should open in the source editor. That means source files in common
+languages, the input and output files of quantum chemistry and dynamics
+programs, and `.xyz` files.
+
+**What was wrong.** The editor opened a file only when its suffix was on
+a list of eighteen. A Gaussian `.gjf`, an ORCA `.out`, a molecule's
+`.xyz` and a Fortran `.f90` were each offered as a download, though each
+is plain text.
+
+**The bytes decide.** The server reads the first 8 kB of any file whose
+name it does not know. A NUL byte, or bytes that are not UTF-8, make it
+a binary; anything else is text and opens. The name still answers where
+it is certain: pictures, archives, office files and checkpoints such as
+`.chk` and `.gbw` are never read. `.dat` left the trusted list, because
+it is as often a program's unformatted binary as a column of numbers.
+
+**Code is drawn as code.** Every text file that is not prose skips the
+spell checker. Prose here means LaTeX, BibTeX, Markdown, `.txt` and a name
+with no extension. These files used to get LaTeX's mode, which drew
+`%mem=4GB` as a comment and every `$` as maths. Now a source file is drawn
+in its own language, with the same near-monochrome look and colour switch
+as a Python script. About forty extensions have a language, including
+Fortran, C and C++, shell and job scripts, Julia, R, MATLAB, JSON, YAML
+and TOML. Each language is fetched the first time a file of it opens,
+because the editor is in the first paint and its budget has no room for
+modes nobody may open. A program's input or output has no language and
+is plain text, which is what it is.
+
+**Large outputs.** A text file over 2 MB has no shared document. The
+editor used to bind to it anyway and showed an empty page marked
+offline, which kept nothing typed into it. It now opens for reading,
+with a notice saying so and naming the limit. Past 10 MB, which the file
+route does not hand over, the file view offers a download and says the
+file is too large to open here.
+
+`e2e/specs/any-text.spec.ts` opens an `.xyz`, a `.gjf` and an `.f90`,
+types into the last and sees it reach disk. It sees a binary under an
+unknown suffix offered as a download, a 3 MB output open read-only, and
+a 12 MB one shown as too large.

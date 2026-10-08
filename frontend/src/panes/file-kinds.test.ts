@@ -16,7 +16,10 @@ import {
   isTeX,
   isText,
   isViewable,
+  EDITABLE_TEXT_BYTES,
+  READABLE_TEXT_BYTES,
   kindOf,
+  learnKinds,
 } from "./file-kinds";
 
 const here = dirname(fileURLToPath(import.meta.url));
@@ -91,29 +94,90 @@ describe("what kind of thing a file is", () => {
     expect(isScript("scripts/fig.py")).toBe(true);
     expect(isScript("scripts/plotstyle.mplstyle")).toBe(false);
   });
+
+  test("any name nobody lists is text, and code rather than prose", () => {
+    // The editor used to open eighteen suffixes. A program's input and
+    // output, a molecule and a source file in any language are text, and
+    // none of them is prose for the spell checker to underline.
+    for (const name of [
+      "calc/water.gjf", "calc/water.inp", "calc/water.out", "geom/benzene.xyz",
+      "src/integrals.f90", "src/main.cpp", "md/run.mdp", "job.slurm", "notes.unheardof",
+    ]) {
+      expect(kindOf(name), name).toBe("text");
+      expect(isCode(name), name).toBe(true);
+    }
+    expect(isCode("README")).toBe(false);
+    expect(isCode("notes.txt")).toBe(false);
+  });
+
+  test("a binary is known by its name, or by what the server read in it", () => {
+    expect(kindOf("calc/water.chk")).toBe("other");
+    expect(kindOf("archive.zip")).toBe("other");
+    // A suffix no list names, holding a binary: only the server, which has
+    // the bytes, can say so, and it says so in the tree.
+    expect(kindOf("calc/run.out2")).toBe("text");
+    learnKinds({
+      type: "dir", path: "", children: [
+        { type: "dir", path: "calc", children: [
+          { type: "file", path: "calc/run.out2", kind: "binary" },
+        ] },
+      ],
+    });
+    expect(kindOf("calc/run.out2")).toBe("other");
+    expect(isText("calc/run.out2")).toBe(false);
+    // A new tree is the whole project, so what it no longer says is gone.
+    learnKinds({ type: "dir", path: "", children: [] });
+    expect(kindOf("calc/run.out2")).toBe("text");
+  });
 });
 
-test("every suffix the server will hand over as text is text here too", () => {
-  // Not equality: the two sets answer different questions. The server's
-  // decides what may be read off disk as UTF-8, which is a question about
-  // bytes; this one decides how to draw a row and which viewer to open. But
-  // containment has to hold in this direction, because a file the server
-  // will happily open and this set does not know about is shown to the
-  // writer as an unopenable binary -- which is exactly the class of bug
-  // that had `.pdf` stuck between three disagreeing answers.
+test("the names called binary here are the server's, and its text is text", () => {
+  // This side has no bytes and answers from the name, so where it calls a
+  // name binary the server must too, or a file the server would open is
+  // shown as a download; and the reverse, or a file the server refuses is
+  // handed to the editor. `.eps` is the one difference, and it is a
+  // picture to the server rather than text.
   const python = readFileSync(
     join(here, "..", "..", "..", "nexttex", "project.py"),
     "utf-8",
   );
-  const block = python.slice(python.indexOf("TEXT_SUFFIXES"));
-  const suffixes = [...block.slice(0, block.indexOf("}")).matchAll(/"(\.[a-z0-9]+)"/g)]
-    .map(([, suffix]) => suffix);
-
-  expect(suffixes.length).toBeGreaterThan(8);
-  for (const suffix of suffixes) {
+  const listed = (name: string) => {
+    const block = python.slice(python.indexOf(`${name} = {`));
+    return [...block.slice(0, block.indexOf("}")).matchAll(/"(\.[a-z0-9]+)"/g)]
+      .map(([, suffix]) => suffix);
+  };
+  const binary = listed("BINARY_SUFFIXES");
+  expect(binary.length).toBeGreaterThan(20);
+  for (const suffix of binary) {
+    // Not text, rather than "other": an `.avif` is a picture the browser
+    // draws, which is a kind the server has no reason to know.
+    expect(isText(`a${suffix}`), `${suffix} is binary to the server but text here`)
+      .toBe(false);
+  }
+  const own = readFileSync(join(here, "file-kinds.ts"), "utf-8");
+  const block = own.slice(own.indexOf("const BINARY = new Set(["));
+  const here_ = [...block.slice(0, block.indexOf("]);")).matchAll(/"(\.[a-z0-9]+)"/g)]
+    .map(([, suffix]) => suffix)
+    .filter((suffix) => suffix !== ".eps");
+  expect(new Set(here_)).toEqual(new Set(binary));
+  for (const suffix of listed("TEXT_SUFFIXES")) {
     expect(isText(`a${suffix}`), `${suffix} is text to the server but not here`)
       .toBe(true);
   }
+});
+
+test("the size limits are the server's", () => {
+  // The editor reads a file over the first read-only and offers one over
+  // the second as a download; the server is what enforces both, so a
+  // number here that drifted from it would promise what it refuses.
+  const limit = (file: string) => {
+    const source = readFileSync(join(here, "..", "..", "..", ...file.split("/")), "utf-8");
+    const found = source.match(/^MAX_TEXT_BYTES = (.+)$/m);
+    expect(found, file).not.toBeNull();
+    return Function(`return ${found![1]}`)() as number;
+  };
+  expect(EDITABLE_TEXT_BYTES).toBe(limit("server/collab/store.py"));
+  expect(READABLE_TEXT_BYTES).toBe(limit("server/main.py"));
 });
 
 /** Which files a writer would plot.
