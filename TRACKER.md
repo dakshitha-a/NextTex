@@ -299,14 +299,7 @@ OpenAI provider against OpenAI itself.
       retry; the first two passed 10 of 10 alone. Not read further,
       since none recurred in the two runs after. `menus-contrast.spec.ts:668`
       failed once more on the 4.29.0 check, the light shell's card over a
-      cross-reference not opening, and passed on its retry; that is the
-      reference hover under load below.
-- [ ] **`e2e/specs/latex-links.spec.ts:112`, the reference hover, under
-      load.** Run with `writing.spec.ts` at `--repeat-each=6` it failed
-      2 of 156 on 4.13.1's interface and on 4.13.3's alike, the card
-      never appearing; alone it passed 12 of 12. Not caused by the
-      performance run; the likeliest cause is a document change arriving
-      inside the card's rest and closing it.
+      cross-reference not opening, and passed on its retry.
 
 ### Never run against the real thing
 

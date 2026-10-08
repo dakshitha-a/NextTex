@@ -254,7 +254,9 @@ else.
   dismisses the card. The editor's card stays while the pointer is over
   the thing or over the card and goes 300 ms after it has left both, so
   the pointer can travel to the card's buttons; a press on a button is a
-  click, and the card goes after it.
+  click, and the card goes after it. A change to the thing closes its
+  card; a change elsewhere in the document, a co-author's typing, leaves
+  it where its text is.
 - Anything that floats over the editor about a piece of its text, the
   hover card and the selection's verb row, is placed by `placeClear` in
   `frontend/src/panes/place-clear.ts`: above the block's first line when

@@ -1,4 +1,4 @@
-import { test, expect, openFolders } from "../fixtures";
+import { test, expect, openFolders, openProject } from "../fixtures";
 import type { Page } from "@playwright/test";
 import { writeFileSync } from "node:fs";
 import { join } from "node:path";
@@ -122,6 +122,45 @@ test("hovering a reference says where it goes and how to get there", async ({
   // The place in the mono, file:line, as the page draws the card.
   await expect(tip.locator(".nx-link-place")).toHaveText(/^main\.tex:\d+$/);
   await expect(tip).toContainText(/click to go there/);
+});
+
+test("a reference's card stays while a co-author types somewhere else", async ({
+  app, project, tab, browser,
+}) => {
+  /* Any change to the document closed every open card, and the pointer
+     resting where it was drew nothing until it moved: under load the
+     reference hover above failed that way, and a writer with a co-author
+     typing lost each card they rested on.  A change elsewhere now moves
+     the card with its text; one to the thing itself still closes it. */
+  await write(tab, "Once more, \\ref{sec:results}.");
+  const second = await browser.newPage();
+  await second.goto(`${app.base}/?token=${app.token}`);
+  await openProject(second, project.root);
+  await expect(second.locator(".cm-content")).toContainText("documentclass", { timeout: 30_000 });
+
+  const point = await pointAt(tab, "Once more", "sec:results");
+  await tab.mouse.move(point!.x, point!.y);
+  await tab.mouse.move(point!.x + 1, point!.y);
+  const tip = tab.locator(".nx-link-tooltip");
+  await expect(tip).toBeVisible({ timeout: 10_000 });
+
+  await second.locator(".cm-content").click();
+  await second.keyboard.press("Control+End");
+  await second.keyboard.type("\nA line from the co-author.");
+  await expect(tab.locator(".cm-content")).toContainText("from the co-author", { timeout: 10_000 });
+  await tab.waitForTimeout(500);
+  await expect(tip).toBeVisible();
+  await expect(tip).toContainText(/click to go there/);
+
+  // The co-author editing the reference itself closes it.
+  await second.keyboard.press("ArrowUp");
+  await second.keyboard.press("End");
+  await second.keyboard.press("ArrowLeft");
+  await second.keyboard.press("ArrowLeft");
+  await second.keyboard.type("x");
+  await expect(tab.locator(".cm-content")).toContainText("sec:resultsx", { timeout: 10_000 });
+  await expect(tip).toHaveCount(0);
+  await second.close();
 });
 
 test("a reference to a label that is not there says so rather than jumping", async ({

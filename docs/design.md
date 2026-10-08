@@ -10192,8 +10192,13 @@ never by a neighbour, is placed by `placeClear` from the range's line
 blocks and placed again when it grows (the maths when KaTeX lands, a
 figure when its thumbnail does), and stays while the pointer is over the
 range or the card, going 300 ms after it has left both, at once on a key
-press, a scroll, a mousedown outside it, a document change or the window
-losing focus. A mousedown on the card is kept from the editor, so a
+press, a scroll, a mousedown outside it, a change to the thing itself or
+the window losing focus. Until 8 October 2026 any change to the document
+closed it, so a co-author typing three paragraphs away took the card from
+under a resting pointer, which drew nothing until it moved; a change
+elsewhere now carries the card with its text
+(`e2e/specs/latex-links.spec.ts`, "a reference's card stays while a
+co-author types somewhere else"). A mousedown on the card is kept from the editor, so a
 press on a button is an ordinary click that moves no selection, and the
 card goes after the click, the drawer it opened being where the writer
 looks next. A pointer that has left and comes back to the text gets a

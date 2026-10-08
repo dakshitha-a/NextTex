@@ -31,7 +31,8 @@
  *  stays while the pointer is over the hovered range or over the card,
  *  and goes 300 ms after it has left both, at once if it comes back.  A
  *  key press, a scroll, a mousedown outside the card, a change to the
- *  document or the window losing focus close it at once.  A mousedown on
+ *  hovered thing or the window losing focus close it at once; a change
+ *  elsewhere in the document moves it with its text.  A mousedown on
  *  the card is kept from the editor, so a press on one of the card's
  *  buttons is an ordinary click that neither moves the selection nor
  *  closes the card before the click lands; the card closes after the
@@ -119,7 +120,27 @@ export function hoverCard(source: Source): Extension {
 
       update(update: ViewUpdate) {
         if (!update.docChanged) return;
-        if (this.open) this.close();
+        if (this.open) {
+          // A change to the thing itself closes its card, since what the
+          // card says may no longer be true.  A change elsewhere, a
+          // collaborator typing or the agent editing another paragraph,
+          // leaves it: it used to close every card in the document, and
+          // the pointer resting where it was drew nothing until it moved,
+          // which is the reference hover that failed under load.
+          const { from, to } = this.open;
+          let touched = false;
+          update.changes.iterChangedRanges((changedFrom, changedTo) => {
+            if (changedFrom <= to && changedTo >= from) touched = true;
+          });
+          if (touched) this.close();
+          else {
+            this.open.from = update.changes.mapPos(from, 1);
+            this.open.to = update.changes.mapPos(to, -1);
+            // Layout cannot be read inside an update; the card moves with
+            // its text at the next measure.
+            this.view.requestMeasure({ key: this, read: () => this.place() });
+          }
+        }
         if (this.quiet) {
           const from = update.changes.mapPos(this.quiet.from, -1);
           const to = update.changes.mapPos(this.quiet.to, 1);
