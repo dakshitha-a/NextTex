@@ -64,3 +64,37 @@ def test_resolution_only_where_the_page_holds_one_picture():
 
 def test_a_document_that_is_not_there_has_no_entries():
     assert figures.listing({"main.tex": MAIN}, "gone.tex") == []
+
+
+def test_a_caption_is_read_whole_however_long():
+    # A caption past twelve hundred characters read as empty.
+    long = "The routes to the products, " + "and the levels between them, " * 150 + "end."
+    texts = {"main.tex": "\\begin{document}\\begin{figure}\\caption{" + long + "}\\end{figure}\\end{document}"}
+    [entry] = figures.listing(texts, "main.tex")
+    assert entry["caption"].startswith("The routes to the products, and the levels")
+
+
+def test_a_caption_reads_as_the_page_sets_it():
+    # The writer's own macros written out, maths as its letters and small
+    # figures, a texorpdfstring once, and a reference as its number.
+    texts = {
+        "main.tex": r"""\newcommand{\Sz}{\ensuremath{\mathrm{S_0}}}
+\newcommand{\methane}{\ensuremath{\mathrm{CH_4}}}
+\begin{document}
+\begin{figure}
+  \caption{\Sz{}/\Sone{} seam to NH + \methane{} at $6.17 \pm 0.09$~eV, $\omega$B97XD,
+  1~cm$^{-1}$, eqn~\eqref{eq:k}, \texorpdfstring{$\mathrm{NH}(X\,^3\Sigma^-)$}{NH}, C--N, {\bf g}.}
+\end{figure}
+\end{document}""",
+    }
+    [entry] = figures.listing(texts, "main.tex", {"eq:k": {"number": "3", "page": "1"}})
+    assert entry["caption"] == "S₀/Sone seam to NH + CH₄ at 6.17 ± 0.09 eV, ωB97XD, 1 cm⁻¹, eqn (3), NH(X³Σ⁻), C–N, g."
+
+
+def test_an_input_written_with_a_macro_is_followed():
+    texts = {
+        "paper.tex": "\\newcommand{\\figdir}{figs}\n\\begin{document}\n\\input{\\figdir/one}\n\\end{document}",
+        "figs/one.tex": "\\begin{figure}\\caption{Inside}\\end{figure}",
+    }
+    [entry] = figures.listing(texts, "paper.tex")
+    assert (entry["file"], entry["caption"]) == ("figs/one.tex", "Inside")

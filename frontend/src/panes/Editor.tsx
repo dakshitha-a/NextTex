@@ -33,7 +33,7 @@ import { EDITABLE_TEXT_BYTES, isCode, isMarkdown, isTeX } from "./file-kinds";
 import { pasteExtension } from "./paste";
 import { reconciled } from "./parked";
 
-import { outline as sectionsOf, sameOutline } from "../outline";
+import { contextOf, outline as sectionsOf, sameOutline, type OutlineContext } from "../outline";
 import { sectionAtTop, trailTo } from "../section-at-top";
 import {
   useEditorTheme,
@@ -130,6 +130,9 @@ export type EditorHandle = {
   builtPlace(path: string, line: number, column: number): { lines: string[]; line: number; column: number } | null;
   /** Where on a line of the page's text the build before it differed. */
   changedColumn(path: string, line: number): number;
+  /** The line of the heading of `kind` nearest `line` in an open file as
+   *  it is now, or null when the file is not open or has none. */
+  headingNear(path: string, kind: string, line: number): number | null;
 };
 
 export default function Editor({
@@ -481,6 +484,11 @@ export default function Editor({
   // survive by never being touched.
   const viewing = useRef<{ path: string; sha: string; scroll: number } | null>(null);
   const symbols = useRef<Symbols | null>(null);
+  /** The project's macros and heading commands, from `symbols`, which the
+   *  outline of one file cannot see; and the outline's refresh, to run
+   *  again when they arrive. */
+  const outlineContext = useRef<OutlineContext>({});
+  const refreshOutlineRef = useRef<(() => void) | null>(null);
 
   // Everything bound to the project that was open before this one has to
   // go when it does. Buffers are keyed by path, and `main.tex` is `main.tex`
@@ -592,11 +600,12 @@ export default function Editor({
      *  rather than from a compiled .toc: a .toc only exists after a build
      *  and lags the text by a whole compile, and the outline is wanted
      *  while the section is still being typed. */
+    refreshOutlineRef.current = () => refreshOutline();
     const refreshOutline = () => {
       const editor = view.current;
       const path = viewing.current?.path ?? current.current;
       const text = editor && path ? editor.state.doc.toString() : "";
-      const next = text ? sectionsOf(text) : [];
+      const next = text ? sectionsOf(text, outlineContext.current) : [];
       const now = get().outline;
       // Typing prose changes the text on every keystroke and the section
       // list almost never; keeping the old array keeps the panel still.
@@ -1349,6 +1358,16 @@ export default function Editor({
           : buildLines.current.toBuilt(get().activePreview, path, line, column, now);
       },
       changedColumn: (path, line) => buildLines.current.changedColumn(get().activePreview, path, line),
+      headingNear: (path, kind, line) => {
+        const now = textOf(path);
+        if (now === null) return null;
+        let best: number | null = null;
+        for (const heading of sectionsOf(now, outlineContext.current)) {
+          if (heading.kind !== kind) continue;
+          if (best === null || Math.abs(heading.line - line) < Math.abs(best - line)) best = heading.line;
+        }
+        return best;
+      },
     });
 
     return () => {
@@ -1374,7 +1393,10 @@ export default function Editor({
     api
       .symbols(projectId)
       .then((found) => {
-        if (!cancelled) symbols.current = found;
+        if (cancelled) return;
+        symbols.current = found;
+        outlineContext.current = contextOf(found.commands);
+        refreshOutlineRef.current?.();
       })
       .catch(() => undefined);
     return () => {

@@ -24,7 +24,7 @@ from __future__ import annotations
 import re
 from pathlib import Path
 
-from .figures import INPUT, _plain, _resolve, _uncommented
+from .figures import INPUT, _plain, _resolve, _uncommented, macros_of
 from .symbols import _balanced
 
 #: The levels of the sectioning commands, as the outline in the editor
@@ -42,39 +42,67 @@ NUMBERLINE = re.compile(r"\\numberline\s*\{([^{}]*)\}")
 LOOKAHEAD = 6
 
 
-def _title(raw: str) -> str:
-    """A heading as words, with its inline maths read as its letters:
-    `CH$_4$` is "CH4", not "CH _4"."""
-    def maths(match: re.Match[str]) -> str:
-        inner = re.sub(r"[_^]\{([^{}]*)\}", r"\1", match.group(1))
-        return re.sub(r"[_^]", "", inner)
-    return _plain(re.sub(r"\$([^$]*)\$", maths, raw))
+def _title(raw: str, macros: dict[str, str] | None = None) -> str:
+    """A heading as words, with its inline maths as the page sets it:
+    `CH$_4$` is "CH₄", not "CH _4"."""
+    return _plain(raw, macros)
 
 
-def _walk(path: str, texts: dict[str, str], seen: set[str], out: list[dict]) -> None:
+#: A macro of one argument whose body is a sectioning command on that
+#: argument, `\\newcommand{\\backmatter}[1]{\\section*{#1}...}`.
+WRAPPER = re.compile(r"\\(?:new|renew|provide)command\*?\s*\{?\\([A-Za-z]+)\}?\s*\[1\]\s*(?=\{)")
+WRAPPED = re.compile(r"\\(part|chapter|section|subsection|subsubsection|paragraph)(\*?)\s*(?:\[[^\]]*\])?\s*\{\s*#1\s*\}")
+
+
+def heading_macros(texts: dict[str, str]) -> dict[str, tuple[str, bool]]:
+    """The project's own macros that make a heading of their argument, by
+    name, with the kind of heading and whether it is starred. A class or a
+    template gives its back matter a command of its own, and the Typeset
+    list did not know those were headings."""
+    found: dict[str, tuple[str, bool]] = {}
+    for body in texts.values():
+        clean = _uncommented(body)
+        for match in WRAPPER.finditer(clean):
+            inside = WRAPPED.search(_balanced(clean, match.end(), limit=2000))
+            if inside and match.group(1) not in found:
+                found[match.group(1)] = (inside.group(1), bool(inside.group(2)))
+    return found
+
+
+def _walk(
+    path: str, texts: dict[str, str], seen: set[str], out: list[dict],
+    macros: dict[str, str] | None = None, wrappers: dict[str, tuple[str, bool]] | None = None,
+) -> None:
     if path in seen or path not in texts:
         return
     seen.add(path)
+    macros = macros or {}
+    wrappers = wrappers or {}
     text = texts[path]
     clean = _uncommented(text)
     events: list[tuple[int, str, object]] = []
     for match in HEADING.finditer(clean):
-        events.append((match.start(), "heading", match))
+        events.append((match.start(), "heading", (match.group(1), bool(match.group(2)), match)))
+    if wrappers:
+        made = re.compile(r"\\(" + "|".join(map(re.escape, wrappers)) + r")(?![A-Za-z])\s*(?=\{)")
+        for match in made.finditer(clean):
+            kind, starred = wrappers[match.group(1)]
+            events.append((match.start(), "heading", (kind, starred, match)))
     for match in INPUT.finditer(clean):
         events.append((match.start(), "input", match.group(1)))
     for _, what, item in sorted(events, key=lambda event: event[0]):
         if what == "input":
-            child = _resolve(item, path, texts)
+            child = _resolve(item, path, texts, macros)
             if child:
-                _walk(child, texts, seen, out)
+                _walk(child, texts, seen, out, macros, wrappers)
             continue
-        match = item
-        kind = match.group(1)
-        title = _title(_balanced(clean, match.end(), limit=600))[:200]
+        kind, starred, match = item
+        # Read whole, however long: a title cut at a limit read as empty.
+        title = _title(_balanced(clean, match.end(), limit=len(clean)), macros)[:200]
         out.append({
             "kind": kind,
             "level": LEVELS[kind],
-            "starred": bool(match.group(2)),
+            "starred": starred,
             "title": title or "(untitled)",
             "file": path,
             "line": text.count("\n", 0, match.start()) + 1,
@@ -118,26 +146,51 @@ def listing(texts: dict[str, str], document: str, toc: str = "") -> list[dict]:
     `texts` is every `.tex` in the project, path to text; `toc` is the
     text of the document's `.toc`, empty before any build."""
     tex = {path: body for path, body in texts.items() if path.lower().endswith(".tex")}
+    # Macros and heading commands may be defined in a package the project
+    # keeps beside its files.
+    sources = {
+        path: body for path, body in texts.items() if path.lower().endswith((".tex", ".sty", ".cls"))
+    }
+    macros = macros_of(sources)
     headings: list[dict] = []
-    _walk(document, tex, set(), headings)
+    _walk(document, tex, set(), headings, macros, heading_macros(sources))
     lines = contents(toc)
     at = 0
     for heading in headings:
         heading["number"] = None
         heading["page"] = None
-        if heading["starred"]:
+        # Paired by kind and title first, so a starred heading that adds
+        # its own contents line takes that line, and kind alone after,
+        # since a heading's short form goes to the contents and its long
+        # form is the source's. A starred heading takes only a line of its
+        # own title: pairing by kind alone gave a numbered heading the
+        # line of a starred one before it, and every heading after it the
+        # number and page of the one before.
+        window = range(at, min(len(lines), at + LOOKAHEAD))
+        same = _folded(heading["title"])
+        found = next((ahead for ahead in window if lines[ahead]["kind"] == heading["kind"]
+                      and _folded(lines[ahead]["title"]) == same), None)
+        if found is None and not heading["starred"]:
+            found = next((ahead for ahead in window if lines[ahead]["kind"] == heading["kind"]
+                          and lines[ahead]["number"] is not None), None)
+            if found is None:
+                found = next((ahead for ahead in window if lines[ahead]["kind"] == heading["kind"]), None)
+        if found is None:
             continue
-        for ahead in range(at, min(len(lines), at + LOOKAHEAD)):
-            if lines[ahead]["kind"] == heading["kind"]:
-                line = lines[ahead]
-                heading["number"] = line["number"]
-                try:
-                    heading["page"] = int(line["page"])
-                except ValueError:
-                    heading["page"] = None
-                at = ahead + 1
-                break
+        line = lines[found]
+        heading["number"] = line["number"]
+        try:
+            heading["page"] = int(line["page"])
+        except ValueError:
+            heading["page"] = None
+        at = found + 1
     return headings
+
+
+def _folded(title: str) -> str:
+    """A title reduced to its letters and digits, for pairing a heading
+    with its contents line."""
+    return "".join(char for char in title.lower() if char.isalnum())
 
 
 WRITEFILE = re.compile(r"\\@writefile\s*\{toc\}\s*(?=\{)")

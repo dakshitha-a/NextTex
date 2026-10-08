@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { clean, headingAt, outline } from "./outline";
+import { clean, contextOf, headingAt, outline } from "./outline";
 
 describe("outline", () => {
   it("reads the sectioning commands in order, with their lines", () => {
@@ -188,5 +188,57 @@ describe("headingAt", () => {
 
   it("reports nothing above the first heading, which is a real place", () => {
     expect(headingAt(outline("x\n\\section{A}"), 1)).toBe(-1);
+  });
+});
+
+describe("outline with the project's commands", () => {
+  const context = contextOf([
+    { name: "Sz", args: 0, definition: "\\ensuremath{\\mathrm{S_0}}" },
+    { name: "figdir", args: 0, definition: "figures" },
+    { name: "backmatter", args: 1, definition: "%\n  \\section*{#1}\\addcontentsline{toc}{section}{#1}" },
+    { name: "two", args: 2, definition: "#1#2" },
+  ]);
+
+  it("writes the project's macros out in a title", () => {
+    expect(outline("\\section{The \\Sz{} minimum}", context)[0].title).toBe("The S₀ minimum");
+  });
+
+  it("lists a heading the project's own command makes", () => {
+    const found = outline("\\section{Conclusions}\n\\backmatter{Data availability}", context);
+    expect(found.map((h) => [h.kind, h.title, h.line])).toEqual([
+      ["section", "Conclusions", 1],
+      ["section", "Data availability", 2],
+    ]);
+  });
+
+  it("follows an input whose folder is a macro", () => {
+    const [file] = outline("\\input{\\figdir/pipeline}", context);
+    expect(file.path).toBe("figures/pipeline.tex");
+  });
+
+  it("leaves out a heading inside a definition in the preamble", () => {
+    const found = outline("\\newcommand{\\back}[1]{\\section*{#1}}\n\\begin{document}\n\\section{Real}", context);
+    expect(found.map((h) => h.title)).toEqual(["Real"]);
+  });
+});
+
+describe("clean with maths", () => {
+  it("sets subscripts, superscripts and Greek as the page does", () => {
+    expect(clean("Which surface carries the NH + CH$_4$ channel?")).toBe("Which surface carries the NH + CH₄ channel?");
+    expect(clean("What this means for the $\\mathrm{NH}(X\\,^3\\Sigma^-)$ signal")).toBe("What this means for the NH(X³Σ⁻) signal");
+    expect(clean("at $6.17 \\pm 0.09$~eV and 1~cm$^{-1}$")).toBe("at 6.17 ± 0.09 eV and 1 cm⁻¹");
+  });
+
+  it("gives a texorpdfstring's TeX form once", () => {
+    expect(clean("\\texorpdfstring{Population Dynamics with $\\omega$B97XD.}{Population Dynamics with wB97XD.}"))
+      .toBe("Population Dynamics with ωB97XD.");
+  });
+
+  it("drops a switch of face and keeps what it sets", () => {
+    expect(clean("along ({\\bf g}) and \\emph{h}")).toBe("along (g) and h");
+  });
+
+  it("keeps a dollar sign that is not maths", () => {
+    expect(clean("Costs in \\$ and more")).toBe("Costs in $ and more");
   });
 });
