@@ -90,6 +90,22 @@ describe("toBuilt", () => {
     expect(b.toBuilt("main", "main.tex", 6, 7, now)).toMatchObject({ line: 4, column: 7 });
   });
 
+  it("reads a file opened after the build began as it was opened", () => {
+    // The build a project starts as it opens snapshots no file, since the
+    // editor has none yet.
+    const b = new BuildLines();
+    const opened = ["\\begin{document}", "First paragraph.", "", "Second paragraph."].join("\n");
+    b.started("main", new Map());
+    b.opened("main.tex", opened);
+    b.finished("main", false);
+    const now = ["\\begin{document}", "A new one.", "", "First paragraph.", "", "Second paragraph."].join("\n");
+    expect(b.toBuilt("main", "main.tex", 6, 0, now)).toMatchObject({ line: 4 });
+    // A build that read the file from the editor takes over.
+    b.started("main", new Map([["main.tex", now]]));
+    b.finished("main", false);
+    expect(b.toBuilt("main", "main.tex", 6, 0, now)).toMatchObject({ line: 6 });
+  });
+
   it("reads the text as it is when no build of the document is known", () => {
     const b = new BuildLines();
     expect(b.toBuilt("main", "main.tex", 2, 3, "a\nbcdef")).toEqual({ lines: ["a", "bcdef"], line: 2, column: 3 });

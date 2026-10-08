@@ -23,12 +23,27 @@ import { diffArrays } from "diff";
  *  for the project meant a build of the second replaced the text the
  *  first one's page was built from, and a jump from that page mapped its
  *  line through the wrong text.
+ *
+ *  A file opened after a build started is not in that build's snapshot,
+ *  and the build a project starts as it opens starts before the editor
+ *  has a single file. So the text a file had when it was opened stands in
+ *  until a build that read it from the editor finishes: it is what was on
+ *  disk, which is what the page on screen was built from. Without it a
+ *  caret two new lines below a paragraph, with the first build of the
+ *  session not yet back, was looked up as it stood, two lines off.
  */
 export class BuildLines {
   private pending = new Map<string, Map<string, string>>();
   private shown = new Map<string, Map<string, string>>();
   /** The snapshot each document's page showed before the last one. */
   private before = new Map<string, Map<string, string>>();
+  /** Each file's text as it was opened, for a page built before then. */
+  private atOpen = new Map<string, string>();
+
+  /** `path` was opened in the editor with this text. */
+  opened(path: string, text: string): void {
+    this.atOpen.set(path, text);
+  }
 
   /** A build of `document` started: these are the files as they stand. */
   started(document: string, texts: Map<string, string>): void {
@@ -50,7 +65,7 @@ export class BuildLines {
 
   /** The text `document`'s PDF on screen was built from, when it is known. */
   builtText(document: string, path: string): string | undefined {
-    return this.shown.get(document)?.get(path);
+    return this.shown.get(document)?.get(path) ?? this.atOpen.get(path);
   }
 
   /** `line` of the built text, as a line of `now`. */

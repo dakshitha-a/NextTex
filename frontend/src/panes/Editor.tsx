@@ -1189,6 +1189,7 @@ export default function Editor({
           };
         }
         buffers.current.set(path, buffer);
+        buildLines.current.opened(path, buffer.state.doc.toString());
       } else if (buffer.shared) {
         // Parked, and the shared text may have moved on without it: an
         // outside rewrite, the agent, a collaborator.  See `parked.ts`.
