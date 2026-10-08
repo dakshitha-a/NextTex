@@ -35,16 +35,13 @@ a program's input or output, a molecule, a source file in any language,
 drawn in its language when one is known. It turned up and fixed a text
 file over 2 MB opening as an empty editable page that kept nothing.
 
-The reopened-tab fix closed on 2 October 2026 at
-4.25.1, with its tracker at
-https://claude.ai/artifact/BZSyPsyYWgmrVGcHr38r1z: a file closed and
-opened again in one page was bound to its destroyed shared document. It
-turned up a server socket that stops being fed without being closed,
+The reopened-tab fix closed on 2 October 2026 at 4.25.1: a file closed
+and opened again in one page was bound to its destroyed shared document.
+It turned up a server socket that stops being fed without being closed,
 fixed in its own commit.
 
 Before it, the venue templates run closed on 2 October 2026 at
-4.25.0, from 4.24.1, with its tracker at
-https://claude.ai/artifact/8jcpVy2s2vz54xNhFoqsBu. Done: each template's
+4.25.0, from 4.24.1. Done: each template's
 shape in a `template.toml` of its own; twelve venue templates on their
 publishers' TeX Live classes and eleven guides to the venues no licence
 lets NextTex ship; the template browser, with the class installed on
@@ -64,8 +61,7 @@ in the app, before Write together at the writer's word. It turned up and
 fixed a peek at History taking the caret out of the source, the
 References drawer's publisher chooser squeezing the query, a citation
 key taken before a full stop eating the stop, and the tour having been
-filmed at one pixel per point whatever its setting said. Its tracker
-page is https://claude.ai/artifact/EzHnwuUkGovu7nRrgjSnoP.
+filmed at one pixel per point whatever its setting said.
 
 The roadmap run closed on 1 October 2026 at
 4.21.1, from 4.13.5 in nine pushes: the first eight items of
@@ -84,8 +80,7 @@ class its own rule outranked, a reply-letter path with an underscore
 breaking the build, the guide's measured bundle and the style guide's
 segmented limit behind the code, and a History version folded away
 while asked about answering "no such version". Venue templates stay on
-the roadmap for a run of their own. Its tracker page is
-https://claude.ai/artifact/Lttcw8HSYKBGfhLUyVmy9x.
+the roadmap for a run of their own.
 
 The performance run closed on 1 October 2026 at
 4.13.5, at the writer's request, from 4.13.0 in five pushes: every item
@@ -118,9 +113,7 @@ text it held lives in `docs/install.md`, `docs/guide.md` and
 `docs/keyboard.md`. It turned up and fixed a restore from History that
 changed the file on disk and left an open editor showing what had been
 undone, with the next write ready to put the deletion back, and a host's
-start-at-boot refusal that pointed at a README passage that had moved. Its
-design and tracker page is
-https://claude.ai/artifact/T3da4GzKr4V5FHdafYxZAm.
+start-at-boot refusal that pointed at a README passage that had moved.
 
 The right-click menus run closed on 30 September
 2026 at 4.11.0, at the writer's request: a file tree row, the tree's empty
@@ -177,8 +170,7 @@ fixed or set down below: the cgroup half of Q-007, the kit's remaining
 raw controls (Q-038), the laptop's task that only an administrator can
 change (Q-070), and the major upgrades Q-036 weighed.
 
-The probe itself closed on 25 September 2026 at 3.18.1. Its report page
-is https://claude.ai/artifact/4mdUwu1mLwVYquc7Bm7vkS.
+The probe itself closed on 25 September 2026 at 3.18.1.
 
 Before the probe: the pass after Opus 5.5 closed at 3.18.0 on 24 September 2026.
 It left nothing new in the backlog. The run before it, the roadmap, the
