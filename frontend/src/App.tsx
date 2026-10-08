@@ -636,7 +636,7 @@ export default function App() {
   const dropPreviews = useRef<((paths: string[], quiet: boolean) => Promise<void>) | null>(null);
   /** Where the agent last wrote, held until the build that edit scheduled
    *  has landed, because forward search reads the previous build's map. */
-  const agentWrote = useRef<{ path: string; line: number } | null>(null);
+  const agentWrote = useRef<{ path: string; line: number; text: string; column: number } | null>(null);
   /** Whether the build now running was caused by this person typing, which
    *  is what decides whether the preview follows their caret when it
    *  lands. */
@@ -1380,7 +1380,7 @@ export default function App() {
       if (busyTyping()) return;
       void openFile(path, line, undefined, false);
     };
-    handlers.onAgentEdit = async (path, line) => {
+    handlers.onAgentEdit = async (path, line, text, column) => {
       // Nothing to reload: the agent's edit went into the shared document,
       // so it is already on screen. What is left is going to look at it.
       refreshTree();
@@ -1389,7 +1389,7 @@ export default function App() {
       // the document as it was before this edit. The build that this edit
       // schedules is when there is something true to move to, so the place
       // is held here and used by `onCompileDone`.
-      agentWrote.current = { path, line };
+      agentWrote.current = { path, line, text, column };
       // Go and look at what changed, and never take the caret to do it.
       // This used to move the caret and then hand it back if the writer had
       // been in the composer, which spared one of the two places somebody
@@ -1440,12 +1440,18 @@ export default function App() {
         // The agent's line is one of the text just built; where on it the
         // agent wrote is where this build differs from the one before.
         const place = editor.current?.builtPlace(wrote.path, wrote.line, 0);
+        // A file no editor tab holds has no built text here, and the flash
+        // used to cover every line of type its line set. The edit itself
+        // says what the file became and where on the line it changed,
+        // which is the text this build read.
         void pdf.current?.reveal(wrote.path, place?.line ?? wrote.line, {
           gentle: true,
           afterBuild: true,
           source: place
             ? { lines: place.lines, column: editor.current?.changedColumn(wrote.path, place.line) ?? 0 }
-            : undefined,
+            : wrote.text
+              ? { lines: wrote.text.split("\n"), column: wrote.column }
+              : undefined,
         });
         return;
       }

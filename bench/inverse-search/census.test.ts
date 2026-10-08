@@ -189,7 +189,7 @@ async function census(doc: string, edit: Edit | null): Promise<Row[]> {
 test("census", async () => {
   mkdirSync(OUT, { recursive: true });
   const all: Row[] = [];
-  for (const doc of ["stress", "stress2"]) {
+  for (const doc of ["stress", "stress2", "displays"]) {
     all.push(...(await census(doc, null)));
     for (const edit of EDITS) if (edit.file === `${doc}.tex`) all.push(...(await census(doc, edit)));
   }

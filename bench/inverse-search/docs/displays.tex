@@ -1,0 +1,52 @@
+\documentclass{article}
+\usepackage{amsmath,amssymb}
+\pagestyle{plain}
+\begin{document}
+
+Displays set their pieces in an order the source does not write, so this
+document is mostly displays, each written with one row to a source line.
+
+\begin{align}
+  E &= \sum_{i=1}^{N} \alpha_i x_i + \frac{1}{2} \beta \\
+  F &= \prod_{k=0}^{M} \gamma_k y_k - \frac{3}{4} \delta \\
+  G &= \int_{0}^{T} \lambda(t) \, dt
+\end{align}
+
+The rows above are the energy, the force and the action.
+\begin{gather}
+  p = m v \\
+  L = r \times p \\
+  \tau = \frac{dL}{dt}
+\end{gather}
+
+A long one, broken by hand:
+\begin{multline}
+  H = \sum_{a} \frac{P_a^2}{2 M_a} + \sum_{i} \frac{p_i^2}{2 m} \\
+  + \sum_{a<b} \frac{Z_a Z_b}{R_{ab}} - \sum_{a,i} \frac{Z_a}{r_{ai}} \\
+  + \sum_{i<j} \frac{1}{r_{ij}}
+\end{multline}
+
+And a split inside one numbered equation:
+\begin{equation}
+  \begin{split}
+    u &= w + z \\
+      &= q \cdot s
+  \end{split}
+\end{equation}
+
+A function by cases:
+\begin{equation}
+  f(x) =
+  \begin{cases}
+    x^2 & \text{if } x \ge 0 \\
+    -x & \text{otherwise}
+  \end{cases}
+\end{equation}
+
+Two short rows that share their letters:
+\begin{align}
+  a &= b + c \\
+  c &= b + a
+\end{align}
+
+\end{document}

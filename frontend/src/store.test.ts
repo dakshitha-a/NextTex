@@ -2,6 +2,7 @@ import { describe, expect, test } from "vitest";
 import {
   chatFromTranscript,
   countDiff,
+  firstChangedColumn,
   firstChangedLine,
   get,
   markStale,
@@ -21,6 +22,25 @@ import {
 // function in `tests/test_agent_parity.py`, because one answer with three
 // implementations drifts apart silently and nothing in either language
 // would notice.
+// The flash after an agent's build is placed on its line by this column,
+// which is all there is to go on when no editor tab holds the file.
+describe("where on its line an edit begins", () => {
+  test("the first column the line differs at", () => {
+    const before = "\\section{One}\nThe decay is fast in hexane.\n";
+    const after = "\\section{One}\nThe decay is fast in cyclohexane.\n";
+    expect(firstChangedColumn(before, after, 2)).toBe("The decay is fast in ".length);
+  });
+
+  test("a new line, or one left as it was, starts at its beginning", () => {
+    expect(firstChangedColumn("a", "a\nb", 2)).toBe(0);
+    expect(firstChangedColumn("a\nb", "a\nb", 2)).toBe(0);
+  });
+
+  test("text added at a line's end is found at the end", () => {
+    expect(firstChangedColumn("abc", "abc def", 1)).toBe(3);
+  });
+});
+
 describe("where an edit begins", () => {
   test("identical text has no first changed line", () => {
     expect(firstChangedLine("a\nb\nc", "a\nb\nc")).toBe(1);

@@ -12276,3 +12276,39 @@ opens a note and finds `data-language="markdown"`, the heading at the
 strong weight and nothing italic after the `%` but the emphasis, then
 opens a `.txt` and finds no language and no styled span.
 
+## 115. Displays, row by row
+
+Two gaps the run on the flash after a build left behind, closed on 8
+October 2026 at the writer's request.
+
+**The flash covers the row the caret is on.** SyncTeX knows a source line
+and nothing finer, and for a display it knows less: every line of an
+`align` is answered with every row of it, and a `split` with the whole
+equation. The flash lined the caret's neighbours up with the page, and a
+row such as `a &= b + c` has three letters, too few to line up, so the
+whole display flashed. A row is now found by its letters, counted in any
+order, since a display sets a sum's limits above and below it and a
+fraction's parts stacked, and also in order, so `a = b + c` and
+`c = b + a` are two rows. A census of a document of displays,
+`bench/inverse-search/docs/displays.tex`, flashes 88 of its 98 words as
+one line of type, where it flashed 75.
+
+**A flash for a file no tab holds.** An agent's edit to a chapter the
+writer had not opened flashed every line of type its line set, since the
+preview had no text to line the place up with. The edit carries the file
+as the agent left it, and that text, with the column where the line
+changed, is what the flash now uses.
+
+**A double-click in a display selects what was clicked.** Every glyph of
+`displays.tex` was double-clicked in Chromium
+(`e2e/review/display-clicks.spec.ts`). A sum, product or integral sign
+selected its limit, or nothing: the sign was dropped as punctuation, so it
+had no letters to find. The sign is now a word of its own, and `\sum`
+is read as the sign, so it selects `\sum`. A click on a limit went to the
+sign, because a large sign's span stands over its limits and the browser
+gives the click to the span on top; the span whose middle is nearest the
+pointer is taken instead. A superscript 2 now selects the 2, a product's
+lower limit its letter, and an equation's number "(1)" the end of its
+row, where it had selected the 1 of a `\frac{1}{2}` beside it. How the
+selection looks is unchanged.
+

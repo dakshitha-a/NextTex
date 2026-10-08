@@ -211,22 +211,6 @@ OpenAI provider against OpenAI itself.
 
 ### Known gaps, with a cost somebody will eventually pay
 
-- [ ] **The flash after a build covers a whole display for a caret in
-      it.** The page sets a display's symbols in an order the source does
-      not write, as the double-click's own gap below says, so the letters
-      around a caret inside `\begin{equation}` seldom agree with the page
-      and every box of the display is flashed. The census counts these as
-      held but not as one line of type. A caret in a file no editor tab
-      holds, which an agent's edit can name, flashes every line its
-      source line set, since there is no text to line up.
-
-- [ ] **A click inside a displayed equation can select the wrong symbol.**
-      The census has "N", the upper limit of a sum, selecting `\sum`: the
-      page sets a display's pieces in an order the source does not write,
-      so the text around a glyph agrees with the source less than it does
-      in prose. Inline maths and every word of prose land; mapping a
-      display's layout back to its source would take a TeX parser.
-
 - [ ] **A text file that is not UTF-8 cannot be opened.** The tree reads
       the first 8 kB of a file it has no name for, so an old program's
       output in Latin-1 is a download, and one that turns to Latin-1 past

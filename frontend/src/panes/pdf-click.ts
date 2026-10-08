@@ -13,6 +13,9 @@ import type { WordHint } from "./locate-word";
  *  `pieces` is that text, one entry per span or break; `piece` and
  *  `offset` say where the pointer is.
  */
+/** The display symbols `locate-word.ts` compares as letters. */
+const SYMBOL = /[∑∏∐∫∬∭∮⋃⋂⨁⨂≥≤≠≈×⋅·∞∂∇±]/;
+
 export function wordAt(pieces: string[], piece: number, offset: number): WordHint {
   let text = "";
   let at = 0;
@@ -31,10 +34,17 @@ export function wordAt(pieces: string[], piece: number, offset: number): WordHin
   const brokenOn = (index: number) => text[index] === "-" && text[index + 1] === "\n" && /\p{Ll}/u.test(text[index + 2] ?? "");
 
   // A pointer just past the last letter is still on the word.
-  if (!inWord(at) && inWord(at - 1)) at -= 1;
+  if (!inWord(at) && inWord(at - 1) && !SYMBOL.test(text[at] ?? "")) at -= 1;
   let from = at;
   let to = at;
-  if (inWord(at)) {
+  if (SYMBOL.test(text[at] ?? "")) {
+    // A display's sum, product or integral sign, or a relation, is a word
+    // of one character: the matcher compares it as one, and a sign set
+    // beside its limit is not part of the limit. A font's variation
+    // selector after it goes with it.
+    to = at + 1;
+    while (/[\uFE00-\uFE0F]/.test(text[to] ?? "")) to += 1;
+  } else if (inWord(at)) {
     for (;;) {
       if (inWord(from - 1)) from -= 1;
       else if (brokenBack(from)) from -= 3;
@@ -70,7 +80,7 @@ export function textAtPoint(
   const pieces: string[] = [];
   let piece = -1;
   let offset = 0;
-  const span = target.closest(".nx-text-layer span");
+  const span = nearestAt(layer, clientX, clientY) ?? target.closest(".nx-text-layer span");
   for (const node of layer.querySelectorAll("span, br")) {
     if (node.tagName === "BR") {
       pieces.push("\n");
@@ -87,6 +97,32 @@ export function textAtPoint(
   }
   if (piece < 0) return null;
   return wordAt(pieces, piece, offset);
+}
+
+/** The span under the point whose middle is nearest it, when several are.
+ *
+ *  pdf.js sizes a span by its glyph's font, and a display's sum, product
+ *  or integral is set in a large one, so its span stands over the small
+ *  limits above and below it and over the row above's subscripts. The
+ *  browser gives the double-click to whichever span is on top, and a click
+ *  on the N of `\sum_{i=1}^{N}` went to the sign. A reader aims at the
+ *  middle of the glyph they mean, so of the spans under the point the one
+ *  whose middle is nearest is the one meant. */
+function nearestAt(layer: HTMLElement, x: number, y: number): Element | null {
+  let best: Element | null = null;
+  let distance = Infinity;
+  for (const node of layer.querySelectorAll("span")) {
+    if (node.querySelector("span")) continue;
+    const box = node.getBoundingClientRect();
+    if (box.width <= 0 || box.height <= 0) continue;
+    if (x < box.left || x > box.right || y < box.top || y > box.bottom) continue;
+    const away = Math.hypot(x - (box.left + box.right) / 2, y - (box.top + box.bottom) / 2);
+    if (away < distance) {
+      distance = away;
+      best = node;
+    }
+  }
+  return best;
 }
 
 /** The character of a span nearest the point. */

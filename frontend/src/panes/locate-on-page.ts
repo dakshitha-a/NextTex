@@ -38,6 +38,16 @@ const SLACK = 1.5;
 /** Not below this much agreement: a few letters agree by chance. */
 const LEAST = 6;
 
+/** A source line that is a row of a display: it aligns with `&` or ends
+ *  its row with `\\`, or once its commands are gone it has no word of
+ *  three letters, which every line of prose has. */
+const ROW = /^[^%]*(?:[^\\]&|\\\\\s*(?:%.*)?$)/;
+function isRow(line: string): boolean {
+  if (ROW.test(line)) return true;
+  const body = line.replace(/%.*$/, "").replace(/\\[a-zA-Z]+/g, " ");
+  return /\S/.test(body) && !/[A-Za-z]{3,}/.test(body);
+}
+
 /** The boxes to flash for the caret at `column` of `line`.
  *
  *  `line` is the source line as the build read it. `text` gives a page's
@@ -63,11 +73,25 @@ export async function placeOnPage(
   // at the end of a paragraph being nothing.
   const after = !left.length
     || (right.length > 0 && (isLetter(line[column]) || !isLetter(line[column - 1])));
-  if (left.length + right.length < LEAST) return outermost(unique);
+  const pages = new Map<number, PageRun[] | null>();
+  const runsOf = async (page: number) => {
+    if (!pages.has(page)) pages.set(page, await text(page));
+    return pages.get(page)!;
+  };
+  // A row of a display is its own line of type, so its letters find it
+  // whatever the caret's neighbours say: a `multline` shares its letters
+  // across rows, and lining up the caret's context there chose the wrong
+  // one. Only for a row: a paragraph's letters are spread over its lines
+  // of type, and there the caret's context is what decides.
+  if (isRow(line)) {
+    const row = await byLetters(source.text, unique, runsOf);
+    if (row) return row;
+  }
+  if (left.length + right.length < LEAST) return (await byLetters(source.text, unique, runsOf)) ?? outermost(unique);
 
   let best: { box: PageBox; score: number } | null = null;
   for (const page of [...new Set(unique.map((box) => box.page))]) {
-    const runs = await text(page);
+    const runs = await runsOf(page);
     if (!runs) return outermost(unique);
     const mine = unique.filter((box) => box.page === page);
     // The page's letters inside this line's boxes, in reading order, and
@@ -103,8 +127,89 @@ export async function placeOnPage(
     }
   }
   const available = left.length + right.length;
-  if (!best || best.score < Math.min(LEAST, available / 2)) return outermost(unique);
+  if (!best || best.score < Math.min(LEAST, available / 2)) {
+    return (await byLetters(source.text, unique, runsOf)) ?? outermost(unique);
+  }
   return [best.box];
+}
+
+/** How much of the line's letters must a row hold, and by how much more
+ *  than the next row, to be taken for it. */
+const SHARE = 0.6;
+const MARGIN = 0.15;
+
+/** When the letters around the caret cannot be lined up, the box whose
+ *  letters are the line's, or nothing when no box is clearly it.
+ *
+ *  A display sets its pieces in an order the source does not write, a
+ *  sum's limits above and below it and a fraction's parts stacked, and an
+ *  `align` row is too short to line up: `a &= b + c` is three letters.
+ *  SyncTeX answers every line of an `align` with every row of it, and a
+ *  `split` with the whole equation and its rows inside it, so the caret
+ *  on one row flashed them all. The letters still say which row is which:
+ *  counted as a bag, since the order inside a row is the display's, and in
+ *  order as well, so two rows of the same letters, `a = b + c` and
+ *  `c = b + a`, are told apart. Every box is a candidate, the rows inside
+ *  a display's box among them, and the share is of the line's letters and
+ *  of the box's, so the whole display holding a row's letters by chance
+ *  does not win over the row. */
+async function byLetters(
+  letters: string,
+  boxes: PageBox[],
+  text: (page: number) => Promise<PageRun[] | null>,
+): Promise<PageBox[] | null> {
+  if (boxes.length <= 1 || !letters.length) return null;
+  const want = bag(letters);
+  const scored: Array<{ box: PageBox; share: number }> = [];
+  for (const box of boxes) {
+    const runs = await text(box.page);
+    if (!runs) return null;
+    let held = "";
+    for (const run of runs) {
+      if (boxOf([box], run)) held += foldText(run.str);
+    }
+    if (!held.length) continue;
+    const have = bag(held);
+    let common = 0;
+    for (const [char, count] of want) common += Math.min(count, have.get(char) ?? 0);
+    const most = Math.max(letters.length, held.length);
+    scored.push({ box, share: (common / most + inOrder(letters, held) / most) / 2 });
+  }
+  scored.sort((a, b) => b.share - a.share);
+  const first = scored[0];
+  if (!first || first.share < SHARE) return null;
+  // The rival is the best box on another row: SyncTeX gives a row as a
+  // line of type and again as the pieces inside it, which score alike.
+  const rival = scored.find((each) => !sameRow(each.box, first.box));
+  if (rival && first.share - rival.share < MARGIN) return null;
+  return [first.box];
+}
+
+/** Whether two boxes are on one row of type: on one page, and most of the
+ *  shorter one's height inside the other's. */
+function sameRow(a: PageBox, b: PageBox): boolean {
+  if (a.page !== b.page) return false;
+  const overlap = Math.min(a.y, b.y) - Math.max(a.y - a.height, b.y - b.height);
+  return overlap > 0.5 * Math.min(a.height, b.height);
+}
+
+/** The longest run of `a`'s letters found in `b` in the same order. */
+function inOrder(a: string, b: string): number {
+  let row = new Array<number>(b.length + 1).fill(0);
+  for (let i = 1; i <= a.length; i += 1) {
+    const next = new Array<number>(b.length + 1).fill(0);
+    for (let j = 1; j <= b.length; j += 1) {
+      next[j] = a[i - 1] === b[j - 1] ? row[j - 1] + 1 : Math.max(row[j], next[j - 1]);
+    }
+    row = next;
+  }
+  return row[b.length];
+}
+
+function bag(text: string): Map<string, number> {
+  const counts = new Map<string, number>();
+  for (const char of text) counts.set(char, (counts.get(char) ?? 0) + 1);
+  return counts;
 }
 
 /** The boxes without those inside another: a display's rows and its

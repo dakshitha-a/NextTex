@@ -77,6 +77,65 @@ describe("agreement", () => {
   });
 });
 
+describe("locateWord in a display", () => {
+  // The page sets a sum's upper limit above it, so pdf.js reads "N" between
+  // "E =" and the sum sign, and the page's neighbours of the N meet where
+  // `\sum` stands in the source. A census found the N selecting `\sum`.
+  const DISPLAY = [
+    "The energy of the whole system is",
+    "\\begin{equation}",
+    "  E = \\sum_{i=1}^{N} \\alpha_i x_i + \\frac{1}{2} \\beta",
+    "  \\label{eq:energy}",
+    "\\end{equation}",
+  ];
+
+  it("selects the limit that was clicked, not the sum it sits over", () => {
+    const found = land(DISPLAY, 3, click("The energy of the whole system is E = [N] ∑ i=1 αixi + 1 2 β (1)"))!;
+    expect(found).toEqual({ line: 3, text: "N", from: DISPLAY[2].indexOf("N") });
+  });
+
+  it("selects the lower limit's letter too", () => {
+    const found = land(DISPLAY, 3, click("The energy of the whole system is E = N ∑ [i]=1 αixi + 1 2 β (1)"))!;
+    expect(found.line).toBe(3);
+    expect(found.text).toBe("i");
+  });
+
+  it("selects the sum for its sign, and the product and integral for theirs", () => {
+    const sum = land(DISPLAY, 3, click("The energy of the whole system is E = N [∑\uFE02] i=1 αixi + 1 2 β (1)"))!;
+    expect(sum).toEqual({ line: 3, text: "\\sum", from: DISPLAY[2].indexOf("\\sum") });
+    const rows = ["  F &= \\prod_{k=0}^{M} \\gamma_k y_k \\\\", "  G &= \\int_{0}^{T} \\lambda(t) \\, dt"];
+    expect(land(rows, 1, click("F = M [∏] k=0 γkyk"))!.text).toBe("\\prod");
+    expect(land(rows, 2, click("G = [∫] T 0 λ(t) dt"))!.text).toBe("\\int");
+  });
+
+  it("does not take an equation's number for a digit of the equation", () => {
+    // The hint the browser made for a double-click on "(1)" in an align,
+    // with the next row after it.
+    const rows = [
+      "Displays set their pieces in an order the source does not write, so this",
+      "document is mostly displays, each written with one row to a source line.",
+      "",
+      "\\begin{align}",
+      "  E &= \\sum_{i=1}^{N} \\alpha_i x_i + \\frac{1}{2} \\beta \\\\",
+      "  F &= \\prod_{k=0}^{M} \\gamma_k y_k - \\frac{3}{4} \\delta \\\\",
+      "  G &= \\int_{0}^{T} \\lambda(t) \\, dt",
+      "\\end{align}",
+    ];
+    const found = land(rows, 8, {
+      word: "1",
+      before: "each written with one row to a source line.\nE =\nN∑︂\ni=1\nαixi + 1\n2 β (",
+      after: ")\nF =\nM∏︂\nk=0\nγkyk − 3\n4 δ (2)",
+    });
+    expect(found === null || found.text !== "1").toBe(true);
+  });
+
+  it("still selects the command for a word TeX made up", () => {
+    const source = ["\\begin{figure}", "  \\caption{The decay in hexane.}", "\\end{figure}"];
+    const found = land(source, 2, click("[Figure] 1: The decay in hexane."))!;
+    expect(found.text).toBe("\\caption");
+  });
+});
+
 describe("locateWord", () => {
   const PARAGRAPH = [
     "\\section{Introduction}",

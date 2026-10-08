@@ -23,6 +23,55 @@ const source = "The model predicts the state, and the model then corrects the st
   + "the noise. When the state drifts, the model is told about the drift, and the state is pulled "
   + "back towards what the model expected of the state.";
 
+describe("placeOnPage in a display", () => {
+  // SyncTeX answers every line of an align with every row of it, so the
+  // rows have to be told apart by their letters, which the display sets
+  // in its own order.
+  it("flashes the row of an align the caret's line is", async () => {
+    const { runs, boxes } = page(["a = b + c (1)", "d = ef (2)"], 400);
+    const text = async () => runs;
+    expect(await placeOnPage("  a &= b + c \\\\", 4, boxes, text)).toEqual([boxes[0]]);
+    expect(await placeOnPage("  d &= e f", 4, boxes, text)).toEqual([boxes[1]]);
+  });
+
+  it("tells apart two rows of the same letters by their order", async () => {
+    const { runs, boxes } = page(["a = b + c (6)", "c = b + a (7)"], 400);
+    const text = async () => runs;
+    expect(await placeOnPage("  c &= b + a", 2, boxes, text)).toEqual([boxes[1]]);
+    expect(await placeOnPage("  a &= b + c \\\\", 2, boxes, text)).toEqual([boxes[0]]);
+  });
+
+  it("finds a split's row inside the equation's own box", async () => {
+    const { runs, boxes } = page(["u = w + z", "= q · s (5)"], 500);
+    const whole: PageBox = { page: 1, x: 72, y: 514, width: 345, height: 24 };
+    const text = async () => runs;
+    expect(await placeOnPage("    u &= w + z \\\\", 6, [whole, ...boxes], text)).toEqual([boxes[0]]);
+    expect(await placeOnPage("      &= q \\cdot s", 9, [whole, ...boxes], text)).toEqual([boxes[1]]);
+  });
+
+  it("finds a multline's row though its rows share their letters", async () => {
+    const { runs, boxes } = page([
+      "H = ∑ P2 a 2Ma a + ∑ p2 i 2m i",
+      "+ ∑ ZaZb Rab a<b − ∑ Za rai a,i",
+      "+ ∑ 1 rij i<j (4)",
+    ], 300);
+    const text = async () => runs;
+    const line = "  + \\sum_{a<b} \\frac{Z_a Z_b}{R_{ab}} - \\sum_{a,i} \\frac{Z_a}{r_{ai}} \\\\";
+    expect(await placeOnPage(line, line.indexOf("Z_a"), boxes, text)).toEqual([boxes[1]]);
+    const last = "  + \\sum_{i<j} \\frac{1}{r_{ij}}";
+    expect(await placeOnPage(last, 6, boxes, text)).toEqual([boxes[2]]);
+  });
+
+  it("leaves a paragraph's lines to the caret, not to their letters", async () => {
+    // A paragraph line ending in a forced break is still lined up by the
+    // caret when its letters are spread over several lines of type.
+    const { runs, boxes } = page(typeset);
+    const text = async () => runs;
+    const broken = source + " \\\\";
+    expect(await placeOnPage(broken, source.indexOf("When the state") + 2, boxes, text)).toEqual([boxes[1]]);
+  });
+});
+
 describe("placeOnPage", () => {
   const { runs, boxes } = page(typeset);
   // SyncTeX's own order, which is not the page's.

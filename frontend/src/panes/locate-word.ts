@@ -48,6 +48,18 @@ export type Landing = { line: number; from: number; to: number };
 /** Letters a font sets without a dot, which NFKD leaves alone. */
 const DOTLESS: Record<string, string> = { "ı": "i", "ȷ": "j" };
 
+/** The symbols of a display that are compared as if they were letters,
+ *  each as one character. A sum sign was dropped as punctuation on the
+ *  page while `\sum` projected to nothing in the source, so a click on
+ *  the sign had no letters of its own and selected its limit, and the
+ *  limits had one landmark fewer to be told apart by. Two dots for
+ *  `\cdot`, since fonts give it either. */
+const SYMBOLS: Record<string, string> = {
+  "∑": "∑", "∏": "∏", "∐": "∐", "∫": "∫", "∬": "∬", "∭": "∭", "∮": "∮",
+  "⋃": "⋃", "⋂": "⋂", "⨁": "⨁", "⨂": "⨂", "≥": "≥", "≤": "≤", "≠": "≠",
+  "≈": "≈", "×": "×", "⋅": "⋅", "·": "⋅", "∞": "∞", "∂": "∂", "∇": "∇", "±": "±",
+};
+
 /** One character of text as the comparison sees it: lower case, no
  *  accents, a ligature as its letters. Empty for anything that is not a
  *  letter or a digit. */
@@ -65,6 +77,8 @@ function foldChar(char: string): string {
   }
   let out = "";
   for (const piece of char.normalize("NFKD")) {
+    const symbol = SYMBOLS[piece];
+    if (symbol) { out += symbol; continue; }
     const plain = DOTLESS[piece] ?? piece;
     if (/[\p{L}\p{N}]/u.test(plain) && !/\p{M}/u.test(plain)) out += plain.toLowerCase();
   }
@@ -121,6 +135,13 @@ const LETTER_ACCENTS = new Set(["u", "v", "H", "c", "d", "b", "r", "t", "k"]);
 const LETTERS: Record<string, string> = {
   i: "i", j: "j", ss: "ss", o: "o", O: "o", ae: "ae", AE: "ae", oe: "oe",
   OE: "oe", aa: "a", AA: "a", l: "l", L: "l",
+};
+/** Commands that set one of `SYMBOLS`. */
+const OPERATORS: Record<string, string> = {
+  sum: "∑", prod: "∏", coprod: "∐", int: "∫", iint: "∬", iiint: "∭", oint: "∮",
+  bigcup: "⋃", bigcap: "⋂", bigoplus: "⨁", bigotimes: "⨂", ge: "≥", geq: "≥",
+  le: "≤", leq: "≤", ne: "≠", neq: "≠", approx: "≈", times: "×", cdot: "⋅",
+  infty: "∞", partial: "∂", nabla: "∇", pm: "±",
 };
 const GREEK: Record<string, string> = {
   alpha: "α", beta: "β", gamma: "γ", delta: "δ", epsilon: "ε", varepsilon: "ε",
@@ -238,6 +259,7 @@ export function project(line: string, plain = false): Projection {
     }
     if (bare in LETTERS) { emit(LETTERS[bare], start, i); continue; }
     if (bare in GREEK) { emit(GREEK[bare], start, i); continue; }
+    if (bare in OPERATORS) { emit(OPERATORS[bare], start, i); continue; }
     // A citation's notes are typeset, "[2, p. 4]", and its key is not: the
     // notes are read on as text and the key is jumped when it is reached.
     if (CITE.test(bare)) {
@@ -485,7 +507,14 @@ export function locateWord(
   const hint: WordHint = typeof raw === "string" ? { word: raw } : raw;
   if (totalLines < 1) return null;
   const plain = hint.plain ?? false;
-  const word = foldText(hint.word ?? "");
+  // A number in brackets at the end of a line of type is a display's
+  // equation number, which TeX made and no digit of the source set: read
+  // as a word, "(1)" selected the 1 of a `\frac{1}{2}` beside it. As a
+  // word TeX made up, it selects the command that made it, or the row's
+  // end.
+  const numbered = /^\d+$/.test(hint.word ?? "") && /\(\s*$/.test(hint.before ?? "")
+    && /^\s*\)\s*(\n|$)/.test(hint.after ?? "");
+  const word = numbered ? "" : foldText(hint.word ?? "");
   const before = foldText(hint.before ?? "");
   const after = foldText(hint.after ?? "");
   if (!word && !before && !after) return null;

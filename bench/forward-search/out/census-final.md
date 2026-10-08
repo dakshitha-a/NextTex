@@ -1,16 +1,13 @@
 # Forward census
 
-- stress: 453 words; first box held the word 285; the flash holds it 448, as one line of type 444
+- stress: 453 words; first box held the word 285; the flash holds it 448, as one line of type 448
 - stress2: 198 words; first box held the word 94; the flash holds it 192, as one line of type 192
+- displays: 98 words; first box held the word 78; the flash holds it 88, as one line of type 88
 
 ## Words the flash does not hold as one line
 
 | doc | where | word | boxes | first | now | exact |
 |---|---|---|---|---|---|---|
-| stress | stress.tex:33:3 | a | 24 | false | true | false |
-| stress | stress.tex:33:8 | b | 24 | true | true | false |
-| stress | stress.tex:33:12 | c | 24 | true | true | false |
-| stress | stress.tex:34:3 | d | 24 | false | true | false |
 | stress | stress.tex:56:25 | the | 7 | true | false | false |
 | stress | stress.tex:56:78 | the | 7 | false | false | false |
 | stress | chapter.tex:7:26 | source | 2 | false | false | false |
@@ -22,6 +19,16 @@
 | stress2 | stress2.tex:34:46 | mass | 3 | false | false | false |
 | stress2 | stress2.tex:34:59 | width | 3 | false | false | false |
 | stress2 | stress2.tex:34:73 | sample | 3 | true | false | false |
+| displays | displays.tex:18:16 | p | 34 | false | false | false |
+| displays | displays.tex:25:11 | a | 59 | true | false | false |
+| displays | displays.tex:25:24 | a | 59 | true | false | false |
+| displays | displays.tex:25:49 | i | 59 | true | false | false |
+| displays | displays.tex:26:11 | i | 59 | true | false | false |
+| displays | displays.tex:42:6 | x | 3 | false | false | false |
+| displays | displays.tex:48:3 | a | 24 | false | false | false |
+| displays | displays.tex:49:3 | c | 24 | true | false | false |
+| displays | displays.tex:49:8 | b | 24 | true | false | false |
+| displays | displays.tex:49:12 | a | 24 | false | false | false |
 
 ## Lines that set nothing
 
@@ -46,7 +53,7 @@
 | stress:29 | `  \label{eq:energy}` | p1 y549 | 28 | p1 y549 |
 | stress:30 | `\end{equation}` | p1 y549 | 31 | p1 y569 |
 | stress:32 | `\begin{align}` | p1 y569 | 31 | p1 y569 |
-| stress:35 | `\end{align}` | p1 y590 | 34 | p1 y593 p1 y608 |
+| stress:35 | `\end{align}` | p1 y590 | 34 | p1 y608 |
 | stress:37 | ` ` | p2 y138 | 36 | p1 y628 |
 | stress:39 | ` ` | p2 y138 | 38 | p2 y138 |
 | stress:40 | `\begin{table}[H]` | p2 y179 | 38 | p2 y138 |
@@ -116,3 +123,33 @@
 | stress2:53 | ` ` | p1 y673 | 51 | p1 y667 |
 | stress2:54 | `\end{document}` | p1 y673 | 51 | p1 y667 |
 | stress2:55 | ` ` | p1 y673 | 51 | p1 y667 |
+| displays:1 | `\documentclass{article}` | p1 y137 | none | - |
+| displays:2 | `\usepackage{amsmath,amssymb}` | p1 y137 | none | - |
+| displays:3 | `\pagestyle{plain}` | p1 y137 | none | - |
+| displays:4 | `\begin{document}` | p1 y137 | none | - |
+| displays:5 | ` ` | p1 y137 | 6 | p1 y137 |
+| displays:8 | ` ` | p1 y137 | 7 | p1 y149 |
+| displays:9 | `\begin{align}` | p1 y159 | 10 | p1 y159 |
+| displays:13 | `\end{align}` | p1 y201 | 12 | p1 y265 |
+| displays:14 | ` ` | p1 y285 | 15 | p1 y285 |
+| displays:16 | `\begin{gather}` | p1 y285 | 15 | p1 y285 |
+| displays:20 | `\end{gather}` | p1 y321 | 19 | p1 y348 |
+| displays:21 | ` ` | p1 y367 | 22 | p1 y367 |
+| displays:23 | `\begin{multline}` | p1 y367 | 22 | p1 y367 |
+| displays:27 | `\end{multline}` | p1 y406 | 26 | p1 y469 |
+| displays:28 | ` ` | p1 y489 | 29 | p1 y489 |
+| displays:30 | `\begin{equation}` | p1 y489 | 29 | p1 y489 |
+| displays:31 | `  \begin{split}` | p1 y489 | 32 | p1 y512 |
+| displays:34 | `  \end{split}` | p1 y512 | 33 | p1 y526 |
+| displays:35 | `\end{equation}` | p1 y526 | 33 | p1 y526 |
+| displays:36 | ` ` | p1 y546 | 37 | p1 y546 |
+| displays:38 | `\begin{equation}` | p1 y546 | 37 | p1 y546 |
+| displays:40 | `  \begin{cases}` | p1 y572 | 39 | p1 y572 |
+| displays:43 | `  \end{cases}` | p1 y587 | 42 | p1 y587 |
+| displays:44 | `\end{equation}` | p1 y587 | 42 | p1 y587 |
+| displays:45 | ` ` | p1 y605 | 46 | p1 y605 |
+| displays:47 | `\begin{align}` | p1 y605 | 46 | p1 y605 |
+| displays:50 | `\end{align}` | p1 y628 | 49 | p1 y643 |
+| displays:51 | ` ` | p1 y703 | 49 | p1 y643 |
+| displays:52 | `\end{document}` | p1 y703 | 49 | p1 y643 |
+| displays:53 | ` ` | p1 y703 | 49 | p1 y643 |

@@ -25,6 +25,14 @@ describe("wordAt", () => {
     expect(wordAt(["Smith-", "\n", "Jones"], 2, 1).word).toBe("Jones");
   });
 
+  it("takes a display's sign as a word of its own, apart from its limit", () => {
+    // pdf.js sets a sum's upper limit, then the sign with a font's
+    // variation selector after it, then the lower limit.
+    const pieces = ["E", " ", "=", "\n", "N", "∑\uFE02", "\n", "i", "=1"];
+    expect(wordAt(pieces, 5, 0).word).toBe("∑\uFE02");
+    expect(wordAt(pieces, 4, 0).word).toBe("N");
+  });
+
   it("keeps a number with its point", () => {
     expect(wordAt(["mass 12.5 g"], 0, 6).word).toBe("12.5");
     expect(wordAt(["end. Then"], 0, 2).word).toBe("end");
@@ -54,6 +62,23 @@ describe("textAtPoint", () => {
     const hint = textAtPoint(layer, span, 0, 0)!;
     expect(hint.word).toBe("predicts");
     expect(hint.before).toBe("The model\n");
+    layer.remove();
+  });
+
+  it("takes the span under the point whose middle is nearest, a limit over its sum sign", () => {
+    const layer = document.createElement("div");
+    layer.className = "nx-text-layer";
+    layer.innerHTML = "<span>E =</span><br><span>N</span><span>∑</span><br><span>i</span>";
+    document.body.appendChild(layer);
+    const [, limit, sign] = layer.querySelectorAll("span");
+    // The sign's span is set in a large font and stands over the limit.
+    const at = (left: number, top: number, width: number, height: number) => () =>
+      ({ left, top, right: left + width, bottom: top + height, width, height, x: left, y: top, toJSON() {} }) as DOMRect;
+    limit.getBoundingClientRect = at(100, 100, 8, 8);
+    sign.getBoundingClientRect = at(96, 96, 20, 30);
+    // The browser handed the click to the sign, which is on top.
+    expect(textAtPoint(layer, sign, 104, 104)!.word).toBe("N");
+    expect(textAtPoint(layer, sign, 106, 120)!.word).toBe("∑");
     layer.remove();
   });
 

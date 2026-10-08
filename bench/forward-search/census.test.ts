@@ -156,13 +156,13 @@ test("census", async () => {
   mkdirSync(OUT, { recursive: true });
   const rows: Row[] = [];
   const blank: string[] = [];
-  for (const doc of ["stress", "stress2"]) {
+  for (const doc of ["stress", "stress2", "displays"]) {
     const result = await census(doc);
     rows.push(...result.rows);
     blank.push(...result.blank);
   }
   const count = (doc: string, test: (row: Row) => boolean) => rows.filter((row) => row.doc === doc && test(row)).length;
-  const summary = ["stress", "stress2"].map((doc) => {
+  const summary = ["stress", "stress2", "displays"].map((doc) => {
     const total = count(doc, () => true);
     return `- ${doc}: ${total} words; first box held the word ${count(doc, (r) => r.first)}; ` +
       `the flash holds it ${count(doc, (r) => r.now)}, as one line of type ${count(doc, (r) => r.exact)}`;

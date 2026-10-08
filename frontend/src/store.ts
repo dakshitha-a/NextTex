@@ -799,6 +799,17 @@ export function firstChangedLine(before: string, after: string): number {
   return 1;
 }
 
+/** The first column of `line` (1-based) where `after` differs from
+ *  `before`, 0 when the line is new or the same. */
+export function firstChangedColumn(before: string, after: string, line: number): number {
+  const was = before.split("\n")[line - 1];
+  const now = after.split("\n")[line - 1] ?? "";
+  if (was === undefined) return 0;
+  let at = 0;
+  while (at < now.length && at < was.length && now[at] === was[at]) at += 1;
+  return at === now.length && at === was.length ? 0 : at;
+}
+
 export function countDiff(before: string, after: string) {
   const a = before.split("\n");
   const b = after.split("\n");
@@ -908,7 +919,10 @@ export type EventHandlers = {
    *  caused by the writer's own typing. */
   onCompileStart?: (document: string) => void;
   onPreviewsChanged?: (previews: string[]) => void;
-  onAgentEdit?: (path: string, line: number) => void | Promise<void>;
+  /** `text` is the file as the agent left it and `column` where on
+   *  `line` it changed, so the flash after the build can be placed on a
+   *  file no editor tab holds. */
+  onAgentEdit?: (path: string, line: number, text: string, column: number) => void | Promise<void>;
   onAgentFocus?: (path: string, line: number) => void;
   onRenamed?: (from: string, to: string) => void;
   /** The project's folder is gone from the server's disk. */
@@ -1552,7 +1566,13 @@ function receive(event: any) {
       if (!state.turnEdits.includes(event.path)) {
         set({ turnEdits: [...state.turnEdits, event.path] });
       }
-      handlers.onAgentEdit?.(event.path, firstChangedLine(event.before ?? "", event.after ?? ""));
+      {
+        const line = firstChangedLine(event.before ?? "", event.after ?? "");
+        handlers.onAgentEdit?.(
+          event.path, line, event.after ?? "",
+          firstChangedColumn(event.before ?? "", event.after ?? "", line),
+        );
+      }
       break;
     }
     case "error":
