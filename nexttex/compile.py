@@ -259,7 +259,9 @@ class CompileResult:
     #: the writer's source that a damaged build file caused.
     recovered: str = ""
 
-    def as_dict(self) -> dict:
+    def as_dict(self, diagnostics: list | None = None) -> dict:
+        """`diagnostics`, when given, are the ones to send in place of the
+        log's whole list; the counts are still the whole log's."""
         return {
             "outcome": self.outcome.value,
             "durationMs": round(self.duration * 1000),
@@ -271,7 +273,7 @@ class CompileResult:
             "pdfKept": self.pdf_kept,
             "recovered": self.recovered,
             "pdf": str(self.pdf) if self.pdf else None,
-            **(self.log.as_dict() if self.log else
+            **(self.log.as_dict(diagnostics) if self.log else
                {"diagnostics": [], "errorCount": 0, "warningCount": 0, "rawTail": ""}),
         }
 

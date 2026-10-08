@@ -180,9 +180,10 @@ class ParsedLog:
     def overfull(self) -> int:
         return sum(1 for d in self.warnings if d.message.startswith("Overfull"))
 
-    def as_dict(self) -> dict:
+    def as_dict(self, diagnostics: list[Diagnostic] | None = None) -> dict:
+        chosen = self.diagnostics if diagnostics is None else diagnostics
         return {
-            "diagnostics": [d.as_dict() for d in self.diagnostics],
+            "diagnostics": [d.as_dict() for d in chosen],
             "errorCount": len(self.errors),
             "warningCount": len(self.warnings),
             "undefinedCitations": self.undefined_citations,
@@ -196,12 +197,19 @@ class ParsedLog:
 
 
 def _keys(pattern: re.Pattern, warnings: list[Diagnostic]) -> list[str]:
-    found: list[str] = []
+    """Each key once, in order of appearance.
+
+    A dict rather than a list asked `not in` for every warning: with
+    72,000 distinct undefined citations that was quadratic, 23 seconds of
+    every build's publishing, and each of those long list scans held the
+    GIL against the event loop, which is the 0.60 s hold a CI run of
+    `tests/api/test_build_loop.py` caught."""
+    found: dict[str, None] = {}
     for warning in warnings:
         match = pattern.match(warning.message)
-        if match and match.group(1) not in found:
-            found.append(match.group(1))
-    return found
+        if match:
+            found.setdefault(match.group(1), None)
+    return list(found)
 
 
 class _FileStack:

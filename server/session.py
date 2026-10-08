@@ -23,6 +23,7 @@ from nexttex.compile import (
     MACHINE_BUILDS, BuildQueue, CompileResult, CompileScheduler, Outcome, ProjectPaths,
 )
 from nexttex.deps import DependencyGraph
+from nexttex.latexlog import Diagnostic
 from nexttex.wordcount import WordCounts
 from nexttex.context import ProjectContext
 from nexttex.dictionary import GrammarIgnores, ProjectDictionary
@@ -125,22 +126,27 @@ MATH_DELIMITER = re.compile(r"(?<!\\)\$")
 DIAGNOSTICS_SENT = 500
 
 
-def _capped(diagnostics: list[dict]) -> tuple[list[dict], int]:
+def _capped(diagnostics: list[Diagnostic]) -> tuple[list[Diagnostic], int]:
     """At most `DIAGNOSTICS_SENT`, every error first in the choosing, and
-    how many warnings were left out; the order is the log's."""
+    how many warnings were left out; the order is the log's.
+
+    Chosen from the log's own diagnostics, before any becomes a dict:
+    making all 72,000 into dicts and then keeping 500 was the allocation
+    that set off the collections a CI run caught holding the loop for
+    0.60 s, since a collection in the worker thread holds the GIL."""
     if len(diagnostics) <= DIAGNOSTICS_SENT:
         return diagnostics, 0
-    errors = sum(1 for d in diagnostics if d.get("severity") == "error")
+    errors = sum(1 for d in diagnostics if d.severity == "error")
     room = max(0, DIAGNOSTICS_SENT - errors)
-    kept: list[dict] = []
+    kept: list[Diagnostic] = []
     omitted = 0
     for item in diagnostics:
-        if item.get("severity") == "error":
+        if item.severity == "error":
             kept.append(item)
         elif room:
             kept.append(item)
             room -= 1
-        elif item.get("severity") == "warning":
+        elif item.severity == "warning":
             omitted += 1
     return kept, omitted
 
@@ -1146,9 +1152,9 @@ class ProjectSession:
         an absolute path here silently matches nothing and the error marks
         never appear beside the line that caused them.
         """
-        payload = result.as_dict()
+        kept, omitted = _capped(result.log.diagnostics if result.log else [])
+        payload = result.as_dict(diagnostics=kept)
         payload["document"] = document or self.visible
-        kept, omitted = _capped(payload.get("diagnostics", []))
         payload["omittedWarnings"] = omitted
         # Each file made relative once. It was once per diagnostic, each
         # resolving the file and the project root again, which on a draft
@@ -1166,7 +1172,7 @@ class ProjectSession:
         # it could not tell whose a given error was when replacing them.
         payload["diagnostics"] = annotate([
             {**item, "file": rel(item.get("file")), "document": payload["document"]}
-            for item in kept
+            for item in payload["diagnostics"]
         ])
         # Where to start, in words, with no model involved.  A writer using
         # NextTex without an agent still gets told which error is the cause

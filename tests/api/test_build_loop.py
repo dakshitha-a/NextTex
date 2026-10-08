@@ -6,6 +6,14 @@ build: the build's 72,000 warnings were made relative one by one, each
 resolving its file and the project root again, and annotated, all on the
 event loop, and then all 72,000 were sent to every tab. Here a build's
 result carries that many and the loop is timed while it is published.
+
+Timed on the server's own loop, in the TestClient's thread, once the
+build that opening the project started has finished; it was timed on a
+second loop in the test's thread. A CI run on 4.13.1 caught 0.60 s: the
+undefined citations were collected with a list asked `not in` for each of
+the 72,000 warnings, quadratic, 23 seconds of publishing here, and each
+long list scan in the worker thread held the GIL against the loop. The
+publish is now timed as well, so that cannot come back unnoticed.
 """
 
 import asyncio
@@ -46,6 +54,12 @@ def test_publishing_a_huge_build_does_not_hold_the_loop(client, opened, project_
         return None
 
     async def run():
+        # The build opening the project started, and the settling build
+        # after it, finish before the loop is timed.
+        deadline = time.monotonic() + 60
+        while (state.in_flight or (state.debounce and not state.debounce.done())) \
+                and time.monotonic() < deadline:
+            await asyncio.sleep(0.05)
         state.compiler.build = fake_build
         state.compiler.cancel = cancel
         queue = session.events.subscribe()
@@ -61,7 +75,9 @@ def test_publishing_a_huge_build_does_not_hold_the_loop(client, opened, project_
                 last = now
 
         ticker = asyncio.create_task(tick())
+        began = time.perf_counter()
         await session.compile(document="main.tex", force_full=True)
+        took = time.perf_counter() - began
         stop.set()
         await ticker
         session.events.unsubscribe(queue)
@@ -70,10 +86,11 @@ def test_publishing_a_huge_build_does_not_hold_the_loop(client, opened, project_
             event = queue.get_nowait()
             if event["type"] == "compile_done":
                 done.append(event)
-        return max(gaps), done[-1]
+        return max(gaps), took, done[-1]
 
-    longest, done = asyncio.run(run())
+    longest, took, done = client.portal.call(run)
     assert longest < 0.25, f"the loop was held for {longest:.2f} s"
+    assert took < 5, f"publishing the build took {took:.1f} s"
     assert len(done["diagnostics"]) <= DIAGNOSTICS_SENT
     assert any(d["severity"] == "error" for d in done["diagnostics"])
     assert done["omittedWarnings"] == WARNINGS - (DIAGNOSTICS_SENT - 1)

@@ -307,10 +307,6 @@ OpenAI provider against OpenAI itself.
       never appearing; alone it passed 12 of 12. Not caused by the
       performance run; the likeliest cause is a document change arriving
       inside the card's rest and closing it.
-- [ ] **`tests/api/test_build_loop.py` on CI.** It held the loop 0.60 s
-      against a 0.25 s budget once, on the 4.13.1 push, and passed on the
-      rerun and five times locally. A collection pause over its 72,000
-      diagnostics is the suspect.
 
 ### Never run against the real thing
 
