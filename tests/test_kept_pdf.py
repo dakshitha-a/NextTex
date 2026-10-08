@@ -7,6 +7,11 @@ deleted `main.pdf`. NextTex built into the one file the preview serves and
 kept no copy, so the preview lost the article's pages and then called the
 document empty. The PDF is now moved aside while the engine runs and put
 back if the engine wrote none.
+
+The engine deletes its `.synctex.gz` in the same stop, so the PDF came
+back without the map that goes with it: a double-click on the kept pages
+and the flash after the build both asked SyncTeX about a file that was
+gone and found nothing. The map is moved aside and put back with it.
 """
 
 import asyncio
@@ -41,6 +46,7 @@ def test_an_unclosed_brace_keeps_the_last_good_pdf(tmp_path):
     first = asyncio.run(build.build(force_full=True))
     assert first.pdf is not None and first.pdf.exists()
     good = first.pdf.read_bytes()
+    synctex = build.paths.synctex.read_bytes()
     assert not first.pdf_kept
 
     main.write_text(GOOD.replace(r"\end{document}", "See also \\ref{sec:intro\n\\end{document}"))
@@ -50,11 +56,14 @@ def test_an_unclosed_brace_keeps_the_last_good_pdf(tmp_path):
     assert build.paths.pdf.read_bytes() == good
     assert not build.paths.kept_pdf.exists()
     assert second.as_dict()["pdfKept"] is True
+    assert build.paths.synctex.read_bytes() == synctex, "the kept pages keep their map"
+    assert not build.paths.kept_synctex.exists()
 
     main.write_text(GOOD)
     third = asyncio.run(build.build())
     assert third.outcome is Outcome.OK and not third.pdf_kept
     assert not build.paths.kept_pdf.exists()
+    assert build.paths.synctex.exists() and not build.paths.kept_synctex.exists()
 
 
 def test_a_half_written_pdf_loses_to_the_kept_one(tmp_path):
@@ -67,6 +76,35 @@ def test_a_half_written_pdf_loses_to_the_kept_one(tmp_path):
     build.paths.pdf.write_bytes(b"%PDF-1.5 half")
     assert build._settle_pdf(scope)
     assert build.paths.pdf.read_bytes().endswith(b"%%EOF\n")
+
+
+def test_the_kept_pdf_comes_back_with_its_own_map(tmp_path):
+    build = scheduler(tmp_path)
+    build.paths.build_dir.mkdir()
+    build.paths.pdf.write_bytes(b"%PDF-1.5 whole\n%%EOF\n")
+    build.paths.synctex.write_bytes(b"old map")
+    scope = build._set_aside_pdf()
+    assert not build.paths.synctex.exists()
+    # A pass that shipped a page before it stopped writes a map of its own
+    # for pages the kept PDF does not have.
+    build.paths.pdf.write_bytes(b"%PDF-1.5 half")
+    build.paths.synctex.write_bytes(b"new map")
+    assert build._settle_pdf(scope)
+    assert build.paths.synctex.read_bytes() == b"old map"
+    assert not build.paths.kept_synctex.exists()
+
+
+def test_a_finished_pdf_keeps_the_map_it_was_written_with(tmp_path):
+    build = scheduler(tmp_path)
+    build.paths.build_dir.mkdir()
+    build.paths.pdf.write_bytes(b"%PDF-1.5 old\n%%EOF\n")
+    build.paths.synctex.write_bytes(b"old map")
+    scope = build._set_aside_pdf()
+    build.paths.pdf.write_bytes(b"%PDF-1.5 new\n%%EOF\n")
+    build.paths.synctex.write_bytes(b"new map")
+    assert not build._settle_pdf(scope)
+    assert build.paths.synctex.read_bytes() == b"new map"
+    assert not build.paths.kept_synctex.exists()
 
 
 def test_a_finished_pdf_replaces_the_kept_one(tmp_path):

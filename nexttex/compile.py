@@ -294,7 +294,9 @@ def _finished_pdf(path: Path) -> bool:
 
 #: What a job's name is followed by when the rest has a dot of its own.
 #: Anything else with a second dot, `main.v2.aux`, is another job's.
-_TWO_PART = frozenset({"run.xml", "synctex.gz", "synctex(busy)", "kept.pdf"})
+_TWO_PART = frozenset({
+    "run.xml", "synctex.gz", "synctex(busy)", "kept.pdf", "kept.synctex.gz",
+})
 
 #: A job's files that record a pass rather than feed the next one: the
 #: output, the log and the recorder's list.  Left out of what a cancelled
@@ -302,12 +304,15 @@ _TWO_PART = frozenset({"run.xml", "synctex.gz", "synctex(busy)", "kept.pdf"})
 #: ones would be copied on every keystroke for nothing.
 _NOT_STATE = frozenset({
     "pdf", "kept.pdf", "log", "fls", "synctex.gz", "synctex(busy)", "nexttex-scope",
+    "kept.synctex.gz",
 })
 
 
 #: What a clean build keeps of a job: the PDF and what goes with it, so
 #: the preview has pages to show while the clean build runs.
-_KEPT_BY_CLEAN = frozenset({"pdf", "kept.pdf", "synctex.gz", "nexttex-scope"})
+_KEPT_BY_CLEAN = frozenset({
+    "pdf", "kept.pdf", "synctex.gz", "kept.synctex.gz", "nexttex-scope",
+})
 
 #: Errors that name a file a previous pass wrote.  Only acted on when the
 #: file they point at is in the build directory, because "File ended
@@ -374,6 +379,20 @@ class ProjectPaths:
         for the same file would be truncated with it.
         """
         return self.build_dir / f"{self.jobname}.kept.pdf"
+
+    @property
+    def synctex(self) -> Path:
+        """The map from the PDF's pages to the source, beside the PDF."""
+        return self.build_dir / f"{self.jobname}.synctex.gz"
+
+    @property
+    def kept_synctex(self) -> Path:
+        """Where the kept PDF's map waits with it.
+
+        The engine that deletes its PDF on a fatal error deletes this too,
+        so the kept pages came back without one and SyncTeX answered
+        nothing about them, in either direction."""
+        return self.build_dir / f"{self.jobname}.kept.synctex.gz"
 
     def shown_pdf(self) -> Path | None:
         """The PDF to show: the build's, or the kept one while it runs."""
@@ -812,6 +831,12 @@ class CompileScheduler:
             os.replace(pdf, kept)
         except OSError:
             return None
+        try:
+            os.replace(self.paths.synctex, self.paths.kept_synctex)
+        except OSError:
+            # No map to keep, or none that can be moved: the pages come
+            # back without one, as they did before there was this.
+            self.paths.kept_synctex.unlink(missing_ok=True)
         return scope if scope is not None else ""
 
     def _settle_pdf(self, scope_before: str | None) -> bool:
@@ -824,13 +849,25 @@ class CompileScheduler:
         pdf, kept = self.paths.pdf, self.paths.kept_pdf
         if pdf.exists() and (not kept.exists() or _finished_pdf(pdf)):
             kept.unlink(missing_ok=True)
+            self.paths.kept_synctex.unlink(missing_ok=True)
             return False
         if not kept.exists():
+            self.paths.kept_synctex.unlink(missing_ok=True)
             return False
         try:
             os.replace(kept, pdf)
         except OSError:
             return False
+        # The kept pages' own map, over whatever the stopped pass wrote,
+        # which describes pages the kept PDF does not have; and no map
+        # rather than that one when the kept pages had none.
+        try:
+            if self.paths.kept_synctex.exists():
+                os.replace(self.paths.kept_synctex, self.paths.synctex)
+            else:
+                self.paths.synctex.unlink(missing_ok=True)
+        except OSError:
+            pass
         if scope_before is not None:
             self._note_pdf_scope(scope_before)
         return True
