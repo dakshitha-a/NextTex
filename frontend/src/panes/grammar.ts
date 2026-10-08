@@ -56,8 +56,10 @@ function ready(): Promise<LocalLinter> {
  *  line breaks, so a finding's offset into it is the offset from the run's
  *  first character. A line inside a displayed equation or a listing is
  *  blank. */
-export function proseOf(lines: readonly string[], skip: ReadonlySet<number>, first: number): string {
-  return lines.map((line, index) => (skip.has(first + index) ? " ".repeat(line.length) : proseLine(line))).join("\n");
+export function proseOf(
+  lines: readonly string[], skip: ReadonlySet<number>, first: number, plain = false,
+): string {
+  return lines.map((line, index) => (skip.has(first + index) ? " ".repeat(line.length) : proseLine(line, plain))).join("\n");
 }
 
 /** A key for "ignore in this project": the rule and the words, in lower

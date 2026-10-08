@@ -12,6 +12,8 @@
 // arguments, and the braced argument of every command whose argument is an
 // identifier rather than a sentence -- and what is left is checked.
 
+import { language } from "@codemirror/language";
+import type { EditorState } from "@codemirror/state";
 import { braceAfter, commentStart, inlineMath } from "./latex-families";
 
 export type Word = { from: number; to: number; word: string };
@@ -65,7 +67,7 @@ export const OPAQUE_ENVIRONMENTS = new Set([
  *  almost every keystroke, leaves the set as it was, so the whole file is
  *  not scanned again on each key (Q-033). */
 export function touchesStructure(text: string): boolean {
-  return /[\n\\%{}[\]]/.test(text);
+  return /[\n\\%{}[\]`~]/.test(text);
 }
 
 /** Which lines are inside one of those, 1-based.
@@ -75,7 +77,8 @@ export function touchesStructure(text: string): boolean {
  *  the command and its environment name, which the per-line scan already
  *  masks off.
  */
-export function skippedLines(lines: readonly string[]): Set<number> {
+export function skippedLines(lines: readonly string[], plain = false): Set<number> {
+  if (plain) return fencedLines(lines);
   const out = new Set<number>();
   // How deep inside an opaque environment we are.  Nesting is counted so
   // that an `array` inside an `equation` does not end the equation.
@@ -101,6 +104,30 @@ export function skippedLines(lines: readonly string[]): Set<number> {
       } else if (depth > 0) {
         depth -= 1;
       }
+    }
+  });
+  return out;
+}
+
+/** Whether the file in an editor is read as plain prose rather than as
+ *  LaTeX: a Markdown note or a text file, whose `%` and `$` are text. */
+export function readsPlain(state: EditorState): boolean {
+  return state.facet(language)?.name !== "stex";
+}
+
+/** The lines of a Markdown file's fenced blocks, fences included: code,
+ *  which the editor draws as code and nobody spells. */
+function fencedLines(lines: readonly string[]): Set<number> {
+  const out = new Set<number>();
+  let fence: string | null = null;
+  lines.forEach((line, index) => {
+    const run = /^\s{0,3}(`{3,}|~{3,})/.exec(line)?.[1];
+    if (fence !== null) {
+      out.add(index + 1);
+      if (run && run[0] === fence[0] && run.length >= fence.length && line.trim() === run) fence = null;
+    } else if (run) {
+      fence = run;
+      out.add(index + 1);
     }
   });
   return out;
@@ -135,8 +162,8 @@ export function normalise(word: string): string {
 }
 
 /** The prose in one line, as ranges into it. */
-export function proseWords(text: string): Word[] {
-  const { line, masked } = maskOf(text);
+export function proseWords(text: string, plain = false): Word[] {
+  const { line, masked } = plain ? plainMaskOf(text) : maskOf(text);
   const out: Word[] = [];
   for (const found of line.matchAll(WORD)) {
     const at = found.index ?? 0;
@@ -156,8 +183,8 @@ export function proseWords(text: string): Word[] {
  *  a command, its key, maths or a comment is a space, and so are the
  *  braces, a tie and a forced break left between words, so what remains
  *  reads as sentences at exactly the offsets it had. */
-export function proseLine(text: string): string {
-  const { line, masked } = maskOf(text);
+export function proseLine(text: string, plain = false): string {
+  const { line, masked } = plain ? plainMaskOf(text) : maskOf(text);
   let out = "";
   for (let i = 0; i < text.length; i += 1) {
     const ch = text[i];
@@ -165,6 +192,32 @@ export function proseLine(text: string): string {
     else out += ch;
   }
   return out;
+}
+
+/** The same for a line that is not LaTeX, a Markdown note or a text
+ *  file: a `%` is a percent sign and a `$` a dollar, which LaTeX's mask
+ *  took for a comment and maths, so a typo after "50%" went unmarked and
+ *  the words between two prices were skipped. What is not prose here is
+ *  inline code, a link's address, an autolink or a bare address, and an
+ *  HTML tag or comment. */
+function plainMaskOf(text: string): { line: string; masked: Uint8Array } {
+  const masked = new Uint8Array(text.length);
+  const patterns = [
+    /(`+)[\s\S]*?\1/g,
+    /\]\([^)]*\)/g,
+    /^\s*\[[^\]]*\]:\s*\S+/g,
+    /<!--[\s\S]*?(-->|$)/g,
+    /<\/?[A-Za-z][^>]*>/g,
+    /<(?:https?:|mailto:)[^>\s]+>/g,
+    /\bhttps?:\/\/\S+/g,
+  ];
+  for (const pattern of patterns) {
+    for (const found of text.matchAll(pattern)) {
+      const at = found.index ?? 0;
+      for (let i = at; i < at + found[0].length; i += 1) masked[i] = 1;
+    }
+  }
+  return { line: text, masked };
 }
 
 /** Which columns of a line are not prose: its comment cut off, then

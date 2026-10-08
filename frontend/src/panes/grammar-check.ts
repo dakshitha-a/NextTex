@@ -10,6 +10,7 @@
 import { RangeSetBuilder, StateEffect, StateField, type Extension } from "@codemirror/state";
 import { Decoration, EditorView, ViewPlugin, type DecorationSet, type ViewUpdate } from "@codemirror/view";
 import { check, ignoreKey, proseOf, skippedLines, type Finding } from "./grammar";
+import { readsPlain } from "./spell-scan";
 
 export type { Finding };
 export { ignoreKey };
@@ -103,8 +104,9 @@ const asker = ViewPlugin.fromClass(
       for (let n = 1; n <= doc.lines; n += 1) all.push(doc.line(n).text);
       // Whether a line is inside a displayed equation is not a fact about
       // that line, so the whole document is read for it.
-      const skip = skippedLines(all);
-      const prose = proseOf(all.slice(first - 1, last), skip, first);
+      const plain = readsPlain(view.state);
+      const skip = skippedLines(all, plain);
+      const prose = proseOf(all.slice(first - 1, last), skip, first, plain);
       const base = doc.line(first).from;
       const mine = (this.asked += 1);
       try {

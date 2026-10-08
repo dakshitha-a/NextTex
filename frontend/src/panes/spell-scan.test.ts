@@ -1,6 +1,7 @@
 import { describe, expect, test } from "vitest";
 import {
   normalise,
+  proseLine,
   proseWords,
   skippedLines,
   touchesStructure,
@@ -206,5 +207,34 @@ describe("finding a comment quickly", () => {
     expect(commentStart("50\\% of it % note")).toBe(11);
     expect(commentStart("50\\% of it")).toBe(-1);
     expect(commentStart("a line break \\\\% note")).toBe(15);
+  });
+});
+
+describe("a Markdown note or a text file", () => {
+  const words = (line: string) => proseWords(line, true).map((w) => w.word);
+
+  test("reads past a percent sign and between two prices", () => {
+    // LaTeX's mask took the % for a comment and the $ for maths.
+    expect(words("Costs rose 50% to $12 and $15, recieved later.")).toEqual(
+      ["Costs", "rose", "and", "recieved", "later"],
+    );
+  });
+
+  test("skips inline code, a link's address, an autolink and HTML", () => {
+    expect(words("Run `fit_decay --sampels` from [the guide](docs/guidance.md).")).toEqual(
+      ["Run", "from", "the", "guide"],
+    );
+    expect(words("See <https://exmaple.org/pathh> and https://exmaple.org now.")).toEqual(["See", "and", "now"]);
+    expect(words("<!-- a nott to self --> Then <span class=\"wrd\">text</span>")).toEqual(["Then", "text"]);
+  });
+
+  test("skips a fenced block, fences and all", () => {
+    const lines = ["Prose here.", "```python", "plot(t, s)  # teh fit", "```", "More prose."];
+    expect([...skippedLines(lines, true)]).toEqual([2, 3, 4]);
+  });
+
+  test("gives the grammar checker the same prose", () => {
+    expect(proseLine("It rose 50% to $12.", true)).toBe("It rose 50% to $12.");
+    expect(proseLine("Use `x` here.", true)).toBe("Use     here.");
   });
 });

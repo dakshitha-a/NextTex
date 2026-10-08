@@ -16,7 +16,7 @@ import {
   ViewPlugin,
   type ViewUpdate,
 } from "@codemirror/view";
-import { normalise, proseWords, skippedLines, touchesStructure } from "./spell-scan";
+import { normalise, proseWords, readsPlain, skippedLines, touchesStructure } from "./spell-scan";
 import type { Variety } from "../dictionary/words";
 import type { Speller } from "./hunspell-speller";
 import { suggest } from "./spell-suggest";
@@ -194,6 +194,7 @@ function misspellings(
   custom: Set<string>,
   skip: Set<number>,
 ): DecorationSet {
+  const plain = readsPlain(view.state);
   const builder = new RangeSetBuilder<Decoration>();
   let lastLine = -1;
   for (const range of view.visibleRanges) {
@@ -205,7 +206,7 @@ function misspellings(
       // Inside a displayed equation or a listing, which began on some
       // earlier line and may not end for fifty more.
       if (skip.has(line.number)) { pos = line.to + 1; continue; }
-      for (const found of proseWords(line.text)) {
+      for (const found of proseWords(line.text, plain)) {
         if (!unknown(found.word, custom)) continue;
         builder.add(
           line.from + found.from,
@@ -249,8 +250,9 @@ const checker = ViewPlugin.fromClass(
         // about the text. They were rescanned on every such word, and the
         // editor sends one after every build with the project's accepted
         // words, so each build cost a pass over the whole file.
-        let moved = false;
-        if (update.docChanged) {
+        // Another file's language reads the lines another way.
+        let moved = readsPlain(update.startState) !== readsPlain(update.state);
+        if (update.docChanged && !moved) {
           update.changes.iterChanges((fromA, toA, _fromB, _toB, inserted) => {
             if (moved) return;
             moved =
@@ -277,7 +279,7 @@ const checker = ViewPlugin.fromClass(
         const doc = this.view.state.doc;
         const lines: string[] = [];
         for (const iter = doc.iterLines(); !iter.next().done; ) lines.push(iter.value);
-        this.skip = skippedLines(lines);
+        this.skip = skippedLines(lines, readsPlain(this.view.state));
       }
       this.decorations = misspellings(this.view, state.custom, this.skip);
     }

@@ -550,3 +550,18 @@ test("choosing English over the preamble's German is kept in the project", async
   await turnOn(tab);
   await expect(marked(tab)).toHaveText(["wiht"], { timeout: 20_000 });
 });
+
+test("a Markdown note is read as prose, not as LaTeX", async ({ tab, project }) => {
+  /* LaTeX's reading took a `%` for a comment and a `$` for maths, so in a
+     note a typo after "50%" went unmarked, and inline code was spelled. */
+  writeFileSync(
+    join(project.root, "notes.md"),
+    "Costs rose 50% to $12, and teh rest fell.\n\nRun `fit_decay --sampels` first.\n",
+  );
+  await expect(tab.locator(".cm-editor")).toBeVisible({ timeout: 30_000 });
+  await turnOn(tab);
+  await tab.locator('[role="tree"] [data-path="notes.md"]').click();
+  await expect(tab.locator(".cm-content")).toHaveAttribute("data-language", "markdown", { timeout: 15_000 });
+  await expect(marked(tab).first()).toBeVisible({ timeout: 20_000 });
+  await expect(marked(tab)).toHaveText(["teh"]);
+});

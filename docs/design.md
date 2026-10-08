@@ -12312,3 +12312,13 @@ lower limit its letter, and an equation's number "(1)" the end of its
 row, where it had selected the 1 of a `\frac{1}{2}` beside it. How the
 selection looks is unchanged.
 
+**And the spell checker reads it as prose.** The Markdown mode's own
+commit left the checkers reading a note as LaTeX, so a typo after "50%"
+went unmarked, the words between two prices were skipped, and a misspelt
+flag inside inline code was underlined. A Markdown note or a text file is
+now read plain by the spell checker and the grammar checker: inline code,
+a link's address, an autolink, a bare address and HTML are not prose, and
+a fenced block is skipped as a display is. `spell-scan.test.ts` holds the
+masks, and `e2e/specs/spelling.spec.ts` marks "teh" after "50%" in a note
+and leaves its inline code alone.
+
