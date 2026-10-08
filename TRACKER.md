@@ -211,13 +211,6 @@ OpenAI provider against OpenAI itself.
 
 ### Known gaps, with a cost somebody will eventually pay
 
-- [ ] **A text file that is not UTF-8 cannot be opened.** The tree reads
-      the first 8 kB of a file it has no name for, so an old program's
-      output in Latin-1 is a download, and one that turns to Latin-1 past
-      the first 8 kB is called text and then refused by the file route,
-      which says it is not UTF-8. Opening it would mean choosing an
-      encoding to write it back in, which nothing asked for yet.
-
 - [ ] **Four tour animations are still the soft 1x recordings.** The
       motion, rail and tour run found that every animation had been
       filmed at one pixel per point, since the screencast ignores the
@@ -294,6 +287,14 @@ Nothing at present. The last entries were read and closed on 8 October
       the local run is the evidence there is.
 
 ### Deliberately not done, and worth revisiting only if something changes
+
+- [ ] **A text file that is not UTF-8 cannot be opened.** The tree reads
+      the first 8 kB of a file it has no name for, so an old program's
+      output in Latin-1 is a download, and one that turns to Latin-1 past
+      the first 8 kB is called text and then refused by the file route,
+      which says it is not UTF-8. Opening it would mean choosing an
+      encoding to write it back in. The owner said on 8 October 2026
+      that this is not an issue and they like it as it is.
 
 - [ ] **A Word download's figures are pictures, not vectors.** Word 365
       can carry an SVG with a PNG behind it, which would keep a PDF or SVG
