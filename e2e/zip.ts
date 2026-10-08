@@ -59,3 +59,23 @@ export function zip(entries: Record<string, Buffer | string>): Buffer {
   end.writeUInt16LE(0, 20);
   return Buffer.concat([...locals, directory, end]);
 }
+
+/** The names inside a ZIP's central directory, read by hand: enough to
+ *  say the archive is whole and holds the file, without a library. */
+export function namesIn(archive: Buffer): string[] {
+  const names: string[] = [];
+  // End of central directory record, searched from the end.
+  const end = archive.lastIndexOf(Buffer.from([0x50, 0x4b, 0x05, 0x06]));
+  if (end < 0) throw new Error("not a zip: no end of central directory");
+  const count = archive.readUInt16LE(end + 10);
+  let at = archive.readUInt32LE(end + 16);
+  for (let index = 0; index < count; index += 1) {
+    if (archive.readUInt32LE(at) !== 0x02014b50) throw new Error("not a zip: a bad central directory entry");
+    const nameLength = archive.readUInt16LE(at + 28);
+    const extraLength = archive.readUInt16LE(at + 30);
+    const commentLength = archive.readUInt16LE(at + 32);
+    names.push(archive.subarray(at + 46, at + 46 + nameLength).toString("utf8"));
+    at += 46 + nameLength + extraLength + commentLength;
+  }
+  return names;
+}

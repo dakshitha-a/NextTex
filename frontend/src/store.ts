@@ -360,6 +360,9 @@ export type State = {
     /** Word limits by heading title, which the Sections drawer counts
      *  against. */
     wordLimits: Record<string, number>;
+    /** Whether the project's history keeps every version rather than
+     *  thinning old ones; off by default. */
+    keepAllVersions: boolean;
   };
   /** Which optional tools the machine has, fetched once per load; null
    *  until it answers.  The download menu and the submission panel read
@@ -495,6 +498,7 @@ const state: State = {
   settings: {
     autocompile: true, markErrors: true, markWarnings: false, engine: "", shellEscape: "off",
     pageLimit: 0, blind: false, pdfa: false, language: "", wordLimits: {},
+    keepAllVersions: false,
   },
   tools: null,
   agent: null,
@@ -1371,10 +1375,11 @@ function receive(event: any) {
           pdfa: event.pdfa === true,
           language: typeof event.language === "string" ? event.language : "",
           wordLimits: limitsOf(event.wordLimits),
+          keepAllVersions: event.keepAllVersions === true,
         };
         const was = state.settings as Record<string, unknown>;
         const moved = (Object.keys(settings) as (keyof typeof settings)[]).some(
-          (key) => key !== "wordLimits" && was[key] !== settings[key],
+          (key) => key !== "wordLimits" && key !== "keepAllVersions" && was[key] !== settings[key],
         );
         if (moved) setStale();
         set({ settings });

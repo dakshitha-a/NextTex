@@ -1929,9 +1929,9 @@ button.nx-reads-x[data-always]:hover { color: var(--pen); }
 .nx-person-host { color: var(--ink-3); }
 .nx-person-host .nx-person-name { color: var(--ink); }
 .nx-person-icon { display: inline-flex; width: 16px; justify-content: center; color: var(--ink-3); }
-.nx-keep-host { display: flex; align-items: flex-start; gap: 12px; padding: 10px 16px 4px; }
-.nx-keep-host-text { flex: 1; min-width: 0; font-size: 14px; line-height: 20px; color: var(--ink); }
-.nx-keep-host-text small { display: block; color: var(--ink-2); font-size: 12.5px; line-height: 17px; }
+.nx-keep-host, .nx-drawer-switch { display: flex; align-items: flex-start; gap: 12px; padding: 10px 16px 4px; }
+.nx-keep-host-text, .nx-drawer-switch-text { flex: 1; min-width: 0; font-size: 14px; line-height: 20px; color: var(--ink); }
+.nx-keep-host-text small, .nx-drawer-switch-text small { display: block; color: var(--ink-2); font-size: 12.5px; line-height: 17px; }
 .nx-paired { margin: 0 -8px; }
 .nx-paired-icon { display: inline-flex; color: var(--ink-3); }
 .nx-paired-state { display: inline-flex; align-items: center; gap: 6px; font-size: 12px; color: var(--ink-3); }

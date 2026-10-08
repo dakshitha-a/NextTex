@@ -422,6 +422,10 @@ export default function FileTree({
       } else if (action === "history") {
         onOpen(node.path);
         onHistory?.();
+      } else if (action === "historyexport") {
+        // The file's whole history as an audit trail, without opening it.
+        const name = node.path.split("/").pop() ?? node.path;
+        void download(api.historyExportUrl(projectId, node.path), `${name}-history.zip`, "the history");
       } else if (action === "run") {
         onRunScript?.(node.path);
       } else if (action === "plot") {
@@ -1018,7 +1022,7 @@ export default function FileTree({
               // Everything about this file's past, kept together: looking
               // at it and throwing it away are the same subject, and the
               // second is the reason somebody opens the first.
-              ...(!isDirectory ? [["rule:past", ""], ["history", "History"]] : []),
+              ...(!isDirectory ? [["rule:past", ""], ["history", "History"], ["historyexport", "Download history"]] : []),
               ["rule:out", ""],
               ["download", isDirectory ? "Download as zip" : "Download"],
               // In the order the direction page draws: making comes before

@@ -1,6 +1,7 @@
 import { test, expect } from "../fixtures";
 import type { Download, Page } from "@playwright/test";
 import { readFileSync } from "node:fs";
+import { namesIn } from "../zip";
 
 // A NextTex of its own: this spec reads a row of the projects screen, and a
 // shared server holds every other test's projects and choices.
@@ -21,26 +22,6 @@ async function zipOf(download: Download): Promise<Buffer> {
   expect(await download.failure()).toBeNull();
   const path = await download.path();
   return readFileSync(path!);
-}
-
-/** The names inside a ZIP's central directory, read by hand: enough to
- *  say the archive is whole and holds the file, without a library. */
-function namesIn(archive: Buffer): string[] {
-  const names: string[] = [];
-  // End of central directory record, searched from the end.
-  const end = archive.lastIndexOf(Buffer.from([0x50, 0x4b, 0x05, 0x06]));
-  expect(end).toBeGreaterThan(0);
-  const count = archive.readUInt16LE(end + 10);
-  let at = archive.readUInt32LE(end + 16);
-  for (let index = 0; index < count; index += 1) {
-    expect(archive.readUInt32LE(at)).toBe(0x02014b50);
-    const nameLength = archive.readUInt16LE(at + 28);
-    const extraLength = archive.readUInt16LE(at + 30);
-    const commentLength = archive.readUInt16LE(at + 32);
-    names.push(archive.subarray(at + 46, at + 46 + nameLength).toString("utf8"));
-    at += 46 + nameLength + extraLength + commentLength;
-  }
-  return names;
 }
 
 async function downloadFromInside(page: Page): Promise<Download> {

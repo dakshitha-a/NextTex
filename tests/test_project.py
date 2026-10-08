@@ -252,6 +252,21 @@ def test_word_limits_round_trip_beside_the_other_settings(tmp_path):
     assert "limits" not in (tmp_path / "nexttex.toml").read_text(encoding="utf-8")
 
 
+def test_keeping_every_version_round_trips_and_defaults_off(tmp_path):
+    """Thinning is the default, so the key is absent until a project turns
+    it on; only a real true turns it on, since the file is shared."""
+    (tmp_path / "nexttex.toml").write_text('[project]\nname = "T"\n', encoding="utf-8")
+    config = ProjectConfig.load(tmp_path)
+    assert config.keep_all_versions is False
+    config.keep_all_versions = True
+    config.save(tmp_path)
+    assert ProjectConfig.load(tmp_path).keep_all_versions is True
+    (tmp_path / "nexttex.toml").write_text(
+        '[project]\nname = "T"\nkeep_all_versions = "yes"\n', encoding="utf-8"
+    )
+    assert ProjectConfig.load(tmp_path).keep_all_versions is False
+
+
 def test_projects_opened_in_the_same_moment_are_listed_by_name_then_path(tmp_path):
     """Most recently opened first, and a tie, which a seeded or hand-written
     registry can hold, by name and then by path: the order is a function

@@ -1051,6 +1051,7 @@ const api = {
       pdfa: boolean;
       language: string;
       wordLimits: Record<string, number>;
+      keepAllVersions: boolean;
     }>,
   ) =>
     request<{
@@ -1066,6 +1067,7 @@ const api = {
       pdfa: boolean;
       language: string;
       wordLimits: Record<string, number>;
+      keepAllVersions: boolean;
     }>(`/projects/${id}/settings`, json(patch)),
   /** This machine's answer to a project that asks for shell escape. The
    *  project asks in its own toml; the answer is kept per project on the
@@ -1620,6 +1622,10 @@ const api = {
   historyBlobUrl: (id: string, path: string, sha: string, download = false) =>
     `/api/projects/${id}/history/blob?path=${encodeURIComponent(path)}` +
     `&sha=${encodeURIComponent(sha)}&${download ? "download=1" : "raw=1"}`,
+  /** One file's whole history as a ZIP: every stored version, a log,
+   *  checksums and a report.  Built by the server when asked. */
+  historyExportUrl: (id: string, path: string) =>
+    `/api/projects/${id}/history/export?path=${encodeURIComponent(path)}`,
 };
 
 export default api;

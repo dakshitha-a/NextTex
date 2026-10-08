@@ -56,7 +56,7 @@ from server.collab import peers as collab_peers
 from server.collab.peers import PeerNetwork, WELL_FORMED_SHARE_ID
 from server.collab.store import CollabStore
 from nexttex.history import REPLACE as history_replace
-from nexttex import changes
+from nexttex import audit, changes
 from server import comeback
 from server.transcript import TranscriptError
 from nexttex.atomic import (
@@ -4018,6 +4018,61 @@ async def history_timeline(project_id: str, limit: int = 80):
     return {"versions": versions}
 
 
+@app.get("/api/projects/{project_id}/history/export")
+async def history_export(project_id: str, path: str):
+    """One file's whole history as a ZIP, an audit trail; see `nexttex.audit`.
+
+    Built when asked, into a temporary file that goes once it is sent, as
+    the project's own ZIP is: nothing is kept for it.  A collaborator's
+    versions whose contents are not here are asked for all at once under
+    one budget, rather than through `_fetch_missing_blob` one at a time,
+    which waits six seconds for each; what has not arrived by then is
+    listed in the log as not on this machine.
+    """
+    session = session_for(project_id)
+    target, path = _safe_rel(session, path)
+    history = session.history
+    missing = {v.sha for v in history.versions(path)} - history.have(path)
+    peers = getattr(session, "peers", None)
+    if missing and peers is not None and peers.links:
+        for sha in missing:
+            await peers.fetch_blob(sha)
+        loop = asyncio.get_running_loop()
+        deadline = loop.time() + EXPORT_FETCH_SECONDS
+        while missing and loop.time() < deadline:
+            await asyncio.sleep(0.1)
+            missing = {sha for sha in missing if not history.blobs.has(sha)}
+
+    def build() -> Path:
+        handle = tempfile.NamedTemporaryFile(
+            prefix="nexttex-history-", suffix=".zip", delete=False,
+        )
+        handle.close()
+        archive_path = Path(handle.name)
+        try:
+            audit.build(
+                history, path, archive_path,
+                keep_all=session.project.config.keep_all_versions,
+                me=history.me, my_name=SETTINGS.display_name, program=VERSION,
+            )
+        except BaseException:
+            archive_path.unlink(missing_ok=True)
+            raise
+        return archive_path
+
+    archive_path = await asyncio.to_thread(build)
+    name = target.name.replace('"', "")
+    return FileResponse(
+        archive_path, media_type="application/zip",
+        headers={"Content-Disposition": f'attachment; filename="{name}-history.zip"'},
+        background=BackgroundTask(lambda: archive_path.unlink(missing_ok=True)),
+    )
+
+
+#: How long a history export waits for a collaborator's versions to arrive.
+EXPORT_FETCH_SECONDS = 4.0
+
+
 @app.get("/api/projects/{project_id}/history/size")
 async def history_size(project_id: str):
     """What the stored history costs on disk.
@@ -5985,6 +6040,7 @@ async def set_project_settings(
     pdfa: bool | None = Body(None),
     language: str | None = Body(None),
     wordLimits: dict | None = Body(None),
+    keepAllVersions: bool | None = Body(None),
 ):
     """The three switches and the engine choice on the settings card, the
     two venue facts the submission panel sets, and the word limits the
@@ -5997,6 +6053,8 @@ async def set_project_settings(
     none, and is refused outside that rather than clamped.  `wordLimits`
     is the whole table, title to words, and replaces the one kept; a table
     with a pair `project.clean_limits` would drop is refused whole.
+    `keepAllVersions` is the History drawer's switch that stops the
+    project's history thinning its older versions.
     """
     session = session_for(project_id)
     config = session.project.config
@@ -6029,6 +6087,8 @@ async def set_project_settings(
                 400, "a word limit is a heading's title and a whole number of words",
             )
         config.word_limits = kept
+    if keepAllVersions is not None:
+        config.keep_all_versions = bool(keepAllVersions)
     try:
         config.save(session.project.root)
     except OSError as error:

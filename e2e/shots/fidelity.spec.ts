@@ -1225,6 +1225,36 @@ const SURFACES: Record<string, Surface> = {
     },
     close: async (tab) => { await showDrawer(tab, "files"); },
   },
+  "history-audit": {
+    // The drawer for one file, the pointer on Download history in its
+    // heading, and Keep every version at its foot: "A file's history as
+    // an audit trail" on the direction page.
+    open: async (tab) => {
+      const editor = tab.locator(".cm-content");
+      await editor.click();
+      await tab.keyboard.press("Control+Home");
+      await tab.keyboard.press("End");
+      await tab.keyboard.type(" Revised.");
+      await tab.waitForTimeout(2500);
+      await showDrawer(tab, "history");
+      await tab.getByTestId("version").first().waitFor({ timeout: 20_000 });
+      await tab.getByTestId("history-export").hover();
+      await tab.waitForTimeout(400);
+      return tab.getByTestId("drawer");
+    },
+    close: async (tab) => { await showDrawer(tab, "files"); },
+  },
+  "file-menu-history": {
+    // A file row's menu with Download history after History.
+    open: async (tab) => {
+      await tab.getByLabel("Actions for main.tex").click({ force: true });
+      const menu = tab.getByTestId("file-menu");
+      await menu.waitFor();
+      await menu.getByRole("button", { name: "Download history" }).hover();
+      return menu;
+    },
+    close: async (tab) => { await tab.keyboard.press("Escape"); },
+  },
   /* The drawers, one surface each: the drawer's own element, so the
      heading row and the body are in the picture.  Sections and Search
      are full in the dark run and empty in the light one, as the page

@@ -23,6 +23,7 @@ import { Button, IconButton } from "../ui/Button";
 import { Chip, ChipToggle, Heading, Pressable, Segmented, Switch, useLabelId } from "../ui/controls";
 import { Sheet } from "../ui/Sheet";
 import { CloseIcon } from "../ui/icons";
+import { KEEP_ALL_OFF, KEEP_ALL_ON } from "../keep-all";
 import HostSettings from "./HostSettings";
 
 /** Everything the writer gets to choose, in one sheet, master-detail.
@@ -149,6 +150,7 @@ export default function SettingsSheet({
       markWarnings: boolean;
       engine: Engine | "";
       language: string;
+      keepAllVersions: boolean;
     }>,
   ) => {
     if (!projectId) return;
@@ -495,6 +497,17 @@ export default function SettingsSheet({
               off="They stay in the diagnostics list."
               onChange={(markWarnings) => toggle({ markWarnings })}
             />
+            {/* The History drawer's foot has the same switch.  Both
+                sentences matter here: off says what thinning does, on
+                says what keeping everything still does not keep. */}
+            <SwitchRow
+              title="Keep every version"
+              checked={project.keepAllVersions}
+              on={KEEP_ALL_ON}
+              off={KEEP_ALL_OFF}
+              onChange={(keepAllVersions) => toggle({ keepAllVersions })}
+              testid="settings-keep-all"
+            />
             {/* "" is the default and is drawn as pdflatex, so the row never
                 shows nothing pressed; picking pdflatex writes "" so the
                 project's toml carries no key it does not need. */}
@@ -613,12 +626,15 @@ function SRow({
 function SwitchRow({
   title,
   checked,
+  on,
   off,
   onChange,
   testid,
 }: {
   title: string;
   checked: boolean;
+  /** What a switch that is on still does not do, where that needs saying. */
+  on?: string;
   /** What still happens once this is off. */
   off: string;
   onChange: (checked: boolean) => void;
@@ -629,7 +645,7 @@ function SwitchRow({
     <div className="nx-settings-row">
       <div className="nx-settings-text">
         <span id={id}>{title}</span>
-        {checked ? null : <small>{off}</small>}
+        {checked ? (on ? <small>{on}</small> : null) : <small>{off}</small>}
       </div>
       <Switch checked={checked} onChange={onChange} aria-labelledby={id} data-testid={testid} />
     </div>

@@ -334,7 +334,7 @@ test("files changed outside NextTex in one moment are one row of the project's h
   await tab.getByTestId("history-tick-path").filter({ hasText: "notes.tex" }).click();
   // In that file now, with the panel back on its per-file question.
   await expect(tab.getByTitle("notes.tex").first()).toBeVisible({ timeout: 10_000 });
-  await expect(tab.getByRole("button", { name: "This file" })).toHaveAttribute(
+  await expect(tab.getByRole("button", { name: "This file", exact: true })).toHaveAttribute(
     "aria-pressed", "true",
   );
   await expect(tab.getByTestId("version").first()).toContainText("changed outside NextTex");

@@ -87,6 +87,21 @@ def test_everything_from_the_last_day_is_kept(tmp_path):
     assert len(store._thin(recent)) == len(recent)
 
 
+def test_a_project_that_keeps_every_version_thins_nothing(tmp_path):
+    """The audit setting: old versions survive a new record rather than
+    being thinned to one a day; with it off they thin as before."""
+    store = history(tmp_path)
+    now = time.time() * 1000
+    day = 86_400_000
+    old = [
+        Version(at=now - 30 * day + step * 60_000, sha=f"{step:064d}", bytes=1, by="you")
+        for step in range(6)
+    ]
+    assert len(store._thin(old)) < len(old)
+    store.keep_all = lambda: True
+    assert len(store._thin(old)) == len(old)
+
+
 def test_a_label_can_be_set_and_survives(tmp_path):
     store = history(tmp_path)
     version = store.record("main.tex", "text")

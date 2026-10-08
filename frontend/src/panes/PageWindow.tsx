@@ -55,6 +55,7 @@ export default function PageWindow({ request }: { request: PageWindowRequest }) 
             pdfa: project.pdfa === true,
             language: typeof project.language === "string" ? project.language : "",
             wordLimits: limitsOf(project.wordLimits),
+            keepAllVersions: project.keepAllVersions === true,
           },
         });
         connect(request.projectId);

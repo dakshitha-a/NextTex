@@ -834,6 +834,7 @@ export default function App() {
         pdfa: project.pdfa === true,
         language: typeof project.language === "string" ? project.language : "",
         wordLimits: limitsOf(project.wordLimits),
+        keepAllVersions: project.keepAllVersions === true,
       },
       // The last project's import progress, which belongs to the last
       // project. It was left, so opening another one showed a papers

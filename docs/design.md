@@ -12023,3 +12023,39 @@ file is too large to open here.
 types into the last and sees it reach disk. It sees a binary under an
 unknown suffix offered as a download, a 3 MB output open read-only, and
 a 12 MB one shown as too large.
+
+## 110. A file's history downloads as an audit trail
+
+Raised by the writer on 7 October 2026: the edit history of a file should
+be downloadable as an audit trail. They chose where it lives, asked for a
+switch that stops the history thinning, and asked for thinning to stay the
+default. Drawn on the direction page under "A file's history as an audit
+trail" before it was built.
+
+**Two ways in.** A file row's menu has **Download history** right after
+History, in the group about the file's past. The History drawer's heading
+row has the download icon beside its close chevron while it shows one
+file; its tooltip says "Download this file's history as a ZIP". Both go
+through `download` in `chrome.tsx`, never a link.
+
+**What arrives.** One ZIP, built when asked and never kept. It holds every
+stored version as its own file, oldest first; a log as CSV and JSON
+naming who made each version, when, what kind of change it was and why;
+a `SHA256SUMS` file that `sha256sum -c` checks without NextTex; and a
+report to read in a browser, with the change from each version to the
+next. The log says "this install" or the writer's display name where the
+drawer says "you", since "you" means nothing to whoever reads the trail
+later. A collaborator's version whose contents never reached this machine
+is still a row, marked as not here.
+
+**Keep every version.** A project switch, off by default, at the History
+drawer's foot and on the settings sheet's This project group. Under it,
+in the second ink, one sentence: off, how old versions thin; on, that a
+burst of typing within 90 seconds is still one version and that history
+grows faster. The foot uses the row People draws for Keep on my host,
+under a second class name, `nx-drawer-switch`.
+
+`e2e/specs/history-export.spec.ts` downloads the trail from the drawer
+and from the file's menu and reads the archive's names, and turns the
+switch on in the drawer and off on the settings sheet.
+

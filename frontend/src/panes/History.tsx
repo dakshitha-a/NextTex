@@ -3,8 +3,9 @@ import api, { type Version } from "../api";
 import { get, refreshHistory, set, useStore } from "../store";
 import { download } from "../chrome";
 import { Button, IconButton } from "../ui/Button";
-import { Input, Pressable, Segmented } from "../ui/controls";
-import { ChevronDownIcon, ChevronRightIcon } from "../ui/icons";
+import { Input, Pressable, Segmented, Switch, useLabelId } from "../ui/controls";
+import { KEEP_ALL_OFF, KEEP_ALL_ON, setKeepAllVersions } from "../keep-all";
+import { ChevronDownIcon, ChevronRightIcon, DownloadIcon } from "../ui/icons";
 import { Menu, MenuDivider, MenuItem } from "../ui/Menu";
 import { atPointer, claimsRightClick, type Wanted } from "../place-menu";
 import { isRenderable, isText, isViewable } from "./file-kinds";
@@ -310,6 +311,20 @@ export default function History({
         ) : (
           <span className="flex-1" />
         )}
+        {/* The file's whole history as an audit trail: a ZIP the server
+            builds when asked.  Only while one file is shown, since the
+            trail is a file's. */}
+        {scope === "file" && activePath && projectId ? (
+          <IconButton
+            label="Download this file's history as a ZIP"
+            data-testid="history-export"
+            onClick={() =>
+              void download(api.historyExportUrl(projectId, activePath), `${name}-history.zip`, "the history")
+            }
+          >
+            <DownloadIcon />
+          </IconButton>
+        ) : null}
         <IconButton label="Close the history" onClick={onClose}>
           <ChevronRightIcon />
         </IconButton>
@@ -749,6 +764,29 @@ export default function History({
           );
         })}
       </div>
+      {projectId ? <KeepEvery projectId={projectId} /> : null}
+    </div>
+  );
+}
+
+/** Keep every version, at the drawer's foot: the project's switch that
+ *  stops its history thinning old versions.  The same switch is on the
+ *  settings sheet's This project group. */
+function KeepEvery({ projectId }: { projectId: string }) {
+  const keeping = useStore((s) => s.settings.keepAllVersions);
+  const id = useLabelId();
+  return (
+    <div className="nx-drawer-switch shrink-0" data-testid="history-keep-all">
+      <div className="nx-drawer-switch-text">
+        <span id={id}>Keep every version</span>
+        <small>{keeping ? KEEP_ALL_ON : KEEP_ALL_OFF}</small>
+      </div>
+      <Switch
+        checked={keeping}
+        aria-labelledby={id}
+        onChange={(on) => setKeepAllVersions(projectId, on)}
+        data-testid="history-keep-all-switch"
+      />
     </div>
   );
 }

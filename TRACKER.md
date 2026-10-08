@@ -24,7 +24,12 @@ things go to be forgotten rather than a list anybody reads.
 
 ## In hand
 
-Nothing is in hand. On 7 October 2026, at 4.27.0, any file whose bytes
+Nothing is in hand. On 7 October 2026, at 4.28.0, a file's history came
+to download as an audit trail, from its menu or the History drawer, and
+a project gained a switch that keeps every version instead of thinning,
+off by default.
+
+Before it, on 7 October 2026, at 4.27.0, any file whose bytes
 are text came to open in the editor, where only eighteen suffixes had:
 a program's input or output, a molecule, a source file in any language,
 drawn in its language when one is known. It turned up and fixed a text

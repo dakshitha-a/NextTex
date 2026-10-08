@@ -144,6 +144,7 @@ def test_the_three_switches_round_trip(client, project_dir, opened):
         "pdfa": False,
         "language": "",
         "wordLimits": {},
+        "keepAllVersions": False,
     }
 
     # Written, not just held in memory.  `save()` writes its optional fields
@@ -374,3 +375,21 @@ def test_word_limits_are_kept_with_the_project(client, project_dir, opened):
     cleared = client.post(f"/api/projects/{project_id}/settings", json={"wordLimits": {}})
     assert cleared.json()["wordLimits"] == {}
     assert "limits" not in (project_dir / "nexttex.toml").read_text(encoding="utf-8")
+
+
+def test_keeping_every_version_is_a_project_setting(client, project_dir, opened):
+    """The History drawer's switch: written into `nexttex.toml`, reported
+    back, and read by the project's history at once."""
+    project_id = opened["id"]
+    assert client.post(f"/api/projects/{project_id}/open").json()["keepAllVersions"] is False
+    body = client.post(
+        f"/api/projects/{project_id}/settings", json={"keepAllVersions": True},
+    ).json()
+    assert body["keepAllVersions"] is True
+    assert "keep_all_versions = true" in (project_dir / "nexttex.toml").read_text(encoding="utf-8")
+    assert server_main.session_for(project_id).history.keep_all() is True
+    body = client.post(
+        f"/api/projects/{project_id}/settings", json={"keepAllVersions": False},
+    ).json()
+    assert body["keepAllVersions"] is False
+    assert server_main.session_for(project_id).history.keep_all() is False

@@ -145,7 +145,8 @@ drawn, right beside the source.
 ### Every pause is a version, and git when you want it
 
 There is no save button and nothing to lose. Each pause is kept, and the trash
-never empties itself.
+never empties itself. A file's whole history downloads as an audit trail, and
+a project can keep every version rather than thinning old ones.
 
 When you do use git, it is one drawer: see what changed, commit and push, pull.
 

@@ -312,6 +312,11 @@ class History:
         #: one slot, and the second listener would have silently replaced
         #: the first.
         self.listeners: list[Callable[[str], None]] = []
+        #: Whether to keep every version rather than thin the old ones.
+        #: Asked rather than stored, so the session can point it at the
+        #: project's setting once and an edit to `nexttex.toml` needs no
+        #: second step to reach here.
+        self.keep_all: Callable[[], bool] = lambda: False
 
     # -- keys --------------------------------------------------------------
     @property
@@ -1012,7 +1017,7 @@ class History:
         return ("week", int(stamp // 604800))
 
     def _thin(self, versions: list[Version]) -> list[Version]:
-        if len(versions) < 3:
+        if len(versions) < 3 or self.keep_all():
             return versions
         now = now_ms()
         keep: dict[tuple, Version] = {}

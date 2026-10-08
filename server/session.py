@@ -328,6 +328,7 @@ class ProjectSession:
         self.context = ProjectContext(project.state_dir)
         self.transcript = Transcript(project.state_dir / "transcript.jsonl")
         self.history = History(project.state_dir / "history")
+        self.history.keep_all = lambda: self.project.config.keep_all_versions
         self.symbols = SymbolCache(project.root)
         #: When the contents nothing refers to were last swept out of
         #: this project's history.  The reaper reads it; see COLLECT_EVERY.
@@ -1012,6 +1013,7 @@ class ProjectSession:
             "pdfa": config.pdfa,
             "language": config.language,
             "wordLimits": dict(config.word_limits),
+            "keepAllVersions": config.keep_all_versions,
         }
 
     def documents_payload(self) -> dict:

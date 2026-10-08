@@ -390,6 +390,13 @@ class ProjectConfig:
     #: section moving; a table of its own, `[project.limits]`, which an
     #: older NextTex reads past.
     word_limits: dict[str, int] = field(default_factory=dict)
+    #: Whether this project's history keeps every version rather than
+    #: thinning older ones to one an hour, a day, a week.  Off by default,
+    #: since thinning is what keeps a long project's history small; on for
+    #: a project that needs a complete audit trail.  Here rather than in
+    #: the install's settings because every collaborator's copy of the
+    #: history should keep the same versions.
+    keep_all_versions: bool = False
 
     @classmethod
     def load(cls, root: Path) -> "ProjectConfig":
@@ -422,6 +429,7 @@ class ProjectConfig:
             pdfa=section.get("pdfa") is True,
             language=cls._language(section.get("language")),
             word_limits=cls._limits(section.get("limits")),
+            keep_all_versions=section.get("keep_all_versions") is True,
         )
 
     @staticmethod
@@ -514,6 +522,8 @@ class ProjectConfig:
             lines.append("pdfa = true")
         if self.language:
             lines.append(f"language = {_toml(self.language)}")
+        if self.keep_all_versions:
+            lines.append("keep_all_versions = true")
         if self.check_command:
             lines.append(f"check_command = {_toml(self.check_command)}")
         if self.exclude:
@@ -730,6 +740,7 @@ class Project:
             "pdfa": self.config.pdfa,
             "language": self.config.language,
             "wordLimits": dict(self.config.word_limits),
+            "keepAllVersions": self.config.keep_all_versions,
         }
 
 
