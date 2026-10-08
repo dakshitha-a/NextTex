@@ -156,9 +156,14 @@ export default function SettingsSheet({
     if (!projectId) return;
     // Applied here and confirmed by the server's `project_changed`, so the
     // switch answers the click rather than the round trip.
-    set({ settings: { ...get().settings, ...patch } });
+    // What the switches said before, so a refusal can put them back.  The
+    // refusal used to set the settings to themselves, which by then were
+    // the refused values, so the switch stayed where the server said no.
+    const was = get().settings;
+    set({ settings: { ...was, ...patch } });
     api.setProjectSettings(projectId, patch).catch(() => {
-      set({ settings: get().settings, error: "Could not save that setting." });
+      const back = Object.fromEntries(Object.keys(patch).map((key) => [key, was[key as keyof typeof was]]));
+      set({ settings: { ...get().settings, ...back }, error: "Could not save that setting." });
     });
   };
 

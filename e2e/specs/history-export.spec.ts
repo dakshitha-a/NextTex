@@ -102,3 +102,17 @@ test("Keep every version is off by default and is one setting in two places", as
   await tab.getByTestId("settings-close").click();
   await expect(toggle).toHaveAttribute("aria-checked", "false");
 });
+
+test("a switch on This project the server refuses goes back", async ({ tab }) => {
+  await expect(tab.locator(".cm-editor")).toBeVisible({ timeout: 45_000 });
+  await tab.route("**/api/projects/*/settings", (route) =>
+    route.fulfill({ status: 500, body: JSON.stringify({ detail: "no" }) }));
+  await tab.getByTestId("appearance").first().click();
+  const sheet = tab.getByRole("dialog", { name: "Settings" });
+  await sheet.getByTestId("settings-group-project").click();
+  const row = sheet.getByTestId("settings-keep-all");
+  await expect(row).toHaveAttribute("aria-checked", "false");
+  await row.click();
+  await expect(row).toHaveAttribute("aria-checked", "false", { timeout: 5_000 });
+});
+
