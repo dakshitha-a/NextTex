@@ -58,7 +58,8 @@ import type { CiteScope } from "./cite-match";
 import { bibCompletions } from "./bib-complete";
 import { environmentToClose, indentOf, opensEnvironment } from "./close-environment";
 import { isEscaped } from "./escaping";
-import { extensionOf, isBib, isCode, isScript } from "./file-kinds";
+import { extensionOf, isBib, isCode, isMarkdown, isScript, isTeXFamily } from "./file-kinds";
+import { markdownMode } from "./markdown-mode";
 import { inputTarget, labelTarget, linkAt, sourceTarget } from "./latex-links";
 import { mac } from "./math-hover";
 import { mathHover, type FigureFacts, type OnEquation, type OnSymbol } from "./math-hover";
@@ -88,6 +89,9 @@ const PYTHON = StreamLanguage.define({
   ...python,
   tokenTable: { self: tags.special(tags.variableName) },
 });
+
+/** A Markdown file's own language; see `markdown-mode.ts`. */
+const MARKDOWN = StreamLanguage.define(markdownMode);
 
 /** Near-monochrome by default.  The rendered page is two panes away, and a
  *  rainbow of token colours beside it makes the source look like the louder
@@ -156,6 +160,22 @@ const scriptRules = [
   { tag: tags.operator, color: "var(--ink)" },
 ];
 const pythonHighlight = HighlightStyle.define(scriptRules, { scope: PYTHON });
+
+/** Markdown in the same near-monochrome: a heading and strong text take
+ *  the weight a LaTeX command does, emphasis the italic, and the markup
+ *  itself, the fences, the list and quote markers, a rule and a comment,
+ *  steps back to the faintest ink so the words are what reads. */
+const markdownHighlight = HighlightStyle.define([
+  { tag: tags.heading, color: "var(--nx-syn-keyword, var(--ink))", fontWeight: "var(--nx-weight-strong, 600)" },
+  { tag: tags.strong, fontWeight: "var(--nx-weight-strong, 600)" },
+  { tag: tags.emphasis, fontStyle: "italic" },
+  { tag: tags.monospace, color: "var(--ink-2)" },
+  { tag: tags.link, color: "var(--ink-2)" },
+  { tag: tags.url, color: "var(--ink-2)" },
+  { tag: tags.meta, color: "var(--ink-3)" },
+  { tag: tags.contentSeparator, color: "var(--ink-3)" },
+  { tag: tags.comment, color: "var(--ink-3)", fontStyle: "italic" },
+], { scope: MARKDOWN });
 
 /** The same look for every other language, so a Fortran source or a shell
  *  script reads like a figure script and takes the same colour switch.
@@ -862,6 +882,17 @@ export function languageFor(
     // and drew every `%mem=` as a comment and every `$` as maths.
     const language = codeLanguages.get(extensionOf(path));
     return language ? [language, syntaxHighlighting(codeHighlight)] : [];
+  }
+  if (isMarkdown(path)) {
+    // Its own language rather than LaTeX's, which it fell through to:
+    // there a `%` began a comment and a `$` began maths.  The spell
+    // checker and the preview pane are what a note needs besides.
+    return [MARKDOWN, syntaxHighlighting(markdownHighlight)];
+  }
+  if (!isTeXFamily(path)) {
+    // A `.txt`, or a name with no extension, the README it usually is:
+    // prose, which the spell checker reads, in no language at all.
+    return [];
   }
   if (isBib(path)) {
     // The stex mode reads a .bib well enough: braces pair and a field name

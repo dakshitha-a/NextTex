@@ -49,8 +49,7 @@ const BINARY = new Set([
   ".eps",
 ]);
 
-/** Text that is prose, which the spell checker reads and the editor gives
- *  LaTeX's mode.  Every other text file is code, or a program's input or
+/** Text that is prose, which the spell checker reads.  Every other text file is code, or a program's input or
  *  output, and is spared both: a `.xyz` is a column of coordinates and a
  *  Fortran source is identifiers, and red underlines under either say
  *  nothing about their spelling.  A name with no extension is prose, the
@@ -59,6 +58,11 @@ const PROSE = new Set([
   "", ".tex", ".ltx", ".sty", ".cls", ".bib", ".bst", ".bbl", ".txt",
   ".md", ".markdown",
 ]);
+
+/** The prose the editor draws in LaTeX's mode: TeX, its packages and
+ *  classes, and the bibliography with what BibTeX writes from it.  A
+ *  Markdown file has its own mode, and a `.txt` or a README none. */
+const TEX_FAMILY = new Set([".tex", ".ltx", ".sty", ".cls", ".bib", ".bst", ".bbl"]);
 
 /** What the server said about each file in the tree, by path.  The tree is
  *  the only place the bytes speak, so a `.out` that is really a binary is
@@ -135,6 +139,10 @@ export const READABLE_TEXT_BYTES = 10 * 1024 * 1024;
 
 export function isCode(path: string): boolean {
   return isText(path) && !PROSE.has(extensionOf(path));
+}
+
+export function isTeXFamily(path: string): boolean {
+  return TEX_FAMILY.has(extensionOf(path));
 }
 
 /** A Python script, which is the one kind of file the editor can run. */

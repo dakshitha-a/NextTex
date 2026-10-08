@@ -234,11 +234,6 @@ OpenAI provider against OpenAI itself.
       which says it is not UTF-8. Opening it would mean choosing an
       encoding to write it back in, which nothing asked for yet.
 
-- **A Markdown buffer's `.cm-content` read `data-language="stex"`** in a
-  failing spec run on 2 October 2026. Not checked whether Markdown is
-  meant to share the TeX mode or picks it up by mistake; noted while
-  chasing the reopened-tab bug and left because it was not that bug.
-
 - [ ] **Four tour animations are still the soft 1x recordings.** The
       motion, rail and tour run found that every animation had been
       filmed at one pixel per point, since the screencast ignores the

@@ -249,3 +249,33 @@ test("an empty Markdown file says so rather than showing a blank page", async ({
     timeout: 15_000,
   });
 });
+
+test("the editor draws Markdown as Markdown, and a text file as text", async ({
+  app, project, page,
+}) => {
+  /* A `.md` fell through to LaTeX's mode, which a failing run on
+     2 October 2026 caught as `data-language="stex"`: a `%` greyed the rest
+     of its line as a comment and a `$` began maths. */
+  writeFileSync(join(project.root, "notes.md"), "# Costs\n\nThey rose 50% to $12, *then* fell.\n");
+  writeFileSync(join(project.root, "todo.txt"), "Check 50% of the $5 runs.\n");
+  await page.goto(`${app.base}/?token=${app.token}`);
+  await page.getByText("Projects", { exact: false }).first().waitFor();
+  await openProject(page, project.root);
+  await expect(page.locator(".cm-editor")).toBeVisible({ timeout: 30_000 });
+
+  await page.locator('[role="tree"] [data-path="notes.md"]').click();
+  const content = page.locator(".cm-content");
+  await expect(content).toHaveAttribute("data-language", "markdown", { timeout: 15_000 });
+  const heading = page.locator(".cm-line", { hasText: "# Costs" }).locator("span").first();
+  expect(Number(await heading.evaluate((el) => getComputedStyle(el).fontWeight))).toBeGreaterThanOrEqual(600);
+  const prose = page.locator(".cm-line", { hasText: "They rose" });
+  // Nothing after the `%` is a comment, and only the emphasis is italic.
+  const italic = await prose.locator("span").evaluateAll((spans) =>
+    spans.filter((span) => getComputedStyle(span).fontStyle === "italic").map((span) => span.textContent));
+  expect(italic).toEqual(["*then*"]);
+
+  await page.locator('[role="tree"] [data-path="todo.txt"]').click();
+  await expect(page.locator(".cm-line", { hasText: "Check 50%" })).toBeVisible({ timeout: 15_000 });
+  await expect(content).not.toHaveAttribute("data-language", /./);
+  await expect(page.locator(".cm-line", { hasText: "Check 50%" }).locator("span")).toHaveCount(0);
+});

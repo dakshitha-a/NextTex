@@ -12244,3 +12244,35 @@ drags from a paragraph into the gap under it and fails if the selection
 ever shrinks, which it did on the first step into the gap before the
 guard, copies accented and hyphenated words from the page, and zooms in and
 finds the first span the same element, larger.
+
+## 114. Markdown is drawn as Markdown
+
+A failing browser run on 2 October 2026 caught a Markdown buffer's
+`.cm-content` saying `data-language="stex"`. The tracker held it as a
+question: was Markdown meant to share the TeX mode, or did it pick it up
+by mistake? By mistake. `languageExtensions` handed LaTeX's mode to every
+file the spell checker reads, and `PROSE` in `file-kinds.ts` counted a
+`.md`, a `.txt` and a README among them, so a note got a comment after
+every `%`, maths after every `$`, folding at a `\section`, the maths
+hover, and completion offering LaTeX commands.
+
+**Markdown has a mode of its own.** `markdownMode` reads what the
+Markdown pane's parser reads: headings, fences and inline code, emphasis,
+links, the markers of lists and quotes, rules and HTML comments. A
+heading and strong text take the editor's strong weight, as a command
+does; emphasis is italic; code and links are in the second ink; the
+markup itself, fences, markers, rules and comments, is in the third. An
+underscore inside a word is part of it, so `plot_fit.py` is a name and
+not emphasis. Ctrl-/ comments a line with `<!-- -->`, where it had
+written `%`. It is a stream mode rather than `@codemirror/lang-markdown`,
+which would bring an HTML, CSS and JavaScript grammar into a chunk the
+first paint carries.
+
+**A plain text file is plain.** A `.txt` and a name with no extension
+have no language. The spell checker reads both, as before.
+
+`markdown-mode.test.ts` holds the tokens; `e2e/specs/markdown-preview.spec.ts`
+opens a note and finds `data-language="markdown"`, the heading at the
+strong weight and nothing italic after the `%` but the emphasis, then
+opens a `.txt` and finds no language and no styled span.
+
