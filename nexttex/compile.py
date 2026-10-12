@@ -403,6 +403,20 @@ class ProjectPaths:
                 return candidate
         return None
 
+    def mapped_pdf(self) -> Path:
+        """The PDF to ask SyncTeX about: the build's, or the kept one while
+        a build runs.
+
+        The engine writes its map under another name until it finishes, so
+        while it runs the build's PDF has no map and the kept one has its
+        own. A settling build starts the moment the fast pass before it
+        lands, and the fast pass's forward search, asked a moment later,
+        found no map at all: the page did not follow the writing until the
+        settling build, seconds later, had finished as well."""
+        if not self.synctex.exists() and self.kept_synctex.exists():
+            return self.kept_pdf
+        return self.pdf
+
     @property
     def log(self) -> Path:
         return self.build_dir / f"{self.jobname}.log"

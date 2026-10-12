@@ -6296,7 +6296,7 @@ async def synctex_inverse(
     # runs on every double-click in the preview.
     position = await asyncio.to_thread(
         synctex.pdf_to_source,
-        state.paths.pdf, page, x, y, session.project.root,
+        state.paths.mapped_pdf(), page, x, y, session.project.root,
         shadow_main=state.paths.shadow, main_file=state.paths.main,
         base=state.paths.workdir,
     )
@@ -6318,9 +6318,10 @@ async def synctex_forward(
     session = session_for(project_id)
     state = _document(session, document)
     target = _safe(session, path)
+    pdf = state.paths.mapped_pdf()
     positions = await asyncio.to_thread(
         synctex.source_to_pdf,
-        state.paths.pdf, target, line, session.project.root, column,
+        pdf, target, line, session.project.root, column,
         base=state.paths.workdir,
     )
     # A scoped build compiled the stand-in main file, and its .synctex.gz
@@ -6336,7 +6337,7 @@ async def synctex_forward(
         )
         positions = await asyncio.to_thread(
             synctex.source_to_pdf,
-            state.paths.pdf, shadow, shifted, session.project.root, column,
+            pdf, shadow, shifted, session.project.root, column,
             base=state.paths.workdir,
         )
     return {"positions": [

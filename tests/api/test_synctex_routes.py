@@ -123,3 +123,65 @@ def test_inverse_search_reports_the_main_file_for_the_shadow(
     assert body["file"] == "main.tex"
     # Line 13 of the shadow is line 12 of the file the writer has open.
     assert body["line"] == 12
+
+
+def _mid_build(paths):
+    """The build directory as it is while the engine runs: the last PDF and
+    its map moved aside, and the engine's own map not written yet."""
+    paths.build_dir.mkdir(parents=True, exist_ok=True)
+    paths.synctex.unlink(missing_ok=True)
+    paths.kept_pdf.write_bytes(b"%PDF-1.5\n%%EOF\n")
+    paths.kept_synctex.write_bytes(b"map")
+
+
+def test_forward_search_while_a_build_runs_asks_the_kept_pages(client, opened, monkeypatch):
+    """A settling build starts the moment the fast pass before it lands,
+    and the fast pass's forward search used to find no map at all."""
+    paths = server_main.SESSIONS[opened["id"]].paths
+    _mid_build(paths)
+    asked = []
+
+    def fake(pdf, source, line, project_root, column=0, base=None):
+        asked.append(pdf)
+        return [synctex.PdfPosition(3, 1.0, 2.0)]
+
+    monkeypatch.setattr(synctex, "source_to_pdf", fake)
+    answer = client.get(
+        f"/api/projects/{opened['id']}/synctex/forward",
+        params={"path": "main.tex", "line": 12},
+    )
+    assert answer.json()["positions"][0]["page"] == 3
+    assert asked == [paths.kept_pdf]
+
+
+def test_inverse_search_while_a_build_runs_asks_the_kept_pages(client, opened, monkeypatch):
+    paths = server_main.SESSIONS[opened["id"]].paths
+    _mid_build(paths)
+    asked = []
+
+    def fake(pdf, page, x, y, project_root, **_):
+        asked.append(pdf)
+        return None
+
+    monkeypatch.setattr(synctex, "pdf_to_source", fake)
+    client.get(
+        f"/api/projects/{opened['id']}/synctex/inverse",
+        params={"page": 1, "x": 100.0, "y": 100.0},
+    )
+    assert asked == [paths.kept_pdf]
+
+
+def test_after_a_build_the_builds_own_map_is_asked(client, opened, monkeypatch):
+    paths = server_main.SESSIONS[opened["id"]].paths
+    _mid_build(paths)
+    paths.synctex.write_bytes(b"new map")
+    asked = []
+    monkeypatch.setattr(
+        synctex, "source_to_pdf",
+        lambda pdf, *args, **kwargs: asked.append(pdf) or [],
+    )
+    client.get(
+        f"/api/projects/{opened['id']}/synctex/forward",
+        params={"path": "main.tex", "line": 12},
+    )
+    assert asked[0] == paths.pdf
