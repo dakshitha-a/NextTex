@@ -107,6 +107,10 @@ export type PdfHandle = {
    *  anti-jump rule exists because a preview that shifts under somebody
    *  reading it is worse than one that has not caught up. */
   reveal(path: string, line: number, options?: Reveal): Promise<boolean>;
+  /** Whether the reader has moved the page themselves, with the wheel, a
+   *  finger, the scroll bar or the keys, since `at` (a `Date.now()`). The
+   *  settling build after a followed one follows too, unless they have. */
+  movedSince(at: number): boolean;
 };
 
 /** How a reveal goes. */
@@ -125,6 +129,11 @@ export type Reveal = {
 };
 
 type Mode = "scroll" | "page";
+
+/** Where the reader is, in a form that survives a rebuild: a page and a
+ *  fraction of it, or, when the place was found again by its text, how far
+ *  down that page in points and how far down the view it was. */
+type Place = { index: number; fraction: number; held?: { points: number; eye: number } };
 
 /** Paint the violet rectangle over a box on the page, and take it away.
  *
@@ -167,6 +176,24 @@ async function runsOf(document: pdfjs.PDFDocumentProxy, number: number): Promise
       str: item.str, left: item.transform[4] - left, top: baseline - size * 0.75,
       bottom: baseline, width: item.width,
     });
+  }
+  return runs;
+}
+
+/** Each document's runs, page by page, read once. A rebuild reads the
+ *  pages around the reader to keep their place and the reveal after it
+ *  reads the page it lands on, often the same ones. */
+const pageRuns = new WeakMap<pdfjs.PDFDocumentProxy, Map<number, Promise<PageRun[] | null>>>();
+function runsOnPage(document: pdfjs.PDFDocumentProxy, number: number): Promise<PageRun[] | null> {
+  let pages = pageRuns.get(document);
+  if (!pages) {
+    pages = new Map();
+    pageRuns.set(document, pages);
+  }
+  let runs = pages.get(number);
+  if (!runs) {
+    runs = runsOf(document, number).catch(() => null);
+    pages.set(number, runs);
   }
   return runs;
 }
@@ -518,7 +545,7 @@ export default function Pdf({
     return { index: pages.current.length - 1, fraction: 0 };
   }, []);
 
-  const restore = useCallback((position: { index: number; fraction: number }) => {
+  const restore = useCallback((position: Place) => {
     const root = scroller.current;
     if (!root || !pages.current.length) return;
     const index = Math.min(Math.max(position.index, 0), pages.current.length - 1);
@@ -527,8 +554,59 @@ export default function Pdf({
       root.scrollTop = 0;
       return;
     }
-    const element = pages.current[index].container;
-    root.scrollTop = element.offsetTop + position.fraction * element.offsetHeight;
+    const view = pages.current[index];
+    const element = view.container;
+    root.scrollTop = position.held
+      ? element.offsetTop + element.clientTop + position.held.points * view.scale - position.held.eye
+      : element.offsetTop + position.fraction * element.offsetHeight;
+  }, []);
+
+  /** Where the reader is, found again in the document a build has just
+   *  made, or nothing. See hold-place.ts.
+   *
+   *  Read from the pages still on screen and the document they were drawn
+   *  from, which is not destroyed until the new one is laid out. The eye
+   *  is a third of the way down the view, where a reveal puts what it
+   *  shows; in page mode it is the top of the page. A pinch in flight, a
+   *  turned page and a reader who scrolls while the text is read all keep
+   *  the place the old way. */
+  const holdPlace = useCallback(async (
+    previous: pdfjs.PDFDocumentProxy,
+    next: pdfjs.PDFDocumentProxy,
+  ): Promise<Place | null> => {
+    const root = scroller.current;
+    const old = pages.current;
+    if (!root || !old.length || zooming.current) return null;
+    const paged = modeRef.current === "page";
+    const eye = paged ? 0 : root.clientHeight / 3;
+    const at = root.scrollTop + eye;
+    const index = paged
+      ? currentRef.current - 1
+      : old.findIndex((view) => at < view.container.offsetTop + view.container.offsetHeight);
+    const view = old[index];
+    if (!view || view.rotation) return null;
+    const y = paged ? 0 : Math.max(0, (at - view.container.offsetTop - view.container.clientTop) / view.scale);
+    const scrolled = root.scrollTop;
+    try {
+      const { marksAt, findPlace } = await import("./hold-place");
+      const runs = await runsOnPage(previous, index + 1);
+      if (!runs) return null;
+      // A different number of pages by more than a few is a document of a
+      // different shape, a chapter alone or the whole of it, and the place
+      // can be anywhere in it.
+      const reshaped = Math.abs(next.numPages - previous.numPages) > 3;
+      const place = await findPlace(
+        marksAt(runs, y), index + 1, next.numPages, (page) => runsOnPage(next, page), reshaped,
+      );
+      if (!place || root.scrollTop !== scrolled || zooming.current) return null;
+      return {
+        index: place.page - 1,
+        fraction: 0,
+        held: { points: place.baseline + (y - place.mark.baseline), eye },
+      };
+    } catch {
+      return null;
+    }
   }, []);
 
   // ---- drawing ----------------------------------------------------------
@@ -871,7 +949,7 @@ export default function Pdf({
 
   // ---- laying the document out ------------------------------------------
   const layout = useCallback(
-    async (document: pdfjs.PDFDocumentProxy, keep: boolean) => {
+    async (document: pdfjs.PDFDocumentProxy, keep: boolean, previous?: pdfjs.PDFDocumentProxy | null) => {
       const container = sheet.current;
       if (!container) return;
       const mine = (generation.current += 1);
@@ -915,11 +993,16 @@ export default function Pdf({
         ),
       );
       if (superseded()) return;
-      // Where the reader is, read after the awaits rather than before them.
-      // A pinch that went on through them had scrolled by the time they
-      // returned, and putting back the place from before pulled the page
-      // out from under the fingers.
-      const position = keep ? anchor() : { index: 0, fraction: 0 };
+      // A new build of the document: the place the reader is at, found by
+      // its text, since the build may have moved it to another page or
+      // made a document of another shape.
+      const held = keep && previous && previous !== document ? await holdPlace(previous, document) : null;
+      if (superseded()) return;
+      // Otherwise where the reader is, read after the awaits rather than
+      // before them. A pinch that went on through them had scrolled by the
+      // time they returned, and putting back the place from before pulled
+      // the page out from under the fingers.
+      const position: Place = held ?? (keep ? anchor() : { index: 0, fraction: 0 });
       const views: PageView[] = [];
       for (let index = 0; index < count; index += 1) {
         const page = sheets[index];
@@ -1032,7 +1115,7 @@ export default function Pdf({
       if (superseded()) return;
       drawVisible();
     },
-    [anchor, drawVisible, renderPage, restore, scale],
+    [anchor, drawVisible, holdPlace, renderPage, restore, scale],
   );
 
   /** In page mode only one page is in the flow; in scroll mode all are. */
@@ -1104,7 +1187,7 @@ export default function Pdf({
         const previous = doc.current;
         doc.current = loaded;
         setAbsence("");
-        await layoutRef.current(loaded, previous !== null);
+        await layoutRef.current(loaded, previous !== null, previous);
         void previous?.loadingTask.destroy();
       } catch {
         // Never got an answer at all, which is not the same as being told
@@ -1543,8 +1626,25 @@ export default function Pdf({
     [pageCount],
   );
 
+  /** When the reader last moved the page themselves. Their input, not the
+   *  scroll event, which a reveal and a rebuild fire as well. */
+  const readerMoved = useRef(0);
+  useEffect(() => {
+    const root = scroller.current;
+    if (!root) return;
+    const moved = () => {
+      readerMoved.current = Date.now();
+    };
+    const kinds = ["wheel", "touchstart", "pointerdown", "keydown"] as const;
+    for (const kind of kinds) root.addEventListener(kind, moved, { passive: true });
+    return () => {
+      for (const kind of kinds) root.removeEventListener(kind, moved);
+    };
+  }, []);
+
   useEffect(() => {
     handleRef({
+      movedSince: (at: number) => readerMoved.current > at,
       goTo: (page: number) => {
         if (pageCount >= page) {
           wantedPage.current = null;
@@ -1577,7 +1677,7 @@ export default function Pdf({
           const document = doc.current;
           const positions = await finder.placeOnPage(
             source?.lines[line - 1] ?? "", column, result.positions ?? [],
-            async (page) => (document ? runsOf(document, page) : null),
+            async (page) => (document ? runsOnPage(document, page) : null),
           );
           // The earliest on the page first: the one the view moves to.
           positions.sort((a, b) => a.page - b.page || a.y - a.height - (b.y - b.height));
@@ -1657,7 +1757,11 @@ export default function Pdf({
    *  is this" rather than two that can disagree.
    */
   const step = useCallback(
-    (delta: number) => goTo((currentRef.current || 1) + delta),
+    (delta: number) => {
+      // The footer's arrows and the page menu are outside the scroller.
+      readerMoved.current = Date.now();
+      goTo((currentRef.current || 1) + delta);
+    },
     [goTo],
   );
 

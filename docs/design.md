@@ -12374,3 +12374,34 @@ before a press opened its source.
 `e2e/specs/jump-to-page.spec.ts` and `e2e/specs/drawer-documents.spec.ts`
 hold both across two documents that share a chapter.
 
+
+## 117. The page keeps up with a thesis as it reflows
+
+The writer reported on 12 October 2026 that the page lost the writing in a
+double-spaced thesis. While a sentence stayed on its page the page
+followed it, and once a line went onto the next page, which in a
+double-spaced thesis is every few sentences, the view went to the start of
+the chapter or stayed behind on the page before.
+
+**The page follows the writing through the second build.** A line that
+moves to the next page moves every page number the thesis refers to, so a
+fast build is followed by a fuller one a moment later. That second build
+now follows the caret the way the first did, and flashes the line. It
+does not when the reader has moved the page themselves since the first,
+with the wheel, a finger, the scroll bar or the keys: they are reading
+something else, and they are left there.
+
+**A rebuild keeps the reader's place by what they were reading.** The
+page used to keep a page number and how far down it the reader was. In a
+thesis built one chapter at a time that page number is another chapter
+once the whole thesis is built, and anywhere a line moved to the next
+page, everything after it had moved a line. The line a third of the way
+down the view is now found again in the new pages, by its words, and put
+back at the same height on screen.
+
+**The first build follows again.** Its own look-up of where the caret's
+line was set ran while the second build was moving files about, found
+nothing, and moved nothing; it now reads the pages that are on screen.
+
+`e2e/specs/build-follow.spec.ts` holds both halves on a thesis built one
+chapter at a time.

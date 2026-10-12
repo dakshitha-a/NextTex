@@ -4,8 +4,8 @@
   "areas": [
     {
       "name": "the preview",
-      "sources": ["frontend/src/panes/Pdf.tsx", "frontend/src/panes/pdf-*.ts", "frontend/src/panes/PageWindow.tsx", "frontend/src/panes/PreviewHeader.tsx", "frontend/src/page-window.ts", "frontend/src/follow-preview.ts", "frontend/src/panes/Markdown.tsx", "frontend/src/panes/markdown-source.ts", "frontend/src/panes/locate-on-page.ts", "nexttex/synctex.py"],
-      "specs": ["pdf-*", "preview-swap", "kept-pdf", "previews", "page-window", "appearance", "latex-links", "markdown-preview", "navigation", "inverse-word", "build-flash", "multidoc", "jump-to-page"]
+      "sources": ["frontend/src/panes/Pdf.tsx", "frontend/src/panes/pdf-*.ts", "frontend/src/panes/PageWindow.tsx", "frontend/src/panes/PreviewHeader.tsx", "frontend/src/page-window.ts", "frontend/src/follow-preview.ts", "frontend/src/panes/Markdown.tsx", "frontend/src/panes/markdown-source.ts", "frontend/src/panes/locate-on-page.ts", "frontend/src/panes/hold-place.ts", "nexttex/synctex.py"],
+      "specs": ["pdf-*", "preview-swap", "kept-pdf", "previews", "page-window", "appearance", "latex-links", "markdown-preview", "navigation", "inverse-word", "build-flash", "build-follow", "multidoc", "jump-to-page"]
     },
     {
       "name": "the frame and the panes",
@@ -50,7 +50,7 @@
     {
       "name": "building",
       "sources": ["nexttex/compile.py", "nexttex/passes.py", "nexttex/latexlog.py", "nexttex/lint_explain.py", "nexttex/explain.py", "nexttex/texpkg.py", "nexttex/deps.py", "nexttex/auxlabels.py", "server/session.py"],
-      "specs": ["clean-rebuild", "settling", "build-cap", "scoped-diagnostics", "compile-state", "kept-pdf", "previews", "tex-install", "engine", "outside-write", "preview-swap", "navigation", "build-flash"]
+      "specs": ["clean-rebuild", "settling", "build-cap", "scoped-diagnostics", "compile-state", "kept-pdf", "previews", "tex-install", "engine", "outside-write", "preview-swap", "navigation", "build-flash", "build-follow"]
     },
     {
       "name": "the server's routes and its lifetime",

@@ -24,19 +24,13 @@ things go to be forgotten rather than a list anybody reads.
 
 ## In hand
 
-Nothing is in hand. On 8 October 2026, at 4.32.0, the run on the jump to
-the page and the Sections drawer closed, from 4.31.0, at the writer's
-request: Mod-Enter drew a box around a whole paragraph. Done: the flash is
-the line of type in a two-column class, a caption, a revtex `figure*`
-caption and a footnote, and right after a project opens; the census and
-the flash specs bound the flash's height; the drawer's titles and captions
-read as typeset, with the writer's macros, a long caption whole and a
-`\texorpdfstring` once; a class's back-matter headings are listed; a
-starred heading's contents line no longer shifts the numbers after it, and
-a starred heading has its page. Over copies of six of the writer's
-documents the flashes taller than a line fell from 714 of 5144 caret
-places to 158, the rest TikZ source and table rows whose cells wrap, where
-the row is the line.
+Nothing is in hand. On 12 October 2026, at 4.33.0, the run on the page
+losing the writing in a reflowing thesis closed, at the writer's request.
+Done: the settling build follows what the fast pass followed unless the
+reader has moved the page since; a rebuild keeps the reader's place by the
+text at their eye rather than by the page number, across a chapter build
+and a build of the whole; forward and inverse search answer from the kept
+pages while a build runs, so the fast pass's own reveal finds its line.
 
 Before it, on 8 October 2026, at 4.31.0, the backlog close-out
 closed, from 4.30.1, at the writer's request: the known gaps and the
@@ -243,7 +237,14 @@ OpenAI provider against OpenAI itself.
 
 ### Known gaps, with a cost somebody will eventually pay
 
-Nothing at present. The last entries were closed on 8 October 2026.
+- [ ] **A build after a pause inside an unfinished construct does not
+      follow the caret.** The server waits `UNSETTLED_DEBOUNCE`, four
+      seconds, when the file looks half typed, and `TYPING_GRACE` in
+      `frontend/src/timing.ts` is three, so by the build's start nobody
+      counts as typing. Left because a writer stopped in the middle of an
+      equation is arguably not to be followed, and the next keystroke's
+      build follows; found on 12 October 2026 reading why a probe's build
+      did not follow.
 
 ### Measured and left, worth revisiting with a measurement
 

@@ -641,6 +641,17 @@ export default function App() {
    *  is what decides whether the preview follows their caret when it
    *  lands. */
   const followCaret = useRef(false);
+  /** The last build the page followed, held for the settling build that
+   *  may come after it: which document, the agent's edit when it was that
+   *  rather than the caret, and when. */
+  const lastFollow = useRef<{
+    document: string;
+    agent: { path: string; line: number; text: string; column: number } | null;
+    at: number;
+  } | null>(null);
+  /** When the build it settles followed, while a settling build that
+   *  follows it again is running, and 0 otherwise. */
+  const replayFrom = useRef(0);
   const chat = useRef<ChatHandle | null>(null);
   const shell = useRef<HTMLDivElement | null>(null);
   const editorPane = useRef<HTMLDivElement | null>(null);
@@ -1420,8 +1431,27 @@ export default function App() {
     // and the preview would follow a chapter build and not a thesis one.
     // At the start the question has a stable answer whatever the build
     // costs.
-    handlers.onCompileStart = (document) => {
-      followCaret.current = agentWrote.current === null && busyTyping();
+    //
+    // A settling build is the exception. It is the full pass the server
+    // runs after a fast one whose pages had not settled, which is what an
+    // edit that pushes a line onto the next page causes, and it starts
+    // seconds after the keystroke, past the test above. It is also the
+    // build that moves the most: in a thesis written with `\include` the
+    // fast pass set one chapter and this one sets the whole. So it follows
+    // whatever the build it settles followed, unless the reader has moved
+    // the page themselves since; that is asked when it lands, since it
+    // starts the moment the fast pass lands, before anyone could.
+    handlers.onCompileStart = (document, settling) => {
+      const replay = settling ? lastFollow.current : null;
+      lastFollow.current = null;
+      replayFrom.current = 0;
+      if (replay && replay.document === document) {
+        followCaret.current = replay.agent === null;
+        if (replay.agent && !agentWrote.current) agentWrote.current = replay.agent;
+        replayFrom.current = replay.at;
+      } else {
+        followCaret.current = agentWrote.current === null && busyTyping();
+      }
       editor.current?.buildStarted(document);
     };
     handlers.onCompileDone = (result) => {
@@ -1430,11 +1460,19 @@ export default function App() {
       // A build of a document in another preview tab moves nothing here:
       // the page on screen is not the one it made.
       if (built !== get().activePreview) return;
+      const since = replayFrom.current;
+      replayFrom.current = 0;
+      if (since && pdf.current?.movedSince(since)) {
+        agentWrote.current = null;
+        followCaret.current = false;
+        return;
+      }
       const wrote = agentWrote.current;
       if (wrote) {
         agentWrote.current = null;
         followCaret.current = false;
         if (busyTyping()) return;
+        lastFollow.current = { document: built, agent: wrote, at: Date.now() };
         // Gentle: it moves the view only if the reader is not already
         // looking at that part of the page, and flashes the box either way.
         // The agent's line is one of the text just built; where on it the
@@ -1466,6 +1504,7 @@ export default function App() {
       followCaret.current = false;
       const state = get();
       if (!state.activePath || state.viewing) return;
+      lastFollow.current = { document: built, agent: null, at: Date.now() };
       void revealCaret(state.activePath, { gentle: true, afterBuild: true });
     };
     return () => {
