@@ -290,6 +290,11 @@ else.
   in text from a model or a file stays the literal text, so a link can
   never run anything. On the Markdown preview's paper the hint is the
   light theme's whatever the shell's, as every ink on that paper is.
+- A link on the typeset page, hyperref's box over a reference, a citation
+  or a contents line (`.nx-page-link`), draws nothing at rest, since the
+  document already shows its links as its preamble chose; under the pointer
+  it takes `--hint-wash` with the pointer's hand, and where it leads takes
+  the page's own flash, the mark a forward search leaves.
 - A reply in the Claude column is marked by its pen rule alone, with no
   name over it; its time sits at the end of its first line, in the
   layout at rest, and shows under the pointer or with focus, so nothing

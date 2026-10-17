@@ -21,6 +21,7 @@ import { absenceFrom, type Absence } from "./pdf-absence";
 import type { WordHint } from "./locate-word";
 import type { PageRun } from "./locate-on-page";
 import { findIn, spanFor, textOf, type PageHit } from "./pdf-find";
+import { depthOf, labelOf, lineBelow, linksOf, type PageLink } from "./pdf-links";
 import { APPEARANCE_CHANGED, readStored, writeStored } from "../appearance";
 import {
   backingFor,
@@ -228,6 +229,10 @@ type PageView = {
    *  too, moves the generation, so the generation cannot say whether the
    *  text is still the same; the document can. */
   textDoc: pdfjs.PDFDocumentProxy | null;
+  /** hyperref's links over the text, one box each, and what each box
+   *  goes to; read with the text, from the same document. */
+  links: HTMLDivElement;
+  linkList: PageLink[];
   width: number;
   height: number;
   scale: number;
@@ -258,6 +263,22 @@ type PageView = {
  *  the end of a pinch moved everything below the first page. */
 function boxAt(view: Pick<PageView, "baseWidth" | "baseHeight">, scale: number) {
   return { width: Math.floor(view.baseWidth * scale), height: Math.floor(view.baseHeight * scale) };
+}
+
+/** Lay each link's box over its rectangle, in shares of the page as it is
+ *  turned, so a zoom moves nothing and only a turn needs this again. */
+function placeLinks(view: PageView) {
+  const boxes = view.links.children;
+  for (let at = 0; at < boxes.length; at++) {
+    const link = view.linkList[at];
+    if (!link) continue;
+    const box = boxOnTurned(view.rotation, view.naturalWidth, view.naturalHeight, link.box);
+    const style = (boxes[at] as HTMLElement).style;
+    style.left = `${(box.left / view.baseWidth) * 100}%`;
+    style.top = `${(box.top / view.baseHeight) * 100}%`;
+    style.width = `${(box.width / view.baseWidth) * 100}%`;
+    style.height = `${(box.height / view.baseHeight) * 100}%`;
+  }
 }
 
 /** How long a new picture takes to fade in over the old one: the swap
@@ -641,12 +662,45 @@ export default function Pdf({
       view.text.style.setProperty("--total-scale-factor", String(view.scale));
       if (same && view.textLayer) {
         view.textLayer.update({ viewport });
+        placeLinks(view);
         markHit(index);
         return;
       }
       view.textLayer = null;
       view.textDoc = null;
       view.text.replaceChildren();
+      view.links.replaceChildren();
+      view.linkList = [];
+      void page.getAnnotations({ intent: "display" }).then((annotations) => {
+        if (mine !== generation.current) return;
+        view.linkList = linksOf(annotations, page.view);
+        view.links.replaceChildren(...view.linkList.map((link, at) => {
+          const anchor = window.document.createElement("a");
+          anchor.className = "nx-page-link";
+          anchor.dataset.link = String(at);
+          // Out of the tab order, as the text is: a page of contents is a
+          // hundred stops, and the outline and Go to page already reach
+          // every place by keyboard.
+          anchor.tabIndex = -1;
+          anchor.setAttribute("aria-label", labelOf(link));
+          if (link.url) {
+            anchor.href = link.url;
+            anchor.target = "_blank";
+            anchor.rel = "noopener noreferrer";
+            anchor.title = link.url;
+          } else {
+            anchor.href = "#";
+            anchor.setAttribute("role", "link");
+            // The name hyperref gave the place, `section.2` or
+            // `cite.knuth`, for whoever inspects the page.
+            if (typeof link.dest === "string") anchor.dataset.dest = link.dest;
+          }
+          return anchor;
+        }));
+        placeLinks(view);
+      }).catch(() => {
+        // A page whose links cannot be read is still a page you can read.
+      });
       const content = await page.getTextContent();
       if (mine !== generation.current) return;
       const layer = new pdfjs.TextLayer({
@@ -1040,8 +1094,11 @@ export default function Pdf({
         const text = window.document.createElement("div");
         text.className = "nx-text-layer";
         element.appendChild(text);
+        const links = window.document.createElement("div");
+        links.className = "nx-link-layer";
+        element.appendChild(links);
         views.push({
-          container: element, layer, canvas, painted: false, text, width, height,
+          container: element, layer, canvas, painted: false, text, links, linkList: [], width, height,
           scale: effective, drawnFor: -1, drawnAt: 0, textFor: -1, textScale: 0, textLayer: null, textDoc: null, task: null,
           figures: null, naturalWidth: upright.width, naturalHeight: upright.height, rotation: turn,
           baseWidth: base.width, baseHeight: base.height,
@@ -1550,6 +1607,8 @@ export default function Pdf({
   }, [scale, fitScale, pageFitScale, showZoom]);
 
   // ---- SyncTeX ----------------------------------------------------------
+  /** When a link in the page was last followed: see the double-click. */
+  const linkFollowed = useRef(0);
   const onDoubleClick = useCallback(
     async (event: PagePoint) => {
       const projectId = get().projectId;
@@ -1558,6 +1617,10 @@ export default function Pdf({
       // to.  Asking anyway would run an inverse search against the main
       // document and land the caret on an unrelated line.
       if (source) return;
+      // A link's click has already moved the page, and the second click
+      // lands on whatever scrolled under the pointer; jumping the editor
+      // as well would be two answers to one gesture.
+      if (Date.now() - linkFollowed.current < 600) return;
       const target = (event.target as HTMLElement).closest(".nx-page") as HTMLElement | null;
       if (!target) return;
       const index = pages.current.findIndex((view) => view.container === target);
@@ -1608,6 +1671,51 @@ export default function Pdf({
     // open before, and landed the caret in the wrong file.
     [onNavigate, showing, source],
   );
+
+  // ---- links ------------------------------------------------------------
+  /** Follow one of hyperref's links: a contents entry to its heading, a
+   *  reference to its figure, table or equation, a citation to its entry.
+   *
+   *  The destination is looked up only now, since a page of contents
+   *  carries a hundred of them. The view puts the anchor near the top, as
+   *  a link on a web page does, and the line it names is flashed the way a
+   *  forward search flashes its line, so the eye knows where it landed. */
+  const followLink = useCallback(async (anchor: HTMLElement) => {
+    linkFollowed.current = Date.now();
+    const document = doc.current;
+    const root = scroller.current;
+    const from = anchor.closest(".nx-page");
+    const on = pages.current.find((view) => view.container === from);
+    const link = on?.linkList[Number(anchor.dataset.link)];
+    if (!document || !root || !link?.dest) return;
+    try {
+      const explicit = typeof link.dest === "string" ? await document.getDestination(link.dest) : link.dest;
+      if (!explicit || doc.current !== document) return;
+      const target = explicit[0];
+      const index = typeof target === "number"
+        ? target
+        : await document.getPageIndex(target as Parameters<typeof document.getPageIndex>[0]);
+      const view = pages.current[index];
+      if (!view || doc.current !== document) return;
+      const page = await document.getPage(index + 1);
+      const depth = depthOf(explicit, page.view);
+      const zoom = drawn.current;
+      const mark = depth === null ? null : lineBelow((await runsOnPage(document, index + 1)) ?? [], depth);
+      if (modeRef.current === "page") {
+        setCurrent(index + 1);
+        await renderPage(index);
+      } else {
+        const top = depth === null
+          ? 0
+          : boxOnTurned(view.rotation, view.naturalWidth, view.naturalHeight, { x: 0, y: depth, width: 0, height: 0 }).top;
+        root.scrollTo({ top: Math.max(view.container.offsetTop + top * zoom - 16, 0) });
+      }
+      if (mark) flash(view, mark, zoom);
+    } catch {
+      // A destination the document does not have goes nowhere, as it would
+      // in any reader.
+    }
+  }, [renderPage]);
 
   /** A page the agent asked for before the document had that many. */
   const wantedPage = useRef<number | null>(null);
@@ -1947,6 +2055,14 @@ export default function Pdf({
         className="relative min-h-0 flex-1 overflow-auto"
         onScroll={mode === "scroll" ? onScroll : undefined}
         onDoubleClick={onDoubleClick}
+        onClick={(event) => {
+          const anchor = (event.target as HTMLElement).closest(".nx-page-link") as HTMLElement | null;
+          // An address outside the document opens in a tab of its own, as
+          // its anchor says; a place inside it is this pane's to go to.
+          if (!anchor || anchor.getAttribute("href") !== "#") return;
+          event.preventDefault();
+          void followLink(anchor);
+        }}
         onContextMenu={(event) => {
           // The footer's controls at the pointer, and the double-click's
           // jump to the source.  Not over a selection, whose Copy is the

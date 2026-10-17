@@ -12405,3 +12405,40 @@ nothing, and moved nothing; it now reads the pages that are on screen.
 
 `e2e/specs/build-follow.spec.ts` holds both halves on a thesis built one
 chapter at a time.
+
+## 118. Links on the typeset page
+
+The writer asked on 17 October 2026 for the references and citations in the
+preview to be links: a contents entry to its section, a reference to its
+figure, table or equation, and a citation to its entry in the bibliography.
+hyperref already writes each of them into the PDF as a link, and the page
+is a picture on a canvas, so a click on one did nothing.
+
+**A click follows the link.** The view moves the place it names to near the
+top of the pane, as a link on a web page does; a place near the end of the
+document, the bibliography most often, is as high as the end lets it be.
+The line of type under the place, a heading, a caption, an equation or an
+entry, flashes in the page's own mark for the time a forward search's flash
+takes. An anchor whose next line is far below it, a figure's over a tall
+picture, flashes nothing rather than the wrong line. In one-page-at-a-time
+mode the click turns to that page.
+
+**Nothing is drawn at rest.** The document draws its links the way its
+preamble chose, in colour or not at all. Under the pointer a link takes the
+hint's wash and the pointer's hand, which is how the page says the words go
+somewhere.
+
+**A web address opens in a new tab.** A `\url` or `\href` to an http,
+https or mailto address opens beside the app, as a link in a reply does;
+any other scheme does nothing.
+
+**A double-click on a link does not also jump the editor.** The first click
+has already moved the page, so the second lands on whatever scrolled under
+the pointer; for a moment after a link is followed the double-click's jump
+to the source stands down. Everywhere else on the page it is as it was.
+The right-click menu's Show this in the source still answers for any point.
+
+A document that does not load hyperref has no links in its PDF, and the
+page has none to follow. `e2e/specs/pdf-links.spec.ts` follows a contents
+entry, a reference to a figure, a table and an equation, and a citation,
+and checks the double-click.

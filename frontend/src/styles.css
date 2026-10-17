@@ -2293,6 +2293,19 @@ button.nx-reads-x[data-always]:hover { color: var(--pen); }
 /* The dark page's figures, copied in their own colours over the page drawn
    dark.  Only a layer drawn dark has them. */
 .nx-page .nx-figures { position: absolute; inset: 0; pointer-events: none; }
+/* hyperref's links, a box over each rectangle the PDF names, above the
+   text so a click on a reference is the link's. Nothing at rest, since the
+   document already draws its links as it chose to; the hint's wash under
+   the pointer says the box goes somewhere. */
+.nx-link-layer { position: absolute; inset: 0; pointer-events: none; }
+.nx-page-link {
+  position: absolute;
+  pointer-events: auto;
+  cursor: pointer;
+  border-radius: var(--radius-mark);
+  transition: background-color var(--dur-quick) var(--ease);
+}
+.nx-page-link:hover { background: var(--hint-wash); }
 .nx-flash {
   position: absolute;
   background: var(--pen-wash);

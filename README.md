@@ -279,6 +279,9 @@ For the conference kits nobody may pass on, it says where to get them.
   file.
 - **A folder of papers becomes a bibliography**, each one checked against its
   PDF.
+- **Links on the page.** Click a contents entry, a reference or a citation in
+  the preview and it takes you to the section, figure, table, equation or
+  bibliography entry it names, when the document loads hyperref.
 - **Vim or Emacs keys**, a white page in a dark theme, and colour for commands
   if you like it.
 

@@ -237,6 +237,12 @@ OpenAI provider against OpenAI itself.
 
 ### Known gaps, with a cost somebody will eventually pay
 
+- [ ] **The typeset page has no way back after following a link.** A
+      click on a citation moves the view to the bibliography, and the
+      reader scrolls back by hand. Left because a viewer's history, a
+      back key and where it lives on screen, is a feature of its own;
+      found on 17 October 2026 building the page's links.
+
 - [ ] **A build after a pause inside an unfinished construct does not
       follow the caret.** The server waits `UNSETTLED_DEBOUNCE`, four
       seconds, when the file looks half typed, and `TYPING_GRACE` in
