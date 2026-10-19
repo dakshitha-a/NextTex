@@ -103,3 +103,13 @@ def test_a_finished_agent_turn_is_recorded(client, opened, log):
     [turn] = log("turn")
     assert turn["ended"] and turn["ms"] >= turn["first_ms"] >= 0
     assert turn["errors"] == 0
+
+
+def test_every_gauge_reads_with_a_project_open(client, opened):
+    """Each minute's sample reads these; one that raises is written as
+    "unreadable", which is how `event_streams` shipped in 4.35.0."""
+    from nexttex import diag
+
+    found = {name: read() for name, read in diag.gauges.items()}
+    assert found["sessions"] == 1
+    assert all(isinstance(value, int) for value in found.values()), found

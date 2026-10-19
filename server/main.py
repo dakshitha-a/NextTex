@@ -92,7 +92,7 @@ SESSIONS: dict[str, ProjectSession] = {}
 # What each minute's diagnostics sample says about the app; nexttex/diag.py.
 diag.gauges.update({
     "sessions": lambda: len(SESSIONS),
-    "event_streams": lambda: sum(len(s.events.watchers) for s in SESSIONS.values()),
+    "event_streams": lambda: sum(s.events.watchers for s in SESSIONS.values()),
     "sync_sockets": lambda: sum(len(room) for s in SESSIONS.values()
                                 for room in s.sync.rooms.values()),
     "agents_busy": lambda: sum(1 for s in SESSIONS.values() if s.agent.busy),
