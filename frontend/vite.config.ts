@@ -1,13 +1,33 @@
+import { cpSync } from "node:fs";
 import { fileURLToPath } from "node:url";
-import { defineConfig } from "vite";
+import { defineConfig, type Plugin } from "vite";
 import react from "@vitejs/plugin-react";
 import tailwind from "@tailwindcss/vite";
+
+// What pdf.js fetches by URL rather than imports: the WebAssembly image
+// decoders and colour management, the CJK character maps and the standard
+// fonts. Copied whole into `dist/assets/pdfjs/`, where `pdfSource` in
+// `src/panes/pdf-worker.ts` points pdf.js; without them a scanned page is
+// drawn blank. The development server serves them from `node_modules`.
+function pdfjsData(): Plugin {
+  const folders = ["wasm", "cmaps", "standard_fonts", "iccs"];
+  return {
+    name: "nexttex-pdfjs-data",
+    apply: "build",
+    writeBundle(options) {
+      const from = fileURLToPath(new URL("./node_modules/pdfjs-dist/", import.meta.url));
+      for (const folder of folders) {
+        cpSync(`${from}${folder}`, `${options.dir}/assets/pdfjs/${folder}`, { recursive: true });
+      }
+    },
+  };
+}
 
 // The dev server proxies to the Python app, so the browser talks to one
 // origin and the token cookie works the same in development as in the
 // built app that uvicorn serves itself.
 export default defineConfig({
-  plugins: [react(), tailwind()],
+  plugins: [react(), tailwind(), pdfjsData()],
   server: {
     host: "0.0.0.0",
     port: 5273,

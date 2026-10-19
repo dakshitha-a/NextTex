@@ -32,6 +32,10 @@ with `scripts/diag-review.py`. Left: deploy it to the install, then on
 20 or 21 October run the review, report it, and fix what it shows. The
 journal had already shown one fault, fixed in this run: a symlink to a
 file outside a project made lint, headings and search answer 500.
+Two requests joined the run on 19 October, passed on from the thesis
+session: a scanned book opened as blank pages, fixed at once, since
+pdf.js 6 was never told where its image decoders were; and books added
+and checked by ISBN the way papers are by DOI, for the fix phase.
 
 Before it, on 12 October 2026, at 4.33.0, the run on the page
 losing the writing in a reflowing thesis closed, at the writer's request.
@@ -246,6 +250,12 @@ OpenAI provider against OpenAI itself.
 
 ### Known gaps, with a cost somebody will eventually pay
 
+- [ ] **A JPEG 2000 image of grey with an alpha channel is not
+      drawn.** pdf.js 6.3.289 fails it with "Cannot read properties of
+      undefined (reading 'length')" where poppler draws it; a
+      one-component grey or an RGB codestream is drawn. Found making the
+      fixture for `e2e/specs/pdf-decoders.spec.ts`; upstream's to fix,
+      and worth a look when pdfjs-dist moves.
 - [ ] **Completion still reads a file a symlink brings in from outside
       the project.** `symbols.scan` names walked files lexically, so the
       labels and citations of a linked draft are offered, while the

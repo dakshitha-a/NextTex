@@ -40,7 +40,9 @@ const LARGE = 4 * 1024 * 1024;
 // Below this the saving is smaller than the headers describing it.
 const FLOOR = 1024;
 
-const files = await readdir(DIR);
+// Recursive, for the pdf.js decoders under `assets/pdfjs/`, which the
+// build copies there whole (`vite.config.ts`).
+const files = await readdir(DIR, { recursive: true });
 let before = 0;
 let after = 0;
 let count = 0;
@@ -49,7 +51,7 @@ for (const name of files) {
   if (!WORTH_IT.has(extname(name))) continue;
   const path = join(DIR, name);
   const info = await stat(path);
-  if (info.size < FLOOR) continue;
+  if (!info.isFile() || info.size < FLOOR) continue;
   const raw = await readFile(path);
   const large = info.size > LARGE;
   const [brotli, gzipped] = await Promise.all([

@@ -3,7 +3,7 @@ import { duration, panesMoving, whenPanesRest } from "../motion";
 import * as pdfjs from "pdfjs-dist";
 import { textAtPoint } from "./pdf-click";
 import { addEndOfContent, guardSelection } from "./pdf-select";
-import { pdfWorker } from "./pdf-worker";
+import { pdfSource } from "./pdf-worker";
 import api from "../api";
 import { download, stemOf } from "../chrome";
 import { get, useStore } from "../store";
@@ -1234,7 +1234,7 @@ export default function Pdf({
         }
         const data = await response.arrayBuffer();
         if (cancelled) return;
-        const loaded = await pdfjs.getDocument({ data, worker: pdfWorker() }).promise;
+        const loaded = await pdfjs.getDocument(pdfSource(data)).promise;
         if (cancelled) {
           // Destroyed through its loading task: pdf.js 6 took `destroy`
           // off the document itself.
