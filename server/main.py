@@ -3085,9 +3085,18 @@ def _project_texts(session: ProjectSession) -> dict[str, str]:
                 continue
         except OSError:
             continue
+        try:
+            relative = project.relative(path)
+        except ValueError:
+            # A symlink to a file outside the project. `Project.resolve`
+            # refuses to open one, so a search hit or a lint mark in it
+            # would name a file the editor cannot show; and naming it here
+            # raised, which took the lint, headings and search routes down
+            # with a 500 for every project holding such a link.
+            continue
         body = read_text(path)
         if body is not None:
-            texts[project.relative(path)] = body
+            texts[relative] = body
     return texts
 
 

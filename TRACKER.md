@@ -237,6 +237,14 @@ OpenAI provider against OpenAI itself.
 
 ### Known gaps, with a cost somebody will eventually pay
 
+- [ ] **Completion still reads a file a symlink brings in from outside
+      the project.** `symbols.scan` names walked files lexically, so the
+      labels and citations of a linked draft are offered, while the
+      editor refuses to open that file and search now passes over it.
+      Left because which of the two is right is the writer's call: a
+      paper that links in another repository's sections may want their
+      labels; found on 18 October 2026 fixing the 500 those links caused.
+
 - [ ] **The typeset page has no way back after following a link.** A
       click on a citation moves the view to the bibliography, and the
       reader scrolls back by hand. Left because a viewer's history, a
