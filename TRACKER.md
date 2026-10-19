@@ -24,7 +24,16 @@ things go to be forgotten rather than a list anybody reads.
 
 ## In hand
 
-Nothing is in hand. On 12 October 2026, at 4.33.0, the run on the page
+**Watching the live install, from 18 October 2026.** The writer asked for
+a continuous record of errors, failures, crashes and slow spots on the
+install they use every day, to be left running for a couple of days and
+then reviewed. The record is `diagnostics.log` (`nexttex/diag.py`), read
+with `scripts/diag-review.py`. Left: deploy it to the install, then on
+20 or 21 October run the review, report it, and fix what it shows. The
+journal had already shown one fault, fixed in this run: a symlink to a
+file outside a project made lint, headings and search answer 500.
+
+Before it, on 12 October 2026, at 4.33.0, the run on the page
 losing the writing in a reflowing thesis closed, at the writer's request.
 Done: the settling build follows what the fast pass followed unless the
 reader has moved the page since; a rebuild keeps the reader's place by the

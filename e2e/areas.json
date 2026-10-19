@@ -58,6 +58,11 @@
       "specs": ["*"]
     },
     {
+      "name": "the diagnostics log",
+      "sources": ["nexttex/diag.py", "frontend/src/errors.ts"],
+      "specs": ["diagnostics-log", "chunk-failure"]
+    },
+    {
       "name": "collaboration",
       "sources": ["server/collab/**", "frontend/src/collab.ts", "frontend/src/panes/Collaborators.tsx", "frontend/src/panes/peer-standing.ts", "frontend/src/panes/HostSettings.tsx"],
       "specs": ["share-panel", "share-from-list", "two-tabs", "comments", "moved-project", "merge-conflict", "host", "reopened-tab"]

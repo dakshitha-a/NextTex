@@ -56,7 +56,7 @@ from server.collab import peers as collab_peers
 from server.collab.peers import PeerNetwork, WELL_FORMED_SHARE_ID
 from server.collab.store import CollabStore
 from nexttex.history import REPLACE as history_replace
-from nexttex import audit, changes
+from nexttex import audit, changes, diag
 from server import comeback
 from server.transcript import TranscriptError
 from nexttex.atomic import (
@@ -88,6 +88,15 @@ from server.session import CLOSED, DocumentState, ProjectSession, spawn
 log = logging.getLogger("nexttex.server")
 
 SESSIONS: dict[str, ProjectSession] = {}
+
+# What each minute's diagnostics sample says about the app; nexttex/diag.py.
+diag.gauges.update({
+    "sessions": lambda: len(SESSIONS),
+    "event_streams": lambda: sum(len(s.events.watchers) for s in SESSIONS.values()),
+    "sync_sockets": lambda: sum(len(room) for s in SESSIONS.values()
+                                for room in s.sync.rooms.values()),
+    "agents_busy": lambda: sum(1 for s in SESSIONS.values() if s.agent.busy),
+})
 # One folder-read per project at a time.  A second would race the first
 # over the same .bib file for no benefit -- the network is the bottleneck.
 LIBRARY_JOBS: dict[str, Scan] = {}
@@ -1027,6 +1036,28 @@ async def authenticate(request: Request, call_next):
 @app.middleware("http")
 async def security_headers(request: Request, call_next):
     return _secure(await call_next(request))
+
+
+# Declared last, so outermost: it times everything, refusals included, and
+# counts each request against its route's template in nexttex/diag.py. A
+# streamed response is timed to its first byte, which is what a writer
+# waits on; an event stream would otherwise read as one very slow request.
+@app.middleware("http")
+async def timed(request: Request, call_next):
+    if not diag.active():
+        return await call_next(request)
+    started = time.monotonic()
+    key = id(request.scope)
+    diag.inflight[key] = (request.scope, started)
+    status = 500
+    try:
+        response = await call_next(request)
+        status = response.status_code
+        return response
+    finally:
+        diag.inflight.pop(key, None)
+        diag.request_done(request.method, diag.route_of(request.scope), status,
+                          time.monotonic() - started)
 
 
 @app.exception_handler(RequestValidationError)
@@ -7046,6 +7077,45 @@ async def report_problem(body: Optional[ReportRequest] = None):
         }
 
     return await asyncio.to_thread(build)
+
+
+class SlowCall(BaseModel):
+    """One API call the browser waited on for longer than it should have."""
+    path: str = Field(default="", max_length=300)
+    ms: int = Field(default=0, ge=0)
+    status: int = Field(default=0, ge=0, le=999)
+
+
+class ClientLog(BaseModel):
+    """What a tab saw since it last said, as `frontend/src/errors.ts` sends it."""
+    errors: list[ClientError] = Field(default_factory=list,
+                                      max_length=report.MAX_CLIENT_ERRORS)
+    slow: list[SlowCall] = Field(default_factory=list, max_length=report.MAX_CLIENT_ERRORS)
+    long_tasks: int = Field(default=0, ge=0)
+    long_task_max_ms: int = Field(default=0, ge=0)
+    page: str = Field(default="", max_length=200)
+    browser: str = Field(default="", max_length=300)
+
+
+@app.post("/api/client-log", status_code=204)
+async def client_log(body: ClientLog) -> Response:
+    """The browser's errors and slow moments, into the diagnostics log.
+
+    Sent by the tab as they happen, a couple of seconds apart at most, and
+    once more as the page goes away. Report a problem still sends the ring
+    with the report; this is what makes the same errors visible to a
+    review of the log without the writer having pressed anything. Bounded
+    by the model, and redacted by `diag.event` like everything else there.
+    """
+    for entry in body.errors:
+        diag.event("client", error_kind=entry.kind, message=entry.message,
+                   stack="\n".join(entry.stack.splitlines()[:report.MAX_STACK_LINES]),
+                   seen_at=entry.at, page=body.page, browser=body.browser)
+    if body.slow or body.long_tasks:
+        diag.event("client-perf", page=body.page, long_tasks=body.long_tasks,
+                   long_task_max_ms=body.long_task_max_ms,
+                   slow=[call.model_dump() for call in body.slow])
+    return Response(status_code=204)
 
 
 def _version_at(commit: str) -> str:

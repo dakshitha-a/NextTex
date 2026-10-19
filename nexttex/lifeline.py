@@ -23,6 +23,7 @@ import time
 from datetime import datetime, timezone
 from pathlib import Path
 
+from . import diag
 from .atomic import write_atomically
 
 FILE = "heartbeat.json"
@@ -159,6 +160,8 @@ class Lifeline:
         if self.ended:
             return
         self.ended = True
+        diag.event("stopped", why=why, pid=os.getpid(), version=self.version,
+                   up_s=round(time.time() - self.started))
         _write(self.state, {
             "pid": os.getpid(), "version": self.version,
             "started": self.started, "alive": time.time(), "stopped": why,

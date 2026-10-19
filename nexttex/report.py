@@ -436,7 +436,7 @@ def logs_section(state: Path, instance: str) -> list:
     if sys.platform.startswith("linux"):
         add(f"journalctl --user -u nexttex{'-' + instance if instance else ''}",
             journal("nexttex" + ("-" + instance if instance else "")))
-    for name in ("server.err.log", "server.log", "restart.log"):
+    for name in ("server.err.log", "server.log", "restart.log", "diagnostics.log"):
         add(str(state / name), tail(state / name))
     for name in ("update.log", "install.log"):
         add(str(state / name) + " (last run)", last_block(state / name))

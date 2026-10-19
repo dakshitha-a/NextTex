@@ -16,6 +16,7 @@ import re
 import time
 from pathlib import Path
 
+from nexttex import diag
 from nexttex.explain import annotate, summarise
 from nexttex.library import Library
 from nexttex.providers import agent_for
@@ -1266,6 +1267,7 @@ class ProjectSession:
         # The project's slot first, then the machine's: a project never
         # holds a machine slot while it waits for its own queue.
         visible = state.path == self.visible
+        asked = time.time()
         async with self.queue.slot(priority=visible), MACHINE_BUILDS.slot(priority=visible):
             started = time.time()
             if state.in_flight == build:
@@ -1275,6 +1277,13 @@ class ProjectSession:
             )
         payload = await self.client_payload(result, state.path)
         state.last_payload = payload
+        if result.outcome is not Outcome.CANCELLED:
+            errors = len(result.log.errors) if result.log else 0
+            diag.event("build", project=self.project.root.name, document=state.path,
+                       outcome=result.outcome.value, ms=round(result.duration * 1000),
+                       waited_ms=round((started - asked) * 1000), scope=result.scope,
+                       engine_pass=result.engine_pass, engine=result.engine,
+                       settling=settling, errors=errors, recovered=result.recovered)
         # A superseded build carries no log.  Keeping its empty diagnostics
         # would clear the editor's error marks every time the user typed
         # during a compile, which is exactly when they are looking at them.
@@ -1850,9 +1859,45 @@ class ProjectSession:
         if self._agent_pump is not None and not self._agent_pump.done():
             return
 
+        turn: dict = {}
+
+        def timed(event: dict) -> None:
+            # One `turn` line in the diagnostics log per finished turn: how
+            # long, how long before the first word, how many tools, how it
+            # ended. Errors also get a line of their own as they happen.
+            kind = event.get("type")
+            now = time.monotonic()
+            # Every provider opens a turn with `turn_start`; an event
+            # between turns must not open one, or its time would count.
+            if kind == "turn_start":
+                turn.clear()
+                turn.update(began=now, first=0.0, tools=0, errors=0)
+            if not turn:
+                return
+            if kind in ("text", "thinking") and not turn["first"]:
+                turn["first"] = now - turn["began"]
+            elif kind == "tool_use":
+                turn["tools"] += 1
+            elif kind == "error":
+                turn["errors"] += 1
+                diag.event("agent-error", project=self.project.root.name,
+                           message=str(event.get("message") or event.get("text") or "")[:2000])
+            elif kind == "done":
+                diag.event("turn", project=self.project.root.name,
+                           agent=type(self.agent).__name__,
+                           ended=str(event.get("subtype") or ""),
+                           ms=round((now - turn["began"]) * 1000),
+                           first_ms=round(turn["first"] * 1000),
+                           tools=turn["tools"], errors=turn["errors"])
+                turn.clear()
+
         async def pump() -> None:
             async for arrived in self.agent.events():
                 for event in _said_before(arrived):
+                    try:
+                        timed(event)
+                    except Exception:
+                        pass
                     await forward(event)
 
         async def forward(event: dict) -> None:

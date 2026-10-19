@@ -38,6 +38,7 @@ in a screenshot would show it.
 from __future__ import annotations
 
 import asyncio
+import time
 from typing import Any, Callable
 
 from pycrdt import (
@@ -49,6 +50,13 @@ from pycrdt import (
     handle_sync_message,
     read_message,
 )
+
+from nexttex import diag
+
+#: How an editing socket ordinarily ends: the browser went, or the
+#: project closed under it. Anything else is recorded.
+ORDINARY_ENDS = {"WebSocketDisconnect", "ConnectionClosed", "ConnectionClosedOK",
+                 "ConnectionClosedError", "ClientDisconnected"}
 
 # A queue this deep is already a connection that is not keeping up.  Same
 # reasoning as the event stream's: dropping is worse than closing, because a
@@ -241,10 +249,14 @@ class SyncHub:
                     break
                 if message[0] == YMessageType.SYNC:
                     self.applying = connection
+                    began = time.monotonic()
                     try:
                         reply = handle_sync_message(message[1:], doc)
                     finally:
                         self.applying = None
+                    took = time.monotonic() - began
+                    if took > diag.SLOW_MESSAGE:
+                        diag.event("sync-slow", ms=round(took * 1000), bytes=len(message))
                     if reply is not None:
                         connection.send(reply)
                 elif message[0] == YMessageType.AWARENESS:
@@ -268,10 +280,14 @@ class SyncHub:
                     for other in self.rooms.get(doc_id, ()):
                         if other is not connection:
                             other.send(message)
-        except Exception:
+        except Exception as error:
             # A closed socket is the ordinary way out of this loop, not an
-            # event worth reporting.
-            pass
+            # event worth reporting. Anything else ended a writer's editing
+            # connection and was being dropped here without a word, so it
+            # goes to the diagnostics log.
+            if type(error).__name__ not in ORDINARY_ENDS:
+                diag.event("sync-error", error=f"{type(error).__name__}: {error}",
+                           trace=diag.trace_of(error))
         finally:
             self._leave(connection)
             pump.cancel()

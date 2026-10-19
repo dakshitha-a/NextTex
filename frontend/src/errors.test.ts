@@ -1,5 +1,17 @@
-import { beforeEach, describe, expect, it } from "vitest";
-import { install, record, reset, snapshot } from "./errors";
+import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
+import {
+  install,
+  LONG_TASK_MS,
+  noteCall,
+  noteLongTask,
+  record,
+  type Recorded,
+  reset,
+  send,
+  SEND_AFTER_MS,
+  SLOW_CALL_MS,
+  snapshot,
+} from "./errors";
 
 describe("the interface's record of its own errors", () => {
   beforeEach(reset);
@@ -31,7 +43,7 @@ describe("the interface's record of its own errors", () => {
 
   it("listens for both things a window reports, and can stop", () => {
     const target = new EventTarget();
-    const stop = install(target);
+    const stop = install(target, () => undefined);
     const failure = new Error("planted");
     target.dispatchEvent(
       Object.assign(new Event("error"), { message: "planted", error: failure }),
@@ -51,8 +63,74 @@ describe("the interface's record of its own errors", () => {
 
   it("says something about a rejection that is not an Error", () => {
     const target = new EventTarget();
-    install(target);
+    install(target, () => undefined);
     target.dispatchEvent(Object.assign(new Event("unhandledrejection"), { reason: 42 }));
     expect(snapshot()[0].message).toBe("42");
+  });
+});
+
+describe("sending what was recorded to the server's log", () => {
+  beforeEach(() => {
+    reset();
+    vi.useFakeTimers();
+  });
+  afterEach(() => vi.useRealTimers());
+
+  it("batches entries and sends them once, a couple of seconds later", () => {
+    const sent: [string, boolean][] = [];
+    const stop = install(new EventTarget(), (body, leaving) => sent.push([body, leaving]));
+    record("error", "first");
+    record("api", "500 /projects/x/file: boom");
+    expect(sent).toHaveLength(0);
+    vi.advanceTimersByTime(SEND_AFTER_MS);
+    expect(sent).toHaveLength(1);
+    const body = JSON.parse(sent[0][0]);
+    expect(body.errors.map((e: Recorded) => e.message)).toEqual(["first", "500 /projects/x/file: boom"]);
+    expect(sent[0][1]).toBe(false);
+    vi.advanceTimersByTime(SEND_AFTER_MS * 3);
+    expect(sent).toHaveLength(1);
+    stop();
+  });
+
+  it("keeps slow calls and long tasks, and nothing quick", () => {
+    const sent: string[] = [];
+    const stop = install(new EventTarget(), (body) => sent.push(body));
+    noteCall("/projects/x/file?path=secret.tex", 100, 200);
+    noteLongTask(80);
+    expect(vi.getTimerCount()).toBe(0);
+    noteCall("/projects/x/file?path=secret.tex", SLOW_CALL_MS + 5, 200);
+    noteCall("/client-log", SLOW_CALL_MS * 2, 204);
+    noteLongTask(LONG_TASK_MS + 50);
+    noteLongTask(LONG_TASK_MS + 10);
+    vi.advanceTimersByTime(SEND_AFTER_MS);
+    const body = JSON.parse(sent[0]);
+    expect(body.slow).toEqual([{ path: "/projects/x/file", ms: SLOW_CALL_MS + 5, status: 200 }]);
+    expect(body.long_tasks).toBe(2);
+    expect(body.long_task_max_ms).toBe(LONG_TASK_MS + 50);
+    expect(body.errors).toEqual([]);
+    stop();
+  });
+
+  it("sends what is left as a beacon when the page is hidden", () => {
+    const sent: [string, boolean][] = [];
+    const target = new EventTarget();
+    const stop = install(target, (body, leaving) => sent.push([body, leaving]));
+    record("rejection", "late");
+    target.dispatchEvent(new Event("pagehide"));
+    expect(sent).toHaveLength(1);
+    expect(sent[0][1]).toBe(true);
+    vi.advanceTimersByTime(SEND_AFTER_MS);
+    expect(sent).toHaveLength(1);
+    stop();
+  });
+
+  it("sends nothing once stopped", () => {
+    const sent: string[] = [];
+    const stop = install(new EventTarget(), (body) => sent.push(body));
+    stop();
+    record("error", "after");
+    vi.advanceTimersByTime(SEND_AFTER_MS);
+    send(true);
+    expect(sent).toHaveLength(0);
   });
 });

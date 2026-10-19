@@ -2,7 +2,7 @@
 // `request`, so the token, the error shape and the JSON handling are decided
 // once rather than at each call site.
 
-import { record, type Recorded } from "./errors";
+import { noteCall, record, type Recorded } from "./errors";
 import type { GuideInfo, TemplateInfo } from "./templates";
 
 /** What one LaTeX message means, from the server's own rule table.  No
@@ -668,10 +668,12 @@ export function landingAfter(problem: unknown): "signin" | "offline" {
 }
 
 async function request<T>(path: string, init?: RequestInit): Promise<T> {
+  const began = performance.now();
   const response = await fetch(`/api${path}`, {
     credentials: "same-origin",
     ...init,
   });
+  noteCall(path, performance.now() - began, response.status);
   if (!response.ok) {
     let message = response.statusText;
     try {

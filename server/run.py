@@ -50,7 +50,7 @@ import uvicorn
 
 sys.path.insert(0, str(Path(__file__).resolve().parent.parent))
 
-from nexttex import lifeline
+from nexttex import diag, lifeline
 from nexttex.config import Settings, ensure_tex_on_path, missing_tools, required_missing
 
 
@@ -169,7 +169,7 @@ def in_use(host: str, port: int) -> bool:
     return False
 
 
-async def serve(settings: Settings) -> None:
+def _log_warnings_to_stderr() -> None:
     # uvicorn is kept quiet -- an access log line per keystroke is noise --
     # but that left NextTex's own warnings with nowhere to go, and the app
     # was silent through failures the writer could see on screen: a wedged
@@ -184,6 +184,9 @@ async def serve(settings: Settings) -> None:
         # update that preceded it.
         datefmt="%Y-%m-%d %H:%M:%S",
     )
+
+
+async def serve(settings: Settings) -> None:
 
     servers: list[uvicorn.Server] = []
     urls: list[str] = []
@@ -252,12 +255,15 @@ async def serve(settings: Settings) -> None:
     # stops: a half-started server that silently drops the address the user
     # actually types is worse than not starting.
     beating = asyncio.ensure_future(keep_beating())
+    # The diagnostics sampler: loop lag, resources, the route summary.
+    watching = asyncio.ensure_future(diag.watch())
     try:
         await asyncio.gather(
             *(server.serve() for server in servers), say_when_answering(),
         )
     finally:
         beating.cancel()
+        watching.cancel()
 
 
 def banner(urls: list[str], token: str, to_terminal: bool) -> list[str]:
@@ -366,7 +372,7 @@ def _open_when_up(port: int, url: str, timeout: float = 30.0) -> None:
         time.sleep(0.25)
 
 
-def _keep_a_lifeline() -> None:
+def _keep_a_lifeline() -> str | None:
     """Start the heartbeat, say what the last server left, and listen for
     the ends Windows announces.
 
@@ -390,6 +396,29 @@ def _keep_a_lifeline() -> None:
     atexit.register(lifeline.stopped, "exited")
     if sys.platform == "win32":
         _hear_windows()
+    return said
+
+
+def _keep_a_diagnostics_log(settings: Settings, previous: str | None) -> None:
+    """Start `diagnostics.log`; see nexttex/diag.py. Its first line says
+    what this server is and how the last one ended, the second half of
+    which is what tells a crash from an update."""
+    import server.main
+    from nexttex import report
+    from nexttex.paths import state_home
+    from nexttex.version import VERSION
+
+    secrets = [getattr(settings, key, "") for key in report.SECRET_KEYS]
+    secrets += [s.get("hash", "") for s in getattr(settings, "sessions", []) or []
+                if isinstance(s, dict)]
+    try:
+        diag.install(state_home(), secrets)
+    except OSError as error:
+        print(f"  note: no diagnostics log ({error})", file=sys.stderr)
+        return
+    diag.event("start", version=VERSION, commit=server.main.HEAD_AT_BOOT,
+               pid=os.getpid(), python=sys.version.split()[0],
+               previous=previous or "said goodbye")
 
 
 #: What Windows calls the events a console process is told of before it
@@ -551,7 +580,11 @@ def main() -> None:
 
     CLOCK.mark("the app")
 
-    _keep_a_lifeline()
+    # Before the diagnostics log, whose handler on the root logger would
+    # otherwise make `basicConfig` a no-op and leave the journal silent.
+    _log_warnings_to_stderr()
+    previous = _keep_a_lifeline()
+    _keep_a_diagnostics_log(settings, previous)
 
     try:
         asyncio.run(serve(settings))
