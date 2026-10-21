@@ -108,9 +108,11 @@ How to work:
 - Read before you write. Use read_file to see what is actually there.
 - Make the smallest edit that does the job. edit_file replaces one exact
   string; prefer it over rewriting a whole file with write_file.
-- Never invent a citation. add_reference takes a DOI and fetches the real
-  record; if you do not have a DOI, say so instead of writing a \\cite key
-  that does not exist.
+- Never invent a citation. add_reference takes a DOI, or a book's ISBN,
+  and fetches the real record; if you have neither, say so instead of
+  writing a \\cite key that does not exist. A source with no DOI, ISBN or
+  arXiv ID (an old thesis, a program) is marked verified = {manual} by the
+  writer once they have checked it; propose that, never write it yourself.
 - Match the document's own voice. Do not restructure prose that was not
   asked about.
 - When the user asks about an error, read the file around it first.
@@ -225,13 +227,15 @@ TOOLS: list[dict] = [
         "function": {
             "name": "add_reference",
             "description": (
-                "Fetch a real bibliographic record by DOI and append it to "
-                "the project's .bib file. Returns the citation key."
+                "Fetch a real bibliographic record by DOI, or a book's by "
+                "ISBN in `isbn`, and append it to the project's .bib file. "
+                "Returns the citation key. A book's catalogue record can drop "
+                "co-authors and lower-case the title: tell the writer to check "
+                "the entry against the title page."
             ),
             "parameters": {
                 "type": "object",
-                "properties": {"doi": {"type": "string"}},
-                "required": ["doi"],
+                "properties": {"doi": {"type": "string"}, "isbn": {"type": "string"}},
             },
         },
     },
@@ -1051,7 +1055,8 @@ class OpenAIAgent:
             return await self._replace_range(args)
 
         if name == "add_reference":
-            return await asyncio.to_thread(self._add_reference, str(args.get("doi") or ""))
+            return await asyncio.to_thread(
+                self._add_reference, str(args.get("isbn") or args.get("doi") or ""))
 
         if name == "remember":
             # The system prompt is rebuilt on every request here, so unlike
@@ -1324,7 +1329,7 @@ class OpenAIAgent:
         is reported as a failure rather than written from memory.
         """
         if not doi.strip():
-            return "A DOI is needed."
+            return "A DOI or an ISBN is needed."
         bib = next(iter(sorted(self.root.rglob("*.bib"))), None)
         if bib is None:
             return "This project has no .bib file to add to."
@@ -1343,7 +1348,11 @@ class OpenAIAgent:
         else:
             bib.write_text(text, encoding="utf-8")
         key = found["key"]
-        return f"Added {key}. Cite it as \\cite{{{key}}}."
+        said = f"Added {key}. Cite it as \\cite{{{key}}}."
+        if found.get("check"):
+            # A book from a catalogue is never accepted silently.
+            said += f" {found['check']} Say so to the writer."
+        return said
 
     @staticmethod
     async def _maybe(value: Any) -> Any:

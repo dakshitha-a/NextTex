@@ -34,8 +34,9 @@ the host's own load, and two 4 s page freezes could not be attributed,
 so long frames now name their script. The logger stays on.
 The thesis's chat logs showed the agent's memory full three times, with
 the overflow put in `CLAUDE.md`; the cap is now 8,000 and the agent can
-revise notes. Left: ISBN and hand-checked references (items 11 and 16),
-then the figure, shell-edit and tool-loading refinements (item 17). The
+revise notes. Books are added and checked by ISBN, and a source with nothing to look up
+is marked checked by hand by the writer. Left: the figure, shell-edit and
+tool-loading refinements (item 17). The
 journal had already shown one fault, fixed in this run: a symlink to a
 file outside a project made lint, headings and search answer 500.
 Two requests joined the run on 19 October, passed on from the thesis

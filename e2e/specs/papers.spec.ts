@@ -313,3 +313,88 @@ test("the drawer says nothing about the bibliography until it knows", async ({ t
   await expect(panel).toContainText("references.bib holds 1 entry.", { timeout: 5_000 });
   await expect(panel).not.toContainText("Nothing in the bibliography yet");
 });
+
+test("a book is added by its ISBN and says to check it against the title page", async ({
+  tab,
+  page,
+}) => {
+  // Catalogues drop co-authors and lower-case titles, so the row that
+  // added a book says so, in the warn colour, under it.
+  const added: unknown[] = [];
+  await page.route("**/library/search?*", (route) =>
+    route.fulfill({
+      status: 200,
+      contentType: "application/json",
+      body: JSON.stringify({
+        source: "isbn",
+        results: [{
+          doi: "", isbn: "9780486691862", title: "Modern Quantum Chemistry", first: "Szabo",
+          authors: 1, year: "1996", journal: "Dover Publications", names: ["Attila Szabo"],
+          abstract: "",
+        }],
+      }),
+    }),
+  );
+  await page.route("**/library/add", async (route) => {
+    added.push(route.request().postDataJSON());
+    await route.fulfill({
+      status: 200,
+      contentType: "application/json",
+      body: JSON.stringify({
+        added: true, key: "Szabo1996modern", title: "Modern Quantum Chemistry",
+        check: "From a library catalogue: check the author list and the title's capitals against the book's title page.",
+      }),
+    });
+  });
+  await tab.getByTestId("bar-papers").click();
+  await expect(tab.getByTestId("papers-panel")).toBeVisible({ timeout: 20_000 });
+  await tab.getByTestId("papers-search").fill("978-0-486-69186-2");
+  await tab.keyboard.press("Enter");
+  const row = tab.getByTestId("papers-result");
+  await expect(row).toContainText("Modern Quantum Chemistry");
+  await row.getByTestId("papers-result-add").click();
+  await expect(row.getByTestId("papers-result-added")).toHaveText("added as Szabo1996modern");
+  await expect(row.getByTestId("papers-result-check")).toContainText("title page");
+  await expect(row.getByTestId("papers-result-check")).toHaveClass(/text-warn/);
+  expect(added).toEqual([{ isbn: "9780486691862" }]);
+});
+
+test("an entry with nothing to look up can be marked checked by hand, and is kept apart", async ({
+  tab,
+  page,
+}) => {
+  const marked: unknown[] = [];
+  await page.route("**/library/verify", (route) =>
+    route.fulfill({
+      status: 200,
+      contentType: "application/json",
+      body: JSON.stringify({
+        checked: 4,
+        problems: [
+          { key: "horton2018", status: "FAIL", unidentified: true,
+            issues: ["no DOI, ISBN or arXiv ID, so it cannot be looked up."] },
+          { key: "kinetics", status: "FAIL", unidentified: true, isbn: "9780132139458",
+            issues: ["no DOI, ISBN or arXiv ID, so it cannot be looked up."] },
+        ],
+        by_hand: ["allison2010", "g16"],
+        report: "",
+      }),
+    }),
+  );
+  await page.route("**/library/checked-by-hand", async (route) => {
+    marked.push(route.request().postDataJSON());
+    await route.fulfill({ status: 200, contentType: "application/json",
+      body: JSON.stringify({ key: "horton2018", marked: true }) });
+  });
+  await tab.getByTestId("bar-papers").click();
+  await expect(tab.getByTestId("papers-panel")).toBeVisible({ timeout: 20_000 });
+  await tab.getByTestId("papers-verify").click();
+  const report = tab.getByTestId("papers-report");
+  await expect(report.getByTestId("papers-by-hand")).toContainText("allison2010, g16");
+  // The ISBN is offered, not written.
+  await expect(report.getByTestId("papers-problem-isbn")).toContainText("9780132139458");
+  const first = report.getByTestId("papers-problem").first();
+  await first.getByTestId("papers-mark-by-hand").click();
+  await expect(first.getByTestId("papers-problem-marked")).toHaveText("Marked checked by hand.");
+  expect(marked).toEqual([{ key: "horton2018" }]);
+});

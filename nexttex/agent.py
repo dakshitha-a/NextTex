@@ -392,8 +392,11 @@ How to work here:
   without changing it, which is how a figure is re-drawn after the data
   or the style sheet changed, or after the writer edited the script.
 - Never invent a citation. Use find_papers to get real ones and
-  add_reference to add them from the publisher's own record. If you cannot
-  verify a source exists, say so rather than producing a plausible key.
+  add_reference to add them from the publisher's own record, or a book
+  from its ISBN. If you cannot verify a source exists, say so rather than
+  producing a plausible key. A source with no DOI, ISBN or arXiv ID (an
+  old thesis, a program, a database) is marked verified = {manual} by the
+  writer once they have checked it; propose that, never write it yourself.
 - Keep the document compiling. If you are unsure a construct is valid,
   compile and check rather than leaving it for the user to discover.
 - A project can hold several documents: every root .tex file that nothing
@@ -1941,10 +1944,13 @@ class ProjectAgent:
 
         @tool(
             "add_reference",
-            "Add a reference to the project's .bib file from its DOI. The "
-            "entry is fetched from the publisher's own record -- never write "
-            "one yourself. Returns the citation key to use.",
-            {"doi": str, "bib_file": str},
+            "Add a reference to the project's .bib file from its DOI, or a "
+            "book from its ISBN in `isbn`. The entry is fetched from the "
+            "publisher's own record, or for a book a library catalogue's -- "
+            "never write one yourself. Returns the citation key to use. A "
+            "book's catalogue record can drop co-authors and lower-case the "
+            "title: tell the writer to check the entry against the title page.",
+            {"doi": str, "isbn": str, "bib_file": str},
         )
         async def add_reference(args: dict) -> dict:
             return await self.add_reference_tool(args)
@@ -1952,7 +1958,11 @@ class ProjectAgent:
         @tool(
             "check_references",
             "Re-check every entry in the bibliography against the record it "
-            "claims to come from, and report anything that does not match.",
+            "claims to come from, and report anything that does not match. "
+            "An entry with no DOI, ISBN or arXiv ID (an old thesis, a program, "
+            "a database) cannot be looked up: the writer marks it checked by "
+            "hand, as verified = {manual}. You may propose that, but never "
+            "write verified = {manual} yourself.",
             {"bib_file": str},
         )
         async def check_references(args: dict) -> dict:
@@ -1962,21 +1972,7 @@ class ProjectAgent:
             if bib is None:
                 return self._text("There is no .bib file in this project.")
             result = await asyncio.to_thread(references.verify, bib)
-            if not result["problems"]:
-                return self._text(
-                    f"All {result['checked']} entries check out against their "
-                    "published records."
-                )
-            lines = [
-                f"{len(result['problems'])} of {result['checked']} entries have "
-                "problems:"
-            ]
-            for problem in result["problems"]:
-                lines.append(
-                    f"- {problem['key']} ({problem.get('status', 'FAIL')}): "
-                    f"{'; '.join(problem['issues'])}"
-                )
-            return self._text("\n".join(lines))
+            return self._text(references.said(result))
 
         @tool(
             "remember",
@@ -2456,9 +2452,9 @@ class ProjectAgent:
         """
         from . import references
 
-        doi = str(args.get("doi", "")).strip()
+        doi = str(args.get("isbn") or args.get("doi") or "").strip()
         if not doi:
-            return self._text("Which DOI?")
+            return self._text("Which DOI or ISBN?")
         bib = self._bib_path(str(args.get("bib_file") or ""))
         if bib is None:
             return self._text(
@@ -2486,10 +2482,12 @@ class ProjectAgent:
         self._edits.append(
             EditRecord("add_reference", self._display(bib), current, text)
         )
-        return self._text(
-            f"Added to {self._display(bib)} as \\cite{{{result['key']}}} "
-            f"{result.get('title', '')}"
-        )
+        said = (f"Added to {self._display(bib)} as \\cite{{{result['key']}}} "
+                f"{result.get('title', '')}")
+        if result.get("check"):
+            # A book from a catalogue is never accepted silently.
+            said += f". {result['check']} Say so to the writer."
+        return self._text(said)
 
     @staticmethod
     async def _maybe(value: Any) -> Any:

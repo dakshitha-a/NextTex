@@ -6,17 +6,24 @@ a typo, so this runs as a gate rather than a courtesy:
 
     make check-refs
 
-Every entry must carry a DOI (or an arXiv ID for a preprint).  For each
-one the script fetches the authoritative record and compares title,
-first author, year and journal.  It exits nonzero if anything cannot be
-verified or does not match, so it can be wired into a pre-commit hook
-or CI.
+Every entry must carry a DOI, an ISBN (for a book) or an arXiv ID (for
+a preprint).  For each one the script fetches the authoritative record
+(Crossref for DOIs, Open Library with Google Books as fallback for
+ISBNs, arXiv for preprints) and compares title, first author, year and
+journal or publisher.  It exits nonzero if anything cannot be verified
+or does not match, so it can be wired into a pre-commit hook or CI.
+
+A source with none of the three, an older thesis, a 1932 paper, a
+database, a program, is checked by hand and marked `verified = {manual}`.
+That mark counts only where there is nothing to look up: an entry that
+carries an identifier is checked against it whatever it says.
 
 Report symbols:
     ok       record matches
+    hand     no identifier, marked verified = {manual}
     WARN     record found, a field differs (often just formatting)
-    FAIL     no DOI, DOI does not resolve, or the record is a
-             different paper
+    FAIL     no DOI/ISBN/arXiv ID, the identifier does not resolve,
+             or the record is a different work
 
     --strict   treat warnings as failures
     --only KEY check a single entry
@@ -188,6 +195,77 @@ def arxiv(arxiv_id):
             "container-title": ["arXiv"]}
 
 
+def normalise_isbn(raw):
+    """Digits only, ISBN-10 converted to ISBN-13; None if malformed."""
+    s = re.sub(r"[^0-9Xx]", "", raw or "").upper()
+    if len(s) == 10:
+        core = "978" + s[:9]
+        check = (10 - sum((1 if i % 2 == 0 else 3) * int(c)
+                          for i, c in enumerate(core)) % 10) % 10
+        return core + str(check)
+    if len(s) == 13 and s.isdigit():
+        return s
+    return None
+
+
+def isbn_record(isbn):
+    """Book record by ISBN, shaped like a Crossref record.
+
+    Open Library first; Google Books if Open Library has nothing.  Returns
+    None if neither knows the ISBN.  Catalogue records are less careful
+    than publishers': they drop co-authors (Open Library lists only Szabo
+    for Szabo and Ostlund, 9780486691862) and lower-case titles, so an
+    entry built from one is for the writer to check against the title page.
+    """
+    r = HTTP.get("https://openlibrary.org/api/books",
+                 params={"bibkeys": f"ISBN:{isbn}", "format": "json", "jscmd": "data"},
+                 headers={"User-Agent": UA}, timeout=TIMEOUT)
+    r.raise_for_status()
+    rec = r.json().get(f"ISBN:{isbn}")
+    if rec:
+        names = [a.get("name", "") for a in rec.get("authors", [])]
+        year = re.search(r"\d{4}", rec.get("publish_date", "") or "")
+        return {"title": [rec.get("title", "")],
+                "subtitle": [rec.get("subtitle", "")] if rec.get("subtitle") else [],
+                "author": [{"family": n.split()[-1], "full": n} for n in names if n],
+                "issued": {"date-parts": [[int(year.group())]]} if year else {},
+                "publisher": ", ".join(p.get("name", "") for p in rec.get("publishers", [])),
+                "place": ", ".join(p.get("name", "") for p in rec.get("publish_places", [])),
+                "source": "Open Library"}
+    r = HTTP.get("https://www.googleapis.com/books/v1/volumes",
+                 params={"q": f"isbn:{isbn}"}, headers={"User-Agent": UA}, timeout=TIMEOUT)
+    r.raise_for_status()
+    items = r.json().get("items") or []
+    if not items:
+        return None
+    v = items[0].get("volumeInfo") or {}
+    year = re.search(r"\d{4}", v.get("publishedDate", "") or "")
+    return {"title": [v.get("title", "")],
+            "subtitle": [v["subtitle"]] if v.get("subtitle") else [],
+            "author": [{"family": n.split()[-1], "full": n} for n in v.get("authors", []) if n],
+            "issued": {"date-parts": [[int(year.group())]]} if year else {},
+            "publisher": v.get("publisher", ""), "place": "",
+            "source": "Google Books"}
+
+
+def isbn_for(title, author=""):
+    """An ISBN Open Library holds for a book by its title and first author,
+    or None.  A suggestion for a book entry that has no identifier, never
+    written by itself: a title can name several editions."""
+    params = {"title": title, "limit": 1, "fields": "isbn,title"}
+    if author:
+        params["author"] = author
+    r = HTTP.get("https://openlibrary.org/search.json", params=params,
+                 headers={"User-Agent": UA}, timeout=TIMEOUT)
+    r.raise_for_status()
+    docs = r.json().get("docs") or []
+    for raw in (docs[0].get("isbn") or []) if docs else []:
+        isbn = normalise_isbn(raw)
+        if isbn:
+            return isbn
+    return None
+
+
 def record_year(meta):
     for field in ("published-print", "published-online", "issued", "created"):
         parts = (meta.get(field) or {}).get("date-parts") or []
@@ -203,10 +281,15 @@ def check(entry):
     eprint = f.get("eprint", "").strip()
     archive = f.get("eprinttype", f.get("archiveprefix", "")).lower()
 
-    # Books and theses have no DOI often enough that they get an
-    # explicit escape hatch, but it has to be deliberate.
-    if f.get("verified", "").lower() in {"manual", "true"}:
-        return "ok", ["marked manually verified (verified = {manual})"]
+    isbn_raw = f.get("isbn", "").strip()
+
+    # A source with no DOI, no ISBN and no arXiv ID (a thesis, some
+    # software) gets an explicit escape hatch, but it has to be
+    # deliberate.  An entry that does carry an identifier is checked
+    # against it even if it is also marked manual.
+    if not (doi or isbn_raw or eprint) and \
+            f.get("verified", "").lower() in {"manual", "true"}:
+        return "hand", ["checked by hand (verified = {manual})"]
 
     if doi:
         try:
@@ -224,17 +307,32 @@ def check(entry):
         if meta is None:
             return "FAIL", [f"arXiv ID not found: {eprint}"]
         source = f"arXiv:{eprint}"
+    elif isbn_raw:
+        isbn = normalise_isbn(isbn_raw)
+        if not isbn:
+            return "FAIL", [f"malformed ISBN: {isbn_raw}"]
+        try:
+            meta = isbn_record(isbn)
+        except Exception as exc:
+            return "FAIL", [f"ISBN lookup failed: {exc}"]
+        if meta is None:
+            return "FAIL", [f"ISBN not found in Open Library or Google Books: {isbn}"]
+        source = f"isbn:{isbn} ({meta['source']})"
     else:
-        return "FAIL", ["no DOI and no arXiv ID -- cannot be verified. "
-                        "Add one, or set verified = {manual} after checking "
-                        "the physical source by hand."]
+        return "FAIL", ["no DOI, ISBN or arXiv ID, so it cannot be looked up. "
+                        "Add one (an ISBN for a book), or set verified = {manual} "
+                        "after checking the source by hand."]
 
     status = "ok"
 
     bib_title = squash(f.get("title", ""))
     rec_title = squash((meta.get("title") or [""])[0])
     if bib_title and rec_title:
-        ratio = difflib.SequenceMatcher(None, bib_title, rec_title).ratio()
+        candidates = [rec_title]
+        if meta.get("subtitle"):            # books: "Title: Subtitle"
+            candidates.append(squash(rec_title + " " + meta["subtitle"][0]))
+        ratio = max(difflib.SequenceMatcher(None, bib_title, c).ratio()
+                    for c in candidates)
         if ratio < TITLE_THRESHOLD:
             status = "FAIL"
             shown = re.sub(r"\s+", " ",
@@ -268,6 +366,19 @@ def check(entry):
                 status = "WARN"
             msgs.append(f"journal differs: bib '{bib_journal}' vs record '{rec_journal}'")
 
+    # A catalogue's publisher is the least reliable field it has (Open
+    # Library gives "University of Cambridge ESOL Examinations" for Sakurai's
+    # Modern Quantum Mechanics), so it only ever warns.
+    bib_pub = f.get("publisher", "")
+    rec_pub = meta.get("publisher", "")
+    if isbn_raw and not doi and bib_pub and rec_pub:
+        a, b = squash(bib_pub), squash(rec_pub)
+        if a not in b and b not in a and \
+                difflib.SequenceMatcher(None, a, b).ratio() < 0.6:
+            if status == "ok":
+                status = "WARN"
+            msgs.append(f"publisher differs: bib '{bib_pub}' vs record '{rec_pub}'")
+
     return status, msgs
 
 
@@ -299,11 +410,11 @@ def main():
             dupes.add(e["key"])
         seen.add(e["key"])
 
-    counts = {"ok": 0, "WARN": 0, "FAIL": 0}
+    counts = {"ok": 0, "hand": 0, "WARN": 0, "FAIL": 0}
     for e in entries:
         status, msgs = check(e)
         counts[status] += 1
-        marker = {"ok": "ok  ", "WARN": "WARN", "FAIL": "FAIL"}[status]
+        marker = {"ok": "ok  ", "hand": "hand", "WARN": "WARN", "FAIL": "FAIL"}[status]
         print(f"{marker}  {e['key']}")
         for m in msgs:
             print(f"        {m}")
@@ -315,7 +426,8 @@ def main():
 
     total = len(entries)
     print(f"\n{total} entr{'y' if total == 1 else 'ies'}: "
-          f"{counts['ok']} ok, {counts['WARN']} warning, {counts['FAIL']} failed")
+          f"{counts['ok']} ok, {counts['hand']} checked by hand, "
+          f"{counts['WARN']} warning, {counts['FAIL']} failed")
 
     if counts["FAIL"] or (args.strict and counts["WARN"]):
         print("\nreferences.bib is NOT clean -- fix the entries above before citing them.")

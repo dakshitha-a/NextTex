@@ -12458,3 +12458,26 @@ disagreed with the memory. The writer could not see it coming; now the row
 says so before the agent does. `e2e/specs/agent.spec.ts` reads the count
 and its colour after a hand edit. The drawing is on the direction page
 under How full the memory is.
+
+## 120. Books by ISBN, and sources checked by hand
+
+The Papers drawer's one box takes an ISBN as it takes a DOI: ten or thirteen
+digits, hyphens allowed, come back as one book row from Open Library, or from
+Google Books when Open Library has none, and Add adds it. A book added this
+way is never accepted silently. A line under its row, in `meta` and the warn
+colour, says to check the author list and the title's capitals against the
+book's title page, because catalogues drop co-authors and lower-case titles:
+Open Library lists only Szabo for Szabo and Ostlund. The entry carries the
+same sentence as a comment, and the agent says it to the writer.
+
+The check keeps three kinds apart. A lookup that failed reads as before. An
+entry with no DOI, ISBN or arXiv ID, an old thesis, a 1932 paper, a program,
+says it has nothing to look it up by and carries a ghost button, Mark as
+checked by hand, which writes `verified = {manual}` into it; the agent may
+propose that and never writes it. Such a book is offered an ISBN Open Library
+holds for its title, in `meta` and the third ink, for the writer to add if it
+is the edition cited. A closing line names the entries already checked by
+hand, so they are never mistaken for lookups that passed. The mark counts
+only where there is nothing to look up. `e2e/specs/papers.spec.ts` adds a
+book and marks an entry; the drawing is on the direction page under Books by
+ISBN, and sources checked by hand.

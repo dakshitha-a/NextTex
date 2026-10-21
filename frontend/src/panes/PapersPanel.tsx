@@ -1,5 +1,5 @@
 import { Suspense, lazy, useEffect, useMemo, useRef, useState } from "react";
-import api from "../api";
+import api, { type LibraryProblem } from "../api";
 import { set, useStore } from "../store";
 import { Button } from "../ui/Button";
 import { Empty, Field, Row, Select } from "../ui/controls";
@@ -31,6 +31,8 @@ type Failure = { sha: string; name: string; reason: string; path: string };
 type Result = {
   doi: string; title: string; first: string; authors: number; year: string; journal: string;
   names: string[]; abstract: string;
+  /** A book's, found by ISBN, where a paper has `doi`. */
+  isbn?: string;
 };
 
 const SOURCE_NAMES = { crossref: "Crossref", openalex: "OpenAlex", semanticscholar: "Semantic Scholar" };
@@ -67,9 +69,13 @@ export default function PapersPanel({
   const [searching, setSearching] = useState(false);
   const [searchSaid, setSearchSaid] = useState("");
   const [addedKeys, setAddedKeys] = useState<Record<string, string>>({});
+  /** A book's "check it against the title page", by its ISBN, once added. */
+  const [addedChecks, setAddedChecks] = useState<Record<string, string>>({});
   const [report, setReport] = useState<
-    { checked: number; problems: { key: string; issues: string[] }[] } | null
+    { checked: number; problems: LibraryProblem[]; by_hand?: string[] } | null
   >(null);
+  /** Entries marked checked by hand from the report, and any refusal. */
+  const [marked, setMarked] = useState<Record<string, string>>({});
   /** Which result's card is up, and where its row is. */
   const [card, setCard] = useState<{ doi: string; top: number } | null>(null);
   const cardTimer = useRef<number | null>(null);
@@ -117,7 +123,11 @@ export default function PapersPanel({
       const answer = await api.searchLiterature(projectId, query.trim(), source);
       setResults(answer.results);
       if (!answer.results.length) {
-        setSearchSaid(answer.source === "doi" ? "No record for that DOI." : "Nothing found.");
+        setSearchSaid(
+          answer.source === "doi" ? "No record for that DOI."
+            : answer.source === "isbn" ? "No catalogue knows that ISBN."
+              : "Nothing found.",
+        );
       }
     } catch (error: any) {
       setResults(null);
@@ -127,18 +137,34 @@ export default function PapersPanel({
     }
   };
 
-  const addResult = async (doi: string) => {
-    if (!projectId || !doi) return;
-    setAddedKeys((current) => ({ ...current, [doi]: "…" }));
+  const addResult = async (row: Result) => {
+    const id = row.doi || row.isbn || "";
+    if (!projectId || !id) return;
+    setAddedKeys((current) => ({ ...current, [id]: "…" }));
     try {
-      const answer = await api.addByDoi(projectId, doi);
+      const answer = await api.addByDoi(projectId, row.doi ? { doi: row.doi } : { isbn: row.isbn });
       setAddedKeys((current) => ({
         ...current,
-        [doi]: answer.added ? (answer.key ?? "added") : (answer.reason ?? "That did not work."),
+        [id]: answer.added ? (answer.key ?? "added") : (answer.reason ?? "That did not work."),
       }));
+      // A book from a catalogue is never accepted silently.
+      if (answer.added && answer.check) {
+        setAddedChecks((current) => ({ ...current, [id]: answer.check as string }));
+      }
       if (answer.added) onRefresh();
     } catch (error: any) {
-      setAddedKeys((current) => ({ ...current, [doi]: error.message }));
+      setAddedKeys((current) => ({ ...current, [id]: error.message }));
+    }
+  };
+
+  const markByHand = async (key: string) => {
+    if (!projectId) return;
+    try {
+      await api.checkedByHand(projectId, key);
+      setMarked((current) => ({ ...current, [key]: "marked" }));
+      onRefresh();
+    } catch (error: any) {
+      setMarked((current) => ({ ...current, [key]: error.message }));
     }
   };
 
@@ -173,7 +199,7 @@ export default function PapersPanel({
   // is being searched or read: say what the file holds rather than
   // "nothing yet", which would be untrue of it.
   const settled = nothing && entries > 0;
-  const hovered = card ? results?.find((row) => row.doi === card.doi) : undefined;
+  const hovered = card ? results?.find((row) => (row.doi || row.isbn) === card.doi) : undefined;
   const folder = sources[0] ? sources[0].split("/").filter(Boolean).pop() : "";
 
   return (
@@ -236,7 +262,8 @@ export default function PapersPanel({
         {results && results.length ? (
           <ul data-testid="papers-results">
             {results.map((row, index) => {
-              const state = row.doi ? addedKeys[row.doi] : undefined;
+              const id = row.doi || row.isbn || "";
+              const state = id ? addedKeys[id] : undefined;
               // Two authors are both named, as the page draws them; three or
               // more are the first and "et al.", and the card names them all.
               const family = (name: string) => name.trim().split(/\s+/).pop() ?? name;
@@ -249,17 +276,17 @@ export default function PapersPanel({
                 // third ink with Add at the right, or what it was added as.
                 <li
                   key={`${row.doi || row.title}:${index}`}
-                  className={`rounded-control px-2 py-1.5 ${card?.doi === row.doi && row.doi ? "bg-wash" : ""}`}
+                  className={`rounded-control px-2 py-1.5 ${card?.doi === id && id ? "bg-wash" : ""}`}
                   data-testid="papers-result"
-                  onMouseEnter={(event) => row.doi && showCard(row.doi, event.currentTarget)}
+                  onMouseEnter={(event) => id && showCard(id, event.currentTarget)}
                   onMouseLeave={hideCard}
-                  onFocus={(event) => row.doi && showCard(row.doi, event.currentTarget)}
+                  onFocus={(event) => id && showCard(id, event.currentTarget)}
                   onBlur={hideCard}
                 >
                   <p className="text-title-sm leading-4.5 text-ink" title={row.title}>{row.title}</p>
                   <p className="flex items-end gap-2 text-small leading-4.25 text-ink-3">
                     <span className="min-w-0 flex-1">{who}</span>
-                    {row.doi ? (
+                    {id ? (
                       state && state !== "…" ? (
                         <span className="t-micro shrink-0" data-testid="papers-result-added">
                           {/\s/.test(state) ? state : `added as ${state}`}
@@ -270,7 +297,7 @@ export default function PapersPanel({
                           size="inline"
                           data-testid="papers-result-add"
                           disabled={state === "…"}
-                          onClick={() => void addResult(row.doi)}
+                          onClick={() => void addResult(row)}
                         >
                           {state === "…" ? "Adding…" : "Add"}
                         </Button>
@@ -279,6 +306,11 @@ export default function PapersPanel({
                       <span className="t-micro shrink-0" title="No DOI on the record">no DOI</span>
                     )}
                   </p>
+                  {id && addedChecks[id] ? (
+                    <p className="t-meta mt-0.5 text-warn" data-testid="papers-result-check">
+                      {addedChecks[id]}
+                    </p>
+                  ) : null}
                 </li>
               );
             })}
@@ -296,7 +328,7 @@ export default function PapersPanel({
             <p className="font-medium text-ink">{hovered.title}</p>
             {hovered.names?.length ? <p className="t-meta text-ink-3">{hovered.names.join(", ")}</p> : null}
             <p className="t-meta text-ink-3">{[hovered.journal, hovered.year].filter(Boolean).join(", ")}</p>
-            <p className="t-code-sm text-ink-3">{hovered.doi}</p>
+            <p className="t-code-sm text-ink-3">{hovered.doi || `ISBN ${hovered.isbn}`}</p>
             {hovered.abstract ? (
               <p className="mt-1.5 line-clamp-6 text-small leading-4.25">{hovered.abstract}</p>
             ) : null}
@@ -421,15 +453,56 @@ export default function PapersPanel({
               <>
                 <p className="nx-note !text-warn">
                   {report.problems.length} of {report.checked} disagree with the record they
-                  came from.
+                  came from, or have nothing to look up.
                 </p>
                 {report.problems.map((trouble) => (
-                  <p key={trouble.key} className="nx-note">
-                    <span className="t-code-sm text-ink">{trouble.key}</span> {trouble.issues.join("; ")}
-                  </p>
+                  <div key={trouble.key} className="nx-note" data-testid="papers-problem">
+                    <p>
+                      <span className="t-code-sm text-ink">{trouble.key}</span>{" "}
+                      {/* The checker's sentence says to add an identifier or
+                          mark it; here the button is the second half. */}
+                      {trouble.unidentified
+                        ? "has no DOI, ISBN or arXiv ID to look it up by."
+                        : trouble.issues.join("; ")}
+                    </p>
+                    {trouble.isbn ? (
+                      <p className="t-meta text-ink-3" data-testid="papers-problem-isbn">
+                        Open Library has ISBN{" "}
+                        <span className="t-code-sm text-ink-2">{trouble.isbn}</span> for this
+                        title. Add it to the entry if it is the edition you cite.
+                      </p>
+                    ) : null}
+                    {trouble.unidentified ? (
+                      marked[trouble.key] ? (
+                        <p className="t-micro text-ink-3" data-testid="papers-problem-marked">
+                          {marked[trouble.key] === "marked"
+                            ? "Marked checked by hand."
+                            : marked[trouble.key]}
+                        </p>
+                      ) : (
+                        <Button
+                          variant="ghost"
+                          size="inline"
+                          className="mt-1"
+                          data-testid="papers-mark-by-hand"
+                          onClick={() => void markByHand(trouble.key)}
+                        >
+                          Mark as checked by hand
+                        </Button>
+                      )
+                    ) : null}
+                  </div>
                 ))}
               </>
             )}
+            {report.by_hand?.length ? (
+              // Apart from both the lookups that passed and the problems:
+              // nothing was looked up, and the writer vouched for them.
+              <p className="nx-note" data-testid="papers-by-hand">
+                {report.by_hand.length} checked by hand, with nothing to look up:{" "}
+                <span className="t-code-sm text-ink-3">{report.by_hand.join(", ")}</span>
+              </p>
+            ) : null}
           </div>
         ) : null}
         {!known ? null : settled ? (

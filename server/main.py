@@ -4994,14 +4994,20 @@ async def library_search(project_id: str, q: str, source: str = "crossref"):
         raise HTTPException(400, f"a search is at most {SEARCH_QUERY_MAX} characters")
     if source not in SEARCH_SOURCES:
         raise HTTPException(400, f"source must be one of {', '.join(SEARCH_SOURCES)}")
-    # One box for both: a string that is a DOI goes to the resolver and comes
-    # back as one row, anything else to the chosen publisher.
+    # One box for all three: a string that is a DOI goes to the resolver
+    # and an ISBN to the library catalogues, each coming back as one row;
+    # anything else goes to the chosen publisher.
     doi = references.doi_in(query)
+    isbn = "" if doi else references.isbn_in(query)
     try:
         if doi:
             record = await asyncio.to_thread(references.record_for, doi)
             found = [record] if record else []
             source = "doi"
+        elif isbn:
+            record = await asyncio.to_thread(references.book_for, isbn)
+            found = [record] if record else []
+            source = "isbn"
         else:
             found = await asyncio.to_thread(references.search, query, source=source, limit=10)
     except Exception as error:
@@ -5011,6 +5017,7 @@ async def library_search(project_id: str, q: str, source: str = "crossref"):
         "results": [
             {
                 "doi": str(item.get("doi") or ""),
+                "isbn": str(item.get("isbn") or ""),
                 "title": str(item.get("title") or ""),
                 "first": str(item.get("first") or ""),
                 "authors": int(item.get("n_authors") or 0),
@@ -5026,9 +5033,20 @@ async def library_search(project_id: str, q: str, source: str = "crossref"):
     }
 
 
+class LibraryAdd(BaseModel):
+    """A DOI, or a book's ISBN: whichever the writer has."""
+    doi: str = Field(default="", max_length=300)
+    isbn: str = Field(default="", max_length=40)
+
+
 @app.post("/api/projects/{project_id}/library/add")
-async def library_add(project_id: str, doi: str = Body(..., embed=True)):
-    """One reference, from a DOI the writer has in front of them.
+async def library_add(project_id: str, body: LibraryAdd):
+    """One reference, from a DOI the writer has in front of them, or a
+    book from its ISBN.
+
+    A book comes from a library catalogue, which drops co-authors and
+    lower-cases titles, so its answer carries `check`, the sentence that
+    says to compare the entry with the title page, and is never silent.
 
     The resolve route above does this too, and cannot be used for it: it
     needs an unidentified PDF from a folder scan to hang the DOI on, so a
@@ -5041,9 +5059,12 @@ async def library_add(project_id: str, doi: str = Body(..., embed=True)):
     if bib is None:
         raise HTTPException(400, "There is no .bib file in this project.")
 
+    identifier = (body.isbn or body.doi).strip()
+    if not identifier:
+        raise HTTPException(400, "Give a DOI or an ISBN.")
     existing = read_text(bib) or ""
     try:
-        found = await asyncio.to_thread(references.entry_for, doi.strip(), existing)
+        found = await asyncio.to_thread(references.entry_for, identifier, existing)
     except Exception as error:      # noqa: BLE001 -- any failure is a reason
         # A DOI nobody has is an ordinary answer rather than a fault, and
         # the one thing that must never happen here is an invented entry.
@@ -5058,7 +5079,7 @@ async def library_add(project_id: str, doi: str = Body(..., embed=True)):
     text = read_text(bib)
     session.collab.ingest(session.project.relative(bib), text)
     session.record_version(bib, text, by="you", op="import",
-                           why=f"added {found['key']} by DOI")
+                           why=f"added {found['key']} by {'ISBN' if found.get('isbn') else 'DOI'}")
     await session.events.publish({"type": "files_changed",
                                   "paths": [session.project.relative(bib)]})
     return {
@@ -5067,7 +5088,37 @@ async def library_add(project_id: str, doi: str = Body(..., embed=True)):
         "title": found.get("title", ""),
         "author": found.get("author", ""),
         "year": found.get("year", ""),
+        "check": found.get("check", ""),
     }
+
+
+@app.post("/api/projects/{project_id}/library/checked-by-hand")
+async def library_checked_by_hand(project_id: str, key: str = Body(..., embed=True)):
+    """Mark one entry `verified = {manual}`: the writer has checked a source
+    that has nothing to look it up by, a thesis, an early paper, a program.
+
+    The writer's word, from the check's own button. The agent proposes it
+    and never writes it. An entry that carries a DOI, an ISBN or an arXiv ID
+    is refused: it is checked against that instead.
+    """
+    session = session_for(project_id)
+    bib = await asyncio.to_thread(_bib_for, session)
+    if bib is None:
+        raise HTTPException(400, "There is no .bib file in this project.")
+    existing = read_text(bib) or ""
+    marked = references.checked_by_hand(existing, key.strip())
+    if marked is None:
+        raise HTTPException(
+            400, f"{key} is not an entry without a DOI, ISBN or arXiv ID in {bib.name}.")
+    if marked != existing:
+        await asyncio.to_thread(write_atomically, bib, marked)
+        session.mark_written(bib)
+        session.collab.ingest(session.project.relative(bib), marked)
+        session.record_version(bib, marked, by="you", op="edit",
+                               why=f"marked {key} checked by hand")
+        await session.events.publish({"type": "files_changed",
+                                      "paths": [session.project.relative(bib)]})
+    return {"key": key, "marked": True}
 
 
 @app.post("/api/projects/{project_id}/library/verify")

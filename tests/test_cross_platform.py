@@ -404,6 +404,8 @@ OUTBOUND = {
     "export.arxiv.org",
     "arxiv.org",                # the source of a paper, when its id is typed
     "doi.org",
+    "openlibrary.org",          # a book's record by ISBN
+    "www.googleapis.com",       # the same, when Open Library has none
     "dx.doi.org",
     "claude.ai",                # the sign-in screen links to the download page
     "github.com",               # the prebuilt interface, and the update check
@@ -460,7 +462,8 @@ def test_the_shipped_code_talks_to_nothing_the_readme_does_not_name():
 def test_the_readme_names_every_one_of_them():
     readme = (ROOT / "README.md").read_text(encoding="utf-8")
     section = readme.split("## What leaves this machine")[1].split("##")[0]
-    for host in ("Crossref", "OpenAlex", "Semantic Scholar", "arXiv", "doi.org", "cdn.jsdelivr.net"):
+    for host in ("Crossref", "OpenAlex", "Semantic Scholar", "arXiv", "doi.org", "cdn.jsdelivr.net",
+                 "Open Library", "Google Books"):
         assert host in section, f"{host} is reachable but unmentioned"
     assert "Anthropic" in section and "OpenAI" in section
 

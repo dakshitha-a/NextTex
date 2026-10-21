@@ -131,6 +131,17 @@ export type SubmitFinding = {
 /** A heading of the previewed document, for the Sections drawer's
  *  Typeset list: where the source has it and, after a build, its number
  *  and page. */
+/** One entry the check could not match. `unidentified` when it has no
+ *  DOI, ISBN or arXiv ID; `isbn`, for such a book, an ISBN a catalogue
+ *  holds for its title, offered and never written. */
+export type LibraryProblem = {
+  key: string;
+  status?: string;
+  issues: string[];
+  unidentified?: boolean;
+  isbn?: string;
+};
+
 export type HeadingEntry = {
   kind: string;
   level: number;
@@ -1018,9 +1029,11 @@ const api = {
    *  each saying which TeX packages this TeX lacks for it, and the guides
    *  to the venues NextTex cannot ship. */
   templates: () => request<{ templates: TemplateInfo[]; guides: GuideInfo[] }>("/templates"),
-  /** One reference from a DOI, with no paper behind it. The resolve route
-   *  needs an unidentified PDF from a folder scan to hang the DOI on. */
-  addByDoi: (id: string, doi: string) =>
+  /** One reference from a DOI, or a book from its ISBN, with no paper
+   *  behind it. The resolve route needs an unidentified PDF from a folder
+   *  scan to hang the DOI on. A book's answer carries `check`, the
+   *  sentence that says to compare it with the title page. */
+  addByDoi: (id: string, identifier: { doi?: string; isbn?: string }) =>
     request<{
       added: boolean;
       reason?: string;
@@ -1028,13 +1041,22 @@ const api = {
       title?: string;
       author?: string;
       year?: string;
-    }>(`/projects/${id}/library/add`, json({ doi })),
+      check?: string;
+    }>(`/projects/${id}/library/add`, json(identifier)),
+  /** Mark an entry with nothing to look up `verified = {manual}`: the
+   *  writer has checked the source itself. */
+  checkedByHand: (id: string, key: string) =>
+    request<{ key: string; marked: boolean }>(
+      `/projects/${id}/library/checked-by-hand`,
+      json({ key }),
+    ),
   /** Every entry against the record it claims to come from. Reports; it
    *  writes nothing. */
   verifyLibrary: (id: string) =>
     request<{
       checked: number;
-      problems: { key: string; issues: string[] }[];
+      problems: LibraryProblem[];
+      by_hand?: string[];
       report: string;
     }>(`/projects/${id}/library/verify`, json({})),
   loadTemplate: (id: string, name = "basic") =>
@@ -1148,6 +1170,8 @@ const api = {
       source: string;
       results: {
         doi: string; title: string; first: string; authors: number; year: string; journal: string;
+        /** A book's, found by ISBN, where a paper has `doi`. */
+        isbn?: string;
         /** The full author list and the abstract, where the record has them. */
         names: string[]; abstract: string;
       }[];

@@ -185,8 +185,11 @@ Claude, OpenAI, a model on your own machine, or none.
 
 ### Citations it cannot invent
 
-Every reference comes from the publisher's own record, found by DOI. There is
-no path from the model's memory to your `.bib` file.
+Every reference comes from the publisher's own record, found by DOI, or for a
+book from a library catalogue by its ISBN, with a reminder to check it against
+the title page. There is no path from the model's memory to your `.bib` file.
+A source with nothing to look up, an old thesis or a program, is marked
+checked by hand, by you.
 
 [More on references →](docs/guide.md#it-cannot-invent-a-citation)
 
@@ -431,6 +434,7 @@ never written.
 |---|---|---|
 | Your messages to the agent | Anthropic or OpenAI, or nowhere for a local model | When you use that agent |
 | Reference searches | Crossref, OpenAlex, Semantic Scholar, arXiv, doi.org | When you search |
+| A book's record, by ISBN | Open Library, then Google Books | When you add or check a book |
 | The update check | GitHub | When the projects screen opens |
 | Shared projects, encrypted | Each other, or iroh's relays | Only after you share |
 | Installer downloads | TeX, Claude, uv | Once, as the plan says |
@@ -445,6 +449,9 @@ never written.
 1. **The agent:** what you send it goes to Anthropic or OpenAI. When the
    OpenAI provider points at a local server, it goes nowhere.
 2. **References:** Crossref, OpenAlex, Semantic Scholar, arXiv and `doi.org`.
+   A book's ISBN, or its title and first author when a book entry has no
+   ISBN, goes to `openlibrary.org`, and to `www.googleapis.com` when Open
+   Library does not know it. Neither is sent a contact address or a key.
 3. **The installer**, and only what its plan said: TinyTeX from `yihui.org`
    and `tinytex.yihui.org`, the Claude CLI from `claude.ai` if you chose it,
    and `uv` from `astral.sh` when this machine's Python cannot make a virtual

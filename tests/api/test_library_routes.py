@@ -145,7 +145,7 @@ def test_the_search_box_asks_a_publisher_and_hands_back_rows_with_dois(client, o
     body = answer.json()
     assert body["source"] == "openalex"
     assert body["results"][0] == {
-        "doi": "10.1038/nature14539", "title": "Deep learning", "first": "LeCun",
+        "doi": "10.1038/nature14539", "isbn": "", "title": "Deep learning", "first": "LeCun",
         "authors": 3, "year": "2015", "journal": "Nature", "names": [], "abstract": "",
     }
     assert body["results"][1]["doi"] == "" and body["results"][1]["year"] == ""
@@ -234,3 +234,59 @@ def test_a_publisher_that_will_not_answer_is_a_502_with_its_words(client, opened
     )
     assert answer.status_code == 502
     assert "503" in answer.json()["detail"]
+
+
+BOOK = (
+    "% From the Open Library record for ISBN 9780486691862. Check the\n"
+    "% author list and title capitalisation against the title page.\n"
+    "@book{Szabo1996modern,\n  author = {Szabo, Attila},\n  isbn = {9780486691862}\n}\n"
+)
+
+
+def test_a_book_is_added_by_its_isbn_and_says_to_check_it(client, bib, monkeypatch):
+    opened, path = bib
+    asked = []
+
+    def book(identifier, existing):
+        asked.append(identifier)
+        return {"added": True, "key": "Szabo1996modern", "entry": BOOK, "isbn": "9780486691862",
+                "title": "modern quantum chemistry", "check": "Check it against the title page."}
+
+    monkeypatch.setattr(references, "entry_for", book)
+    answer = client.post(f"/api/projects/{opened['id']}/library/add",
+                         json={"isbn": "0-486-69186-1"})
+    assert answer.status_code == 200, answer.text
+    assert asked == ["0-486-69186-1"]
+    assert answer.json()["check"] == "Check it against the title page."
+    assert "Szabo1996modern" in path.read_text(encoding="utf-8")
+    assert client.post(f"/api/projects/{opened['id']}/library/add", json={}).status_code == 400
+
+
+def test_an_isbn_in_the_search_box_is_one_book(client, opened, monkeypatch):
+    monkeypatch.setattr(references, "book_for", lambda isbn: {
+        "doi": "", "isbn": isbn, "title": "Modern Quantum Chemistry", "first": "Szabo",
+        "n_authors": 1, "year": 1996, "journal": "Dover", "authors": ["Attila Szabo"]})
+    monkeypatch.setattr(references, "record_for", lambda doi: pytest.fail("asked as a DOI"))
+    answer = client.get(f"/api/projects/{opened['id']}/library/search",
+                        params={"q": "978-0-486-69186-2"})
+    assert answer.status_code == 200, answer.text
+    body = answer.json()
+    assert body["source"] == "isbn"
+    assert body["results"][0]["isbn"] == "9780486691862" and body["results"][0]["doi"] == ""
+
+
+def test_an_entry_with_nothing_to_look_up_is_marked_by_the_writer(client, bib):
+    opened, path = bib
+    path.write_text(path.read_text(encoding="utf-8")
+                    + "\n@phdthesis{allison2010,\n  title = {Femtosecond},\n  year = {2010}\n}\n"
+                    + "@article{doi2020,\n  doi = {10.1/x},\n  title = {A}\n}\n", encoding="utf-8")
+    url = f"/api/projects/{opened['id']}/library/checked-by-hand"
+    answer = client.post(url, json={"key": "allison2010"})
+    assert answer.status_code == 200, answer.text
+    text = path.read_text(encoding="utf-8")
+    assert "@phdthesis{allison2010,\n  verified = {manual}," in text
+    # An entry with an identifier is checked against it, and a key that is
+    # not there is not invented.
+    assert client.post(url, json={"key": "doi2020"}).status_code == 400
+    assert client.post(url, json={"key": "nobody"}).status_code == 400
+    assert path.read_text(encoding="utf-8") == text

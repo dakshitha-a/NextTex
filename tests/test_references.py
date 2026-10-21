@@ -77,6 +77,7 @@ def test_verifying_reads_the_checkers_verdict_not_its_shape(tmp_path, monkeypatc
             "key": "bad2021",
             "status": "FAIL",
             "issues": ["DOI resolves to a different title", "year differs"],
+            "unidentified": False,
         }
     ]
     # And the text the agent builds from it joins strings, which is the

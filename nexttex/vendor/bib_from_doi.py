@@ -27,7 +27,7 @@ from urllib.parse import quote
 import requests
 
 sys.path.insert(0, str(Path(__file__).resolve().parent))
-from verify_bib import parse_bib  # noqa: E402  (same directory)
+from verify_bib import isbn_record, normalise_isbn, parse_bib  # noqa: E402  (same directory)
 
 # Crossref and OpenAlex ask callers to identify themselves, and reward the
 # ones that do with a faster, less rate-limited pool.  This used to be the
@@ -347,6 +347,84 @@ def tidy(entry, key, meta):
         lines.append(f"  {f.ljust(width)} = {{{v}}}{comma}")
     lines.append("}")
     return "\n".join(lines) + "\n"
+
+
+SMALL_WORDS = {"a", "an", "and", "as", "at", "but", "by", "for", "in",
+               "of", "on", "or", "the", "to", "with", "via"}
+
+#: Said beside every book built from a catalogue record, in the entry and
+#: to whoever added it.  Catalogues drop co-authors and lower-case titles.
+CHECK_BOOK = ("From a library catalogue: check the author list and the title's "
+              "capitals against the book's title page.")
+
+
+def title_case(text):
+    """Catalogue titles are often lower-case; capitalise the main words."""
+    words = text.split(" ")
+    out = []
+    for i, w in enumerate(words):
+        if any(c.isupper() for c in w[1:]) or not w:
+            out.append(w)                    # leave acronyms, H2O, etc.
+        elif i > 0 and w.lower() in SMALL_WORDS:
+            out.append(w.lower())
+        else:
+            out.append(w[:1].upper() + w[1:])
+    return " ".join(out)
+
+
+def looks_like_isbn(raw):
+    return normalise_isbn(raw) is not None and not raw.strip().startswith("10.")
+
+
+def book_entry(isbn, seen_keys, rec=None):
+    """A @book entry from the ISBN's catalogue record: (key, entry, rec).
+
+    Built here rather than fetched, since no catalogue serves BibTeX; the
+    two comment lines above it carry CHECK_BOOK into the file, so the
+    writer meets it again where the entry is."""
+    rec = rec if rec is not None else isbn_record(isbn)
+    if rec is None:
+        raise LookupError(f"ISBN not found in Open Library or Google Books: {isbn}")
+    title = title_case(rec["title"][0].strip())
+    if rec.get("subtitle"):
+        title += ": " + title_case(rec["subtitle"][0].strip())
+    authors = []
+    for a in rec.get("author", []):
+        parts = a.get("full", "").split()
+        if parts:
+            authors.append(f"{parts[-1]}, {' '.join(parts[:-1])}".strip(", "))
+    year = ""
+    parts = (rec.get("issued") or {}).get("date-parts") or []
+    if parts and parts[0]:
+        year = str(parts[0][0])
+
+    surname = ascii_fold(authors[0].split(",")[0]) if authors else "Unknown"
+    words = re.findall(r"[A-Za-z]+", title.lower())
+    keyword = next((w for w in words if w not in STOPWORDS and len(w) > 3), "")
+    key = f"{surname}{year}{keyword}"
+    base, n = key, 1
+    while key in seen_keys:
+        n += 1
+        key = f"{base}{chr(ord('a') + n - 2)}"
+
+    fields = [("author", " and ".join(authors)), ("title", title),
+              ("publisher", rec.get("publisher", "")),
+              ("address", rec.get("place", "")), ("year", year),
+              ("isbn", isbn)]
+    fields = [(f, v) for f, v in fields if v]
+    width = max(len(f) for f, _ in fields)
+    lines = [f"% From the {rec['source']} record for ISBN {isbn}. Check the",
+             "% author list and title capitalisation against the title page.",
+             f"@book{{{key},"]
+    for i, (f, v) in enumerate(fields):
+        comma = "," if i < len(fields) - 1 else ""
+        lines.append(f"  {f.ljust(width)} = {{{v}}}{comma}")
+    lines.append("}")
+    return key, "\n".join(lines) + "\n", rec
+
+
+def existing_isbns(bib_text):
+    return {normalise_isbn(i) for i in re.findall(r"isbn\s*=\s*\{([^}]*)\}", bib_text, re.I)}
 
 
 def existing_dois(bib_text):
