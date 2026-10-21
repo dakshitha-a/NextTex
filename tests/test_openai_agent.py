@@ -641,3 +641,23 @@ def test_a_note_is_changed_through_the_same_store_on_this_provider_too(tmp_path)
     assert "refs/articles/" in answer
     assert shelf.memory_notes() == ["PDFs go in refs/articles/"]
     assert "revise_memory" in {tool["function"]["name"] for tool in TOOLS}
+
+
+def test_the_bibliography_can_be_checked_on_this_provider_too(tmp_path, monkeypatch):
+    """Only the Claude agent had `check_references`; a writer on OpenAI could
+    add references and never have them re-checked."""
+    from nexttex import references
+
+    (tmp_path / "refs.bib").write_text("@misc{g16,\n  title = {Gaussian 16}\n}\n", encoding="utf-8")
+    seen = []
+
+    def verify(bib):
+        seen.append(bib.name)
+        return {"checked": 1, "problems": [], "by_hand": ["g16"]}
+
+    monkeypatch.setattr(references, "verify", verify)
+    made = agent(tmp_path, [])
+    answer = asyncio.run(made._dispatch("check_references", {}))
+    assert len(seen) == 1 and seen[0].endswith(".bib")
+    assert "checked by hand (g16)" in answer
+    assert "check_references" in {tool["function"]["name"] for tool in TOOLS}

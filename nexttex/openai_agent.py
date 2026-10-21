@@ -266,6 +266,20 @@ TOOLS: list[dict] = [
     {
         "type": "function",
         "function": {
+            "name": "check_references",
+            "description": (
+                "Re-check every entry in the project's .bib file against the "
+                "record it claims to come from, and report anything that does "
+                "not match. An entry with no DOI, ISBN or arXiv ID cannot be "
+                "looked up: the writer marks it checked by hand, as verified = "
+                "{manual}. You may propose that, never write it yourself."
+            ),
+            "parameters": {"type": "object", "properties": {}},
+        },
+    },
+    {
+        "type": "function",
+        "function": {
             "name": "revise_memory",
             "description": (
                 "Change one remembered note, or remove it with an empty `new`. "
@@ -1065,6 +1079,9 @@ class OpenAIAgent:
             _kept, message = self.remember_note(str(args.get("note") or ""))
             return message
 
+        if name == "check_references":
+            return await asyncio.to_thread(self._check_references)
+
         if name == "revise_memory":
             _kept, message = self.revise_memory_note(
                 str(args.get("old") or ""), str(args.get("new") or ""))
@@ -1353,6 +1370,16 @@ class OpenAIAgent:
             # A book from a catalogue is never accepted silently.
             said += f" {found['check']} Say so to the writer."
         return said
+
+    def _check_references(self) -> str:
+        """The Claude agent's check, which this provider lacked: a writer
+        on OpenAI could add references and never re-check them."""
+        from . import references
+
+        bib = next(iter(sorted(self.root.rglob("*.bib"))), None)
+        if bib is None:
+            return "This project has no .bib file to check."
+        return references.said(references.verify(bib))
 
     @staticmethod
     async def _maybe(value: Any) -> Any:
