@@ -30,7 +30,9 @@ import json
 import os
 import re
 import shutil
+import subprocess
 import sys
+import tempfile
 import time
 from pathlib import Path
 from typing import Callable
@@ -341,3 +343,41 @@ async def install(name: str) -> dict:
         return {"ok": False, "err": str(error)}
     text, _ = _clip(out or b"")
     return {"ok": process.returncode == 0, "err": text}
+
+
+#: How large a figure is drawn for the agent to look at, and the most it may
+#: weigh. Enough to read a tick label at the printed size, small enough that
+#: a turn of several figures does not fill the model's context with images.
+PREVIEW_DPI = 110
+PREVIEW_MAX_BYTES = 1_500_000
+
+
+def preview_png(path: Path) -> bytes | None:
+    """The first page of a figure a script saved, as a PNG, or None.
+
+    For the agent, which had only the words "Drew figures/x.pdf" and so
+    rendered each figure itself with pdftoppm and read the PNG back, 55
+    times in a thesis's ten days, and still missed a label overlap the
+    writer reported four times. A PNG is sent as it is; a PDF is drawn with
+    pdftocairo, from poppler, which the equation and export paths already
+    use. Anything else, or a host without pdftocairo, is None, and the
+    agent is told in words.
+    """
+    suffix = path.suffix.lower()
+    try:
+        if suffix == ".png":
+            data = path.read_bytes()
+            return data if len(data) <= PREVIEW_MAX_BYTES else None
+        if suffix != ".pdf" or shutil.which("pdftocairo") is None:
+            return None
+        with tempfile.TemporaryDirectory() as scratch:
+            out = Path(scratch) / "figure"
+            subprocess.run(
+                ["pdftocairo", "-png", "-singlefile", "-f", "1", "-l", "1",
+                 "-r", str(PREVIEW_DPI), str(path), str(out)],
+                check=True, capture_output=True, timeout=30,
+            )
+            data = (out.with_suffix(".png")).read_bytes()
+    except (OSError, subprocess.SubprocessError):
+        return None
+    return data if len(data) <= PREVIEW_MAX_BYTES else None

@@ -517,3 +517,50 @@ def test_a_failing_rerun_reports_the_failure(tmp_path):
     subject = agent(tmp_path)
     plot(subject, name="bad", script="raise SystemExit(3)\n")
     assert "failed (exit 3)" in said(rerun(subject, name="bad"))
+
+
+# -- the agent sees what it drew ----------------------------------------------
+PNG = bytes.fromhex(
+    "89504e470d0a1a0a0000000d4948445200000001000000010806000000"
+    "1f15c4890000000d49444154789c6360f8cfc0f01f0005000201a5d7c5"
+    "a30000000049454e44ae426082"
+)
+
+
+def test_a_drawn_figure_comes_back_as_an_image_to_look_at(tmp_path):
+    """The thesis's agent rendered and read its own figures by hand 55 times
+    and still missed the overlap the writer reported four times."""
+    import base64
+
+    subject = agent(tmp_path)
+    script = (
+        "import base64\n"
+        f"open('figures/dot.png', 'wb').write(base64.b64decode('{base64.b64encode(PNG).decode()}'))\n"
+    )
+    result = plot(subject, name="dot", script=script, output="figures/dot.png")
+    text, image = result["content"]
+    assert "Look at it before you say it is done" in text["text"]
+    assert image["type"] == "image" and image["mimeType"] == "image/png"
+    assert base64.b64decode(image["data"]) == PNG
+
+
+def test_a_figure_that_cannot_be_drawn_here_is_said_in_words(tmp_path, monkeypatch):
+    monkeypatch.setattr(plots, "preview_png", lambda path: None)
+    subject = agent(tmp_path)
+    result = plot(subject, name="dot",
+                  script="open('figures/dot.png', 'wb').write(b'not a png')\n",
+                  output="figures/dot.png")
+    assert len(result["content"]) == 1
+    assert "could not be shown here" in said(result)
+
+
+@pytest.mark.skipif(__import__("shutil").which("pdftocairo") is None, reason="no poppler")
+def test_a_pdf_figure_is_drawn_for_the_agent(tmp_path):
+    pdf = tmp_path / "f.pdf"
+    pdf.write_bytes(
+        b"%PDF-1.4\n1 0 obj << /Type /Catalog /Pages 2 0 R >> endobj\n"
+        b"2 0 obj << /Type /Pages /Kids [3 0 R] /Count 1 >> endobj\n"
+        b"3 0 obj << /Type /Page /Parent 2 0 R /MediaBox [0 0 200 100] >> endobj\n"
+        b"trailer << /Root 1 0 R >>\n%%EOF\n")
+    data = plots.preview_png(pdf)
+    assert data is not None and data.startswith(b"\x89PNG")

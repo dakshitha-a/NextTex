@@ -35,8 +35,8 @@ so long frames now name their script. The logger stays on.
 The thesis's chat logs showed the agent's memory full three times, with
 the overflow put in `CLAUDE.md`; the cap is now 8,000 and the agent can
 revise notes. Books are added and checked by ISBN, and a source with nothing to look up
-is marked checked by hand by the writer. Left: the figure, shell-edit and
-tool-loading refinements (item 17). The
+is marked checked by hand by the writer. The agent now sees each figure it draws,
+loads NextTex's tools up front and keeps .tex edits out of the shell. The
 journal had already shown one fault, fixed in this run: a symlink to a
 file outside a project made lint, headings and search answer 500.
 Two requests joined the run on 19 October, passed on from the thesis
@@ -257,6 +257,16 @@ OpenAI provider against OpenAI itself.
 
 ### Known gaps, with a cost somebody will eventually pay
 
+- [ ] **A build started mid-edit reports a transient brace error.** The
+      thesis's writer pasted `File ended while scanning use of \revised`
+      from a build that ran while a brace was half deleted; the agent found
+      nothing wrong. Holding a build while braces are unbalanced, or
+      marking such an error as passing, would spare the question.
+- [ ] **A project can track NextTex's own preview file in git.** The
+      thesis tracks `.nexttex-preview-main.tex`, so its git panel always
+      shows it modified; its `.gitignore` names `.nexttex-preview.tex`, an
+      older name. Untracking it is the writer's `git rm --cached`; NextTex
+      could say so in the git panel.
 - [ ] **A JPEG 2000 image of grey with an alpha channel is not
       drawn.** pdf.js 6.3.289 fails it with "Cannot read properties of
       undefined (reading 'length')" where poppler draws it; a

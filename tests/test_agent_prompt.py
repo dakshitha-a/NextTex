@@ -218,3 +218,17 @@ def test_the_agent_is_told_never_to_run_the_engine_itself():
 
     assert "Never run pdflatex" in SYSTEM_PROMPT
     assert "clean: true" in SYSTEM_PROMPT
+
+
+def test_nexttex_s_own_tools_load_up_front(tmp_path):
+    """A thesis's agent spent nine calls loading compile, remember and
+    replace_range through ToolSearch before it could use them."""
+    options = agent(tmp_path, voice=False)._options()
+    assert options.env.get("ENABLE_TOOL_SEARCH") == "false"
+
+
+def test_the_prompt_keeps_edits_of_the_writing_out_of_the_shell(tmp_path):
+    """72 edits of a thesis's .tex files went through sed or a heredoc,
+    past the check that the text being changed is still there."""
+    options = agent(tmp_path, voice=False)._options()
+    assert "never with sed, a Python" in options.system_prompt

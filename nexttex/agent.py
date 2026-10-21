@@ -34,6 +34,7 @@ racing it through a side channel.
 from __future__ import annotations
 
 import asyncio
+import base64
 import hashlib
 import json
 import logging
@@ -391,6 +392,10 @@ How to work here:
   one and runs it; run_script runs one that is already there, by name,
   without changing it, which is how a figure is re-drawn after the data
   or the style sheet changed, or after the writer edited the script.
+- Edit a .tex file with replace_range or Edit, never with sed, a Python
+  heredoc or another shell rewrite: those skip the check that the text you
+  meant to change is still there, so a word the writer typed in between is
+  lost, and they leave no edit the writer can see or undo.
 - Never invent a citation. Use find_papers to get real ones and
   add_reference to add them from the publisher's own record, or a book
   from its ISBN. If you cannot verify a source exists, say so rather than
@@ -1762,7 +1767,10 @@ class ProjectAgent:
             "figure at the width it will be printed at, which is what makes "
             "the labels the right size, and writes a PDF into figures/. Read "
             "the dataset before you write the script. Never call "
-            "pyplot.show().",
+            "pyplot.show(). The answer carries the figure as an image: look "
+            "at it before you say the figure is done, for labels that overlap "
+            "or leave the frame, a legend over the data, and anything the "
+            "writer asked for that is not there.",
             {"name": str, "script": str, "output": str},
         )
         async def run_plot_script(args: dict) -> dict:
@@ -2027,6 +2035,36 @@ class ProjectAgent:
     @staticmethod
     def _text(message: str) -> dict:
         return {"content": [{"type": "text", "text": message}]}
+
+    async def _with_figure(self, message: str, candidates: list[Path]) -> dict:
+        """A tool answer carrying the first figure a script saved, as an image
+        the model can look at, with the instruction to look.
+
+        The thesis's agent ran 47 figure scripts and then rendered and read
+        the results by hand 55 times, and the writer still reported the same
+        label overlap four times. Without poppler, or for a figure that is
+        neither PDF nor PNG, the answer says so rather than nothing.
+        """
+        from . import plots
+
+        for path in candidates:
+            if path.suffix.lower() not in {".pdf", ".png"} or not path.is_file():
+                continue
+            data = await asyncio.to_thread(plots.preview_png, path)
+            if data is None:
+                break
+            return {"content": [
+                {"type": "text", "text": message + (
+                    f"\n\nThis is {self._display(path)} as drawn. Look at it before "
+                    "you say it is done: labels that overlap or leave the frame, "
+                    "a legend over the data, and anything asked for that is missing.")},
+                {"type": "image", "data": base64.b64encode(data).decode("ascii"),
+                 "mimeType": "image/png"},
+            ]}
+        else:
+            return self._text(message)
+        return self._text(message + "\n\nThe figure could not be shown here; show_page "
+                          "shows it once it is in the document.")
 
     def _display(self, path: Path) -> str:
         try:
@@ -2312,13 +2350,15 @@ class ProjectAgent:
 
         said = (result.get("out") or "").strip()
         where = wanted or "figures/"
-        return self._text(
+        return await self._with_figure(
             f"Drew {where} and saved the script as "
             f"{self._display(target)}. Insert it with insert_figure at "
             f"width=\\linewidth, since it is already drawn at the width it "
             f"will be printed at."
             + (f"\n\n{said}" if said else "")
-            + note
+            + note,
+            [expected] if expected is not None else
+            [self.root / saved for saved in result.get("saved") or []],
         )
 
     async def run_script_tool(self, args: dict) -> dict:
@@ -2370,7 +2410,8 @@ class ProjectAgent:
         if said:
             lines.append("")
             lines.append(said)
-        return self._text("\n".join(lines))
+        return await self._with_figure(
+            "\n".join(lines), [self.root / path for path in saved])
 
     async def install_tool(self, args: dict) -> dict:
         """Install one package, when a plot has said one is missing."""
@@ -2608,6 +2649,12 @@ class ProjectAgent:
             # out which layer moved.
             disallowed_tools=sorted(self._SUBAGENT_TOOLS),
             mcp_servers={"nexttex": self._tools_server()},
+            # NextTex's own tools are the ones this agent is for, and the
+            # CLI deferred them behind ToolSearch: a thesis's agent spent
+            # nine calls loading compile, remember and replace_range before
+            # it could use them. They are some two dozen short schemas, so
+            # they load up front.
+            env={"ENABLE_TOOL_SEARCH": "false"},
             hooks={
                 "PreToolUse": [HookMatcher(hooks=[self._pre_tool])],
                 "PostToolUse": [HookMatcher(hooks=[self._post_tool])],
