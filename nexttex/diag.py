@@ -71,6 +71,10 @@ LONG_ROUTES = (
     "/git/", "/upload", "/collab/", "/api/host", "/previews", "/duplicate",
     "/relocate", "/api/projects/create", "/open", "/export",
 )
+#: Answers a route gives by design, which are not failures: the PDF route
+#: answers 503 while a build is rewriting the file, and the page keeps the
+#: one it has. The first review counted it as a server error.
+EXPECTED = {("GET", "/api/projects/{project_id}/pdf", 503)}
 #: An editing message that held the loop for this long.
 SLOW_MESSAGE = 0.25
 #: Durations kept per route per window; past this every other one is kept,
@@ -230,6 +234,13 @@ def uninstall() -> None:
 # Requests
 
 
+def _load() -> list[float]:
+    try:
+        return [round(x, 2) for x in os.getloadavg()]
+    except OSError:
+        return []
+
+
 def _long(route: str) -> bool:
     return any(part in route for part in LONG_ROUTES)
 
@@ -259,7 +270,8 @@ def request_done(method: str, route: str, status: int, seconds: float) -> None:
         stats = _routes[key] = {"times": [], "n": 0, "errors": 0, "max": 0.0, "skip": 1}
     stats["n"] += 1
     stats["max"] = max(stats["max"], seconds)
-    if status >= 500:
+    failed = status >= 500 and (method, route, status) not in EXPECTED
+    if failed:
         stats["errors"] += 1
     if len(stats["times"]) >= KEEP_PER_ROUTE:
         stats["times"] = stats["times"][::2]
@@ -267,7 +279,7 @@ def request_done(method: str, route: str, status: int, seconds: float) -> None:
     if stats["n"] % stats["skip"] == 0:
         stats["times"].append(seconds)
     limit = SLOW_BY_DESIGN if _long(route) else SLOW_REQUEST
-    if status >= 500 or seconds > limit:
+    if failed or seconds > limit:
         event("request", method=method, route=route, status=status,
               ms=round(seconds * 1000))
 
@@ -407,7 +419,11 @@ async def watch() -> None:
             lag = now - asked - LAG_EVERY
             worst = max(worst, lag)
             if lag > LAG_NOTE:
-                event("lag", ms=round(lag * 1000), inflight=_in_flight(now))
+                # The host's load beside it: a stall with nothing in flight
+                # on a machine running a hundred other things is the
+                # machine's, which the first review could only infer.
+                event("lag", ms=round(lag * 1000), inflight=_in_flight(now),
+                      load=_load())
             if now - last_sample >= SAMPLE_EVERY:
                 event("sample", worst_lag_ms=round(worst * 1000), **resources(cpu))
                 cpu, last_sample, worst = _cpu_now(), now, 0.0

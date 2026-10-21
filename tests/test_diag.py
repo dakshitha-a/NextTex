@@ -127,6 +127,7 @@ def test_a_stalled_loop_and_a_dying_task_are_recorded(log, monkeypatch):
     # one with the planted request in flight.
     [lag] = [row for row in log("lag") if row["inflight"]]
     assert lag["ms"] >= 150
+    assert len(lag["load"]) == 3
     # No route matched in a bare scope, so the first segment stands in.
     assert lag["inflight"][0].startswith("GET /api/* ")
     [error] = log("exception")
@@ -141,11 +142,14 @@ def test_requests_are_summarised_per_route_and_slow_ones_said_at_once(log):
     diag.request_done("GET", "/api/projects/{project_id}/tree", 500, 0.020)
     diag.request_done("POST", "/api/projects/{project_id}/file", 200, diag.SLOW_REQUEST + 1)
     diag.request_done("POST", "/api/projects/{project_id}/compile", 200, diag.SLOW_REQUEST + 1)
+    diag.request_done("GET", "/api/projects/{project_id}/pdf", 503, 0.002)
     diag.flush_routes()
     [summary] = log("routes")
     tree = summary["routes"]["GET /api/projects/{project_id}/tree"]
     assert tree == {"n": 20, "errors": 1, "p50": 10, "p95": 20, "max": 20}
     singles = [(r["route"], r["status"]) for r in log("request")]
+    # The PDF route's 503 is its "a build is rewriting it", not a failure.
+    assert summary["routes"]["GET /api/projects/{project_id}/pdf"]["errors"] == 0
     assert singles == [("/api/projects/{project_id}/tree", 500),
                        ("/api/projects/{project_id}/file", 200)]
     diag.flush_routes()

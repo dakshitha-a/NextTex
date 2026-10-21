@@ -64,6 +64,7 @@ let unsent: Recorded[] = [];
 let slow: Slow[] = [];
 let longTasks = 0;
 let longestTask = 0;
+let frames = new Map<string, Frame>();
 let timer: ReturnType<typeof setTimeout> | null = null;
 let sender: Sender | null = null;
 
@@ -81,6 +82,46 @@ export function noteLongTask(ms: number): void {
   schedule();
 }
 
+/** A long frame's cause, as the Long Animation Frames API names it, and
+ *  how often and how long it held the page since the last send. */
+export type Frame = { cause: string; n: number; ms: number; max: number };
+
+/** The part of a `PerformanceScriptTiming` this reads. */
+export type FrameScript = {
+  duration: number;
+  invoker?: string;
+  invokerType?: string;
+  sourceURL?: string;
+  sourceFunctionName?: string;
+};
+
+/** Causes kept per send; the rest are counted under "other". */
+export const FRAME_CAUSES = 10;
+
+/** What held a long frame: its longest script, named by what invoked it,
+ *  the function and the file, or the browser's style and layout when that
+ *  took longer than any script. A long task says only that the page was
+ *  busy; this is what the review needs to say by what. */
+export function frameCause(scripts: readonly FrameScript[], layoutMs: number): string {
+  const longest = scripts.reduce<FrameScript | null>(
+    (best, script) => (!best || script.duration > best.duration ? script : best), null);
+  if (!longest || layoutMs > longest.duration) return "style and layout";
+  const file = (longest.sourceURL ?? "").split("?")[0].split("/").pop() || "inline";
+  const what = longest.invoker || longest.invokerType || "script";
+  return `${what} > ${longest.sourceFunctionName || "(anonymous)"} in ${file}`.slice(0, 300);
+}
+
+export function noteFrame(ms: number, cause: string): void {
+  if (ms < LONG_TASK_MS) return;
+  const key = frames.has(cause) || frames.size < FRAME_CAUSES ? cause : "other";
+  const frame = frames.get(key) ?? { cause: key, n: 0, ms: 0, max: 0 };
+  frame.n += 1;
+  frame.ms += Math.round(ms);
+  frame.max = Math.max(frame.max, Math.round(ms));
+  frames.set(key, frame);
+  schedule();
+}
+
 function schedule(): void {
   if (!sender || timer) return;
   timer = setTimeout(() => send(false), SEND_AFTER_MS);
@@ -90,12 +131,13 @@ function schedule(): void {
 export function send(leaving: boolean): void {
   if (timer) clearTimeout(timer);
   timer = null;
-  if (!sender || (!unsent.length && !slow.length && !longTasks)) return;
+  if (!sender || (!unsent.length && !slow.length && !longTasks && !frames.size)) return;
   const body = JSON.stringify({
     errors: unsent,
     slow,
     long_tasks: longTasks,
     long_task_max_ms: longestTask,
+    frames: [...frames.values()],
     page: typeof location === "undefined" ? "" : location.pathname.slice(0, 200),
     browser: typeof navigator === "undefined" ? "" : navigator.userAgent.slice(0, 300),
   });
@@ -103,6 +145,7 @@ export function send(leaving: boolean): void {
   slow = [];
   longTasks = 0;
   longestTask = 0;
+  frames = new Map();
   try {
     sender(body, leaving);
   } catch {
@@ -135,6 +178,7 @@ export function reset(): void {
   slow = [];
   longTasks = 0;
   longestTask = 0;
+  frames = new Map();
   if (timer) clearTimeout(timer);
   timer = null;
 }
@@ -169,11 +213,31 @@ export function install(target: EventTarget = window, transport: Sender = post):
     });
     observer.observe({ type: "longtask", buffered: true });
   }
+  // Chromium's Long Animation Frames say which script held a frame, which
+  // a long task cannot; where they exist they name the cause.
+  let frameObserver: PerformanceObserver | null = null;
+  if (
+    typeof PerformanceObserver !== "undefined" &&
+    PerformanceObserver.supportedEntryTypes?.includes("long-animation-frame")
+  ) {
+    frameObserver = new PerformanceObserver((list) => {
+      for (const entry of list.getEntries()) {
+        const frame = entry as PerformanceEntry & {
+          scripts?: FrameScript[]; styleAndLayoutStart?: number;
+        };
+        const end = frame.startTime + frame.duration;
+        const layout = frame.styleAndLayoutStart ? end - frame.styleAndLayoutStart : 0;
+        noteFrame(frame.duration, frameCause(frame.scripts ?? [], layout));
+      }
+    });
+    frameObserver.observe({ type: "long-animation-frame", buffered: true });
+  }
   return () => {
     target.removeEventListener("error", onError);
     target.removeEventListener("unhandledrejection", onRejection);
     target.removeEventListener("pagehide", onHide);
     observer?.disconnect();
+    frameObserver?.disconnect();
     if (timer) clearTimeout(timer);
     timer = null;
     sender = null;

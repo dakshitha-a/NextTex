@@ -7086,6 +7086,14 @@ class SlowCall(BaseModel):
     status: int = Field(default=0, ge=0, le=999)
 
 
+class LongFrame(BaseModel):
+    """One cause of long frames in the page, summed since the last send."""
+    cause: str = Field(default="", max_length=300)
+    n: int = Field(default=0, ge=0)
+    ms: int = Field(default=0, ge=0)
+    max: int = Field(default=0, ge=0)
+
+
 class ClientLog(BaseModel):
     """What a tab saw since it last said, as `frontend/src/errors.ts` sends it."""
     errors: list[ClientError] = Field(default_factory=list,
@@ -7093,6 +7101,7 @@ class ClientLog(BaseModel):
     slow: list[SlowCall] = Field(default_factory=list, max_length=report.MAX_CLIENT_ERRORS)
     long_tasks: int = Field(default=0, ge=0)
     long_task_max_ms: int = Field(default=0, ge=0)
+    frames: list[LongFrame] = Field(default_factory=list, max_length=report.MAX_CLIENT_ERRORS)
     page: str = Field(default="", max_length=200)
     browser: str = Field(default="", max_length=300)
 
@@ -7111,10 +7120,11 @@ async def client_log(body: ClientLog) -> Response:
         diag.event("client", error_kind=entry.kind, message=entry.message,
                    stack="\n".join(entry.stack.splitlines()[:report.MAX_STACK_LINES]),
                    seen_at=entry.at, page=body.page, browser=body.browser)
-    if body.slow or body.long_tasks:
+    if body.slow or body.long_tasks or body.frames:
         diag.event("client-perf", page=body.page, long_tasks=body.long_tasks,
                    long_task_max_ms=body.long_task_max_ms,
-                   slow=[call.model_dump() for call in body.slow])
+                   slow=[call.model_dump() for call in body.slow],
+                   frames=[frame.model_dump() for frame in body.frames])
     return Response(status_code=204)
 
 

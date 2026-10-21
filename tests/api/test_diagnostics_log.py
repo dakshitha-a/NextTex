@@ -36,6 +36,7 @@ def test_what_the_browser_saw_is_written_and_redacted(client, log):
                     "message": f"failed at https://h/?token={token}", "stack": "one\ntwo"}],
         "slow": [{"path": "/projects/abc/tree", "ms": 2500, "status": 200}],
         "long_tasks": 3, "long_task_max_ms": 640,
+        "frames": [{"cause": "click > open in Pdf-bb.js", "n": 2, "ms": 900, "max": 640}],
         "page": "/", "browser": "Browser/9",
     })
     assert response.status_code == 204
@@ -45,6 +46,7 @@ def test_what_the_browser_saw_is_written_and_redacted(client, log):
     assert "?token=[redacted]" in error["message"]
     [perf] = log("client-perf")
     assert perf["long_tasks"] == 3 and perf["slow"][0]["ms"] == 2500
+    assert perf["frames"] == [{"cause": "click > open in Pdf-bb.js", "n": 2, "ms": 900, "max": 640}]
 
 
 def test_a_quiet_tab_writes_nothing(client, log):
@@ -60,6 +62,9 @@ def test_without_a_credential_it_is_refused(log):
 def test_what_the_browser_sends_is_bounded(client, log):
     assert client.post("/api/client-log", json={"errors": [{}] * 1000}).status_code == 422
     assert client.post("/api/client-log", json={"slow": [{}] * 1000}).status_code == 422
+    assert client.post("/api/client-log", json={"frames": [{}] * 1000}).status_code == 422
+    assert client.post("/api/client-log",
+                       json={"frames": [{"cause": "c" * 5000}]}).status_code == 422
     assert client.post("/api/client-log",
                        json={"errors": [{"message": "m" * 5000}]}).status_code == 422
     assert not log("client")

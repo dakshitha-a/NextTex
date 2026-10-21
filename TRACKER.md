@@ -28,8 +28,10 @@ things go to be forgotten rather than a list anybody reads.
 a continuous record of errors, failures, crashes and slow spots on the
 install they use every day, to be left running for a couple of days and
 then reviewed. The record is `diagnostics.log` (`nexttex/diag.py`), read
-with `scripts/diag-review.py`. Left: deploy it to the install, then on
-20 or 21 October run the review, report it, and fix what it shows. The
+with `scripts/diag-review.py`. Deployed 18 October and reviewed 21
+October: no crash and no server or browser error. The stalls came from
+the host's own load, and two 4 s page freezes could not be attributed,
+so long frames now name their script. The logger stays on. The
 journal had already shown one fault, fixed in this run: a symlink to a
 file outside a project made lint, headings and search answer 500.
 Two requests joined the run on 19 October, passed on from the thesis

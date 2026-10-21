@@ -121,7 +121,7 @@ def problems(rows: list[dict]) -> None:
             key = (f"{kind} ({row.get('where', 'editing socket')})",
                    str(row.get("error", ""))[:120], last_frame(row.get("trace", "")))
         elif kind == "request" and row.get("status", 0) >= 500:
-            key = ("HTTP 500", f"{row.get('method')} {row.get('route')}", "")
+            key = (f"HTTP {row.get('status')}", f"{row.get('method')} {row.get('route')}", "")
         elif kind == "agent-error":
             key = ("agent error", str(row.get("message", ""))[:120], "")
         else:
@@ -181,7 +181,10 @@ def lag(rows: list[dict]) -> None:
     for what, count in blamed.most_common(8):
         print(f"  in flight during {count}: {what}")
     for row in sorted(stalls, key=lambda r: -r["ms"])[:5]:
-        print(f"  {row['at'][:19]}  {row['ms']} ms  {', '.join(row.get('inflight', [])) or 'nothing in flight'}")
+        load = row.get("load") or []
+        busy = f", host load {load[0]:.0f}" if load else ""
+        print(f"  {row['at'][:19]}  {row['ms']} ms{busy}  "
+              f"{', '.join(row.get('inflight', [])) or 'nothing in flight'}")
 
 
 def resources(rows: list[dict]) -> None:
@@ -267,6 +270,17 @@ def browser(rows: list[dict]) -> None:
                 worst_call[key] = max(worst_call.get(key, 0), call["ms"])
         for key, count in slow.most_common(10):
             print(f"  {count:>4}x slow call {key}, worst {worst_call[key]} ms")
+        causes: dict[str, dict] = defaultdict(lambda: {"n": 0, "ms": 0, "max": 0})
+        for row in perf:
+            for frame in row.get("frames", []):
+                into = causes[frame["cause"]]
+                into["n"] += frame["n"]
+                into["ms"] += frame["ms"]
+                into["max"] = max(into["max"], frame["max"])
+        if causes:
+            print("\nLong frames by what held them, most time first:")
+            for cause, stats in sorted(causes.items(), key=lambda kv: -kv[1]["ms"])[:10]:
+                print(f"  {stats['n']:>4}x  {stats['ms'] / 1000:>6.1f} s, worst {stats['max']} ms  {cause}")
 
 
 def main() -> None:

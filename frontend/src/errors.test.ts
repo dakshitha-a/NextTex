@@ -1,8 +1,11 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import {
+  FRAME_CAUSES,
+  frameCause,
   install,
   LONG_TASK_MS,
   noteCall,
+  noteFrame,
   noteLongTask,
   record,
   type Recorded,
@@ -132,5 +135,29 @@ describe("sending what was recorded to the server's log", () => {
     vi.advanceTimersByTime(SEND_AFTER_MS);
     send(true);
     expect(sent).toHaveLength(0);
+  });
+
+  it("names what held a long frame, and sums each cause", () => {
+    const sent: string[] = [];
+    const stop = install(new EventTarget(), (body) => sent.push(body));
+    const pdf = frameCause([
+      { duration: 40, invoker: "Response.json.then", sourceURL: "https://h/assets/index-aa.js", sourceFunctionName: "load" },
+      { duration: 900, invoker: "TimerHandler:setTimeout", sourceURL: "https://h/assets/Pdf-bb.js?x=1", sourceFunctionName: "draw" },
+    ], 30);
+    expect(pdf).toBe("TimerHandler:setTimeout > draw in Pdf-bb.js");
+    // Layout longer than any script is the browser's own work.
+    expect(frameCause([{ duration: 50 }], 400)).toBe("style and layout");
+    expect(frameCause([], 0)).toBe("style and layout");
+    noteFrame(LONG_TASK_MS - 1, pdf);
+    noteFrame(950, pdf);
+    noteFrame(400, pdf);
+    for (let index = 0; index < FRAME_CAUSES + 3; index++) noteFrame(LONG_TASK_MS, `cause ${index}`);
+    vi.advanceTimersByTime(SEND_AFTER_MS);
+    const frames = JSON.parse(sent[0]).frames;
+    expect(frames[0]).toEqual({ cause: pdf, n: 2, ms: 1350, max: 950 });
+    // Bounded however varied the page is: past the limit, one "other".
+    expect(frames).toHaveLength(FRAME_CAUSES + 1);
+    expect(frames.at(-1)).toMatchObject({ cause: "other", n: 4 });
+    stop();
   });
 });
