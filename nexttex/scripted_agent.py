@@ -71,6 +71,7 @@ class ScriptedAgent:
         context_prompt: Callable[[], str] | None = None,
         has_voice: Callable[[], bool] | None = None,
         remember: Callable[[str], tuple[bool, str]] | None = None,
+        revise_memory: Callable[[str, str], tuple[bool, str]] | None = None,
         editor_state: Callable[[], dict] | None = None,
         diagnostics: Callable[[], list[dict]] | None = None,
         compile_now: Callable[[], Any] | None = None,
@@ -91,6 +92,7 @@ class ScriptedAgent:
         self.remember_note = remember or (
             lambda _note: (False, "This project has nowhere to keep a memory.")
         )
+        self.revise_memory_note = revise_memory or (lambda _old, _new: (False, ""))
         self.mode = "ask"
         self._conversation_allow: set[str] = set()
         self.compile_now = compile_now

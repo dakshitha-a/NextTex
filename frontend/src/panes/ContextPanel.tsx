@@ -137,11 +137,24 @@ export default function ContextPanel({
           <div className="nx-reads-sec">
             <div className="nx-reads-title">
               <span>What {name} remembers</span>
+              {editing === null && memory?.notes.length ? (
+                // At rest too, not only while editing: a memory near its cap
+                // was found by the agent, three times, before the writer
+                // knew, and the overflow went into CLAUDE.md.
+                <span
+                  className={`t-micro tabular-nums ml-auto ${
+                    memory.text.length > memory.limit * 0.9 ? "text-warn" : "text-ink-3"
+                  }`}
+                  data-testid="memory-used"
+                >
+                  {memory.text.length.toLocaleString("en")} / {memory.limit.toLocaleString("en")}
+                </span>
+              ) : null}
               {editing === null ? (
                 <Button
                   variant="quiet"
                   size="inline"
-                  className="ml-auto"
+                  className={memory?.notes.length ? "ml-2" : "ml-auto"}
                   data-testid="memory-edit"
                   onClick={() => setEditing(memory?.text ?? "")}
                 >

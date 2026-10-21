@@ -12442,3 +12442,19 @@ A document that does not load hyperref has no links in its PDF, and the
 page has none to follow. `e2e/specs/pdf-links.spec.ts` follows a contents
 entry, a reference to a figure, a table and an equation, and a citation,
 and checks the double-click.
+
+## 119. How full the memory is
+
+The row over what the agent remembers, in the panel of what it reads, now
+says how much of the memory is used, at rest: characters used out of the
+cap, beside Edit, in the micro role with tabular figures in `--ink-3`, and
+in the warn colour past nine tenths. It shows only when there are notes;
+while editing, the count under the text box is as it was.
+
+The cap is eight thousand characters since 21 October 2026. A thesis's
+agent found the old one, four thousand, full three times in ten days, and
+each time put the note into the project's `CLAUDE.md` instead, where it soon
+disagreed with the memory. The writer could not see it coming; now the row
+says so before the agent does. `e2e/specs/agent.spec.ts` reads the count
+and its colour after a hand edit. The drawing is on the direction page
+under How full the memory is.

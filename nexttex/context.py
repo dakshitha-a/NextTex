@@ -36,7 +36,11 @@ MANIFEST = "manifest.json"
 # Memory is paid for on every turn, in every conversation, so it is capped
 # rather than allowed to grow into a second transcript.  The cap is a
 # character count because that is what the writer sees in the editor.
-MEMORY_MAX_CHARS = 4_000
+# It was 4,000 until 21 October 2026: a thesis reached it with five notes
+# of 500 to 860 characters each, and three times in ten days the agent put
+# the note it could not keep into the project's CLAUDE.md instead, a 12 kB
+# file read on every turn anyway, where it soon disagreed with the memory.
+MEMORY_MAX_CHARS = 8_000
 MEMORY_HEADING = "# What this project asked to be remembered"
 
 KIND_DIRS = {"style": "style", "voice": "voice", "source": "sources"}
@@ -147,13 +151,50 @@ class ProjectContext:
         body = existing or MEMORY_HEADING
         proposed = f"{body}\n- {line}"
         if len(proposed) > MEMORY_MAX_CHARS:
+            left = max(0, MEMORY_MAX_CHARS - len(body) - 3)
             return False, (
-                f"Memory is full ({MEMORY_MAX_CHARS} characters). Ask the writer "
-                "to prune it in the panel that shows what you read, or to "
-                "replace a line that no longer holds."
+                f"Memory is full: {len(body)} of {MEMORY_MAX_CHARS} characters "
+                f"used, {left} left, and this note is {len(line)}. Do not put it "
+                "in CLAUDE.md or any other file instead. Offer the writer a "
+                "consolidation: notes that repeat or no longer hold, merged or "
+                "shortened, each change made with revise_memory once they "
+                "agree. Or keep this note shorter."
             )
         self.set_memory(proposed)
         return True, f"Noted, and it will be there in every future conversation: {line}"
+
+    def revise_memory(self, old: str, new: str) -> tuple[bool, str]:
+        """Replace one remembered note with another, or remove it when `new`
+        is empty.  `old` names the note by its text, as the prompt shows it.
+
+        For pruning and merging, which only the writer could do, by hand in
+        the panel; an agent told the memory was full had nowhere to go but
+        another file.  A note is named by its text rather than a number, so
+        a stale view of the list cannot change the wrong one.
+        """
+        target = " ".join(old.split()).strip()
+        line = " ".join(new.split()).strip()
+        notes = self.memory_notes()
+        if target not in notes:
+            return False, (
+                "No remembered note reads exactly that. Copy it from the list "
+                "of what this project asked you to remember."
+            )
+        index = notes.index(target)
+        if line:
+            if line != target and line in notes:
+                return False, "That note is already remembered; remove this one instead."
+            notes[index] = line
+        else:
+            del notes[index]
+        body = "\n".join([MEMORY_HEADING] + [f"- {note}" for note in notes]) if notes else ""
+        if len(body) > MEMORY_MAX_CHARS:
+            return False, (
+                f"That would make the memory {len(body)} characters, past its "
+                f"{MEMORY_MAX_CHARS}. Shorten the new text."
+            )
+        self.set_memory(body)
+        return True, f"Changed. It now reads: {line}" if line else f"Removed: {target}"
 
     # -- manifest -------------------------------------------------------
     def documents(self) -> list[Document]:
@@ -260,7 +301,11 @@ class ProjectContext:
                 + "\n".join(f"- {note}" for note in notes)
                 + "\n\nThese are facts and standing instructions the writer asked "
                 "you to keep across conversations. Follow them unless the writer "
-                "says otherwise in the conversation you are having now."
+                "says otherwise in the conversation you are having now. When one "
+                "no longer holds, or two say the same thing, offer to change them "
+                "and use revise_memory once the writer agrees. A note that does "
+                "not fit is never written into CLAUDE.md or another file instead, "
+                "unless the writer asks for it there."
             )
 
         if self.style_summary.exists():

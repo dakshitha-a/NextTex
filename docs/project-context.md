@@ -74,13 +74,24 @@ somewhere the next conversation will also read. So the agent has a `remember` to
 told to reach for it both when the writer says *remember this* and when it works out a
 durable fact about the project on its own.
 
-`memory.md` is one bullet per note, capped at four thousand characters because it is paid
-for on every turn of every conversation. A note that would go over the cap is refused with
-a sentence the agent can repeat to the writer, rather than failing quietly. Notes are
-deduplicated, and folded onto one line each.
+`memory.md` is one bullet per note, capped at eight thousand characters because it is paid
+for on every turn of every conversation. Notes are deduplicated, and folded onto one line
+each. The cap was four thousand until 21 October 2026. A thesis reached it with five notes
+of 500 to 860 characters, and three times in ten days the agent, told only that the memory
+was full, put the note into the project's `CLAUDE.md` instead: a larger file, read on every
+turn anyway, which soon disagreed with the memory about where PDFs go and which references
+need a DOI.
+
+So a note that would go over the cap is refused with the characters used and left, and
+with what to do: never write it into another file, and offer the writer a consolidation.
+The agent has `revise_memory` for that, on both providers. It names a note by its exact
+text and replaces it, or removes it when the new text is empty, so notes that repeat can
+be merged and ones that no longer hold dropped, once the writer agrees. The prompt section
+that lists the notes says the same.
 
 It is a plain file and it is meant to be edited. The panel listing what the agent reads
-shows it and offers a text box, which is the only way to reach it, the folder it lives in
+shows it, with its size against the cap beside Edit, in the warn colour past nine tenths,
+and offers a text box, which is the only way to reach it, the folder it lives in
 is hidden from the file list. Correcting a note by hand is the fastest way to fix behaviour
 that follows from it.
 

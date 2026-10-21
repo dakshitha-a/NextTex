@@ -43,6 +43,7 @@ export const VERBS: Record<string, string> = {
   mcp__nexttex__check_references: "Checked the bibliography",
   mcp__nexttex__search_library: "Searched your papers",
   mcp__nexttex__remember: "Remembered",
+  mcp__nexttex__revise_memory: "Changed the memory",
 };
 
 /** The same actions, before anybody has said yes. Only the ones whose past
@@ -74,6 +75,7 @@ const ASKING: Record<string, string> = {
   mcp__nexttex__check_references: "Checking the bibliography",
   mcp__nexttex__search_library: "Searching your papers",
   mcp__nexttex__remember: "Remembering",
+  mcp__nexttex__revise_memory: "Changing the memory",
 };
 
 /** Where a tool call has got to, from the panel's point of view. */

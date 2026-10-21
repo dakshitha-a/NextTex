@@ -446,6 +446,7 @@ class ProjectSession:
             # What earlier conversations were told to keep.  The context
             # store owns it so both providers get the same text.
             remember=self.context.remember,
+            revise_memory=self.context.revise_memory,
             editor_state=lambda: self._editor_state,
             diagnostics=lambda: self._diagnostics,
             compile_now=self.compile,

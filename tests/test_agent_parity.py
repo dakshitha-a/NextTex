@@ -320,7 +320,8 @@ def test_a_turn_cancelled_from_outside_still_ends(kind, tmp_path, monkeypatch):
 #: script step then raised inside the scripted turn, which the browser
 #: tier saw as an error row where a run should have been.
 CALLBACKS = ("compile_now", "documents", "run_script", "apply_edit", "on_edit",
-             "reveal", "show_page", "diagnostics", "editor_state", "remember")
+             "reveal", "show_page", "diagnostics", "editor_state", "remember",
+             "revise_memory")
 
 
 @pytest.mark.parametrize("kind", [ScriptedAgent, OpenAIAgent, ProjectAgent])
@@ -334,5 +335,6 @@ def test_every_callback_the_session_hands_over_is_kept(kind, tmp_path):
     handed = {name: (lambda *a, **k: None) for name in CALLBACKS}
     made = kind(project, state, **handed) if kind is not OpenAIAgent else kind(project, state, api_key="", **handed)
     for name in CALLBACKS:
-        kept = getattr(made, name, None) if name != "remember" else getattr(made, "remember_note", None)
+        kept = getattr(made, {"remember": "remember_note",
+                              "revise_memory": "revise_memory_note"}.get(name, name), None)
         assert kept is not None, f"{kind.__name__} accepted {name} and kept nothing"

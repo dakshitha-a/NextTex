@@ -31,7 +31,11 @@ then reviewed. The record is `diagnostics.log` (`nexttex/diag.py`), read
 with `scripts/diag-review.py`. Deployed 18 October and reviewed 21
 October: no crash and no server or browser error. The stalls came from
 the host's own load, and two 4 s page freezes could not be attributed,
-so long frames now name their script. The logger stays on. The
+so long frames now name their script. The logger stays on.
+The thesis's chat logs showed the agent's memory full three times, with
+the overflow put in `CLAUDE.md`; the cap is now 8,000 and the agent can
+revise notes. Left: ISBN and hand-checked references (items 11 and 16),
+then the figure, shell-edit and tool-loading refinements (item 17). The
 journal had already shown one fault, fixed in this run: a symlink to a
 file outside a project made lint, headings and search answer 500.
 Two requests joined the run on 19 October, passed on from the thesis

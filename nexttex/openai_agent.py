@@ -247,12 +247,33 @@ TOOLS: list[dict] = [
                 "the supervisor is, that a chapter is finished and must not "
                 "be touched, which citation style the journal wants. Not for "
                 "anything you can read off disk, and not for what is in the "
-                "file you are editing now."
+                "file you are editing now. Keep a note to a sentence or two. "
+                "When the memory is full, never put the note in CLAUDE.md or "
+                "another file instead: offer the writer a consolidation with "
+                "revise_memory."
             ),
             "parameters": {
                 "type": "object",
                 "properties": {"note": {"type": "string"}},
                 "required": ["note"],
+            },
+        },
+    },
+    {
+        "type": "function",
+        "function": {
+            "name": "revise_memory",
+            "description": (
+                "Change one remembered note, or remove it with an empty `new`. "
+                "`old` is the note exactly as the list of what this project "
+                "asked you to remember shows it. For merging notes that "
+                "repeat, shortening long ones and dropping ones that no longer "
+                "hold, after the writer has agreed to the change."
+            ),
+            "parameters": {
+                "type": "object",
+                "properties": {"old": {"type": "string"}, "new": {"type": "string"}},
+                "required": ["old", "new"],
             },
         },
     },
@@ -454,6 +475,7 @@ class OpenAIAgent:
         context_prompt: Callable[[], str] | None = None,
         has_voice: Callable[[], bool] | None = None,
         remember: Callable[[str], tuple[bool, str]] | None = None,
+        revise_memory: Callable[[str, str], tuple[bool, str]] | None = None,
         editor_state: Callable[[], dict] | None = None,
         diagnostics: Callable[[], list[dict]] | None = None,
         compile_now: Callable[[], Any] | None = None,
@@ -475,6 +497,9 @@ class OpenAIAgent:
         self.has_voice = has_voice or (lambda: False)
         self.remember_note = remember or (
             lambda _note: (False, "This project has nowhere to keep a memory.")
+        )
+        self.revise_memory_note = revise_memory or (
+            lambda _old, _new: (False, "This project has nowhere to keep a memory.")
         )
         self.editor_state = editor_state or (lambda: {})
         self.diagnostics = diagnostics or (lambda: [])
@@ -1033,6 +1058,11 @@ class OpenAIAgent:
             # the Claude path there is nothing to reconnect: the note is in
             # the next turn's instructions already.
             _kept, message = self.remember_note(str(args.get("note") or ""))
+            return message
+
+        if name == "revise_memory":
+            _kept, message = self.revise_memory_note(
+                str(args.get("old") or ""), str(args.get("new") or ""))
             return message
 
         if name == "search_library":

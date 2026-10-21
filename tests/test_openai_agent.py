@@ -18,7 +18,7 @@ from pathlib import Path
 
 import pytest
 
-from nexttex.openai_agent import OpenAIAgent
+from nexttex.openai_agent import TOOLS, OpenAIAgent
 
 TEMPLATE = Path(__file__).resolve().parent.parent / "nexttex" / "templates" / "basic"
 
@@ -626,3 +626,18 @@ def test_a_connection_that_never_opens_is_a_sentence_too(tmp_path):
     seen = asyncio.run(run(made, "hello"))
     problems = [event["message"] for event in seen if event["type"] == "error"]
     assert problems == ["Could not reach OpenAI. Check the connection and try again."]
+
+
+def test_a_note_is_changed_through_the_same_store_on_this_provider_too(tmp_path):
+    """`revise_memory` is the way out of a full memory on both providers;
+    without it the OpenAI agent would have only the file it must not use."""
+    from nexttex.context import ProjectContext
+
+    shelf = ProjectContext(tmp_path / "context")
+    shelf.remember("PDFs go in refs/<bibkey>.pdf")
+    made = agent(tmp_path, [], remember=shelf.remember, revise_memory=shelf.revise_memory)
+    answer = asyncio.run(made._dispatch("revise_memory", {
+        "old": "PDFs go in refs/<bibkey>.pdf", "new": "PDFs go in refs/articles/"}))
+    assert "refs/articles/" in answer
+    assert shelf.memory_notes() == ["PDFs go in refs/articles/"]
+    assert "revise_memory" in {tool["function"]["name"] for tool in TOOLS}

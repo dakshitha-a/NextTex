@@ -488,6 +488,7 @@ class ProjectAgent:
         context_prompt: Callable[[], str] | None = None,
         has_voice: Callable[[], bool] | None = None,
         remember: Callable[[str], tuple[bool, str]] | None = None,
+        revise_memory: Callable[[str, str], tuple[bool, str]] | None = None,
         editor_state: Callable[[], dict] | None = None,
         diagnostics: Callable[[], list[dict]] | None = None,
         compile_now: Callable[[], Any] | None = None,
@@ -507,6 +508,9 @@ class ProjectAgent:
         self.has_voice = has_voice or (lambda: False)
         self.remember_note = remember or (
             lambda _note: (False, "This project has nowhere to keep a memory.")
+        )
+        self.revise_memory_note = revise_memory or (
+            lambda _old, _new: (False, "This project has nowhere to keep a memory.")
         )
         # A memory written mid-conversation does not reach the system prompt
         # until the client is rebuilt, so the turn that wrote it says so at
@@ -1982,11 +1986,30 @@ class ProjectAgent:
             "would want in a fresh conversation -- who the supervisor is, "
             "that a chapter is finished and must not be touched, which "
             "citation style the journal wants. Not for anything you can read "
-            "off disk, and not for what is in the file you are editing now.",
+            "off disk, and not for what is in the file you are editing now. "
+            "Keep a note to a sentence or two. When the memory is full, never "
+            "put the note in CLAUDE.md or another file instead: offer the "
+            "writer a consolidation with revise_memory.",
             {"note": str},
         )
         async def remember(args: dict) -> dict:
             kept, message = self.remember_note(str(args.get("note") or ""))
+            if kept:
+                self.memory_changed()
+            return self._text(message)
+
+        @tool(
+            "revise_memory",
+            "Change one remembered note, or remove it with an empty `new`. "
+            "`old` is the note exactly as the list of what this project asked "
+            "you to remember shows it. For merging notes that repeat, "
+            "shortening long ones and dropping ones that no longer hold, "
+            "after the writer has agreed to the change.",
+            {"old": str, "new": str},
+        )
+        async def revise_memory(args: dict) -> dict:
+            kept, message = self.revise_memory_note(
+                str(args.get("old") or ""), str(args.get("new") or ""))
             if kept:
                 self.memory_changed()
             return self._text(message)
@@ -2000,7 +2023,7 @@ class ProjectAgent:
                 replace_range, run_plot_script, run_script, install_package, goto,
                 show_page, list_comments, reply_to_comment,
                 search_library, find_papers, add_reference, check_references,
-                remember,
+                remember, revise_memory,
             ],
         )
 

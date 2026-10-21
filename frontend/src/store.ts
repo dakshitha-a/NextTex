@@ -1661,6 +1661,7 @@ export function summariseTool(name: string, input: any): string {
   // The note is the whole point of this one; a path lookup finds nothing
   // and the row would read as a verb with no object.
   if (name === "mcp__nexttex__remember") return String(input.note ?? "");
+  if (name === "mcp__nexttex__revise_memory") return String(input.new || `Removed: ${input.old ?? ""}`);
   // What a comment tool was done to: the file whose threads were read, and
   // the words the answered thread was left on, found in the threads the
   // drawer already holds, since the call names the thread only by its id.

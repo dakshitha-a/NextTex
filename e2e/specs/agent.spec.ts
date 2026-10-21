@@ -419,6 +419,16 @@ test("the memory can be corrected by hand", async ({ tab }) => {
   await tab.getByTestId("memory-editor").fill("- The supervisor is Prof. Vellacourt");
   await tab.getByTestId("memory-save").click();
   await expect(tab.getByTestId("memory-text")).toContainText("Vellacourt");
+  // How full it is, at rest: the agent found the cap three times before a
+  // writer could see it coming.
+  await expect(tab.getByTestId("memory-used")).toHaveText(
+    `${"- The supervisor is Prof. Vellacourt".length} / 8,000`);
+  await expect(tab.getByTestId("memory-used")).not.toHaveClass(/text-warn/);
+  await tab.getByTestId("memory-edit").click();
+  await tab.getByTestId("memory-editor").fill(`- ${"x".repeat(7300)}`);
+  await tab.getByTestId("memory-save").click();
+  await expect(tab.getByTestId("memory-used")).toHaveClass(/text-warn/);
+  await expect(tab.getByTestId("memory-used")).toContainText("7,302 / 8,000");
 });
 
 test("the permission card does not move while you reach for it", async ({

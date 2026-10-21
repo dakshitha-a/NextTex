@@ -76,6 +76,57 @@ def test_a_full_memory_says_so_rather_than_failing_quietly(tmp_path):
     assert "full" in message.lower()
     # And it said nothing untrue: the note really was not kept.
     assert "one more thing" not in shelf.memory_text()
+    # It says how much is left and where the note must not go. Told only
+    # "full" with 4,000 characters, the agent put three notes in a
+    # thesis's CLAUDE.md, where they soon disagreed with the memory.
+    assert f"of {MEMORY_MAX_CHARS} characters" in message
+    assert "left" in message and "CLAUDE.md" in message
+    assert "revise_memory" in message
+
+
+def test_the_cap_holds_a_working_memory(tmp_path):
+    """Five notes of the length a thesis's agent wrote, 500 to 860
+    characters, filled the old cap; ten fit now."""
+    shelf = store(tmp_path)
+    for index in range(10):
+        kept, _ = shelf.remember(f"note {index} " + "w" * 700)
+        assert kept, index
+
+
+def test_a_note_is_changed_or_removed_by_its_text(tmp_path):
+    shelf = store(tmp_path)
+    shelf.remember("PDFs go in refs/<bibkey>.pdf")
+    shelf.remember("Never use an em dash")
+    kept, message = shelf.revise_memory(
+        "PDFs go in refs/<bibkey>.pdf", "PDFs go in refs/articles/ or refs/books/")
+    assert kept and "refs/articles/" in message
+    assert shelf.memory_notes() == ["PDFs go in refs/articles/ or refs/books/",
+                                    "Never use an em dash"]
+    kept, message = shelf.revise_memory("Never use an em dash", "")
+    assert kept and message.startswith("Removed")
+    assert shelf.memory_notes() == ["PDFs go in refs/articles/ or refs/books/"]
+    kept, _ = shelf.revise_memory("PDFs go in refs/articles/ or refs/books/", "")
+    assert kept and shelf.memory_text() == ""
+
+
+def test_a_revision_that_names_no_note_or_grows_past_the_cap_changes_nothing(tmp_path):
+    from nexttex.context import MEMORY_MAX_CHARS
+
+    shelf = store(tmp_path)
+    shelf.remember("one")
+    shelf.remember("two")
+    before = shelf.memory_text()
+    assert not shelf.revise_memory("three", "x")[0]
+    assert not shelf.revise_memory("one", "two")[0]
+    assert not shelf.revise_memory("one", "y" * MEMORY_MAX_CHARS)[0]
+    assert shelf.memory_text() == before
+
+
+def test_the_prompt_says_where_an_overflow_must_not_go(tmp_path):
+    shelf = store(tmp_path)
+    shelf.remember("The supervisor is Matsika")
+    section = shelf.prompt_section()
+    assert "revise_memory" in section and "never written into CLAUDE.md" in section
 
 
 def test_an_empty_memory_costs_the_prompt_nothing(tmp_path):
