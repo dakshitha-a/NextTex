@@ -654,8 +654,11 @@ export default function Chat({
     return () => refit.disconnect();
   }, [fitComposer, view]);
 
+  // `break-words` reaches every row the column draws, the writer's own
+  // card, a notice, a permission's headline: a pasted URL or a path made
+  // of underscores breaks at the column's edge instead of running past it.
   return (
-    <div className="flex h-full min-h-0 flex-col bg-surface-2" data-testid="chat">
+    <div className="flex h-full min-h-0 flex-col break-words bg-surface-2" data-testid="chat">
       {view === "live" ? (
         <ColumnHeader
           title={name}

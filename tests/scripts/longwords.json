@@ -1,0 +1,10 @@
+[
+  {"kind": "text", "text": "The posting is at https://careers.appliedmaterials.com/careers/job/790318123456789?domain=appliedmaterials.com&utm_source=linkedin_jobs_board and the file is `chapters/04_time_resolved_photoelectron_spectroscopy_of_nitrophenol_in_three_solvents.tex`.\n\nA word with no break in it: pneumonoultramicroscopicsilicovolcanoconiosis_pneumonoultramicroscopicsilicovolcanoconiosis_again.\n\n## figures/supplementary/absorption_cross_sections_at_298K_and_1atm_final_v3.pdf\n\n- https://doi.org/10.1021/acs.jpca.supplementary.material.0123456789abcdef0123456789\n- `\\includegraphics[width=\\linewidth]{figures/supplementary/absorption_cross_sections_at_298K_and_1atm_final_v3}`\n\n> Quoted: https://careers.appliedmaterials.com/careers/job/790318123456789?domain=appliedmaterials.com\n\n```latex\n\\includegraphics[width=\\linewidth]{figures/supplementary/absorption_cross_sections_at_298K_and_1atm_final_v3_with_a_much_longer_name}\n```\n\n| File | Note |\n|---|---|\n| `figures/supplementary/absorption_cross_sections_at_298K_and_1atm_final_v3.pdf` | https://careers.appliedmaterials.com/careers/job/790318123456789?domain=appliedmaterials.com |\n", "pieces": 3},
+  {"kind": "tool", "name": "Read", "input": {"file_path": "chapters/04_time_resolved_photoelectron_spectroscopy_of_nitrophenol_in_three_solvents.tex"}},
+  {"kind": "notice", "message": "Could not reach https://careers.appliedmaterials.com/careers/job/790318123456789?domain=appliedmaterials.com&utm_source=linkedin_jobs_board"},
+  {"kind": "error", "message": "Failed: chapters/04_time_resolved_photoelectron_spectroscopy_of_nitrophenol_in_three_solvents_and_more_and_more.tex"},
+  {"kind": "permission", "tool": "Bash", "rule": "Bash:curl",
+   "headline": "Fetch https://careers.appliedmaterials.com/careers/job/790318123456789?domain=appliedmaterials.com&utm_source=linkedin",
+   "detail": "curl -sSL https://careers.appliedmaterials.com/careers/job/790318123456789?domain=appliedmaterials.com&utm_source=linkedin_jobs_board",
+   "consequence": "Downloads chapters/04_time_resolved_photoelectron_spectroscopy_of_nitrophenol_in_three_solvents.html", "stop_if_denied": false}
+]

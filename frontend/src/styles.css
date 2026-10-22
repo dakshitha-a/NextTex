@@ -488,7 +488,7 @@ body {
 .t-meta  { font-size: 12px; line-height: 16px; }
 .t-ui    { font-size: 14px; line-height: 20px; }
 .t-ui-lg { font-size: 15px; line-height: 20px; font-weight: 600; }
-.t-prose { font-size: 15px; line-height: 24px; max-width: 66ch; }
+.t-prose { font-size: 15px; line-height: 24px; max-width: 66ch; overflow-wrap: break-word; }
 .t-code  { font-family: var(--font-mono); font-size: 13.5px; line-height: 22px; }
 .t-code-sm { font-family: var(--font-mono); font-size: 12px; line-height: 18px; }
 .t-display { font-size: 22px; line-height: 28px; font-weight: 600;
@@ -1771,6 +1771,9 @@ button.nx-row { width: 100%; text-align: left; }
   background: var(--float-ground); color: var(--ink);
   box-shadow: var(--float);
   padding: 8px 10px;
+  /* A file name made of underscores, a URL: broken at the edge rather
+     than drawn past it. */
+  overflow-wrap: break-word;
 }
 /* The Claude column's header: the name, what the agent is doing, and the
    icon buttons at the right, the last of them the fold; a view inside the

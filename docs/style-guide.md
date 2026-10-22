@@ -362,6 +362,15 @@ else.
   the name row's: a tab's name, a drawer heading and a path in a strip
   keep their ellipsis, as the tab primitive, `Heading` and the History
   header draw it. A heading's count yields before its word.
+- Text that is allowed to wrap breaks a word with no break in it, a URL
+  or a path made of underscores, at its box's edge rather than drawing
+  past it. `.nx-card`, `.t-prose` and the Claude column carry
+  `overflow-wrap: break-word`, so a floating card, a reply and the
+  writer's own message do it without a rule of their own; a new surface
+  that holds the writer's text, or a file's name, does the same.
+  `e2e/specs/spill.spec.ts` fills those surfaces with such words and
+  measures that every run of text and every picture stays inside the
+  nearest thing that draws a box.
 - Copy: every empty state is one sentence saying what to do next; every
   button names its verb; a control keeps the same name through the flow;
   errors say what went wrong and what to do, without apology; no em dash

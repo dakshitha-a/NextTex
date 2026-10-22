@@ -684,6 +684,22 @@ positions only the editor writes, and puts a file in the trash, so the
 Comments and Deleted drawers' row menus are measured with the rest; until
 1 October 2026 neither was.
 
+`e2e/specs/clipping.spec.ts` asks whether text that does not fit is cut
+off without saying so. `e2e/specs/spill.spec.ts` asks the other half:
+whether it is drawn past its card instead. The writer's report was a URL
+pasted into the composer that ran out of its message card, and the sample
+project never shows that, because its names have spaces to wrap at. So the
+spec sends the scripted agent `tests/scripts/longwords.json`, a reply made
+of URLs, paths of underscores, a long heading, inline code and a table,
+hovers a tree row whose file name is one long word, and opens the editor's
+hover cards on a wide equation, a very tall and a very wide figure, a long
+label and a citation with a long title and DOI. For every run of text and
+every picture, the nearest ancestor that draws a box, whether by a ground,
+a shadow, a border or a clip, must hold it, unless that clip scrolls or
+ends in an ellipsis. The hover cards and the links passed on the first
+run; the message card, the reply's paths and words, the permission card
+and the tree's file card did not.
+
 ## Two peers, in one process
 
 Collaboration is the first thing in NextTex that needs *two installs* to test
