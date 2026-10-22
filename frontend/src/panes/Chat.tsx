@@ -175,10 +175,37 @@ export function tidy(items: ChatItem[]): ChatItem[] {
 }
 
 /** A thing that goes with the next question: a file kept for the agent
- *  (`attachment`, by the path the attachment route handed back, with an
- *  object URL for a picture's thumbnail) or a file in the project the
+ *  (`attachment`, by the path the attachment route handed back, with a
+ *  data URL for a picture's thumbnail) or a file in the project the
  *  writer dragged from the tree (`project`, by its project path). */
 type Held = { path: string; name: string; url: string; from: "attachment" | "project" };
+
+/** A picture's chip thumbnail, as a data URL.
+ *
+ *  Not an object URL: the content policy's `img-src` allows `data:` and
+ *  not `blob:`, so a `blob:` thumbnail drew as a broken image. Scaled down
+ *  first, because a screenshot is megabytes and the chip is sixteen
+ *  pixels; a picture the browser cannot decode into a bitmap, such as an
+ *  SVG, is read whole instead. An empty string shows the kind's glyph.
+ */
+async function thumbnail(file: File): Promise<string> {
+  try {
+    const bitmap = await createImageBitmap(file, { resizeWidth: 64, resizeQuality: "medium" });
+    const canvas = document.createElement("canvas");
+    canvas.width = bitmap.width;
+    canvas.height = bitmap.height;
+    canvas.getContext("2d")?.drawImage(bitmap, 0, 0);
+    bitmap.close();
+    return canvas.toDataURL("image/png");
+  } catch {
+    return new Promise((resolve) => {
+      const reader = new FileReader();
+      reader.onload = () => resolve(typeof reader.result === "string" ? reader.result : "");
+      reader.onerror = () => resolve("");
+      reader.readAsDataURL(file);
+    });
+  }
+}
 
 export default function Chat({
   onShowEdit,
@@ -283,8 +310,8 @@ export default function Chat({
   const [asks, setAsks] = useState(false);
   /** Images waiting to go with the next question. Local state rather than
    *  the store, because nothing outside this panel needs them and they are
-   *  gone the moment Send is pressed. `url` is an object URL for the
-   *  thumbnail, revoked when the chip goes. */
+   *  gone the moment Send is pressed. `url` is a data URL for the
+   *  thumbnail. */
   const [attached, setAttached] = useState<Held[]>([]);
   /** Something droppable is over the composer: the card lights as the
    *  tree does. A count, because entering the box inside the card leaves
@@ -491,13 +518,14 @@ export default function Chat({
       for (const file of going) {
         try {
           const kept = await api.attach(projectId, file);
+          const url = hasThumbnail(file.name) ? await thumbnail(file) : "";
           setAttached((held) =>
             held.some((one) => one.path === kept.path)
               ? held
               : [...held, {
                   path: kept.path,
                   name: file.name || kept.name,
-                  url: hasThumbnail(file.name) ? URL.createObjectURL(file) : "",
+                  url,
                   from: "attachment",
                 }],
           );
@@ -523,11 +551,7 @@ export default function Chat({
   }, []);
 
   const drop = useCallback((path: string) => {
-    setAttached((held) => {
-      const going = held.find((one) => one.path === path);
-      if (going?.url) URL.revokeObjectURL(going.url);
-      return held.filter((one) => one.path !== path);
-    });
+    setAttached((held) => held.filter((one) => one.path !== path));
   }, []);
 
   // A drag that ends anywhere, or is called off, leaves the card unlit:
@@ -561,7 +585,6 @@ export default function Chat({
     const images = attached.filter((one) => one.from === "attachment").map((one) => one.path);
     const files = attached.filter((one) => one.from === "project").map((one) => one.path);
     setDraft("");
-    for (const one of attached) if (one.url) URL.revokeObjectURL(one.url);
     setAttached([]);
     // Marked pending, so `turn_start` recognises it as this tab's own and
     // does not add a second. Every other tab has none and pushes one.

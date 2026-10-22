@@ -863,7 +863,9 @@ def _same_origin_request(request: Request) -> bool:
 # anywhere in this interface except the one in `saveBlob`, which hands a
 # download to an anchor and is not an image at all.  So `img-src` no longer
 # says `blob:`, because a policy is only worth having as tight as it can
-# actually be.
+# actually be.  That claim missed one: the agent composer drew a pasted
+# picture's chip thumbnail from an object URL, and it showed as a broken
+# image from then on.  It now makes a small data URL instead.
 SECURITY_HEADERS = {
     "x-content-type-options": "nosniff",
     "referrer-policy": "no-referrer",

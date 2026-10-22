@@ -776,6 +776,11 @@ test("an image can be attached to a question, and taken off again", async ({
   await expect(chips).toBeVisible({ timeout: 20_000 });
   await expect(chips).toContainText("table.png");
   await expect(chips.locator("img")).toBeVisible();
+  // Drawn, not only laid out: a thumbnail the content policy refused is a
+  // visible box with a broken-image glyph and no pixels.
+  await expect
+    .poll(() => chips.locator("img").evaluate((img: HTMLImageElement) => img.complete && img.naturalWidth))
+    .toBeGreaterThan(0);
 
   await chips.getByRole("button", { name: /Take table.png off/ }).click();
   await expect(tab.getByTestId("attachments")).toHaveCount(0);
