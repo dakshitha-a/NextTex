@@ -58,3 +58,43 @@ describe("reopening a closed file", () => {
     collab.close();
   });
 });
+
+/** Two opens of a file the manifest has not heard of yet share one document.
+ *
+ *  The agent announces where it is about to write and then that it wrote,
+ *  and the editor opens the file for each. For a new file both opens wait
+ *  for the manifest, both woke on the same update, and an `await` on an
+ *  empty `opening` let each find nothing and build a document of its own.
+ *  The first open, overtaken, released the path, which destroyed the
+ *  second's document and closed its socket; eight seconds later the editor
+ *  showed that destroyed document, empty, until the page was reloaded. */
+describe("two opens of a file that is still arriving", () => {
+  beforeEach(() => {
+    RecordingSocket.made = [];
+    vi.stubGlobal("WebSocket", RecordingSocket);
+  });
+  afterEach(() => {
+    vi.unstubAllGlobals();
+  });
+
+  it("get one document, which the first release leaves open", async () => {
+    const collab = new ProjectCollab("p1", { name: "Writer", colour: "#000" });
+    const announced = collab.open("jobs/letter.tex");
+    const written = collab.open("jobs/letter.tex");
+
+    const record = new Y.Map<unknown>();
+    collab.manifest.getMap("files").set("f9", record);
+    record.set("path", "jobs/letter.tex");
+
+    const [first, second] = await Promise.all([announced, written]);
+    expect(second!.text).toBe(first!.text);
+    const sockets = RecordingSocket.made.filter((s) => s.url.endsWith("/sync/text/f9"));
+    expect(sockets).toHaveLength(1);
+
+    collab.release("jobs/letter.tex");
+    expect(sockets[0].closed).toBe(false);
+    collab.release("jobs/letter.tex");
+    expect(sockets[0].closed).toBe(true);
+    collab.close();
+  });
+});

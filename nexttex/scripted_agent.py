@@ -500,7 +500,16 @@ class ScriptedAgent:
         await self._emit({"type": "focus", "path": relative, "line": line})
         await asyncio.sleep(float(step.get("before_ms", 250)) / 1000)
 
-        if self.apply_edit is not None:
+        if step.get("as") == "sdk" and self.on_edit is not None:
+            # The order the real agent's Write takes: the CLI puts the file
+            # on disk itself, where the watcher can see it, and NextTex
+            # hears about it from the PostToolUse hook a few milliseconds
+            # later. `apply_edit` records the write before it makes it.
+            target.parent.mkdir(parents=True, exist_ok=True)
+            target.write_text(after, encoding="utf-8")
+            await asyncio.sleep(float(step.get("hook_ms", 40)) / 1000)
+            self.on_edit(target, before, after)
+        elif self.apply_edit is not None:
             self.apply_edit(target, after)
         elif self.on_edit is not None:
             target.write_text(after, encoding="utf-8")

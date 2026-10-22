@@ -449,8 +449,14 @@ export class ProjectCollab {
     const fileId = await this.waitForFile(path);
     if (!fileId) return null;
 
-    const already = this.files.get(fileId) ?? (await this.opening.get(fileId));
-    const file = already ?? (await this.build(fileId));
+    // No `await` between looking and building. Two opens of a file still
+    // arriving wake on the same manifest update, and an `await` on an empty
+    // `opening` let both look, find nothing, and build a document each:
+    // the second replaced the first here, and releasing the first then
+    // destroyed the second, so the tab showed an empty document until a
+    // reload. See collab-reopen.test.ts.
+    const file =
+      this.files.get(fileId) ?? (await (this.opening.get(fileId) ?? this.build(fileId)));
     file.users += 1;
     this.byPath.set(path, fileId);
     return {

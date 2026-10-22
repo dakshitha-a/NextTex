@@ -43,6 +43,12 @@ Two requests joined the run on 19 October, passed on from the thesis
 session: a scanned book opened as blank pages, fixed at once, since
 pdf.js 6 was never told where its image decoders were; and books added
 and checked by ISBN the way papers are by DOI, for the fix phase.
+On 21 October, with the logger on, the writer saw a file the agent had
+just created open as an empty page until they reloaded. The editor opens a
+new file twice, once when the agent says where it will write and once when
+it has, and over Tailscale both opens woke on one manifest update and built
+a document each; the first, overtaken, destroyed the second's. Fixed in
+`collab.ts`, held by a unit test and a browser spec with slowed sockets.
 
 Before it, on 12 October 2026, at 4.33.0, the run on the page
 losing the writing in a reflowing thesis closed, at the writer's request.

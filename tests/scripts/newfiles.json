@@ -1,0 +1,44 @@
+[
+ {
+  "kind": "text",
+  "text": "Writing two files.",
+  "pieces": 1
+ },
+ {
+  "kind": "tool",
+  "name": "Write",
+  "input": {
+   "file_path": "jobs/resume.tex"
+  }
+ },
+ {
+  "kind": "edit",
+  "path": "jobs/resume.tex",
+  "text": "Line 0 of the resume.\nLine 1 of the resume.\nLine 2 of the resume.\nLine 3 of the resume.\nLine 4 of the resume.\nLine 5 of the resume.\nLine 6 of the resume.\nLine 7 of the resume.\nLine 8 of the resume.\nLine 9 of the resume.\nLine 10 of the resume.\nLine 11 of the resume.\nLine 12 of the resume.\nLine 13 of the resume.\nLine 14 of the resume.\nLine 15 of the resume.\nLine 16 of the resume.\nLine 17 of the resume.\nLine 18 of the resume.\nLine 19 of the resume.\nLine 20 of the resume.\nLine 21 of the resume.\nLine 22 of the resume.\nLine 23 of the resume.\nLine 24 of the resume.\nLine 25 of the resume.\nLine 26 of the resume.\nLine 27 of the resume.\nLine 28 of the resume.\nLine 29 of the resume.\nLine 30 of the resume.\nLine 31 of the resume.\nLine 32 of the resume.\nLine 33 of the resume.\nLine 34 of the resume.\nLine 35 of the resume.\nLine 36 of the resume.\nLine 37 of the resume.\nLine 38 of the resume.\nLine 39 of the resume.\n",
+  "before_ms": 0,
+  "as": "sdk"
+ },
+ {
+  "kind": "wait",
+  "seconds": 1.5
+ },
+ {
+  "kind": "tool",
+  "name": "Write",
+  "input": {
+   "file_path": "jobs/letter.tex"
+  }
+ },
+ {
+  "kind": "edit",
+  "path": "jobs/letter.tex",
+  "text": "Line 0 of the letter.\nLine 1 of the letter.\nLine 2 of the letter.\nLine 3 of the letter.\nLine 4 of the letter.\nLine 5 of the letter.\nLine 6 of the letter.\nLine 7 of the letter.\nLine 8 of the letter.\nLine 9 of the letter.\nLine 10 of the letter.\nLine 11 of the letter.\nLine 12 of the letter.\nLine 13 of the letter.\nLine 14 of the letter.\nLine 15 of the letter.\nLine 16 of the letter.\nLine 17 of the letter.\nLine 18 of the letter.\nLine 19 of the letter.\nLine 20 of the letter.\nLine 21 of the letter.\nLine 22 of the letter.\nLine 23 of the letter.\nLine 24 of the letter.\nLine 25 of the letter.\nLine 26 of the letter.\nLine 27 of the letter.\nLine 28 of the letter.\nLine 29 of the letter.\nLine 30 of the letter.\nLine 31 of the letter.\nLine 32 of the letter.\nLine 33 of the letter.\nLine 34 of the letter.\nLine 35 of the letter.\nLine 36 of the letter.\nLine 37 of the letter.\nLine 38 of the letter.\nLine 39 of the letter.\n",
+  "before_ms": 0,
+  "as": "sdk"
+ },
+ {
+  "kind": "text",
+  "text": "Both are written.",
+  "pieces": 1
+ }
+]
