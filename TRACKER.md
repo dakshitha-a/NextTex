@@ -322,6 +322,14 @@ OpenAI provider against OpenAI itself.
 
 ### Measured and left, worth revisiting with a measurement
 
+- [ ] **The log parser stays Python.** Asked on 24 October 2026 what a
+      Rust rewrite would buy: the build is TeX's time, and the parser,
+      the one hot Python loop, now reads a real 0.14 MB thesis log in
+      3.7 ms and the benchmark's 13.7 MB log in 0.61 s
+      (`latexlog.parse_ms`). A native module would need a wheel for
+      every platform the installer serves; revisit if a real log takes
+      more than a few hundred milliseconds.
+
 - [ ] **A revtex column's box is tested below the browser.** In the
       writer's methylamine paper SyncTeX answers a line in the middle of
       a paragraph with the whole column's box beside the line's, and the
