@@ -1420,6 +1420,22 @@ const api = {
         reason: string;
       }[];
     }>(`/projects/${id}/agent/usage`),
+  /** The Claude session behind a project: its name, remote control, how
+   *  full the conversation is, the plan's limits and where it is
+   *  summarized. `available` is false for an agent without one. */
+  agentSession: (id: string) => request<AgentSession>(`/projects/${id}/agent/session`),
+  setAgentSession: (id: string, change: { name?: string; remote?: boolean }) =>
+    request<AgentSession>(`/projects/${id}/agent/session`, json(change)),
+  /** Pages the agent published for a project, newest first. */
+  pages: (id: string) =>
+    request<{ pages: { name: string; bytes: number; modified: number }[] }>(`/projects/${id}/pages`),
+  deletePage: (id: string, name: string) =>
+    request<{ deleted: string }>(`/projects/${id}/pages/${encodeURIComponent(name)}`, { method: "DELETE" }),
+  /** Where the browser opens a published page. */
+  pageUrl: (id: string, name: string) => `/api/projects/${id}/pages/${encodeURIComponent(name)}`,
+  /** Where every project's Claude session summarizes its conversation. */
+  setCompactPercent: (percent: number) =>
+    request<{ compactPercent: number }>("/agent/compact", json({ percent })),
   setModel: (id: string, model: string) =>
     request<{ ok: boolean; model: string; deferred: boolean }>(
       `/projects/${id}/agent/model`,
@@ -1499,6 +1515,8 @@ const api = {
       email?: string;
       plan?: string;
       reason?: string;
+      /** Claude's alone: where conversations are summarized. */
+      compactPercent?: number;
     }>("/agent/status"),
   chooseProvider: (provider: string, key = "", model = "", baseUrl?: string) =>
     request<any>("/agent/provider", json({ provider, key, model, ...(baseUrl === undefined ? {} : { baseUrl }) })),
@@ -1675,3 +1693,32 @@ export function saveBlob(blob: Blob, filename: string): void {
   anchor.remove();
   window.setTimeout(() => URL.revokeObjectURL(url), 0);
 }
+
+
+/** How full a conversation is, as the CLI last said. */
+export type AgentContext = {
+  percentage: number | null;
+  totalTokens: number | null;
+  maxTokens: number | null;
+  threshold: number | null;
+};
+
+/** One of the plan's limits, as the CLI last reported its window. */
+export type AgentLimit = {
+  type: string;
+  status: string;
+  utilization: number | null;
+  resetsAt: number | null;
+};
+
+export type AgentSession = {
+  available: boolean;
+  id?: string;
+  name?: string;
+  folderName?: string;
+  remote?: { enabled: boolean; state: string; url: string };
+  context?: AgentContext | null;
+  compactPercent?: number;
+  limits?: AgentLimit[];
+  account?: { plan?: string; apiProvider?: string; remoteAvailable?: boolean };
+};

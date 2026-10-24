@@ -1,7 +1,7 @@
 import { act } from "react";
 import { afterEach, describe, expect, test } from "vitest";
 import { Button, IconButton } from "./Button";
-import { Chip, ChipToggle, Empty, Field, Heading, Input, Kbd, Pressable, Row, Segmented, Select, Switch } from "./controls";
+import { Chip, ChipToggle, Empty, Field, Heading, Input, Kbd, Meter, Pressable, Row, Segmented, Select, Stepper, Switch } from "./controls";
 import { Menu, MenuDivider, MenuItem } from "./Menu";
 import { Sheet } from "./Sheet";
 import { FloatingCard, shellTheme } from "./FloatingCard";
@@ -255,5 +255,54 @@ describe("the pass-through parts", () => {
     const pick = m.container.querySelector("select")!;
     expect(pick.value).toBe("b");
     expect(pick.getAttribute("aria-label")).toBe("Pick");
+  });
+});
+
+
+describe("Stepper", () => {
+  test("steps along its ladder and disables the end it has reached", () => {
+    const seen: number[] = [];
+    const m = (mounted = mount(
+      <Stepper what="point" verbs={["Earlier", "Later"]} value={30} steps={[30, 40, 50]} display="30%" onChange={(v) => seen.push(v)} />,
+    ));
+    const [down, up] = Array.from(m.container.querySelectorAll("button"));
+    expect(down.getAttribute("aria-label")).toBe("Earlier point");
+    expect(down.disabled).toBe(true);
+    expect(up.disabled).toBe(false);
+    act(() => up.click());
+    expect(seen).toEqual([40]);
+    expect(m.container.querySelector("b")!.textContent).toBe("30%");
+  });
+
+  test("a value between steps goes to the next one either way", () => {
+    const seen: number[] = [];
+    const m = (mounted = mount(
+      <Stepper what="point" value={45} steps={[30, 40, 50]} display="45%" onChange={(v) => seen.push(v)} />,
+    ));
+    const [down, up] = Array.from(m.container.querySelectorAll("button"));
+    act(() => down.click());
+    act(() => up.click());
+    expect(seen).toEqual([40, 50]);
+  });
+});
+
+describe("Meter", () => {
+  test("says how full it is, and takes the warn ink past its point", () => {
+    const m = (mounted = mount(<Meter label="Context" value={0.54} mark={0.6} warnAt={0.5} />));
+    const meter = m.container.querySelector("[role=meter]") as HTMLElement;
+    expect(meter.getAttribute("aria-label")).toBe("Context");
+    expect(meter.getAttribute("aria-valuenow")).toBe("54");
+    expect(meter.dataset.warn).toBe("");
+    expect((meter.querySelector("b") as HTMLElement).style.width).toBe("54%");
+    expect((meter.querySelector("i") as HTMLElement).style.left).toBe("60%");
+  });
+
+  test("below its point it is quiet, and a value past the ends is held to them", () => {
+    const m = (mounted = mount(<Meter label="Limit" value={1.7} warnAt={2} size="lg" />));
+    const meter = m.container.querySelector("[role=meter]") as HTMLElement;
+    expect(meter.dataset.warn).toBeUndefined();
+    expect(meter.dataset.size).toBe("lg");
+    expect(meter.getAttribute("aria-valuenow")).toBe("100");
+    expect(meter.querySelector("i")).toBeNull();
   });
 });

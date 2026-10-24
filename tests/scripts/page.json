@@ -1,0 +1,4 @@
+[
+  {"kind": "page", "name": "three-fits", "html": "<!doctype html><html><head><meta charset=utf-8><title>Three fits</title></head><body><table><tr><th>Solvent</th><th>τ₁ (fs)</th></tr><tr><td>Hexane</td><td>182</td></tr><tr><td>Water</td><td>158</td></tr></table></body></html>"},
+  {"kind": "text", "text": "Here it is, a table of the three solvents with the fit residuals under it.", "pieces": 3}
+]

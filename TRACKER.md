@@ -24,16 +24,6 @@ things go to be forgotten rather than a list anybody reads.
 
 ## In hand
 
-**The Claude session, from 23 October 2026.** The writer asked for the
-session's controls in the Claude column after a project's usage read
-$2,068. The dollars were a running total summed at every turn, now
-counted once. Still to come in this run: compaction at 60 per cent and a
-line when it happens, a context meter and the plan's limits in the foot,
-the session's name, remote control as a per-project setting, a Session
-view, one vocabulary for what the agent asks about, and pages the agent
-publishes. The plan and the drawings are on the direction page, section
-"The Claude session".
-
 **Watching the live install, from 18 October 2026.** The writer asked for
 a continuous record of errors, failures, crashes and slow spots on the
 install they use every day, to be left running for a couple of days and
@@ -273,6 +263,24 @@ OpenAI provider against OpenAI itself.
 
 ### Known gaps, with a cost somebody will eventually pay
 
+- [ ] **History calls an agent's version "Claude" whatever the agent.**
+      A version records that the agent made it, not which provider, so with
+      ChatGPT or a local model the History drawer still says Claude. The
+      column's strip and resize label now say the agent's name; History
+      needs the provider kept with each version to do the same.
+- [ ] **A turn sent from claude.ai is labelled from the CLI's origin, which
+      was not seen live.** Messages from other Claude Code sessions were
+      checked against the real CLI on 23 October 2026 and read "A message
+      from" their sender. A turn typed on claude.ai into a session with
+      remote control on is expected to carry a `human` or `person` origin,
+      or none, and to read "Sent over remote control"; that needs one look
+      by somebody at claude.ai.
+- [ ] **Remote control and the session's name use the SDK's private
+      control channel.** The SDK has no call for `remote_control` or
+      `rename_session`, so `_control` in `nexttex/agent.py` sends them
+      through `_query._send_control_request`. An SDK that renames it turns
+      both features off quietly; a public method should replace it when
+      one exists.
 - [ ] **A build started mid-edit reports a transient brace error.** The
       thesis's writer pasted `File ended while scanning use of \revised`
       from a build that ran while a brace was half deleted; the agent found

@@ -85,6 +85,7 @@ class ScriptedAgent:
         reply_comment: Callable[[str, str], str] | None = None,
         model: str | None = None,
         script: str | None = None,
+        compact_percent: Callable[[], int] | None = None,
     ):
         self.root = project_root.resolve()
         self.state_dir = state_dir
@@ -131,11 +132,67 @@ class ScriptedAgent:
             "turns": 0, "costUsd": 0.0, "inputTokens": 0, "outputTokens": 0,
             "cacheReadTokens": 0, "durationMs": 0, "model": model or "default",
         }
+        # The session's controls, as the real agent keeps them: the name
+        # and remote control on disk, the rest as a script last set it.
+        self.compact_percent = compact_percent or (lambda: 60)
+        self.session_settings = self._load_session_settings()
+        self.context: dict | None = None
+        self.remote: dict = {"state": "off", "url": ""}
+        self.limits: dict[str, dict] = {}
+        self.account: dict = {"plan": "max", "apiProvider": "firstParty", "remoteAvailable": True}
         # What the last turn was asked, so a test can assert on it.
         self.asked: list[str] = []
         #: The context each prompt came with, so a test can read what the
         #: model would have been given ahead of the question.
         self.contexts: list[str] = []
+
+    # -- the session, as the real agent shows it ---------------------------
+    def _load_session_settings(self) -> dict:
+        try:
+            saved = json.loads((self.state_dir / "session-settings.json").read_text(encoding="utf-8"))
+        except (OSError, json.JSONDecodeError):
+            saved = {}
+        name = saved.get("name") if isinstance(saved.get("name"), str) else ""
+        return {"name": name, "remote": saved.get("remote") is True}
+
+    @property
+    def session_name(self) -> str:
+        return self.session_settings.get("name") or self.root.name
+
+    async def set_session(self, *, name: str | None = None, remote: bool | None = None) -> None:
+        if name is not None:
+            self.session_settings["name"] = " ".join(name.split())[:80]
+        if remote is not None and bool(remote) != self.session_settings["remote"]:
+            self.session_settings["remote"] = bool(remote)
+            self.remote = (
+                {"state": "connected", "url": "https://claude.ai/code/session_scripted"}
+                if remote else {"state": "off", "url": ""}
+            )
+            await self._emit({"type": "remote", **self.remote})
+        (self.state_dir / "session-settings.json").write_text(
+            json.dumps(self.session_settings), encoding="utf-8",
+        )
+
+    async def connect_now(self) -> None:
+        if self.session_settings["remote"] and self.remote["state"] == "off":
+            self.remote = {"state": "connected", "url": "https://claude.ai/code/session_scripted"}
+            await self._emit({"type": "remote", **self.remote})
+
+    def session_view(self) -> dict:
+        try:
+            compact = int(self.compact_percent())
+        except (TypeError, ValueError):
+            compact = 60
+        return {
+            "id": "scripted-session",
+            "name": self.session_name,
+            "folderName": self.root.name,
+            "remote": {"enabled": bool(self.session_settings["remote"]), **self.remote},
+            "context": self.context,
+            "compactPercent": compact,
+            "limits": sorted(self.limits.values(), key=lambda e: e["type"]),
+            "account": dict(self.account),
+        }
 
     # -- the shape ProjectSession and the routes expect --------------------
     def _queue(self) -> asyncio.Queue:
@@ -273,7 +330,8 @@ class ScriptedAgent:
             await self._finish("no_result")
             return
         await self._finish(
-            "success", costUsd=self.usage["costUsd"], usage=self.usage
+            "success", costUsd=self.usage["costUsd"], usage=self.usage,
+            context=self.context,
         )
         for step in self._later:
             asyncio.create_task(self._inject_later(step))
@@ -328,6 +386,49 @@ class ScriptedAgent:
 
     async def _step(self, step: dict) -> None:
         kind = step.get("kind", "")
+
+        # The session's state, which the real agent reads off the CLI.
+        # Not `context`, which says back what the agent was given.
+        if kind == "context_usage":
+            self.context = {
+                "percentage": step.get("percentage"),
+                "totalTokens": step.get("totalTokens"),
+                "maxTokens": step.get("maxTokens", 1_000_000),
+                "threshold": step.get("threshold"),
+            }
+            return
+        if kind == "compact":
+            await self._emit({
+                "type": "compacted",
+                "beforePercent": step.get("beforePercent"),
+                "beforeTokens": step.get("beforeTokens"),
+                "trigger": "auto",
+            })
+            return
+        if kind == "limits":
+            for entry in step.get("limits") or []:
+                self.limits[str(entry.get("type"))] = dict(entry)
+            await self._emit({"type": "limits", "limits": sorted(self.limits.values(), key=lambda e: e["type"])})
+            return
+        if kind == "account":
+            self.account.update(step.get("account") or {})
+            return
+        if kind == "remote":
+            self.remote = {"state": str(step.get("state", "off")), "url": str(step.get("url", ""))}
+            await self._emit({"type": "remote", **self.remote})
+            return
+        if kind == "page":
+            from .pages import Pages
+
+            name = Pages(self.state_dir).save(str(step.get("name", "page")), str(step.get("html", "")))
+            await self._emit({"type": "page", "name": name})
+            return
+        if kind == "refused":
+            await self._emit({
+                "type": "refused", "tool": step.get("tool", "Edit"), "toolId": "",
+                "headline": step.get("headline", ""), "detail": step.get("detail", ""),
+            })
+            return
 
         if kind == "inject":
             # A turn the CLI will begin on its own once this one ends, for

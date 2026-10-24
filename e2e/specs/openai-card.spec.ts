@@ -105,7 +105,7 @@ async function askForAFigure(page: Page) {
 test("the card shows the script, Allow runs it, and the control is there", async ({ page }) => {
   await inProject(page);
   // The chip says what the provider asks about: it asks, so it says so.
-  await expect(page.getByTestId("model-open")).toContainText("asks first", { timeout: 20_000 });
+  await expect(page.getByTestId("model-open")).toContainText("Asks first", { timeout: 20_000 });
 
   await askForAFigure(page);
   const card = page.locator(".permission-card");

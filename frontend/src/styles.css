@@ -1786,6 +1786,12 @@ button.nx-row { width: 100%; text-align: left; }
 .nx-column-work { display: inline-flex; flex: 1; align-items: center; gap: 6px; min-width: 0; color: var(--ink-3); font-size: 12.5px; line-height: 17px; }
 .nx-column-work .nx-working { width: 6px; height: 6px; border-radius: 50%; flex: none; }
 .nx-column-auto { color: var(--warn); font-size: 12px; font-weight: 500; padding: 0 6px; flex: none; }
+/* Remote control's state beside Auto: the second ink, a dot in the ok ink
+   once connected and the warn ink while it connects. A state, not a
+   control; the switch is in the Session view and the settings sheet. */
+.nx-column-remote { display: inline-flex; align-items: center; gap: 5px; color: var(--ink-2); font-size: 12px; font-weight: 500; padding: 0 6px; flex: none; }
+.nx-column-remote > i { width: 6px; height: 6px; border-radius: 50%; background: var(--ok); }
+.nx-column-remote[data-state="connecting"] > i { background: var(--warn); }
 .nx-past-row { display: flex; flex-direction: column; align-items: flex-start; text-align: left; padding: 7px 8px; border-radius: var(--nx-radius-control); color: var(--ink); }
 .nx-past-row small { color: var(--ink-3); font-size: 12px; line-height: 16px; font-variant-numeric: tabular-nums; }
 .nx-past-row:hover, .nx-past-row:focus-visible { background: var(--wash); }
@@ -1976,6 +1982,14 @@ button.nx-reads-x[data-always]:hover { color: var(--pen); }
 .nx-settings-foot { margin-top: auto; padding-top: 18px; }
 .nx-stepper { display: inline-flex; align-items: center; }
 .nx-stepper b { font-weight: 500; min-width: 56px; text-align: center; }
+/* The kit's meter: how much of something is used, a tick where something
+   happens. The third ink on the third surface, the warn ink past its point. */
+.nx-meter { position: relative; display: inline-block; width: 44px; height: 4px; border-radius: 2px; background: var(--surface-3); flex: none; vertical-align: middle; }
+.nx-meter[data-size="lg"] { display: block; width: auto; height: 6px; border-radius: 3px; }
+.nx-meter > b { position: absolute; inset: 0 auto 0 0; border-radius: inherit; background: var(--ink-3); }
+.nx-meter[data-warn] > b { background: var(--warn); }
+.nx-meter > i { position: absolute; top: -2px; width: 1px; height: 8px; background: var(--ink-2); }
+.nx-meter[data-size="lg"] > i { top: -3px; width: 1.5px; height: 12px; }
 .nx-settings[data-narrow] { grid-template-columns: 1fr; grid-template-rows: auto 1fr; }
 .nx-settings[data-narrow] .nx-settings-nav { flex-direction: row; flex-wrap: wrap; align-items: center; padding: 12px 12px 8px; gap: 4px; }
 .nx-settings[data-narrow] .nx-settings-title { width: 100%; padding: 0 0 6px; }
@@ -2559,3 +2573,35 @@ button.nx-reads-x[data-always]:hover { color: var(--pen); }
 .nx-row-flash {
   animation: nx-row-arrived 900ms var(--ease);
 }
+
+/* A line the column writes in the turns about something that happened to
+   the conversation rather than in it: a compaction, a refused call. The
+   third ink, the meta size, the glyph on the first line. */
+.nx-quiet-line { display: flex; gap: 6px; align-items: baseline; color: var(--ink-3); font-size: 12.5px; line-height: 17px; overflow-wrap: break-word; }
+.nx-quiet-line > svg { flex: none; align-self: flex-start; margin-top: 2.5px; }
+
+/* The Session view: one section per thing the session is, on the column's
+   own plane, the meters and the stepper from the kit. */
+.nx-session { padding-bottom: 14px; }
+.nx-session-sec { padding: 14px 16px 0; }
+.nx-session-title { display: flex; align-items: center; gap: 8px; margin: 0 0 4px; font-size: 14px; font-weight: 500; color: var(--ink); }
+.nx-session-field { display: flex; width: 100%; margin: 6px 0 4px; }
+.nx-session-hint { margin: 4px 0 0; color: var(--ink-3); font-size: 12.5px; line-height: 17px; overflow-wrap: break-word; }
+.nx-session-line { display: flex; align-items: center; gap: 8px; font-size: 13px; color: var(--ink-2); }
+.nx-session-line > span { flex: 1; }
+.nx-session-limit { display: grid; grid-template-columns: 1fr 72px; gap: 2px 10px; align-items: center; margin-top: 8px; font-size: 13px; color: var(--ink-2); }
+.nx-session-limit > small { grid-column: 1 / -1; color: var(--ink-3); font-size: 12px; line-height: 16px; font-variant-numeric: tabular-nums; }
+.nx-session-limit[data-warn] > small { color: var(--warn); }
+.nx-session-limit-meter { width: 72px; }
+.nx-session-usage { margin: 4px 0 0; color: var(--ink-2); font-size: 13px; line-height: 19px; }
+.nx-session-usage b { color: var(--ink); font-weight: 500; font-variant-numeric: tabular-nums; }
+
+/* The column's foot with a session behind it: one control, the meter at
+   the left and the busiest limit at the right, both in the second ink and
+   the warn ink past their point. */
+.nx-session-foot { display: flex; height: 28px; flex: none; align-items: center; gap: 12px; padding: 0 12px; color: var(--ink-2); text-align: left; width: 100%; }
+.nx-session-foot:hover { color: var(--ink); }
+.nx-session-foot:focus-visible { outline: 2px solid var(--hint); outline-offset: -2px; }
+.nx-session-ctx { display: inline-flex; align-items: center; gap: 6px; font-variant-numeric: tabular-nums; white-space: nowrap; }
+.nx-session-ctx[data-warn], .nx-session-foot [data-warn] { color: var(--warn); }
+.nx-session-page { margin: 0 -8px; }

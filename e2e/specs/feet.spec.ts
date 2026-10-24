@@ -92,24 +92,20 @@ test("every control in a foot sits on its strip's centre line", async ({ tab }) 
   }
 });
 
-test("the Claude column's foot reads what the project has cost, and opens the breakdown", async ({ tab }) => {
-  // Nothing has been asked yet, so the foot says nothing about cost: a
-  // "0 turns, $0.00" said nothing a writer needed. Usage is still there.
-  const tally = tab.getByTestId("agent-tally");
-  await expect(tab.getByTestId("usage-open")).toBeVisible({ timeout: 10_000 });
-  await expect(tally).toHaveText("");
-  await ask(tab, "reply", "What does a label do?");
-  await expect(tab.getByText(/A label attaches a name/)).toBeVisible({ timeout: 20_000 });
-  // The sum follows the end of the turn.
-  await expect(tally).toHaveText(/^1 turn, \$\d+\.\d\d$/, { timeout: 10_000 });
-  // Usage opens the past conversations, whose foot is the breakdown; the
-  // column's header carries no Usage control of its own.
-  await expect(tab.getByTestId("chat-header").getByRole("button", { name: "Usage" })).toHaveCount(0);
-  await tab.getByTestId("usage-open").click();
-  await expect(tab.getByTestId("usage-line")).toContainText("This project:");
-  await expect(tab.getByTestId("usage-line")).toContainText("1 turn");
-  await tab.getByTestId("past-back").click();
-  await expect(tally).toBeVisible();
+test("the Claude column's foot says how full the conversation is, and opens the Session view", async ({ tab }) => {
+  // Before the CLI has said, the foot says nothing: no "0 turns, $0.00",
+  // and no meter at zero pretending to know.
+  const foot = tab.getByTestId("agent-foot");
+  await expect(foot).toBeVisible({ timeout: 10_000 });
+  await expect(foot.getByTestId("foot-context")).toHaveCount(0);
+  await ask(tab, "session", "Put the fits side by side.");
+  // The meter and the busiest limit follow the end of the turn.
+  await expect(foot.getByTestId("foot-context")).toHaveText(/Context 14%/, { timeout: 20_000 });
+  await expect(foot.getByTestId("foot-limit")).toHaveText("5-hour limit 42%");
+  await foot.click();
+  await expect(tab.getByTestId("session-view")).toBeVisible();
+  await tab.getByTestId("session-back").click();
+  await expect(foot).toBeVisible();
 });
 
 test("the report opens from inside a project, from the drawer's foot", async ({ tab, context }) => {

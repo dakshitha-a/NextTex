@@ -9,6 +9,7 @@ import {
   type SelectHTMLAttributes,
   type TextareaHTMLAttributes,
 } from "react";
+import { IconButton } from "./Button";
 
 /** A text field.
  *
@@ -380,4 +381,86 @@ export const Row = forwardRef<HTMLDivElement, RowProps>(function Row(
 /** A label and a control that belong together, for a settings row. */
 export function useLabelId(): string {
   return useId();
+}
+
+
+/** The nearest of `steps` past `value` in direction `by`. */
+function nextStep(value: number, steps: readonly number[], by: 1 | -1): number {
+  if (by > 0) return steps.find((s) => s > value) ?? steps[steps.length - 1];
+  return [...steps].reverse().find((s) => s < value) ?? steps[0];
+}
+
+/** Minus, the value, plus: for a number chosen from a short ladder, a
+ *  size or a percentage. The readout is wide enough for "13.5 px", and an
+ *  end of the ladder disables its button rather than doing nothing. */
+export function Stepper({
+  what,
+  verbs = ["Smaller", "Larger"],
+  value,
+  steps,
+  display,
+  onChange,
+  testid,
+}: {
+  what: string;
+  verbs?: readonly [string, string];
+  value: number;
+  steps: readonly number[];
+  display: string;
+  onChange: (value: number) => void;
+  testid?: string;
+}) {
+  const first = value <= steps[0];
+  const last = value >= steps[steps.length - 1];
+  return (
+    <div className="nx-stepper" data-testid={testid}>
+      <IconButton label={`${verbs[0]} ${what}`} disabled={first} onClick={() => onChange(nextStep(value, steps, -1))}>
+        <span aria-hidden="true">−</span>
+      </IconButton>
+      <b className="tnum">{display}</b>
+      <IconButton label={`${verbs[1]} ${what}`} disabled={last} onClick={() => onChange(nextStep(value, steps, 1))}>
+        <span aria-hidden="true">+</span>
+      </IconButton>
+    </div>
+  );
+}
+
+/** How much of something is used: a 4 px bar in the third ink on the
+ *  third surface, the warn ink past `warnAt`, and an optional tick where
+ *  something happens, such as the point a conversation is summarized.
+ *  `size="lg"` is the 6 px bar a view gives it. Fractions from 0 to 1. */
+export function Meter({
+  value,
+  mark,
+  warnAt = 1,
+  label,
+  size = "sm",
+  className = "",
+  testid,
+}: {
+  value: number;
+  mark?: number;
+  warnAt?: number;
+  label: string;
+  size?: "sm" | "lg";
+  className?: string;
+  testid?: string;
+}) {
+  const clamped = Math.max(0, Math.min(1, value));
+  return (
+    <span
+      role="meter"
+      aria-label={label}
+      aria-valuemin={0}
+      aria-valuemax={100}
+      aria-valuenow={Math.round(clamped * 100)}
+      className={`nx-meter ${className}`.trim()}
+      data-size={size}
+      data-warn={clamped >= warnAt ? "" : undefined}
+      data-testid={testid}
+    >
+      <b style={{ width: `${clamped * 100}%` }} />
+      {mark !== undefined ? <i style={{ left: `${Math.max(0, Math.min(1, mark)) * 100}%` }} /> : null}
+    </span>
+  );
 }

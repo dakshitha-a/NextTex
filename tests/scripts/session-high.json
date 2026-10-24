@@ -1,0 +1,9 @@
+[
+  {"kind": "context_usage", "percentage": 54, "totalTokens": 540000, "maxTokens": 1000000, "threshold": 600000},
+  {"kind": "limits", "limits": [
+    {"type": "five_hour", "status": "allowed_warning", "utilization": 0.91, "resetsAt": 1792900000},
+    {"type": "seven_day", "status": "allowed", "utilization": 0.64, "resetsAt": 1793300000}
+  ]},
+  {"kind": "tool", "name": "Read", "input": {"file_path": "main.tex"}, "ms": 40},
+  {"kind": "text", "text": "Hexane is named eleven times: four in chapter 2, five in chapter 3, and twice in the SI.", "pieces": 3}
+]

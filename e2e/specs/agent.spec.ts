@@ -243,11 +243,11 @@ test("a new conversation empties the panel and keeps the tally", async ({
   // cleared one lands on the right surface without anything extra.
   await expect(tab.getByRole("button", { name: /sample of your writing/ })).toBeVisible();
 
-  // Cleared conversations do not clear what the project has cost: the
-  // sum is one sentence at the foot of the past conversations.
-  await tab.getByTestId("past-open").click();
-  await expect(tab.getByTestId("usage-line")).toContainText(/turn/);
-  await tab.getByTestId("past-back").click();
+  // Cleared conversations do not clear what the project has used: with a
+  // Claude session the sum is in the Session view.
+  await tab.getByTestId("session-open").click();
+  await expect(tab.getByTestId("session-usage")).toContainText(/1 turn/);
+  await tab.getByTestId("session-back").click();
 });
 
 test("a cleared conversation stays cleared after a reload", async ({ tab }) => {
@@ -264,19 +264,19 @@ test("a cleared conversation stays cleared after a reload", async ({ tab }) => {
   await expect(tab.getByText(/A label attaches a name/)).toBeHidden();
 });
 
-test("what the project has cost is read at the foot of the past conversations", async ({ tab }) => {
-  // One sentence, once, where the sum over every conversation belongs;
-  // the header carries no Usage control of its own (the column's foot
-  // does, and feet.spec.ts reads it).
+test("what the project has used is read in the Session view, not under the past conversations", async ({ tab }) => {
+  // One sentence, once, beside the plan's limits it counts against; on a
+  // subscription it names no dollars, since they would not be a bill.
   await expect(tab.getByTestId("chat-header").getByRole("button", { name: "Usage" })).toHaveCount(0);
   await tab.getByTestId("past-open").click();
-  const line = tab.getByTestId("usage-line");
-  await expect(line).toBeVisible({ timeout: 10_000 });
-  await expect(line).toContainText("This project:");
-  await expect(line).toContainText("estimated");
-  await expect(line).toContainText("tokens in");
+  await expect(tab.getByTestId("past-conversations")).toBeVisible();
+  await expect(tab.getByTestId("usage-line")).toHaveCount(0);
   await tab.getByTestId("past-back").click();
-  await expect(line).toHaveCount(0);
+  await tab.getByTestId("session-open").click();
+  const line = tab.getByTestId("session-usage");
+  await expect(line).toContainText("of model time");
+  await expect(line).toContainText("read back from the cache");
+  await expect(line).not.toContainText("$");
 });
 
 async function setMode(page: Page, option: "ask" | "project" | "all") {

@@ -397,6 +397,8 @@ def test_the_scholarly_apis_are_told_who_is_calling_generically():
 # entitled to that list being complete.
 OUTBOUND = {
     "api.anthropic.com",        # the Claude agent, via its own SDK
+    "fonts.googleapis.com",     # a published page's fonts, in the viewer's browser
+    "fonts.gstatic.com",        # the same, the font files
     "api.openai.com",           # the OpenAI agent
     "api.crossref.org",         # the reference pipeline
     "api.openalex.org",

@@ -14,19 +14,21 @@
  */
 export type Mode = "ask" | "project" | "all";
 
+/** One name per position, the same on the chip, in the menu and in the
+ *  header's mark: four vocabularies had grown for three positions. */
 export const MODE_TITLES: Record<Mode, string> = {
-  ask: "Ask before acting",
-  project: "Run the work without asking",
-  all: "Never ask about anything",
+  ask: "Asks first",
+  project: "Auto",
+  all: "Auto, all",
 };
 
 export const MODE_NOTES: Record<Mode, string> = {
   ask: "A card for every command, every fetch and every write that leaves this project.",
   project:
-    "Commands and edits run silently. Still asked about: writing outside this project, and anything reaching the internet.",
+    "Commands and edits run without asking. Still asked about: a write outside this project, and anything reaching the internet.",
   // The providers differ here, and the words say so (Q-004): Claude asks
   // about nothing at all, while the OpenAI provider's own tools refuse a
   // path outside the project in every position.
   all:
-    "Nothing is asked about at all. Everything is still recorded here. With ChatGPT or a local model, a write outside this project is still refused.",
+    "Nothing is asked about. Everything is still recorded here. With ChatGPT or a local model, a write outside this project is still refused.",
 };

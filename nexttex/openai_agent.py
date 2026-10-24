@@ -508,6 +508,9 @@ class OpenAIAgent:
         model: str | None = None,
         api_key: str = "",
         base_url: str = "",
+        # Claude's alone: the CLI summarizes its own conversation. Taken so
+        # every provider is built from the same arguments.
+        compact_percent: Callable[[], int] | None = None,
     ):
         self.root = project_root.resolve()
         self.state_dir = state_dir

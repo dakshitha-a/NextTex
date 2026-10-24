@@ -44,6 +44,7 @@ export default function PastConversation({
   provider?: string;
 }) {
   const projectId = useStore((s) => s.projectId);
+  const session = useStore((s) => s.session);
   const [archives, setArchives] = useState<Archive[] | null>(null);
   const [failed, setFailed] = useState("");
   const [open, setOpen] = useState<{ name: string; items: ChatItem[] } | null>(null);
@@ -114,7 +115,9 @@ export default function PastConversation({
         {/* What this project has cost, once, at the foot of the list: the
             sum over every conversation, which is why it is here and not in
             any one of them. */}
-        {!open && usage ? (
+        {/* With a Claude session, what the project has used is in the
+            Session view, beside the plan's limits it counts against. */}
+        {!open && usage && !session?.available ? (
           <p className="nx-past-usage" data-testid="usage-line">
             This project:{" "}
             <b>

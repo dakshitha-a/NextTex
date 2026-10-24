@@ -1972,6 +1972,87 @@ const SURFACES: Record<string, Surface> = {
       return tab.getByTestId("notices");
     },
   },
+  // The Claude session, drawn on the direction page's "The Claude
+  // session" (23 October 2026).
+  "session-live": {
+    open: async (tab) => {
+      const composer = tab.locator("textarea");
+      await composer.click();
+      await composer.fill("#script:session\nPut the three fits side by side.");
+      await composer.press("Enter");
+      await tab.getByTestId("compacted").filter({ hasText: "to 14" }).waitFor({ timeout: 20_000 });
+      return tab.getByTestId("chat");
+    },
+  },
+  "session-refused": {
+    open: async (tab) => {
+      const composer = tab.locator("textarea");
+      await composer.click();
+      await composer.fill("#script:session-remote\nTighten the abstract.");
+      await composer.press("Enter");
+      await tab.getByTestId("refused").waitFor({ timeout: 20_000 });
+      return tab.getByTestId("chat");
+    },
+  },
+  "session-high": {
+    open: async (tab) => {
+      await tab.getByTestId("model-open").click();
+      await tab.getByTestId("mode-project").click();
+      const composer = tab.locator("textarea");
+      await composer.click();
+      await composer.fill("#script:session-high\nList every place hexane is named.");
+      await composer.press("Enter");
+      await tab.getByTestId("foot-context").filter({ hasText: "54" }).waitFor({ timeout: 20_000 });
+      return tab.getByTestId("chat");
+    },
+    close: async (tab) => {
+      await tab.getByTestId("auto-chip").click();
+    },
+  },
+  "session-view-on": {
+    open: async (tab) => {
+      const composer = tab.locator("textarea");
+      await composer.click();
+      await composer.fill("#script:session\nPut the three fits side by side.");
+      await composer.press("Enter");
+      await tab.getByTestId("compacted").filter({ hasText: "to 14" }).waitFor({ timeout: 20_000 });
+      await tab.getByTestId("session-open").click();
+      await tab.getByTestId("session-remote").click();
+      await tab.getByTestId("session-remote-state").filter({ hasText: "Connected" }).waitFor();
+      return tab.getByTestId("chat");
+    },
+    close: async (tab) => {
+      await tab.getByTestId("session-remote").click();
+    },
+  },
+  "session-view-off": {
+    open: async (tab) => {
+      const composer = tab.locator("textarea");
+      await composer.click();
+      await composer.fill("#script:session-high\nList every place hexane is named.");
+      await composer.press("Enter");
+      await tab.getByTestId("foot-context").filter({ hasText: "54" }).waitFor({ timeout: 20_000 });
+      await tab.getByTestId("session-open").click();
+      await tab.getByTestId("session-name").fill("thesis-ch3");
+      return tab.getByTestId("chat");
+    },
+  },
+  "settings-remote": {
+    open: async (tab) => {
+      await tab.getByTestId("appearance").click();
+      await tab.getByTestId("settings-group-project").click();
+      await tab.getByTestId("settings-remote").waitFor();
+      return tab.getByTestId("settings-sheet");
+    },
+  },
+  "settings-compact": {
+    open: async (tab) => {
+      await tab.getByTestId("appearance").click();
+      await tab.getByTestId("settings-group-install").click();
+      await tab.getByTestId("settings-compact").waitFor();
+      return tab.getByTestId("settings-sheet");
+    },
+  },
 };
 
 async function dress(tab: Page, theme: string) {

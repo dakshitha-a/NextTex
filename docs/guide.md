@@ -240,7 +240,7 @@ makes typing slower on the day it happens.
 | A settled edit written to disk | 1.4 ms | 40 ms |
 | The same, with its version recorded | 3.0 ms | 60 ms |
 | Whole project as a zip | 67 ms | 3 s |
-| Interface bundle | 334.2 kB | 400 kB |
+| Interface bundle | 337.2 kB | 400 kB |
 
 The first row is the one worth keeping. The compile rewrites `build/main.pdf`,
 the symbol cache's stamp walk used to count it, and every build therefore
@@ -582,14 +582,14 @@ answer.*
 
 <picture>
   <source media="(prefers-color-scheme: dark)" srcset="fence-dark.svg">
-  <img alt="The three positions of the composer's chip: Ask before acting, the default, asks about every command, fetch and write that leaves the project; Run the work without asking lets commands and edits run and still asks about a write outside the project or to a file the build runs, and about anything that reaches the internet; Never ask about anything asks about nothing and takes a second press to switch on." src="fence-light.svg">
+  <img alt="The three positions of the composer's chip: Asks first, the default, asks about every command, fetch and write that leaves the project; Auto lets commands and edits run and still asks about a write outside the project or to a file the build runs, and about anything that reaches the internet; Auto, all asks about nothing and takes a second press to switch on." src="fence-light.svg">
 </picture>
 
-**Ask before acting** is the above: a card for every command, every fetch and
+**Asks first** is the above: a card for every command, every fetch and
 every write that leaves the project. It is the only one of the three that is a
 complete fence, and it is the default.
 
-**Run the work without asking** is the one most people will want. Commands and
+**Auto** is the one most people will want. Commands and
 edits run silently, and that includes the piped, chained and redirected
 commands that make up nearly everything a build or a data script actually does.
 Two things still ask. Writing outside the project, or to a file inside it that
@@ -607,7 +607,7 @@ That is not a hole to be closed by a longer list of words; it is what running
 somebody's commands means. The first position is the one that asks about all of
 it, which is why it is the default and why it is still there.
 
-**Never ask about anything** does what it says, including for a write that
+**Auto, all** does what it says, including for a write that
 leaves the project. Switching it on takes a second press and a sentence
 saying so, because the risk is not really about your own judgement. The
 agent's instructions come partly from your project's own files, and those

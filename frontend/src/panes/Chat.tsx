@@ -20,6 +20,8 @@ import Prose from "./prose";
 // conversation, and the list and its renderers should not ship ahead of that.
 const PastConversation = lazy(() => import("./PastConversation"));
 const ContextPanel = lazy(() => import("./ContextPanel"));
+const SessionView = lazy(() => import("./SessionView"));
+import { busiest, limitName, onSubscription } from "./session-words";
 // The menus under the composer's chip and for a `/` prompt. They were
 // fetched on first use to keep them out of the entry chunk, which cost
 // 870 ms of nothing on screen at the first press (Q-062); this column is
@@ -40,13 +42,14 @@ import { welcome, WELCOME_ACTIONS } from "../welcome";
 import { agentName } from "../agent-name";
 import { foldTools, foldedSentence, type ShownItem, type ToolGroup } from "./tool-fold";
 import {
-  ChevronDownIcon, ChevronRightIcon, ClipIcon, ContextIcon, HistoryIcon, PlusIcon, SendIcon, SlidersIcon,
+  ChevronDownIcon, ChevronRightIcon, ClipIcon, CloseIcon, ContextIcon, GaugeIcon, HistoryIcon, PlusIcon,
+  PageIcon, SectionsIcon, SendIcon, SlidersIcon,
 } from "../ui/icons";
-import { Chip } from "../ui/controls";
+import { Chip, Meter } from "../ui/controls";
 import { IconButton } from "../ui/Button";
 import { ColumnHeader } from "./column-header";
 import { MODE_TITLES } from "./mode-words";
-import api from "../api";
+import api, { type AgentSession } from "../api";
 import {
   clearChat,
   firstChangedLine,
@@ -276,7 +279,11 @@ export default function Chat({
   const [confirmClear, setConfirmClear] = useState(false);
   /** Which of the column's three views is up: the conversation, the
    *  filed-away ones, or what the agent reads. */
-  const [view, setView] = useState<"live" | "past" | "reads">("live");
+  const [view, setView] = useState<"live" | "past" | "reads" | "session">("live");
+  /** The Claude session behind the project: the foot's meters, the
+   *  header's Remote mark and the Session view all read it. */
+  const session = useStore((s) => s.session);
+  const sessionButton = useRef<HTMLButtonElement | null>(null);
   const [readsFor, setReadsFor] = useState<"style" | "voice" | null>(null);
   const readsButton = useRef<HTMLButtonElement | null>(null);
   const menuRef = useRef<HTMLDivElement | null>(null);
@@ -430,6 +437,19 @@ export default function Chat({
     setPromptRow(0);
     composer.current?.focus({ preventScroll: true });
   };
+
+  // The session, once per project: what changes after that arrives as
+  // events and on `done`. Asking also starts a session open to remote
+  // control, since an open project is when it promised to be reachable.
+  useEffect(() => {
+    if (!projectId) return;
+    let live = true;
+    set({ session: null });
+    api.agentSession(projectId).then((answer) => live && set({ session: answer })).catch(() => undefined);
+    return () => {
+      live = false;
+    };
+  }, [projectId]);
 
   // The tally follows the end of a turn, which is when it changes.
   useEffect(() => {
@@ -690,6 +710,21 @@ export default function Chat({
               restart has to be visible without opening anything, and it
               says which of the two quiet positions it is in. One click
               steps back one position. */}
+          {session?.available && session.remote?.enabled && ["connecting", "connected"].includes(session.remote.state) ? (
+            <span
+              className="nx-column-remote"
+              data-testid="remote-mark"
+              data-state={session.remote.state}
+              title={
+                session.remote.state === "connected"
+                  ? "Reachable from claude.ai and your other Claude Code sessions"
+                  : "Connecting to claude.ai"
+              }
+            >
+              <i aria-hidden="true" />
+              Remote
+            </span>
+          ) : null}
           {mode !== "ask" ? (
             <Pressable
               className="nx-column-auto"
@@ -749,6 +784,20 @@ export default function Chat({
           >
             <ContextIcon />
           </IconButton>
+          {session?.available ? (
+            <IconButton
+              ref={sessionButton}
+              label="This session"
+              title="The session's name, remote control, how full it is and the plan's limits"
+              data-testid="session-open"
+              onClick={() => {
+                setConfirmClear(false);
+                setView("session");
+              }}
+            >
+              <GaugeIcon />
+            </IconButton>
+          ) : null}
         </ColumnHeader>
       ) : null}
 
@@ -759,6 +808,18 @@ export default function Chat({
             onFold={onFold}
             usage={usage}
             provider={provider}
+          />
+        </Suspense>
+      ) : null}
+      {view === "session" ? (
+        <Suspense fallback={null}>
+          <SessionView
+            onBack={() => {
+              setView("live");
+              window.setTimeout(() => sessionButton.current?.focus({ preventScroll: true }), 0);
+            }}
+            onFold={onFold}
+            usage={usage}
           />
         </Suspense>
       ) : null}
@@ -1171,7 +1232,7 @@ export default function Chat({
                 aria-expanded={menuOpen}
                 aria-label={
                   asks
-                    ? `Model and what to ask about: ${modelName}, ${MODE_TITLES[mode].toLowerCase()}`
+                    ? `Model and what it asks about: ${modelName}, ${MODE_TITLES[mode]}`
                     : `Which model answers here: ${modelName}`
                 }
                 title="Which model answers, and what it asks about"
@@ -1181,7 +1242,7 @@ export default function Chat({
                 <SlidersIcon size={13} />
                 <span className="truncate">
                   {modelName}
-                  {asks ? `, ${mode === "ask" ? "asks first" : "without asking"}` : ""}
+                  {asks ? `, ${MODE_TITLES[mode]}` : ""}
                 </span>
               </Pressable>
               {menuOpen ? (
@@ -1233,27 +1294,89 @@ export default function Chat({
           preview: what the project's conversations have cost so far, and
           the way to the breakdown at the foot of the past conversations.
           The sum follows the end of each turn, as `usage` does. */}
-      <div
-        className="nx-foot t-meta flex h-7 shrink-0 items-center gap-3 px-3 text-ink-2"
-        data-testid="agent-foot"
-      >
-        <span className="tnum truncate" data-testid="agent-tally">{tally(usage?.usage)}</span>
-        <span className="flex-1" />
-        <Pressable
-          className="hover:text-ink"
-          data-testid="usage-open"
-          title="What this project's conversations have cost, in full"
-          onClick={() => {
+      {session?.available ? (
+        <SessionFoot
+          session={session}
+          usage={usage?.usage}
+          onOpen={() => {
             setConfirmClear(false);
-            setView("past");
+            setView("session");
           }}
+        />
+      ) : (
+        <div
+          className="nx-foot t-meta flex h-7 shrink-0 items-center gap-3 px-3 text-ink-2"
+          data-testid="agent-foot"
         >
-          Usage
-        </Pressable>
-      </div>
+          <span className="tnum truncate" data-testid="agent-tally">{tally(usage?.usage)}</span>
+          <span className="flex-1" />
+          <Pressable
+            className="hover:text-ink"
+            data-testid="usage-open"
+            title="What this project's conversations have cost, in full"
+            onClick={() => {
+              setConfirmClear(false);
+              setView("past");
+            }}
+          >
+            Usage
+          </Pressable>
+        </div>
+      )}
       </>
       ) : null}
     </div>
+  );
+}
+
+/** The column's foot with a Claude session behind it: how full the
+ *  conversation is, with the point where it is summarized marked, and the
+ *  busiest of the plan's limits, or with an API key what the project has
+ *  cost. One press anywhere on it opens the Session view. */
+function SessionFoot({
+  session,
+  usage,
+  onOpen,
+}: {
+  session: AgentSession;
+  usage: { turns: number; costUsd: number } | undefined;
+  onOpen: () => void;
+}) {
+  const percent = session.context?.percentage;
+  const compactAt = session.compactPercent ?? 60;
+  const limit = busiest(session.limits);
+  const subscription = onSubscription(session);
+  const right = subscription
+    ? limit && limit.utilization !== null
+      ? `${limitName(limit.type)} ${Math.round(limit.utilization * 100)}%`
+      : ""
+    : tally(usage);
+  const rightWarn = subscription && limit !== null && limit.status !== "allowed";
+  return (
+    <Pressable
+      className="nx-foot nx-session-foot t-meta"
+      data-testid="agent-foot"
+      title="This session: how full it is, the plan's limits, remote control"
+      onClick={onOpen}
+    >
+      {percent != null ? (
+        <span className="nx-session-ctx" data-warn={percent >= 50 ? "" : undefined} data-testid="foot-context">
+          Context {Math.round(percent)}%
+          <Meter
+            label="How full the conversation is"
+            value={percent / 100}
+            mark={compactAt / 100}
+            warnAt={0.5}
+          />
+        </span>
+      ) : null}
+      <span className="flex-1" />
+      {right ? (
+        <span className="tnum truncate" data-warn={rightWarn ? "" : undefined} data-testid="foot-limit">
+          {right}
+        </span>
+      ) : null}
+    </Pressable>
   );
 }
 
@@ -1344,6 +1467,18 @@ const Item = memo(function Item({
     return <EditChip item={item} onShowEdit={onShowEdit} onHoverEdit={onHoverEdit} />;
   }
 
+  if (item.kind === "compacted") {
+    return <CompactedLine item={item} />;
+  }
+
+  if (item.kind === "refused") {
+    return <RefusedLine item={item} />;
+  }
+
+  if (item.kind === "page") {
+    return <PageChip item={item} />;
+  }
+
   return <Permission item={item} />;
 })
 
@@ -1351,6 +1486,82 @@ const Item = memo(function Item({
 /** Where a turn nobody here asked for came from, in place of a question:
  *  one quiet line, the message folded under it behind the chevron a tool
  *  run uses, since it was written for the agent rather than the writer. */
+/** A page the agent published: the diff chip's shape, its name, Open and
+ *  Copy link. The page opens in a tab of its own, sandboxed by the server. */
+function PageChip({ item }: { item: Extract<ChatItem, { kind: "page" }> }) {
+  const projectId = useStore((s) => s.projectId);
+  const [copied, setCopied] = useState(false);
+  if (!projectId) return null;
+  const href = api.pageUrl(projectId, item.name);
+  return (
+    <div className="stream-indent" data-testid="page-chip">
+      <div className="nx-diff">
+        <span className="flex min-w-0 items-center gap-1.5 text-ink">
+          <PageIcon size={13} />
+          <span className="t-code-sm truncate">{item.name}</span>
+        </span>
+        <span className="flex shrink-0 gap-2">
+          <Pressable
+            className="text-ink-2 hover:text-ink"
+            data-testid="page-open"
+            onClick={() => window.open(href, "_blank", "noopener,noreferrer")}
+          >
+            Open
+          </Pressable>
+          <Pressable
+            className="text-ink-2 hover:text-ink"
+            onClick={async () => {
+              try {
+                await navigator.clipboard.writeText(new URL(href, window.location.href).href);
+                setCopied(true);
+              } catch {
+                setCopied(false);
+              }
+            }}
+          >
+            {copied ? "Copied" : "Copy link"}
+          </Pressable>
+        </span>
+      </div>
+    </div>
+  );
+}
+
+/** The CLI summarized the conversation: one quiet line, since what the
+ *  agent holds word for word changed and the writer should know. */
+function CompactedLine({ item }: { item: Extract<ChatItem, { kind: "compacted" }> }) {
+  const sizes =
+    item.before !== null && item.after !== null
+      ? ` The conversation went from ${Math.round(item.before)} to ${Math.round(item.after)} per cent of the window.`
+      : item.before !== null
+        ? ` The conversation had reached ${Math.round(item.before)} per cent of the window.`
+        : "";
+  return (
+    <div className="nx-quiet-line" data-testid="compacted">
+      <SectionsIcon size={12} />
+      <span>Earlier turns were summarized to make room.{sizes}</span>
+    </div>
+  );
+}
+
+/** A call a turn from outside NextTex wanted and the project's position
+ *  would have asked about: refused at once, since nobody here may be there
+ *  to answer a card, and said so where the card would have been. */
+function RefusedLine({ item }: { item: Extract<ChatItem, { kind: "refused" }> }) {
+  const mode = useStore((s) => s.mode);
+  const wanted = item.headline ? item.headline.charAt(0).toLowerCase() + item.headline.slice(1) : "do something";
+  const why =
+    mode === "ask"
+      ? "This project asks first about that, and a remote turn has nobody here to ask. Switch to Auto in NextTex to let it run."
+      : "This project asks about that even in Auto, and a remote turn has nobody here to ask.";
+  return (
+    <div className="nx-quiet-line" data-testid="refused">
+      <CloseIcon size={12} />
+      <span>Wanted to {wanted}. {why}</span>
+    </div>
+  );
+}
+
 function InjectedLine({ item }: { item: Extract<ChatItem, { kind: "injected" }> }) {
   const [open, setOpen] = useState(false);
   const at = item.name ? item.label.indexOf(item.name) : -1;

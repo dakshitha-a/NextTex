@@ -12,7 +12,6 @@ import {
   applyAppearance,
   isDefault,
   readStored,
-  step,
   storedAppearance,
   writeStored,
   type Appearance,
@@ -20,11 +19,12 @@ import {
 } from "../appearance";
 import { shortcut } from "../keys";
 import { Button, IconButton } from "../ui/Button";
-import { Chip, ChipToggle, Heading, Pressable, Segmented, Switch, useLabelId } from "../ui/controls";
+import { Chip, ChipToggle, Heading, Pressable, Segmented, Stepper, Switch, useLabelId } from "../ui/controls";
 import { Sheet } from "../ui/Sheet";
 import { CloseIcon } from "../ui/icons";
 import { KEEP_ALL_OFF, KEEP_ALL_ON } from "../keep-all";
 import HostSettings from "./HostSettings";
+import { COMPACT_STEPS } from "./session-words";
 
 /** Everything the writer gets to choose, in one sheet, master-detail.
  *
@@ -527,6 +527,7 @@ export default function SettingsSheet({
               onChange={(keepAllVersions) => toggle({ keepAllVersions })}
               testid="settings-keep-all"
             />
+            {provider === "claude" ? <RemoteRow projectId={projectId} /> : null}
             {/* "" is the default and is drawn as pdflatex, so the row never
                 shows nothing pressed; picking pdflatex writes "" so the
                 project's toml carries no key it does not need. */}
@@ -602,6 +603,7 @@ export default function SettingsSheet({
                 </Button>
               </SRow>
             ) : null}
+            {provider === "claude" ? <CompactRow /> : null}
             <HostSettings />
           </>
         ) : null}
@@ -671,35 +673,69 @@ function SwitchRow({
   );
 }
 
-/** The stepper, twice: the shape the page draws for a size, minus, the
- *  value, plus, with the readout wide enough to hold "13.5 px". */
-function Stepper({
-  what,
-  verbs = ["Smaller", "Larger"],
-  value,
-  steps,
-  display,
-  onChange,
-}: {
-  what: string;
-  verbs?: readonly [string, string];
-  value: number;
-  steps: number[];
-  display: string;
-  onChange: (value: number) => void;
-}) {
-  const first = value <= steps[0];
-  const last = value >= steps[steps.length - 1];
+/** Remote control, the same value as the Session view's switch: kept on
+ *  this computer only, though it sits in This project, since it opens a
+ *  connection from this writer's account and a co-author's copy of a
+ *  shared project must not carry it. Absent when the account cannot. */
+function RemoteRow({ projectId }: { projectId: string }) {
+  const session = useStore((s) => s.session);
+  useEffect(() => {
+    if (session === null) api.agentSession(projectId).then((answer) => set({ session: answer })).catch(() => undefined);
+  }, [projectId, session]);
+  if (!session?.available || session.account?.remoteAvailable === false) return null;
   return (
-    <div className="nx-stepper">
-      <IconButton label={`${verbs[0]} ${what}`} disabled={first} onClick={() => onChange(step(value, steps, -1))}>
-        <span aria-hidden="true">−</span>
-      </IconButton>
-      <b className="tnum">{display}</b>
-      <IconButton label={`${verbs[1]} ${what}`} disabled={last} onClick={() => onChange(step(value, steps, 1))}>
-        <span aria-hidden="true">+</span>
-      </IconButton>
-    </div>
+    <SwitchRow
+      title="Remote control"
+      checked={Boolean(session.remote?.enabled)}
+      on={REMOTE_NOTE}
+      off={REMOTE_NOTE}
+      testid="settings-remote"
+      onChange={async (remote) => {
+        try {
+          set({ session: await api.setAgentSession(projectId, { remote }) });
+        } catch (error: any) {
+          set({ error: error.message });
+        }
+      }}
+    />
+  );
+}
+
+const REMOTE_NOTE =
+  "On this computer only, since it opens a connection from your Claude account. A turn sent this way gets no cards: what Claude would ask about is refused.";
+
+/** Where every project's Claude session summarizes its conversation: the
+ *  same value as the Session view's stepper. */
+function CompactRow() {
+  const [percent, setPercent] = useState<number | null>(null);
+  useEffect(() => {
+    api.agentStatus().then((answer) => setPercent(answer.compactPercent ?? 60)).catch(() => undefined);
+  }, []);
+  if (percent === null) return null;
+  return (
+    <SRow
+      title="Summarize the conversation at"
+      note="Of the model's window. Lower keeps each step lighter on the plan; higher keeps more of the conversation word for word."
+      testid="settings-compact"
+    >
+      <Stepper
+        what="point"
+        verbs={["Earlier", "Later"]}
+        value={percent}
+        steps={COMPACT_STEPS}
+        display={`${percent}%`}
+        onChange={async (next) => {
+          try {
+            const answer = await api.setCompactPercent(next);
+            setPercent(answer.compactPercent);
+            const current = get().session;
+            if (current) set({ session: { ...current, compactPercent: answer.compactPercent } });
+          } catch (error: any) {
+            set({ error: error.message });
+          }
+        }}
+      />
+    </SRow>
   );
 }
 

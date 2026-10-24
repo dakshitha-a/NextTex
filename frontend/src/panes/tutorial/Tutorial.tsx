@@ -345,18 +345,17 @@ export default function Tutorial({
           <P>
             The chip under the box names the model and what it asks about,
             and opens a menu with both. What to ask about has three
-            positions. <C>Ask before acting</C> is the cards above. <C>Run the work
-            without asking</C> lets commands and edits inside the project run
-            silently and still asks about a write outside it or anything that
-            reaches the internet. <C>Never ask about anything</C> stops the
-            cards altogether. None of them stops the record: every action
+            positions. <C>Asks first</C> is the cards above. <C>Auto</C> lets
+            commands and edits inside the project run without asking and still
+            asks about a write outside it or anything that reaches the
+            internet. <C>Auto, all</C> stops the cards altogether. None of them stops the record: every action
             still appears in the conversation, saying it ran without asking.
           </P>
           <P>
             Under the box there are three controls and the send glyph: new
             conversation, attach an image, and the chip. The column's header
-            holds the rest, past conversations and what the agent reads, as
-            icon buttons that say their names on hover; while a turn runs the
+            holds the rest, past conversations, what the agent reads and this
+            session, as icon buttons that say their names on hover; while a turn runs the
             header shows what the agent is doing, and <C>Stop</C>. Runs of
             tool calls fold into one line you can open.
           </P>

@@ -48,6 +48,7 @@ from nexttex import (
     plots, rename, report, submit, synctex, texpkg,
 )
 from nexttex.version import VERSION
+from nexttex.pages import POLICY as PAGE_POLICY, Pages
 from server.collab import identity as collab_identity
 from server.collab import transport as collab_transport
 from server.collab import endpoint as collab_endpoint
@@ -6971,6 +6972,94 @@ async def agent_usage(project_id: str):
     }
 
 
+@app.get("/api/projects/{project_id}/agent/session")
+async def agent_session(project_id: str):
+    """The Claude session behind a project: its name, remote control, how
+    full the conversation is, the plan's limits, and the point at which it
+    is summarized.
+
+    `available` is false for an agent with no session of its own, the
+    OpenAI provider and no agent, and the panel then shows none of it.
+    A project with remote control on has its CLI started here, since
+    asking is what an open project does, and remote control promises to
+    be reachable while the project is open.
+    """
+    session = session_for(project_id)
+    view = getattr(session.agent, "session_view", None)
+    if view is None:
+        return {"available": False}
+    settings = getattr(session.agent, "session_settings", {}) or {}
+    if settings.get("remote") and not session.agent.busy:
+        spawn(session.agent.connect_now(), "starting a session open to remote control")
+    return {"available": True, **view()}
+
+
+@app.post("/api/projects/{project_id}/agent/session")
+async def agent_session_set(
+    project_id: str,
+    name: str | None = Body(None),
+    remote: bool | None = Body(None),
+):
+    """Rename the session, or turn its remote control on or off."""
+    session = session_for(project_id)
+    setter = getattr(session.agent, "set_session", None)
+    if setter is None:
+        raise HTTPException(400, "this agent has no session to change")
+    if name is not None and len(name) > 200:
+        raise HTTPException(400, "a session's name is at most 80 characters")
+    await setter(name=name, remote=remote)
+    return {"available": True, **session.agent.session_view()}
+
+
+@app.get("/api/projects/{project_id}/pages")
+async def list_pages(project_id: str):
+    """The pages the agent has published for this project, newest first."""
+    session = session_for(project_id)
+    return {"pages": Pages(session.project.state_dir).list()}
+
+
+@app.get("/api/projects/{project_id}/pages/{name}")
+async def serve_page(project_id: str, name: str):
+    """A published page, sandboxed: the policy gives it an origin of its
+    own, so a script in it cannot read this install's cookie or call its
+    API, and it may load nothing from anywhere but itself and Google's
+    fonts. A name that is not a page's, `..` among them, is not found."""
+    session = session_for(project_id)
+    body = Pages(session.project.state_dir).read(name)
+    if body is None:
+        raise HTTPException(404, "no such page")
+    return Response(
+        content=body,
+        media_type="text/html; charset=utf-8",
+        headers={
+            "Content-Security-Policy": PAGE_POLICY,
+            "X-Content-Type-Options": "nosniff",
+            "Referrer-Policy": "no-referrer",
+            "Cache-Control": "no-store",
+        },
+    )
+
+
+@app.delete("/api/projects/{project_id}/pages/{name}")
+async def delete_page(project_id: str, name: str):
+    session = session_for(project_id)
+    if not Pages(session.project.state_dir).delete(name):
+        raise HTTPException(404, "no such page")
+    return {"deleted": name}
+
+
+@app.post("/api/agent/compact")
+async def agent_compact(percent: int = Body(..., embed=True)):
+    """Where every project's Claude session summarizes its conversation,
+    as a percentage of the model's window. Taken up by each session's next
+    client, which is built between turns."""
+    if isinstance(percent, bool) or not 20 <= percent <= 95:
+        raise HTTPException(400, "the point is a whole percentage from 20 to 95")
+    SETTINGS.compact_percent = int(percent)
+    SETTINGS.save()
+    return {"compactPercent": SETTINGS.compact_percent}
+
+
 @app.post("/api/projects/{project_id}/agent/model")
 async def agent_model(project_id: str, model: str = Body("", embed=True)):
     session = session_for(project_id)
@@ -7468,7 +7557,10 @@ async def agent_status():
             "baseUrl": SETTINGS.openai_base_url,
         }
     status = claude_auth.status()
-    return {"provider": "claude", "ready": bool(status.get("loggedIn")), **status}
+    return {
+        "provider": "claude", "ready": bool(status.get("loggedIn")), **status,
+        "compactPercent": SETTINGS.compact_percent,
+    }
 
 
 @app.post("/api/agent/provider")

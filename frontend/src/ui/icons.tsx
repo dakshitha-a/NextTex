@@ -71,6 +71,10 @@ export const MoreIcon = icon(<><circle cx="4" cy="8" r="1.2" fill="currentColor"
 export const SlidersIcon = icon(<><path d="M3 4h10M3 8h10M3 12h10" /><circle cx="6" cy="4" r="1.4" /><circle cx="10" cy="8" r="1.4" /><circle cx="5" cy="12" r="1.4" /></>);
 export const ImageIcon = icon(<><path d="M2.5 3.5h11v9h-11z" /><path d="M4 11l3-3 2 2 1.5-1.5L12 11" /></>);
 export const DocIcon = icon(<><path d="M4 2h8v12H4z" /><path d="M6 6h4M6 8.5h4M6 11h2" /></>);
+/** The session: a gauge, for how full it is and what it may use. */
+export const GaugeIcon = icon(<><path d="M2.5 11.5a5.5 5.5 0 1 1 11 0" /><path d="M8 11.5l2.6-3.2" /><circle cx="8" cy="11.5" r="0.9" fill="currentColor" stroke="none" /></>);
+/** A page the agent published. */
+export const PageIcon = icon(<><path d="M3.5 2.5h9v11h-9z" /><path d="M5.5 5.5h5M5.5 8h5M5.5 10.5h3" /></>);
 export const UpdateIcon = icon(<><path d="M13 8a5 5 0 1 1-1.5-3.6" /><path d="M13 2.5v3h-3" /></>);
 export const ReportIcon = icon(<><path d="M2.5 3h11v8H7l-3 2.5V11H2.5z" /><path d="M8 5.5v2.5" /><circle cx="8" cy="9.6" r="0.5" fill="currentColor" /></>);
 export const HelpIcon = icon(<><circle cx="8" cy="8" r="5.5" /><path d="M6.3 6.5a1.7 1.7 0 1 1 2.4 1.6c-.5.3-.7.6-.7 1.1" /><circle cx="8" cy="11.2" r="0.5" fill="currentColor" /></>);

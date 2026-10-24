@@ -12481,3 +12481,73 @@ hand, so they are never mistaken for lookups that passed. The mark counts
 only where there is nothing to look up. `e2e/specs/papers.spec.ts` adds a
 book and marks an entry; the drawing is on the direction page under Books by
 ISBN, and sources checked by hand.
+
+## 121. The Claude session
+
+Drawn on the direction page under The Claude session, 23 October 2026,
+and finalized with the writer. A project's usage had read $2,068 after 99
+turns. Two causes: the CLI reports cost as a running total, which the column
+summed at every turn, and the conversation had reached 736,000 tokens
+without once being summarized, so every step read most of a million tokens
+back from the cache. The first is fixed in the count. The second is what
+this section is about: what the column now says about the session behind
+it, and the controls it now has.
+
+**The foot.** With a Claude session, the column's foot is one control. At
+its left, "Context 34%" and the kit's `Meter`, the third ink on the third
+surface, a tick where the conversation will be summarized; past half it
+takes the warn ink. At its right, on a subscription, the busiest of the
+plan's limits, "5-hour limit 42%", in the warn ink once the CLI says it is
+close; with an API key, the project's turns and cost, now counted once. A
+subscription shows no dollar figure anywhere, since it is what the work
+would have cost elsewhere, not a bill. A press anywhere on the foot opens
+the Session view. The OpenAI provider keeps the old foot and its Usage.
+
+**Summarized at 60 per cent.** Of every model's window, by default, where
+the CLI waited for a nearly full one. When it happens the turns get one
+quiet line in the third ink, "Earlier turns were summarized to make room.
+The conversation went from 61 to 14 per cent of the window.", which stays
+in the transcript. The point is one setting in two places: This install's
+"Summarize the conversation at", a `Stepper` from 30 to 90, and the same
+stepper in the Session view.
+
+**The Session view.** A third view beside Past conversations and What
+Claude reads, opened by a gauge in the header and by the foot. In order:
+the session's name, which other Claude Code sessions use to reach it and
+which starts as the project folder's; remote control; the context, its
+`Meter` at the large size with the summarizing mark, and the stepper; the
+plan's limits, each a `Meter` with how much is used and when it resets; what
+this project has used, which leaves the foot of Past conversations; the pages
+the agent published, a row each with Open, Copy link and Delete; and the
+session's id with a copy of the command that resumes it in a terminal.
+
+**Remote control.** A switch in the Session view, and the same value as a
+row in This project, whose note says it is kept on this computer only: it
+opens a connection from the writer's own account, and a co-author's copy of
+a shared project must not carry it. Shown only when the account can. On,
+the header carries "Remote" beside "Auto", in the second ink with a dot in
+the ok ink once connected and the warn ink while it connects, and the view
+offers the session on claude.ai. A turn that arrives that way follows the
+project's position and nothing else: it never raises a card, since nobody
+may be at this screen, and a call the position would ask about is refused at
+once. The turn says so in the card's place, in one quiet line: "Wanted to
+run a shell command. This project asks first about that, and a remote turn
+has nobody here to ask. Switch to Auto in NextTex to let it run." An edit
+inside the project asks about nothing in any position, so a remote turn
+edits as a turn typed here does; checked against the real CLI with a
+message from another session on 23 October 2026.
+
+**Pages.** The agent can publish an HTML page. It shows in the turn as a
+chip in the diff chip's shape, its name with Open and Copy link, and in the
+Session view's list. Asked about as a write is.
+
+**One set of words for the fence.** The chip, the menu, the header and the
+tutorial say Asks first, Auto and Auto, all, where four vocabularies had
+grown for three positions. The folded strip and the resize handle say the
+agent's own name rather than "Claude" with every provider.
+
+`e2e/specs/session.spec.ts` drives every surface here through the scripted
+stand-in, and the fidelity harness renders them in both themes as
+`session-live`, `session-high`, `session-refused`, `session-view-on`,
+`session-view-off`, `settings-remote` and `settings-compact`.
+

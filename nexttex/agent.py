@@ -54,6 +54,7 @@ from . import comment_tools
 from . import permission_gate as gate
 from .project import is_control_path
 from .explain import compile_report
+from .pages import Pages
 from .writing import PROSE
 
 from claude_agent_sdk import (
@@ -61,6 +62,7 @@ from claude_agent_sdk import (
     ClaudeAgentOptions,
     ClaudeSDKClient,
     HookMatcher,
+    RateLimitEvent,
     ResultMessage,
     StreamEvent,
     SystemMessage,
@@ -76,6 +78,55 @@ from claude_agent_sdk import (
 log = logging.getLogger("nexttex.agent")
 
 SESSION_FILE = "session.json"
+
+#: The session's name and whether it opens remote control, kept beside the
+#: session id.  In the project's state folder rather than `nexttex.toml`:
+#: remote control opens a connection from the writer's own account, and a
+#: co-author's copy of a shared project must not carry that with it.
+SESSION_SETTINGS_FILE = "session-settings.json"
+
+#: Where the CLI summarizes the conversation, as a percentage of the
+#: model's window.  The CLI's own default waits for a nearly full window,
+#: and with a million tokens that let one conversation reach 736,000 of
+#: them, every step of every turn reading most of them back from the cache.
+DEFAULT_COMPACT_PERCENT = 60
+
+#: The plan's limits as the CLI last reported them, one entry per window.
+#: One table for the install, since every project's CLI speaks for the same
+#: account; `RateLimitEvent` arrives when a window's state changes.
+LIMITS: dict[str, dict] = {}
+
+#: What the CLI said about the account when a client last connected: its
+#: plan, which side bills it, and whether it can open remote control.
+ACCOUNT: dict = {}
+
+#: The reason a turn the browser did not start is given for a call its
+#: project's position would ask about.  Nobody may be at this screen to
+#: answer a card, and a card nobody answers holds the turn for ten minutes.
+REMOTE_REFUSAL = (
+    "This turn did not start in NextTex, so nobody here can answer a "
+    "permission card, and this project asks before this kind of action. "
+    "Nothing was done. Edits inside the project need no card and still "
+    "run; a command, a fetch or a write outside the project waits for the "
+    "writer, or for the project to be switched to Auto in NextTex."
+)
+
+
+def note_limit(event: Any) -> dict:
+    """Keep what a `RateLimitEvent` says, and return the entry it made."""
+    info = getattr(event, "rate_limit_info", None)
+    if info is None:
+        return {}
+    kind = str(getattr(info, "rate_limit_type", None) or "unknown")
+    utilization = getattr(info, "utilization", None)
+    entry = {
+        "type": kind,
+        "status": str(getattr(info, "status", "") or ""),
+        "utilization": float(utilization) if utilization is not None else None,
+        "resetsAt": getattr(info, "resets_at", None),
+    }
+    LIMITS[kind] = entry
+    return entry
 
 # How long a permission card may sit unanswered before the turn gives up on
 # it, defined beside the other things both providers' cards share and
@@ -509,10 +560,25 @@ class ProjectAgent:
         comments: Callable[[str], list[dict]] | None = None,
         reply_comment: Callable[[str, str], str] | None = None,
         model: str | None = None,
+        compact_percent: Callable[[], int] | None = None,
     ):
         self.root = project_root.resolve()
         self.state_dir = state_dir
         self.context_prompt = context_prompt or (lambda: "")
+        # The install's setting, read each time a client is built.
+        self.compact_percent = compact_percent or (lambda: DEFAULT_COMPACT_PERCENT)
+        self._built_compact: int | None = None
+        self.session_settings = self._load_session_settings()
+        #: Pages this agent has published, served by NextTex.
+        self.pages = Pages(state_dir)
+        #: How full the conversation is, from `get_context_usage` after
+        #: each turn and on connect; None until a client has said.
+        self.context: dict | None = None
+        #: Remote control as the CLI last reported it.
+        self.remote: dict = {"state": "off", "url": ""}
+        # Whether the running turn began outside NextTex while remote
+        # control is on.  Such a turn never raises a card.
+        self._remote_turn = False
         self.has_voice = has_voice or (lambda: False)
         self.remember_note = remember or (
             lambda _note: (False, "This project has nowhere to keep a memory.")
@@ -987,6 +1053,16 @@ class ProjectAgent:
 
     def _card_for(self, tool_name: str, data: dict) -> dict:
         why = self._why_asked(tool_name, data)
+        if tool_name == "mcp__nexttex__publish_page":
+            return {
+                "headline": "Publish a page",
+                "detail": str(data.get("name") or ""),
+                "consequence": (
+                    "Anyone signed in to this install can open it. It runs in a "
+                    "sandbox that cannot reach NextTex or the network."
+                ),
+                "reason": "",
+            }
         if tool_name == "Bash":
             command = data.get("command", "")
             reason = self._reason(why, shell_syntax_in(command))
@@ -1178,6 +1254,8 @@ class ProjectAgent:
         "mcp__nexttex__check_references",
     })
 
+    _OWN_PUBLISH_TOOLS = frozenset({"mcp__nexttex__publish_page"})
+
     _SCRIPT_TOOLS = frozenset({
         "mcp__nexttex__run_plot_script",
         "mcp__nexttex__run_script",
@@ -1277,6 +1355,12 @@ class ProjectAgent:
         # README's own account of what leaves this machine lists searching
         # for papers among the things that do.
         if tool_name in self._OWN_NETWORK_TOOLS:
+            return await self._by_mode(tool_name, tool_input, tool_use_id)
+
+        # Ours, and it puts something where somebody else may read it: a
+        # page served to anyone signed in to this install. Asked about where
+        # a write would be.
+        if tool_name in self._OWN_PUBLISH_TOOLS:
             return await self._by_mode(tool_name, tool_input, tool_use_id)
 
         if tool_name in self._ALWAYS_OK or tool_name.startswith(self._OWN_TOOL_PREFIX):
@@ -1395,6 +1479,8 @@ class ProjectAgent:
         decision = await self._ask_user(tool_name, tool_input, tool_use_id)
         if decision in {"allow", "always", "conversation"}:
             return self._allow()
+        if decision == "remote":
+            return self._deny(REMOTE_REFUSAL)
         result = self._deny("The user declined this action.")
         if self._cancelled:
             result["continue_"] = False
@@ -1463,6 +1549,14 @@ class ProjectAgent:
         if rule and rule in self._conversation_allow:
             await self._settled(tool_name, tool_input, rule, "conversation", tool_use_id)
             return "allow"
+        if self._remote_turn:
+            await self._emit({
+                "type": "refused",
+                "tool": tool_name,
+                "toolId": tool_use_id or "",
+                **self.describe(tool_name, tool_input),
+            })
+            return "remote"
 
         # Two tool calls can land in the same millisecond, and the second
         # then replaced the first's future -- which nothing ever resolved,
@@ -2021,6 +2115,29 @@ class ProjectAgent:
                 self.memory_changed()
             return self._text(message)
 
+        @tool(
+            "publish_page",
+            "Publish an HTML page the writer can open and share a link to: a "
+            "table to send a co-author, a summary to read on a phone, a "
+            "report of what changed. `name` is its address, lower-case words "
+            "joined by hyphens; a page of the same name is replaced. `html` "
+            "is the whole page, with its styles inline. It is served behind "
+            "this install's sign-in in a sandbox, so a script in it runs but "
+            "cannot fetch anything; put the data in the page. Fonts may come "
+            "from Google Fonts. Up to 2 MB.",
+            {"name": str, "html": str},
+        )
+        async def publish_page(args: dict) -> dict:
+            try:
+                name = self.pages.save(str(args.get("name") or ""), str(args.get("html") or ""))
+            except ValueError as exc:
+                return self._text(f"Not published: {exc}.")
+            await self._emit({"type": "page", "name": name})
+            return self._text(
+                f"Published as {name}. The writer sees it in the conversation "
+                "with Open and Copy link, and in the Session view's list."
+            )
+
         return create_sdk_mcp_server(
             name="nexttex",
             version="1.0.0",
@@ -2030,7 +2147,7 @@ class ProjectAgent:
                 replace_range, run_plot_script, run_script, install_package, goto,
                 show_page, list_comments, reply_to_comment,
                 search_library, find_papers, add_reference, check_references,
-                remember, revise_memory,
+                remember, revise_memory, publish_page,
             ],
         )
 
@@ -2657,7 +2774,14 @@ class ProjectAgent:
             # nine calls loading compile, remember and replace_range before
             # it could use them. They are some two dozen short schemas, so
             # they load up front.
-            env={"ENABLE_TOOL_SEARCH": "false"},
+            # Summarize at the install's point rather than the CLI's own,
+            # which waits for a nearly full window. Read once per client,
+            # and `_ensure_client` builds a new one between turns when
+            # the setting moves.
+            env={
+                "ENABLE_TOOL_SEARCH": "false",
+                "CLAUDE_AUTOCOMPACT_PCT_OVERRIDE": str(self._compact_now()),
+            },
             hooks={
                 "PreToolUse": [HookMatcher(hooks=[self._pre_tool])],
                 "PostToolUse": [HookMatcher(hooks=[self._post_tool])],
@@ -2680,14 +2804,204 @@ class ProjectAgent:
         if self._client is not None and self._memory_dirty:
             self._memory_dirty = False
             await self.disconnect()
+        # The same for the point at which the CLI summarizes: it is an
+        # environment variable of the process, fixed when it starts.
+        if (
+            self._client is not None
+            and self._built_compact is not None
+            and self._built_compact != self._compact_now()
+        ):
+            await self.disconnect()
         if self._client is not None:
             return self._client
         self._memory_dirty = False
+        self._built_compact = self._compact_now()
         client = ClaudeSDKClient(options=self._options())
         await client.connect()
         self._client = client
         self._cost_seen = 0.0
+        await self._after_connect(client)
         return client
+
+    def _compact_now(self) -> int:
+        try:
+            value = int(self.compact_percent())
+        except (TypeError, ValueError):
+            value = DEFAULT_COMPACT_PERCENT
+        return max(20, min(95, value))
+
+    # -- the session: its name, remote control, context, limits ----------
+    def _load_session_settings(self) -> dict:
+        try:
+            saved = json.loads(
+                (self.state_dir / SESSION_SETTINGS_FILE).read_text(encoding="utf-8")
+            )
+        except (OSError, json.JSONDecodeError):
+            saved = {}
+        name = saved.get("name") if isinstance(saved.get("name"), str) else ""
+        return {"name": name.strip()[:80], "remote": saved.get("remote") is True}
+
+    def _save_session_settings(self) -> None:
+        try:
+            path = self.state_dir / SESSION_SETTINGS_FILE
+            temp = path.with_suffix(".json.tmp")
+            temp.write_text(json.dumps(self.session_settings), encoding="utf-8")
+            temp.replace(path)
+        except OSError as exc:
+            log.warning("could not save the session's settings: %s", exc)
+
+    @property
+    def session_name(self) -> str:
+        """What other Claude Code sessions call this one: the writer's
+        name for it, or the project folder's."""
+        return self.session_settings.get("name") or self.root.name
+
+    async def _control(self, client: Any, request: dict) -> dict | None:
+        """Send the CLI a control request the SDK has no method for.
+
+        Remote control and the session's name are control requests the
+        CLI answers (measured against 2.1.310 on 23 October 2026), and the
+        SDK sends `interrupt` and `get_context_usage` down the same channel
+        but exposes no call for these two.  A private member, so every use
+        is guarded: an SDK that renames it costs the feature, not the turn.
+        """
+        query = getattr(client, "_query", None)
+        send = getattr(query, "_send_control_request", None)
+        if send is None:
+            log.warning("this SDK has no control channel; %s skipped", request.get("subtype"))
+            return None
+        try:
+            answer = await send(request)
+        except Exception as exc:
+            log.warning("the CLI refused %s: %s", request.get("subtype"), exc)
+            return None
+        return answer if isinstance(answer, dict) else {}
+
+    async def _after_connect(self, client: Any) -> None:
+        """What a new client is told and asked before its first turn."""
+        try:
+            info = await client.get_server_info() or {}
+        except Exception:
+            info = {}
+        account = info.get("account") or {}
+        ACCOUNT.update({
+            "plan": str(account.get("subscriptionType") or ""),
+            "apiProvider": str(account.get("apiProvider") or ""),
+            "remoteAvailable": bool(info.get("remote_control_available")),
+        })
+        await self._control(client, {"subtype": "rename_session", "title": self.session_name})
+        if self.session_settings.get("remote"):
+            await self._remote_on(client)
+        await self._refresh_context(client)
+
+    async def _remote_on(self, client: Any) -> None:
+        if not ACCOUNT.get("remoteAvailable"):
+            self.remote = {"state": "unavailable", "url": ""}
+            await self._emit({"type": "remote", **self.remote})
+            return
+        self.remote = {"state": "connecting", "url": ""}
+        await self._emit({"type": "remote", **self.remote})
+        answer = await self._control(client, {
+            "subtype": "remote_control", "enabled": True, "name": self.session_name,
+        })
+        if answer is None:
+            self.remote = {"state": "failed", "url": ""}
+        else:
+            self.remote["url"] = str(answer.get("session_url") or "")
+        await self._emit({"type": "remote", **self.remote})
+
+    async def _refresh_context(self, client: Any) -> None:
+        try:
+            usage = await client.get_context_usage()
+        except Exception as exc:
+            log.info("the CLI did not say how full the context is: %s", exc)
+            return
+        if not isinstance(usage, dict):
+            return
+        self.context = {
+            "percentage": usage.get("percentage"),
+            "totalTokens": usage.get("totalTokens"),
+            "maxTokens": usage.get("maxTokens"),
+            "threshold": usage.get("autoCompactThreshold"),
+        }
+
+    async def set_session(self, *, name: str | None = None, remote: bool | None = None) -> None:
+        """Rename the session, or turn remote control on or off.
+
+        Kept on disk first, so a client built later is told the same; a
+        live client is told now.  A turn may be running: both are control
+        requests, which the CLI answers between messages.
+        """
+        renamed = False
+        if name is not None:
+            clean = " ".join(name.split())[:80]
+            renamed = clean != self.session_settings.get("name", "")
+            self.session_settings["name"] = clean
+        toggled = remote is not None and bool(remote) != self.session_settings.get("remote")
+        if remote is not None:
+            self.session_settings["remote"] = bool(remote)
+        self._save_session_settings()
+        client = self._client
+        if client is None:
+            if toggled and remote:
+                await self.connect_now()
+            elif toggled:
+                self.remote = {"state": "off", "url": ""}
+                await self._emit({"type": "remote", **self.remote})
+            return
+        if renamed:
+            await self._control(client, {"subtype": "rename_session", "title": self.session_name})
+        if toggled and remote:
+            await self._remote_on(client)
+        elif toggled:
+            await self._control(client, {"subtype": "remote_control", "enabled": False})
+            self.remote = {"state": "off", "url": ""}
+            await self._emit({"type": "remote", **self.remote})
+
+    async def connect_now(self) -> None:
+        """Start the CLI without a question, so a session with remote
+        control on can be reached as soon as its project is open."""
+        if self.busy:
+            return
+        async with self._lock:
+            client = await self._ensure_client()
+        if not self.busy and client is self._client:
+            self._start_listening()
+
+    def session_view(self) -> dict:
+        """What the Session view and the column's foot show."""
+        return {
+            "id": self._session_id or self._load_session() or "",
+            "name": self.session_name,
+            "folderName": self.root.name,
+            "remote": {"enabled": bool(self.session_settings.get("remote")), **self.remote},
+            "context": self.context,
+            "compactPercent": self._compact_now(),
+            "limits": sorted(LIMITS.values(), key=lambda e: e["type"]),
+            "account": dict(ACCOUNT),
+        }
+
+    async def _system(self, message: Any) -> None:
+        """A system message, in a turn or between turns."""
+        data = getattr(message, "data", {}) or {}
+        session_id = data.get("session_id")
+        if session_id and session_id != self._session_id:
+            self._session_id = session_id
+            self._save_session(session_id)
+        subtype = getattr(message, "subtype", "") or data.get("subtype", "")
+        if subtype == "compact_boundary":
+            meta = data.get("compact_metadata") or {}
+            before = self.context.get("percentage") if self.context else None
+            await self._emit({
+                "type": "compacted",
+                "beforeTokens": meta.get("pre_tokens"),
+                "beforePercent": before,
+                "trigger": meta.get("trigger") or "",
+            })
+        elif subtype == "bridge_state":
+            state = str(data.get("state") or "")
+            self.remote["state"] = {"ready": "connecting"}.get(state, state or "off")
+            await self._emit({"type": "remote", **self.remote})
 
     async def disconnect(self) -> None:
         await self._stop_listening()
@@ -2874,10 +3188,11 @@ class ProjectAgent:
                     self._begin_injected(message, origin)
                     return
                 if isinstance(message, SystemMessage):
-                    session_id = (getattr(message, "data", {}) or {}).get("session_id")
-                    if session_id and session_id != self._session_id:
-                        self._session_id = session_id
-                        self._save_session(session_id)
+                    await self._system(message)
+                    continue
+                if isinstance(message, RateLimitEvent):
+                    if note_limit(message):
+                        await self._emit({"type": "limits", "limits": sorted(LIMITS.values(), key=lambda e: e["type"])})
                     continue
                 if isinstance(message, ResultMessage):
                     log.info("read a result between turns that no turn was waiting for")
@@ -2909,6 +3224,11 @@ class ProjectAgent:
             if origin is not None else dict(ORIGIN_PENDING)
         )
         self._injected_turn = origin is None
+        # With remote control on, a turn the browser did not start may come
+        # from claude.ai with nobody at this screen, and a message from
+        # another session cannot be told from it until its result, so both
+        # are held to the project's position without cards.
+        self._remote_turn = self.remote.get("state") in ("connecting", "connected")
         self._cancelled = False
         self._done_sent = False
         now = time.monotonic()
@@ -2938,6 +3258,7 @@ class ProjectAgent:
         if self.busy:
             raise RuntimeError("a turn is already running")
         self._injected_turn = False
+        self._remote_turn = False
         self._cancelled = False
         self._done_sent = False
         self._last_event = time.monotonic()
@@ -3176,10 +3497,12 @@ class ProjectAgent:
                 await thinking_stopped()
 
                 if isinstance(message, SystemMessage):
-                    session_id = (getattr(message, "data", {}) or {}).get("session_id")
-                    if session_id and session_id != self._session_id:
-                        self._session_id = session_id
-                        self._save_session(session_id)
+                    await self._system(message)
+                    continue
+
+                if isinstance(message, RateLimitEvent):
+                    if note_limit(message):
+                        await self._emit({"type": "limits", "limits": sorted(LIMITS.values(), key=lambda e: e["type"])})
                     continue
 
                 if isinstance(message, AssistantMessage):
@@ -3222,12 +3545,16 @@ class ProjectAgent:
                         self._session_id = session_id
                         self._save_session(session_id)
                     cost = self._record_usage(message)
+                    await self._refresh_context(client)
                     if self._injected_turn:
                         self._injected_turn = False
-                        await self._emit({
-                            "type": "turn_origin",
-                            "origin": origin_view(getattr(message, "origin", None), ""),
-                        })
+                        view = origin_view(getattr(message, "origin", None), "")
+                        # A person typing on claude.ai, as the CLI names
+                        # one, or nobody named at all, while remote control
+                        # is open: that is where this turn came from.
+                        if self._remote_turn and view["kind"] in ("unknown", "human", "person"):
+                            view["label"] = "Sent over remote control"
+                        await self._emit({"type": "turn_origin", "origin": view})
                     # The CLI names a stopped turn's result its own way;
                     # the panel and the transcript key on "interrupted".
                     await self._emit({
@@ -3236,6 +3563,7 @@ class ProjectAgent:
                         "costUsd": cost,
                         "durationMs": getattr(message, "duration_ms", None),
                         "usage": self.usage,
+                        "context": self.context,
                     })
                     self._last_used = time.monotonic()
                     return

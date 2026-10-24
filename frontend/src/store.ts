@@ -12,6 +12,7 @@ import { renamePaths } from "./tabs";
 import { learnKinds } from "./panes/file-kinds";
 import api, {
   clientId,
+  type AgentSession,
   countOf,
   limitsOf,
   engineOf,
@@ -122,6 +123,16 @@ export type ChatItem =
       items: { text: string; state: "pending" | "active" | "done" }[];
     }
   | { kind: "notice"; id: string; text: string; tone: "error" | "plain" }
+  /** The CLI summarized the conversation to make room. `before` and
+   *  `after` are how full it was, in per cent of the window; `after` is
+   *  known only when the turn ends. */
+  | { kind: "compacted"; id: string; before: number | null; after: number | null; at: number }
+  /** A call a turn from outside NextTex wanted, which the project's
+   *  position would have asked about, refused without a card because
+   *  nobody here may be there to answer one. */
+  | { kind: "refused"; id: string; tool: string; headline: string; detail: string; at: number }
+  /** A page the agent published, served by NextTex behind its sign-in. */
+  | { kind: "page"; id: string; name: string }
   /** A full stop. Written by the transcript when a turn finishes, so the
    *  replay can tell an interrupted turn from a finished one rather than
    *  guessing from the shape of the last row. Never rendered. */
@@ -305,6 +316,11 @@ export type State = {
     since: number;
   } | null;
   awaitingPermission: boolean;
+  /** The Claude session behind the open project, as the column's foot and
+   *  the Session view show it: its name, remote control, how full the
+   *  conversation is and the plan's limits. Null until it has been asked
+   *  for, and `available: false` for an agent without one. */
+  session: AgentSession | null;
   /** The project paths Claude has edited in the turn that is running,
    *  emptied when the next turn starts.  The source strip draws the pen
    *  underline on their tabs while `thinking` holds. */
@@ -490,6 +506,7 @@ const state: State = {
   turnEdits: [],
   activity: null,
   awaitingPermission: false,
+  session: null,
   mode: "ask",
   git: null,
   instance: "",
@@ -621,6 +638,19 @@ export function chatFromTranscript(items: any[], options: { running?: boolean } 
     const at = item.at ?? Date.now();
     if (item.kind === "user") {
       chat.push({ kind: "user", id: nextId(), text: item.text ?? "", at });
+    } else if (item.kind === "compacted") {
+      chat.push({
+        kind: "compacted", id: nextId(),
+        before: typeof item.beforePercent === "number" ? item.beforePercent : null,
+        after: typeof item.afterPercent === "number" ? item.afterPercent : null, at,
+      });
+    } else if (item.kind === "page") {
+      chat.push({ kind: "page", id: nextId(), name: item.name ?? "" });
+    } else if (item.kind === "refused") {
+      chat.push({
+        kind: "refused", id: nextId(), tool: item.tool ?? "",
+        headline: item.headline ?? "", detail: item.detail ?? "", at,
+      });
     } else if (item.kind === "injected") {
       chat.push({
         kind: "injected", id: nextId(), label: item.label ?? "",
@@ -1605,14 +1635,65 @@ function receive(event: any) {
         tone: "plain",
       });
       break;
-    case "done":
+    case "compacted":
       endText();
+      pushChat({
+        kind: "compacted", id: nextId(),
+        before: typeof event.beforePercent === "number" ? event.beforePercent : null,
+        after: null, at: Date.now(),
+      });
+      break;
+    case "page":
+      endText();
+      pushChat({ kind: "page", id: nextId(), name: String(event.name ?? "") });
+      break;
+    case "refused":
+      endText();
+      pushChat({
+        kind: "refused", id: nextId(), tool: String(event.tool ?? ""),
+        headline: String(event.headline ?? ""), detail: String(event.detail ?? ""),
+        at: Date.now(),
+      });
+      break;
+    case "limits":
+      if (state.session?.available) {
+        set({ session: { ...state.session, limits: Array.isArray(event.limits) ? event.limits : [] } });
+      }
+      break;
+    case "remote":
+      if (state.session?.available) {
+        set({
+          session: {
+            ...state.session,
+            remote: {
+              enabled: state.session.remote?.enabled ?? false,
+              state: String(event.state ?? "off"),
+              url: String(event.url ?? state.session.remote?.url ?? ""),
+            },
+          },
+        });
+      }
+      break;
+    case "done": {
+      endText();
+      // How full the conversation is after this turn, and the line a
+      // compaction in it left takes the number it went down to.
+      if (event.context && typeof event.context === "object") {
+        const after = typeof event.context.percentage === "number" ? event.context.percentage : null;
+        const open = [...get().chat].reverse().find(
+          (item) => item.kind === "compacted" && item.after === null,
+        );
+        if (open && after !== null) updateChat(open.id, { after } as Partial<ChatItem>);
+        const current = get().session;
+        if (current?.available) set({ session: { ...current, context: event.context } });
+      }
       // Including `awaitingPermission`: interrupting a turn with a card open
       // cancels the pending answer server-side, so the card is gone but
       // nothing was ever going to clear the flag -- and the composer stayed
       // disabled saying it was waiting on an approval that no longer exists.
       set({ thinking: false, awaitingPermission: false, activity: null });
       break;
+    }
   }
 }
 

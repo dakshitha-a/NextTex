@@ -1,0 +1,10 @@
+[
+  {"kind": "context_usage", "percentage": 61, "totalTokens": 610000, "maxTokens": 1000000, "threshold": 600000},
+  {"kind": "limits", "limits": [
+    {"type": "five_hour", "status": "allowed", "utilization": 0.42, "resetsAt": 1792900000},
+    {"type": "seven_day", "status": "allowed", "utilization": 0.18, "resetsAt": 1793300000}
+  ]},
+  {"kind": "compact", "beforePercent": 61, "beforeTokens": 610000},
+  {"kind": "context_usage", "percentage": 14, "totalTokens": 140000, "maxTokens": 1000000, "threshold": 600000},
+  {"kind": "text", "text": "Here it is, a table of the three solvents with the fit residuals under it.", "pieces": 3}
+]

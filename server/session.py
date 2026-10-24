@@ -463,6 +463,7 @@ class ProjectSession:
             model=model or None,
             api_key=api_key,
             base_url=base_url,
+            compact_percent=lambda: self.settings().compact_percent,
         )
 
         self._editor_state: dict = {}
@@ -1929,6 +1930,13 @@ class ProjectSession:
 
     async def reap_idle_agent(self) -> None:
         if self.agent.busy:
+            return
+        # A session open to remote control is kept while somebody has the
+        # project open, since that is when it promised to be reachable;
+        # once nobody does, the usual idle time ends it, and the bridge
+        # with it.
+        remote = getattr(self.agent, "session_settings", {}).get("remote")
+        if remote and self.events.watchers:
             return
         if self.agent.idle_seconds > AGENT_IDLE_TIMEOUT:
             await self.agent.disconnect()

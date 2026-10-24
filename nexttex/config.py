@@ -124,6 +124,11 @@ class Settings:
     # The other side: the hosts this install has paired with, each with the
     # key its connection proved, the name it gave, its address and secret.
     hosts: list = field(default_factory=list)
+    # Where the Claude CLI summarizes a conversation, as a percentage of
+    # the model's window. The CLI's own point is a nearly full window,
+    # which at a million tokens let one conversation reach 736,000 and
+    # read most of them back at every step.
+    compact_percent: int = 60
 
     def kept_root(self) -> Path:
         """Where a host keeps the projects its writers share with it."""

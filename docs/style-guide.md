@@ -169,6 +169,8 @@ kit's `Button` carries those looks as its variants.
 | `Chip` | `controls.tsx` | a small labelled thing that can be removed: a file, an added word, a format; `mono` for a literal | a pill with a colour |
 | `ChipToggle` | `controls.tsx` | one of several yes-or-no choices that are not exclusive, in one line: which cards the editor shows; on is the chip's shape in the ink, off is hollow in the third ink, `aria-pressed` carries the state | a switch row per item where the items are many and small |
 | `Switch` | `controls.tsx` | on or off, and nothing between | a checkbox styled by hand |
+| `Stepper` | `controls.tsx` | a number taken from a short ladder, a size or a percentage: minus, the value, plus, an end of the ladder disabling its button | a field for a number with arrows |
+| `Meter` | `controls.tsx` | how much of something is used, a 4 px bar in the third ink on the third surface that takes the warn ink past its point, with an optional tick where something happens; `lg` is the 6 px bar a view gives it | a progress bar, a coloured percentage |
 | `Segmented` | `controls.tsx` | two to six exclusive choices, `md` in a sheet and `sm` in a strip; `className="nx-segmented-wrap"` when they may not fit the width, as the six templates do not on a phone | a row of toggle buttons |
 | `Heading` | `controls.tsx` | a real `h1`/`h2`/`h3`; `display` for a sheet's or a screen's title | a styled span |
 | `TextArea` | `controls.tsx` | a text box of several lines, taking its look from its place's class | a raw `<textarea>` |
@@ -212,6 +214,13 @@ else.
 
 ## How things behave
 
+- Something that happened to a conversation rather than in it, a
+  compaction, a call refused because nobody could be asked, is one quiet
+  line in the turns: `nx-quiet-line`, the third ink at 12.5 px with a 12 px
+  glyph, never a card. A state the column is in, Auto or Remote, is a word
+  in the header at 12 px weight 500, the warn ink for Auto and the second
+  ink with a 6 px dot for Remote, ok once connected and warn while it
+  connects; the control that changes it lives elsewhere.
 - A box the writer composes a message in grows with its text, so what
   was typed can be read back whole: from its resting two lines until
   its card is half the pane it sits in, then it holds that height and

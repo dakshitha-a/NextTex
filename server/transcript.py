@@ -280,8 +280,44 @@ class Transcript:
             self._buffer.append(event.get("text", ""))
         elif kind == "text_end":
             self._flush_text()
+        elif kind == "compacted":
+            # The CLI summarized the conversation: a line the writer is
+            # told about, since what the agent remembers word for word
+            # changed under them. How full it was after is known only at
+            # the turn's end, and patches the line then.
+            self._flush_text()
+            self._compacted = f"compacted-{time.time_ns()}"
+            self._append({
+                "kind": "compacted", "id": self._compacted,
+                "beforePercent": event.get("beforePercent"),
+                "beforeTokens": event.get("beforeTokens"),
+            })
+        elif kind == "page":
+            # A page the agent published: a chip in the turn that made it.
+            self._flush_text()
+            self._append({"kind": "page", "name": event.get("name", "")})
+        elif kind == "refused":
+            # A call a turn from outside NextTex wanted and this project's
+            # position would have asked about. Nobody was asked; it is kept
+            # as what happened, beside the cards that were.
+            self._flush_text()
+            self._append({
+                "kind": "refused",
+                "tool": event.get("tool", ""),
+                "toolId": event.get("toolId", ""),
+                "headline": event.get("headline", ""),
+                "detail": event.get("detail", ""),
+            })
         elif kind == "done":
             self._flush_text()
+            target = getattr(self, "_compacted", "")
+            context = event.get("context") or {}
+            if target and context.get("percentage") is not None:
+                self._append({
+                    "kind": "compacted_after", "id": target,
+                    "afterPercent": context.get("percentage"),
+                })
+            self._compacted = ""
             # A full stop, so the replay does not have to guess. It guessed
             # from the shape of the last row, which is a heuristic that is
             # wrong in both directions: a turn that really did end on a
@@ -441,6 +477,11 @@ class Transcript:
                 if target:
                     for key in ("origin", "label", "name", "text"):
                         target[key] = item.get(key, target.get(key))
+                continue
+            if kind == "compacted_after":
+                target = index.get(item.get("id", ""))
+                if target:
+                    target["afterPercent"] = item.get("afterPercent")
                 continue
             if kind == "edit_state":
                 target = index.get(item.get("id", ""))

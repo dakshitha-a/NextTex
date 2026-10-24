@@ -176,6 +176,13 @@ If you can describe it, you can ask for it.
 Every edit shows up with an undo, and it asks before running anything. Use
 Claude, OpenAI, a model on your own machine, or none.
 
+With Claude, the column's foot shows how full the conversation is and how
+much of your plan you have used, and a long conversation is summarized
+before it gets heavy. Give the session a name and turn on remote control,
+and you can reach your project's agent from claude.ai/code, the Claude app
+or your other Claude Code sessions while the project is open. Ask it for a
+page and it publishes one you can open or send a link to.
+
 [More on the agent →](docs/guide.md#the-agent)
 
 </td>
@@ -433,6 +440,8 @@ never written.
 | What | Where it goes | When |
 |---|---|---|
 | Your messages to the agent | Anthropic or OpenAI, or nowhere for a local model | When you use that agent |
+| Remote control | Anthropic, through the Claude CLI | Only for a project you turn it on for |
+| A page the agent published | Google Fonts, if the page uses them | When you open the page |
 | Reference searches | Crossref, OpenAlex, Semantic Scholar, arXiv, doi.org | When you search |
 | A book's record, by ISBN | Open Library, then Google Books | When you add or check a book |
 | The update check | GitHub | When the projects screen opens |
@@ -447,7 +456,9 @@ never written.
 <br>
 
 1. **The agent:** what you send it goes to Anthropic or OpenAI. When the
-   OpenAI provider points at a local server, it goes nowhere.
+   OpenAI provider points at a local server, it goes nowhere. A page it
+   publishes is opened in a sandbox that may load fonts from
+   `fonts.googleapis.com` and `fonts.gstatic.com` and nothing else.
 2. **References:** Crossref, OpenAlex, Semantic Scholar, arXiv and `doi.org`.
    A book's ISBN, or its title and first author when a book entry has no
    ISBN, goes to `openlibrary.org`, and to `www.googleapis.com` when Open
