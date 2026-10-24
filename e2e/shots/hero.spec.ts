@@ -211,6 +211,14 @@ for (const theme of ["light", "dark"] as const) {
     await expect(tab.locator(".cm-editor")).toBeVisible({ timeout: 30_000 });
     await expect(tab.locator("canvas").first()).toBeVisible({ timeout: 45_000 });
     const composer = tab.locator("textarea");
+    // An earlier turn, cleared, so the foot has a context and a limit to
+    // show, as a column that has been working would.
+    await composer.click();
+    await composer.fill("#script:seed-session\nAre you there?");
+    await composer.press("Enter");
+    await tab.getByTestId("foot-context").waitFor({ timeout: 20_000 });
+    await tab.getByTestId("clear-chat").click();
+    await tab.getByTestId("clear-confirm").click();
     await composer.click();
     await composer.fill("#script:showcase\nTighten the abstract's first sentence, and add the missing citation in Results.");
     await composer.press("Enter");
