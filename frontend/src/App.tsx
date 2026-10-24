@@ -3405,7 +3405,7 @@ export default function App() {
           onPointerDown={startDrag("chat")}
             onNudge={nudge("chat")}
             value={(widths.chat / Math.max(1, window.innerWidth)) * 100}
-            label="Resize the Claude column"
+            label={`Resize the ${agentName(agentProvider as Provider | undefined)} column`}
           onReset={() => resetWidth("chat")}
         />
       ) : null}
@@ -3435,8 +3435,8 @@ export default function App() {
       {!noAgent && !chatOver ? (
         <StripSlot fold={chatFold} name="claude">
           <Collapsed
-            label="Claude"
-            shows="Claude"
+            label={agentName(agentProvider as Provider | undefined)}
+            shows={agentName(agentProvider as Provider | undefined)}
             side="right"
             mark={<AgentStateDot />}
             onExpand={toggleChat}

@@ -13,7 +13,7 @@ import { Pressable } from "../ui/controls";
  *  It is not shown in the other two states.  While the column is open, in
  *  either form, the column's own fold control closes it and a second
  *  control for the same act is one more thing to hold in mind.  While the
- *  column is docked and folded, the `Collapsed` strip labelled "Claude"
+ *  column is docked and folded, the `Collapsed` strip labelled with the agent's name
  *  stands in for it, as the Source and Preview strips stand in for theirs,
  *  and the strip carries the same state dot.  It used to float in all
  *  three, which is what the three screenshots under `docs/` show; the
