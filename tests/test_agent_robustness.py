@@ -23,7 +23,10 @@ stream cleanly with a result.
 from __future__ import annotations
 
 import asyncio
+import json
 import time
+
+import pytest
 
 from nexttex import agent as agent_module
 from nexttex.agent import ProjectAgent
@@ -1121,3 +1124,66 @@ def test_a_peer_message_as_the_real_cli_sends_it(tmp_path):
     assert events[0]["origin"]["label"] == "A message arrived"
     assert events[3]["origin"]["label"] == "A message from nexttex-dev"
     assert events[3]["origin"]["text"] == "Reply with exactly the word heliotrope."
+
+
+# -- Cost is the CLI's running total ------------------------------------------
+#
+# `total_cost_usd` is a running total for the CLI process, measured on
+# 23 October 2026 as 0.187, 0.228 and 0.238 over three turns.  Adding it
+# whole counted every earlier turn again at each result.
+
+
+def _costed(total: float, tokens: int = 10):
+    from claude_agent_sdk import ResultMessage
+
+    return ResultMessage(
+        subtype="success", duration_ms=5, duration_api_ms=5, is_error=False,
+        num_turns=1, session_id="s", total_cost_usd=total,
+        usage={"input_tokens": 1, "output_tokens": tokens, "cache_read_input_tokens": 100},
+    )
+
+
+def test_a_running_total_is_counted_once(tmp_path):
+    subject = make_agent(tmp_path)
+    for total in (1.0, 3.0, 4.0):
+        subject._record_usage(_costed(total))
+    assert subject.usage["costUsd"] == pytest.approx(4.0)
+    assert subject.usage["turns"] == 3
+    # Tokens are per turn and are summed as they come.
+    assert subject.usage["outputTokens"] == 30
+    assert subject.usage["cacheReadTokens"] == 300
+
+
+def test_a_new_cli_process_counts_from_nothing_again(tmp_path):
+    subject = make_agent(tmp_path)
+    subject._record_usage(_costed(2.0))
+    # A rebuilt client is a new process whose total starts at zero; the
+    # first result it sends is that turn's cost alone.
+    subject._cost_seen = 0.0
+    subject._record_usage(_costed(0.5))
+    assert subject.usage["costUsd"] == pytest.approx(2.5)
+
+
+def test_a_total_that_falls_is_a_fresh_count(tmp_path):
+    subject = make_agent(tmp_path)
+    subject._record_usage(_costed(3.0))
+    subject._record_usage(_costed(0.25))
+    assert subject.usage["costUsd"] == pytest.approx(3.25)
+
+
+def test_dollars_summed_before_the_fix_are_dropped_and_tokens_kept(tmp_path):
+    state = tmp_path / "state"
+    state.mkdir()
+    (state / "usage.json").write_text(json.dumps({
+        "turns": 99, "costUsd": 2068.69, "inputTokens": 1400,
+        "outputTokens": 662550, "cacheReadTokens": 216061983,
+    }))
+    subject = ProjectAgent(tmp_path, state)
+    assert subject.usage["costUsd"] == 0.0
+    assert subject.usage["turns"] == 99
+    assert subject.usage["cacheReadTokens"] == 216061983
+    assert subject.usage["costFrom"]
+    # Written again, the file says when its dollars start, and is kept.
+    subject._record_usage(_costed(0.5))
+    again = ProjectAgent(tmp_path, state)
+    assert again.usage["costUsd"] == pytest.approx(0.5)

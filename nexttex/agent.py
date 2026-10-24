@@ -564,6 +564,9 @@ class ProjectAgent:
         # survives a restart.  Writers on a subscription still want to know
         # how much of the day's work went through the model.
         self.usage = self._load_usage()
+        # What the CLI process behind the current client has reported as
+        # its running cost.  See `_record_usage`.
+        self._cost_seen = 0.0
 
         # A permission request in flight, waiting on the browser.
         self._pending: dict[str, asyncio.Future] = {}
@@ -2683,6 +2686,7 @@ class ProjectAgent:
         client = ClaudeSDKClient(options=self._options())
         await client.connect()
         self._client = client
+        self._cost_seen = 0.0
         return client
 
     async def disconnect(self) -> None:
@@ -3217,7 +3221,7 @@ class ProjectAgent:
                     if session_id and session_id != self._session_id:
                         self._session_id = session_id
                         self._save_session(session_id)
-                    self._record_usage(message)
+                    cost = self._record_usage(message)
                     if self._injected_turn:
                         self._injected_turn = False
                         await self._emit({
@@ -3229,7 +3233,7 @@ class ProjectAgent:
                     await self._emit({
                         "type": "done",
                         "subtype": "interrupted" if self._cancelled else message.subtype,
-                        "costUsd": getattr(message, "total_cost_usd", None),
+                        "costUsd": cost,
                         "durationMs": getattr(message, "duration_ms", None),
                         "usage": self.usage,
                     })
@@ -3260,17 +3264,39 @@ class ProjectAgent:
         blank = {
             "turns": 0, "costUsd": 0.0, "inputTokens": 0, "outputTokens": 0,
             "cacheReadTokens": 0, "durationMs": 0, "model": self.model or "default",
+            "costFrom": time.strftime("%Y-%m-%d"),
         }
         try:
             saved = json.loads(self.usage_path.read_text(encoding="utf-8"))
         except (OSError, json.JSONDecodeError):
             return blank
-        return {**blank, **{k: v for k, v in saved.items() if k in blank}}
+        kept = {k: v for k, v in saved.items() if k in blank}
+        # A file written before `costFrom` existed summed running totals,
+        # so its dollars were many times the real cost.  The token counts
+        # in it were always per turn and stay; the money starts again.
+        if "costFrom" not in saved:
+            kept.pop("costUsd", None)
+        return {**blank, **kept}
 
-    def _record_usage(self, message: Any) -> None:
+    def _record_usage(self, message: Any) -> float:
+        """Add one turn's result to the project's totals; return its cost.
+
+        `total_cost_usd` is the CLI process's running total, not the
+        turn's: three turns measured 0.187, 0.228 and 0.238 on 23 October
+        2026.  Adding it whole counted every earlier turn again at each
+        result, and a project at 99 turns showed $2,068 where its
+        transcripts came to about a twentieth of that.  So the change since
+        the last result of the same process is what is added.  A total
+        lower than the last one means the CLI started counting again, as
+        after a /clear, and is taken whole.  The token counts and the
+        duration are per turn and are added as they are.
+        """
         counts = getattr(message, "usage", None) or {}
+        total = getattr(message, "total_cost_usd", None) or 0.0
+        cost = total - self._cost_seen if total >= self._cost_seen else total
+        self._cost_seen = total
         self.usage["turns"] += 1
-        self.usage["costUsd"] += getattr(message, "total_cost_usd", None) or 0.0
+        self.usage["costUsd"] += cost
         self.usage["durationMs"] += getattr(message, "duration_ms", None) or 0
         self.usage["inputTokens"] += counts.get("input_tokens", 0) or 0
         self.usage["outputTokens"] += counts.get("output_tokens", 0) or 0
@@ -3284,6 +3310,7 @@ class ProjectAgent:
             temp.replace(self.usage_path)
         except OSError:
             pass
+        return cost
 
     async def set_model(self, model: str | None) -> None:
         """Change the model this project's agent uses.

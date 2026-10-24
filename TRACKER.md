@@ -24,6 +24,16 @@ things go to be forgotten rather than a list anybody reads.
 
 ## In hand
 
+**The Claude session, from 23 October 2026.** The writer asked for the
+session's controls in the Claude column after a project's usage read
+$2,068. The dollars were a running total summed at every turn, now
+counted once. Still to come in this run: compaction at 60 per cent and a
+line when it happens, a context meter and the plan's limits in the foot,
+the session's name, remote control as a per-project setting, a Session
+view, one vocabulary for what the agent asks about, and pages the agent
+publishes. The plan and the drawings are on the direction page, section
+"The Claude session".
+
 **Watching the live install, from 18 October 2026.** The writer asked for
 a continuous record of errors, failures, crashes and slow spots on the
 install they use every day, to be left running for a couple of days and
