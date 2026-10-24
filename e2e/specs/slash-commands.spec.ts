@@ -5,7 +5,7 @@ import { startServer, seedProject } from "../server";
 
 /** A `/` at the start of the composer names a reusable prompt.
  *
- *  The two reviews ship inside NextTex, a project's `prompts/` can add
+ *  Four prompts ship inside NextTex, a project's `prompts/` can add
  *  or replace one, and the expansion happens on the server before the
  *  model sees the question, so the transcript keeps what was typed. The
  *  scripted agent's `context` script says back what came ahead of the
@@ -76,9 +76,10 @@ test("the Context panel lists the prompts, and a copy puts the file in the proje
   await tab.getByRole("button", { name: /What .* reads/ }).click();
   const list = tab.getByTestId("prompts-list");
   const entries = list.getByTestId("prompt-entry");
-  // Three built-ins, in the order of their names; found by name rather than
+  // Four built-ins, in the order of their names; found by name rather than
   // by place, since a new built-in moves the rest along.
-  await expect(entries).toHaveCount(3, { timeout: 10_000 });
+  await expect(entries).toHaveCount(4, { timeout: 10_000 });
+  await expect(entries.filter({ hasText: "/fix build" })).toHaveCount(1);
   const friendly = entries.filter({ hasText: "/review friendly" });
   await expect(friendly).toHaveAttribute("data-source", "builtin");
   await expect(entries.filter({ hasText: "/missing citations" })).toHaveCount(1);

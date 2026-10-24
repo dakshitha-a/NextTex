@@ -3,9 +3,9 @@
 from nexttex import prompts
 
 
-def test_the_two_built_ins_ship_and_read_as_two_reviews():
+def test_the_built_ins_ship_and_two_read_as_reviews():
     names = [prompt.name for prompt in prompts.builtin()]
-    assert names == ["missing-citations", "review-critical", "review-friendly"]
+    assert names == ["fix-build", "missing-citations", "review-critical", "review-friendly"]
     friendly = next(p for p in prompts.builtin() if p.name == "review-friendly")
     critical = next(p for p in prompts.builtin() if p.name == "review-critical")
     assert "mentor" in friendly.text and "kind" in friendly.text.lower()
@@ -23,7 +23,7 @@ def test_a_project_file_of_the_same_name_replaces_the_built_in(tmp_path):
     assert found["review-friendly"].text == "Our own friendly review."
     assert found["review-critical"].source == "builtin"
     assert found["tighten"].source == "project"
-    assert sorted(found) == ["missing-citations", "review-critical", "review-friendly", "tighten"]
+    assert sorted(found) == ["fix-build", "missing-citations", "review-critical", "review-friendly", "tighten"]
 
 
 def test_only_markdown_files_with_plain_names_directly_in_the_folder_count(tmp_path):
@@ -93,3 +93,14 @@ def test_a_long_first_line_is_cut_at_a_word_with_an_ellipsis():
     assert len(cut) <= prompts.HINT + 1 and cut.endswith("…")
     assert line.startswith(cut[:-1]) and line[len(cut) - 1] in " ,"
     assert prompts.hint("Short.") == "Short."
+
+
+def test_fix_build_works_from_the_errors_and_builds_again():
+    """`/fix build` is the composer's way to hand every error of the last
+    build over at once, where a build error's Fix hands over one."""
+    found = next(p for p in prompts.builtin() if p.name == "fix-build")
+    assert found.said == "fix build"
+    assert found.as_dict()["hint"].startswith("Fix the errors in the last build")
+    text = found.text.lower()
+    assert "build it first" in text and "build the document again" in text
+    assert "ask" in text

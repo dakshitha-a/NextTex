@@ -1838,25 +1838,54 @@ export default function App() {
     </Suspense>
   ) : null;
 
-  /** Hand a question about the selection to the agent.
+  /** Hand something to the agent: the selection's verbs, a build error's
+   *  Fix and a failed script's Fix all come here.
    *
-   *  Seeded into the composer rather than sent, which is the `Fix` button's
-   *  rule: the writer always presses Enter on their own message. The
-   *  selection itself is already in the store and already travels with the
-   *  question, so the seeded text is the verb and the writer's own
-   *  qualification goes after it.
+   *  Seeded into the composer rather than sent: the writer always presses
+   *  Enter on their own message. The column is brought into view first,
+   *  opened when it is an overlay and unfolded when it is docked, since a
+   *  question seeded into a box nobody can see is a question nobody asks;
+   *  a build error's Fix with the column folded looked like a button that
+   *  did nothing. An agent that is chosen but not ready cannot answer, so
+   *  that says so in a notice instead of filling a box that cannot send.
    *
-   *  Opens the panel first if it is closed, since below 1400px it is an
-   *  overlay and a question seeded into a box nobody can see is a question
-   *  nobody asks. */
-  const askAboutSelection = useCallback((prompt: string) => {
-    if (get().agent?.provider === "none") return;
-    if (chatOverRef.current && !chatOpenRef.current) setChatOpen(true);
+   *  What the store knows about the agent is from the page's boot, and a
+   *  sign-in can lapse after it, so the status is asked again on every
+   *  hand-off. It is asked beside the opening rather than before it: the
+   *  column comes at once, and a lapsed agent is named a moment later. */
+  const handToAgent = useCallback((prompt: string) => {
+    const notReady = (provider: Provider) =>
+      set({
+        error: `This works with ${agentName(provider)}, which is not set up yet. Set it up in Settings, under Writing agent.`,
+      });
+    const agent = get().agent;
+    if (agent?.provider === "none") return;
+    if (agent && !agent.ready) {
+      notReady(agent.provider);
+      return;
+    }
+    if (chatOverRef.current) {
+      if (!chatOpenRef.current) setChatOpen(true);
+    } else if (foldedRef.current.chat) {
+      fold("chat");
+    }
     window.setTimeout(() => {
       chat.current?.seed(prompt);
       chat.current?.focusComposer();
     }, 60);
-  }, []);
+    void api
+      .agentStatus()
+      .then((now) => {
+        set({ agent: now });
+        if (now.provider !== "none" && !now.ready) notReady(now.provider);
+      })
+      .catch(() => undefined);
+  }, [fold]);
+
+  /** A question about the selection. The selection itself is already in
+   *  the store and travels with the question, so the seeded text is the
+   *  verb and the writer's own qualification goes after it. */
+  const askAboutSelection = handToAgent;
 
   /** Open the tutorial, putting the agent overlay away first.
    *
@@ -1981,14 +2010,10 @@ export default function App() {
   /** Hand a failed run to the agent, seeded into the composer with the
    *  tail of what the script said.  Seeded rather than sent, which is the
    *  `Fix` button's rule: the writer presses Enter on their own message. */
-  const askAboutScript = useCallback((path: string, result: ScriptResult) => {
-    if (get().agent?.provider === "none") return;
-    if (chatOverRef.current && !chatOpenRef.current) setChatOpen(true);
-    window.setTimeout(() => {
-      chat.current?.seed(troubleshootPrompt(path, result));
-      chat.current?.focusComposer();
-    }, 60);
-  }, []);
+  const askAboutScript = useCallback(
+    (path: string, result: ScriptResult) => handToAgent(troubleshootPrompt(path, result)),
+    [handToAgent],
+  );
 
   const showPreview = useCallback((path: string, withSource = true) => {
     // A click on the strip is asking for the document by name, so it is no
@@ -2802,7 +2827,7 @@ export default function App() {
                     {id === "build" ? (
                 <Diagnostics
                   onJump={(file, line) => openFile(file, line)}
-                  onFix={noAgent ? undefined : (text) => chat.current?.seed(text)}
+                  onFix={noAgent ? undefined : handToAgent}
                   onRebuild={(full) => void buildNow(full)}
                 />
                     ) : null}

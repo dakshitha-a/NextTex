@@ -12551,3 +12551,30 @@ stand-in, and the fidelity harness renders them in both themes as
 `session-live`, `session-high`, `session-refused`, `session-view-on`,
 `session-view-off`, `settings-remote` and `settings-compact`.
 
+## 122. Fix brings the Claude column
+
+Drawn on the direction page under Fix brings the Claude column, 24 October
+2026, at the writer's request and decided by me. The writer pressed Fix on a
+build error with the Claude column folded and saw nothing happen: the error
+had gone into a composer nobody could see. The selection's Ask and a failed
+script's Fix had the same gap on a wide window.
+
+**Fix brings the column into view.** Docked and folded, the column unfolds;
+parked off the edge on a narrower window, it slides in. The error waits in
+the composer as before, "Fix:", the message, the file and line, with the
+caret after it, and nothing is sent until the writer presses Enter. All
+three hand-offs take this path.
+
+**An agent that is not set up says so.** With Claude or ChatGPT chosen but
+not signed in or given a key, Fix puts up the notice the app already has:
+"This works with Claude, which is not set up yet. Set it up in Settings,
+under Writing agent." The status is asked again at each press, since a
+sign-in can lapse after the page loaded. With No agent chosen, Fix stays
+hidden, as decided on 2 October.
+
+**`/fix build`.** A fourth built-in prompt, first in the menu by its name.
+It asks the agent to read the last build's errors, fix each with the
+smallest change, build again, and stop to ask when an error needs the
+writer's decision.
+
+`e2e/specs/fix-opens-claude.spec.ts` drives these.

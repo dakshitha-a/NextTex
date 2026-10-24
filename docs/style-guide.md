@@ -258,6 +258,10 @@ else.
 - With no agent, the agent is off rather than empty: no column, strip,
   button, shortcut, edge peek, selection verbs, Fix on a build error or
   palette action.
+- A control that hands something to the agent brings the Claude column
+  into view, unfolding it when docked and opening it when parked, then
+  seeds the composer with the caret at the end; it never sends. With an
+  agent chosen but not set up, it says so in the notice instead.
 - The tree's file card arms after 400 ms and the editor's hover cards
   after 250, never on touch; a key press, a scroll or a menu opening
   dismisses the card. The editor's card stays while the pointer is over

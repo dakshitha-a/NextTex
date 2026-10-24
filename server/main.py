@@ -5351,7 +5351,7 @@ async def distill_context(project_id: str, kind: str = Body(..., embed=True)):
 
 @app.get("/api/projects/{project_id}/prompts")
 async def list_prompts(project_id: str):
-    """The reusable prompts a `/` in the composer can name: the two that
+    """The reusable prompts a `/` in the composer can name: the four that
     ship with NextTex, and the project's own under `prompts/`, which
     replace a built-in of the same name."""
     session = session_for(project_id)

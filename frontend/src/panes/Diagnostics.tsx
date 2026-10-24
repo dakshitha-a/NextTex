@@ -431,6 +431,7 @@ export default function Diagnostics({
                 {onFix ? (
                 <Pressable
                   className="px-1.5 text-small text-ink-2 hover:text-ink"
+                  data-testid="diagnostic-fix"
                   onClick={(event) => {
                     event.stopPropagation();
                     onFix(
