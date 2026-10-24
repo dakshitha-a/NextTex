@@ -24,6 +24,7 @@ a **Tutorial** button at its foot, and the projects screen's app bar has an
   - [It draws a figure from your data](#it-draws-a-figure-from-your-data)
   - [You can show it something](#you-can-show-it-something)
   - [A review in two voices, and a prompt is a file](#a-review-in-two-voices-and-a-prompt-is-a-file)
+  - [It publishes a page you can send](#it-publishes-a-page-you-can-send)
   - [It cannot invent a citation](#it-cannot-invent-a-citation)
   - [Point it at a folder of papers](#point-it-at-a-folder-of-papers)
 - [Writing it with somebody else](#writing-it-with-somebody-else)
@@ -276,6 +277,10 @@ dollar signs* rather than `Missing $ inserted`. It also names which error to
 start with: LaTeX reports everything after a mistake as a mistake too, and a
 writer who starts at the bottom of the list spends the evening fixing
 consequences. None of this involves a model.
+
+When you would rather hand an error over, *Fix* on its row opens the agent's
+column, with the error waiting in the box for you to send, and `/fix build`
+asks the agent to fix every error the last build found.
 
 The commonest failure on a fresh TinyTeX is a package that is not
 installed, and that row carries an *Install* button: it asks `tlmgr`
@@ -734,7 +739,9 @@ under one line saying where it came from.
 ### A review in two voices, and a prompt is a file
 
 Type `/` at the start of the box and a menu lists the reusable prompts.
-Two come with NextTex: `/review friendly` reads the selected passage, or
+Four come with NextTex. `/fix build` has the agent fix every error in the
+last build, build again, and ask when a fix needs your decision.
+`/review friendly` reads the selected passage, or
 the document, as a mentor would, what works and what to strengthen, in
 that order and kindly; `/review critical` reads it as the second reviewer,
 the claims that are not supported, the weakest section, what a rejection
@@ -750,6 +757,34 @@ read as spaces. Put `tighten.md` in a `prompts/` folder at the project's
 root and `/tighten` is one more; copy a built-in there from *What Claude
 reads* and the copy is the one used, so a group can edit its own reviews
 and commit them with the paper.
+
+### It publishes a page you can send
+
+Ask for a page and the agent publishes one: a derivation worked through, a
+table for a co-author, a summary to read on your phone. It sits in the
+conversation with Open and Copy link, and in the Session view's list.
+
+A page can ask NextTex to fill things in when it is published. Its maths is
+typeset by KaTeX, served by NextTex itself, with your project's own macros
+and chemistry notation. A figure from your project goes in as it is, a PDF
+drawn sharp at any size, so the page shows the figure your paper does. An
+equation can be quoted by its label, straight from your source as it is
+now, so the page never drifts from the paper.
+
+Before you see a page, NextTex opens it in a headless Chrome, Chromium or
+Edge, whichever your machine has, and tells the agent about any script
+error, any maths that did not set, and what the top of the page looks
+like. A page whose equations came out blank gets fixed, not handed to you.
+A machine with none of those browsers says the page was not checked.
+
+Each page has an icon for its browser tab, chosen from a set: a tracker, a
+timer, an explanation, a derivation, a table and so on. A page opened from
+NextTex is in NextTex's theme, dark or light; a copied link opened elsewhere
+follows that reader's own system. The agent can read a
+page back and change one part of it without writing it all again.
+
+Pages stay on your machine, behind your install's sign-in, in a sandbox
+that cannot reach NextTex or the network.
 
 ### It cannot invent a citation
 

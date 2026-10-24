@@ -556,3 +556,75 @@ test("E, write together", async ({ tab, app, root, browser }) => {
   await other.close();
   animate("together", "together.webp");
 });
+
+// --- H: a page to send ------------------------------------------------------
+
+test.describe("H, a page to send", () => {
+  test.use({ script: "explain-page" });
+
+  test("H, a page to send", async ({ tab, app }) => {
+    await dress(tab, "dark");
+    await atRest(tab);
+    const column = tab.getByTestId("chat");
+    if (!(await column.isVisible().catch(() => false))) await tab.keyboard.press("Control+Alt+a");
+    await expect(column).toBeVisible();
+    await tab.mouse.move(700, 450);
+
+    const rec = new Recorder(tab, "page", FRAMES);
+    await rec.start();
+    await rec.hold(600);
+
+    // The question, typed into the Claude column.
+    const composer = column.locator("textarea");
+    await glide(tab, composer);
+    await composer.click();
+    await rec.focus(composer, { pad: 60 });
+    await rec.hold(400);
+    await composer.pressSequentially(
+      "Make me a page that explains why Figure 1 needs two time constants, with the derivation, so I can send it to Mira.",
+      { delay: 28 },
+    );
+    await rec.hold(500);
+    await tab.keyboard.press("Enter");
+
+    // The page published, a chip in the turn with Open and Copy link.
+    const chip = column.getByTestId("page-chip");
+    await rec.quickly(() => expect(chip).toBeVisible({ timeout: 30_000 }), 3);
+    await expect(column.getByText("Open it to read")).toBeVisible({ timeout: 15_000 });
+    await rec.focus(await span(chip, column.getByText("Open it to read")), { pad: 40 });
+    await rec.hold(1800);
+
+    // Open, and the page itself: the derivation set with KaTeX, the
+    // figure from the project, and the paper's Equation (1) quoted.
+    const open = chip.getByTestId("page-open");
+    await glide(tab, open);
+    const popup = tab.waitForEvent("popup");
+    await open.click();
+    const opened = await popup;
+    const address = opened.url();
+    await opened.close();
+    rec.wide();
+    await tab.goto(address);
+    await Recorder.install(tab);
+    await expect(tab.locator(".katex").first()).toBeVisible({ timeout: 15_000 });
+    await tab.mouse.move(1300, 300);
+    await rec.hold(1600);
+    await rec.focus(tab.locator("h1"), { pad: 60 });
+    await rec.hold(1400);
+    rec.wide();
+    for (const heading of ["The model", "The derivation"]) {
+      const target = tab.locator("h2").filter({ hasText: heading });
+      await target.evaluate((el) => el.scrollIntoView({ block: "start", behavior: "smooth" }));
+      await rec.hold(1200);
+    }
+    await rec.focus(tab.locator(".card").nth(1), { pad: 24 });
+    await rec.hold(3200);
+    rec.wide();
+    const meaning = tab.locator("h2").filter({ hasText: "What it means" });
+    await meaning.evaluate((el) => el.scrollIntoView({ block: "start", behavior: "smooth" }));
+    await rec.hold(2400);
+    await rec.stop();
+    animate("page", "page.webp");
+    void app;
+  });
+});

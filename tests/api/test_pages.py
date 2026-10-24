@@ -57,3 +57,27 @@ def test_the_agent_publishes_a_page_into_the_turn(client, opened):
         item for item in items if item.get("kind") == "page"
     ).items()
     assert client.get(f"/api/projects/{opened['id']}/pages/three-fits").status_code == 200
+
+
+def test_a_sandboxed_page_may_read_katex_and_nothing_else_of_this_server(client, opened):
+    """A published page's sandbox makes its every load cross-site, and the
+    guard that refuses cross-site requests refused KaTeX too: the maths
+    stayed source. Only the KaTeX folder is let through, only to read."""
+    away = {"sec-fetch-site": "cross-site"}
+    assert client.get("/assets/katex/katex.min.js", headers=away).status_code != 403
+    assert client.get("/assets/index.js", headers=away).status_code == 403
+    assert client.get(f"/api/projects/{opened['id']}/pages", headers=away).status_code == 403
+    assert client.post("/assets/katex/katex.min.js", headers=away).status_code == 403
+
+
+def test_the_page_policy_names_this_servers_katex(client, opened):
+    pages_of(opened).save("p", "<!doctype html><p>x</p>")
+    policy = client.get(f"/api/projects/{opened['id']}/pages/p").headers["content-security-policy"]
+    assert "script-src 'unsafe-inline' http://testserver/assets/katex/;" in policy
+
+
+def test_open_carries_the_installs_theme_onto_the_page(client, opened):
+    pages_of(opened).save("p", "<!doctype html><html><body>x</body></html>")
+    dark = client.get(f"/api/projects/{opened['id']}/pages/p?theme=dark").text
+    assert '<html data-theme="dark">' in dark
+    assert "data-theme" not in client.get(f"/api/projects/{opened['id']}/pages/p").text

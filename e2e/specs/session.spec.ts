@@ -105,6 +105,11 @@ test("a page the agent publishes is a chip in the turn and a row in the Session 
   const page = await opened;
   await page.waitForLoadState();
   await expect(page.locator("table")).toContainText("Hexane");
+  // Opened in the theme this NextTex is in, written onto the page's root,
+  // and wearing the tab icon the publish gave it.
+  const theme = await tab.evaluate(() => document.documentElement.dataset.theme);
+  await expect(page.locator("html")).toHaveAttribute("data-theme", theme!);
+  await expect(page.locator('link[rel="icon"]')).toHaveCount(1);
   await page.close();
 
   await tab.getByTestId("session-open").click();

@@ -1433,6 +1433,10 @@ const api = {
     request<{ deleted: string }>(`/projects/${id}/pages/${encodeURIComponent(name)}`, { method: "DELETE" }),
   /** Where the browser opens a published page. */
   pageUrl: (id: string, name: string) => `/api/projects/${id}/pages/${encodeURIComponent(name)}`,
+  /** The page in the theme this NextTex is in, for Open; a copied link
+   *  carries none, so whoever opens it gets their own system's. */
+  pageUrlThemed: (id: string, name: string) =>
+    `/api/projects/${id}/pages/${encodeURIComponent(name)}?theme=${document.documentElement.dataset.theme === "light" ? "light" : "dark"}`,
   /** Where every project's Claude session summarizes its conversation. */
   setCompactPercent: (percent: number) =>
     request<{ compactPercent: number }>("/agent/compact", json({ percent })),

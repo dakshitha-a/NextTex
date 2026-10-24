@@ -1504,7 +1504,7 @@ function PageChip({ item }: { item: Extract<ChatItem, { kind: "page" }> }) {
           <Pressable
             className="text-ink-2 hover:text-ink"
             data-testid="page-open"
-            onClick={() => window.open(href, "_blank", "noopener,noreferrer")}
+            onClick={() => window.open(api.pageUrlThemed(projectId, item.name), "_blank", "noopener,noreferrer")}
           >
             Open
           </Pressable>

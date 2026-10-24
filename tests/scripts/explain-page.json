@@ -1,0 +1,21 @@
+[
+ {
+  "kind": "tool",
+  "name": "Read",
+  "input": {
+   "file_path": "main.tex"
+  },
+  "ms": 900
+ },
+ {
+  "kind": "page",
+  "name": "two-time-constants",
+  "icon": "explanation",
+  "html": "<!doctype html>\n<html lang=\"en\">\n<head>\n<meta charset=\"utf-8\">\n<meta name=\"viewport\" content=\"width=device-width, initial-scale=1\">\n<title>Why the decay has two time constants</title>\n<style>\n  :root { --ink: #1c2130; --muted: #5b6376; --line: #e2e5ec; --bg: #fbfaf7; --card: #ffffff; --one: #2f6fd0; --two: #c2410c; }\n  :root[data-theme=\"dark\"] { --ink: #e6e8ee; --muted: #a0a7b6; --line: #2c313d; --bg: #15171c; --card: #1d2027; --one: #7fb0ff; --two: #ff9a5c; color-scheme: dark; }\n  @media (prefers-color-scheme: dark) { :root:not([data-theme=\"light\"]) { --ink: #e6e8ee; --muted: #a0a7b6; --line: #2c313d; --bg: #15171c; --card: #1d2027; --one: #7fb0ff; --two: #ff9a5c; color-scheme: dark; } }\n  body { margin: 0; background: var(--bg); color: var(--ink); font: 17px/1.65 Georgia, \"Times New Roman\", serif; }\n  main { max-width: 760px; margin: 0 auto; padding: 44px 24px 72px; }\n  h1 { font-size: 30px; line-height: 1.2; margin: 0 0 6px; }\n  .lede { color: var(--muted); margin: 0 0 28px; }\n  h2 { font: 600 13px/1.4 system-ui, sans-serif; letter-spacing: .08em; text-transform: uppercase; color: var(--muted); margin: 34px 0 8px; }\n  .card { background: var(--card); border: 1px solid var(--line); border-radius: 12px; padding: 16px 22px; margin: 14px 0; }\n  .one { color: var(--one); } .two { color: var(--two); }\n  figure { margin: 18px 0; } figure img { width: 100%; border-radius: 8px; border: 1px solid var(--line); background: #fff; }\n  figcaption { color: var(--muted); font-size: 15px; margin-top: 6px; }\n  .step { display: grid; grid-template-columns: 28px 1fr; gap: 0 12px; align-items: baseline; }\n  .step b { font: 600 13px system-ui, sans-serif; color: var(--muted); }\n</style>\n</head>\n<body>\n<main>\n  <h1>Why the decay has two time constants</h1>\n  <p class=\"lede\">Figure 1 fits the signal with two exponentials. Here is where they come from, in four steps, with nothing assumed but first-order kinetics.</p>\n\n  <figure>\n    <img src=\"{{figure:figures/decay-fit.png}}\" alt=\"Figure 1 of the paper: the transient signal and its fit\">\n    <figcaption>Figure 1 of the paper, as the project holds it now.</figcaption>\n  </figure>\n\n  <h2>The model</h2>\n  <p>Light puts the molecule in <span class=\"one\">S<sub>2</sub></span>. It leaks to <span class=\"two\">S<sub>1</sub></span> at rate $k_1$, and S<sub>1</sub> returns to the ground state at rate $k_2$:</p>\n  <div class=\"card\">$$\\mathrm{S_2} \\xrightarrow{\\;k_1\\;} \\mathrm{S_1} \\xrightarrow{\\;k_2\\;} \\mathrm{S_0}$$</div>\n\n  <h2>The derivation</h2>\n  <div class=\"card\">\n    <div class=\"step\"><b>1</b><div>Nothing feeds S<sub>2</sub>, so it simply empties:\n      $$\\frac{dP_2}{dt} = -k_1 P_2 \\quad\\Longrightarrow\\quad P_2(t) = e^{-k_1 t}.$$</div></div>\n    <div class=\"step\"><b>2</b><div>S<sub>1</sub> fills from S<sub>2</sub> as it empties to S<sub>0</sub>:\n      $$\\frac{dP_1}{dt} = k_1 P_2 - k_2 P_1 = k_1 e^{-k_1 t} - k_2 P_1.$$</div></div>\n    <div class=\"step\"><b>3</b><div>Multiply by $e^{k_2 t}$, integrate from $0$ with $P_1(0) = 0$:\n      $$P_1(t) = \\frac{k_1}{k_2 - k_1}\\left(e^{-k_1 t} - e^{-k_2 t}\\right).$$</div></div>\n    <div class=\"step\"><b>4</b><div>The signal is a sum of what each state absorbs, so it is two exponentials:\n      $$S(t) = a\\,P_2 + b\\,P_1 = A\\,e^{-t/\\tau_1} + B\\,e^{-t/\\tau_2}, \\qquad \\tau_1 = \\frac{1}{k_1},\\; \\tau_2 = \\frac{1}{k_2}.$$</div></div>\n  </div>\n\n  <h2>What it means</h2>\n  <p>The fast constant, <span class=\"one\">$\\tau_1$</span>, is how long S<sub>2</sub> lasts; the slow one, <span class=\"two\">$\\tau_2$</span>, is how long S<sub>1</sub> lasts. One exponential would be enough only if a state were skipped. The rates come from the states the paper's Equation (1) describes:</p>\n  <div class=\"card\">{{equation:eq:example}}</div>\n</main>\n{{maths}}\n</body>\n</html>\n"
+ },
+ {
+  "kind": "text",
+  "text": "I published it as a page: the two-state model behind Figure 1, derived in four steps, with the figure and Equation (1) taken from the paper as it is now. Open it to read, or copy the link for Mira.",
+  "pieces": 4
+ }
+]

@@ -51,6 +51,7 @@ from .claude_auth import claude_binary
 from .lines import document_ends_at, first_changed_line
 from .modes import DEFAULT_MODE, MODES
 from . import comment_tools
+from . import page_icons
 from . import permission_gate as gate
 from .project import is_control_path
 from .explain import compile_report
@@ -1053,9 +1054,9 @@ class ProjectAgent:
 
     def _card_for(self, tool_name: str, data: dict) -> dict:
         why = self._why_asked(tool_name, data)
-        if tool_name == "mcp__nexttex__publish_page":
+        if tool_name in self._OWN_PUBLISH_TOOLS:
             return {
-                "headline": "Publish a page",
+                "headline": "Publish a page" if tool_name.endswith("publish_page") else "Change a published page",
                 "detail": str(data.get("name") or ""),
                 "consequence": (
                     "Anyone signed in to this install can open it. It runs in a "
@@ -1254,7 +1255,7 @@ class ProjectAgent:
         "mcp__nexttex__check_references",
     })
 
-    _OWN_PUBLISH_TOOLS = frozenset({"mcp__nexttex__publish_page"})
+    _OWN_PUBLISH_TOOLS = frozenset({"mcp__nexttex__publish_page", "mcp__nexttex__edit_page"})
 
     _SCRIPT_TOOLS = frozenset({
         "mcp__nexttex__run_plot_script",
@@ -2118,25 +2119,58 @@ class ProjectAgent:
         @tool(
             "publish_page",
             "Publish an HTML page the writer can open and share a link to: a "
-            "table to send a co-author, a summary to read on a phone, a "
-            "report of what changed. `name` is its address, lower-case words "
-            "joined by hyphens; a page of the same name is replaced. `html` "
-            "is the whole page, with its styles inline. It is served behind "
-            "this install's sign-in in a sandbox, so a script in it runs but "
-            "cannot fetch anything; put the data in the page. Fonts may come "
-            "from Google Fonts. Up to 2 MB.",
-            {"name": str, "html": str},
+            "table to send a co-author, a derivation, a summary to read on a "
+            "phone. `name` is its address, lower-case words joined by "
+            "hyphens; a page of the same name is replaced. `html` is the "
+            "whole page, starting with <!doctype html>, styles inline. It is "
+            "served behind this install's sign-in in a sandbox: a script in "
+            "it runs but cannot fetch anything, nothing loads from the web "
+            "but Google Fonts, and no stylesheet is added to it. NextTex "
+            "fills in three placeholders when it publishes: {{maths}}, "
+            "written once, loads KaTeX with the project's own macros and "
+            "mhchem and sets $...$, \\(...\\), $$...$$ and \\[...\\] "
+            "anywhere in the page (write a literal dollar as \\$, or put it "
+            "in an element with class no-maths); {{figure:figures/x.pdf}} is "
+            "a project file as an image address, for <img src=...>, a PDF "
+            "drawn as SVG; {{equation:eq:label}} is that labelled equation's "
+            "maths from the source as it is now. Never hand-write MathML or "
+            "base64 a figure yourself. After publishing, the page is opened in "
+            "a headless browser and you get back its script errors, maths "
+            "that failed, and a picture of its top: fix what it reports. Up "
+            "to 2 MB served, figures included. The page follows the theme of the "
+            "NextTex that opens it: Open sets data-theme=\"dark\" or \"light\" on "
+            "its <html>, so give it light colours on :root, dark ones under "
+            ":root[data-theme=\"dark\"], and the dark ones again under @media "
+            "(prefers-color-scheme: dark) { :root:not([data-theme=\"light\"]) "
+            "{ ... } } for a link opened elsewhere. `icon` is the tab's icon, one "
+            "of: " + page_icons.choices() + "; a page with its own "
+            "<link rel=\"icon\"> keeps that.",
+            {"name": str, "html": str, "icon": str},
         )
         async def publish_page(args: dict) -> dict:
-            try:
-                name = self.pages.save(str(args.get("name") or ""), str(args.get("html") or ""))
-            except ValueError as exc:
-                return self._text(f"Not published: {exc}.")
-            await self._emit({"type": "page", "name": name})
-            return self._text(
-                f"Published as {name}. The writer sees it in the conversation "
-                "with Open and Copy link, and in the Session view's list."
-            )
+            return await self.publish_tool(args)
+
+        @tool(
+            "read_page",
+            "Read back a page you published, as you wrote it, placeholders "
+            "and all, to change it with edit_page. With no `name`, lists the "
+            "project's pages.",
+            {"name": str},
+        )
+        async def read_page(args: dict) -> dict:
+            return self.read_page_tool(str(args.get("name") or "").strip())
+
+        @tool(
+            "edit_page",
+            "Change a published page without sending it again: `old` is text "
+            "that occurs exactly once in the page as read_page gives it, "
+            "`new` replaces it. The page is filled in, published and checked "
+            "again, as publish_page does.",
+            {"name": str, "old": str, "new": str},
+        )
+        async def edit_page(args: dict) -> dict:
+            return await self.edit_page_tool(
+                str(args.get("name") or "").strip(), str(args.get("old") or ""), str(args.get("new") or ""))
 
         return create_sdk_mcp_server(
             name="nexttex",
@@ -2147,9 +2181,69 @@ class ProjectAgent:
                 replace_range, run_plot_script, run_script, install_package, goto,
                 show_page, list_comments, reply_to_comment,
                 search_library, find_papers, add_reference, check_references,
-                remember, revise_memory, publish_page,
+                remember, revise_memory, publish_page, read_page, edit_page,
             ],
         )
+
+    async def publish_tool(self, args: dict) -> dict:
+        """`publish_page`: the icon checked and worn, then published."""
+        icon = str(args.get("icon") or page_icons.DEFAULT).strip().lower()
+        if icon not in page_icons.ICONS:
+            return self._text(f"Not published: there is no icon called {icon}. "
+                              f"Choose one of: {page_icons.choices()}.")
+        return await self.publish_page_tool(str(args.get("name") or ""),
+                                            page_icons.wear(str(args.get("html") or ""), icon))
+
+    def read_page_tool(self, name: str) -> dict:
+        """`read_page`: a page as the agent wrote it, or the list of pages."""
+        if not name:
+            listed = self.pages.list()
+            return self._text("\n".join(page["name"] for page in listed) or "No pages are published.")
+        source = self.pages.source(name)
+        if source is None:
+            return self._text(f"No page is called {name}.")
+        return self._text(source)
+
+    async def edit_page_tool(self, name: str, old: str, new: str) -> dict:
+        """`edit_page`: one string of a page changed, then published again."""
+        source = self.pages.source(name)
+        if source is None:
+            return self._text(f"Not changed: no page is called {name}.")
+        count = source.count(old) if old else 0
+        if count != 1:
+            return self._text(
+                f"Not changed: `old` occurs {count} times in {name}; it must occur exactly once. "
+                "Read it with read_page and quote more of it.")
+        return await self.publish_page_tool(name, source.replace(old, new, 1))
+
+    async def publish_page_tool(self, name: str, source: str) -> dict:
+        """Fill in a page's placeholders, publish it, and open it to see.
+
+        The thesis's agent published a derivation whose one stray
+        parenthesis blanked all 52 equations, and was told only that it had
+        worked. So the answer now carries what a browser found, and the
+        top of the page as drawn, as a figure script's answer does."""
+        from . import page_check, page_parts
+
+        filled = await asyncio.to_thread(page_parts.fill, source, self.root)
+        if filled.problems:
+            return self._text("Not published: " + " ".join(filled.problems))
+        try:
+            name = self.pages.save(name, source, filled.html)
+        except ValueError as exc:
+            return self._text(f"Not published: {exc}.")
+        await self._emit({"type": "page", "name": name})
+        published = (f"Published as {name}. The writer sees it in the conversation "
+                     "with Open and Copy link, and in the Session view's list.")
+        found = await asyncio.to_thread(page_check.look, filled.html, page_check.katex_files())
+        message = f"{published}\n\n{page_check.report(found)}"
+        if found.picture is None:
+            return self._text(message)
+        return {"content": [
+            {"type": "text", "text": message},
+            {"type": "image", "data": base64.b64encode(found.picture).decode("ascii"),
+             "mimeType": "image/png"},
+        ]}
 
     # -- helpers the tools share -------------------------------------------
     @staticmethod

@@ -424,6 +424,7 @@ OUTBOUND = {
     "tailscale.com",
     "www.apple.com",            # the DOCTYPE of a launchd plist
     "schemas.openxmlformats.org",  # XML namespace names inside Word, Excel and PowerPoint files
+    "www.w3.org",               # the SVG namespace in a page's tab icon, a name and not an address
 }
 
 # Hosts NextTex reaches through a library rather than by naming them, so the

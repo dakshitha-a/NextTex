@@ -245,7 +245,7 @@ export default function SessionView({
                 data-testid="session-page"
                 trailing={
                   <>
-                    <Button variant="quiet" size="inline" onClick={() => projectId && window.open(api.pageUrl(projectId, page.name), "_blank", "noopener,noreferrer")}>
+                    <Button variant="quiet" size="inline" onClick={() => projectId && window.open(api.pageUrlThemed(projectId, page.name), "_blank", "noopener,noreferrer")}>
                       Open
                     </Button>
                     <Button variant="quiet" size="inline" onClick={() => projectId && copy(new URL(api.pageUrl(projectId, page.name), window.location.href).href, page.name)}>

@@ -418,9 +418,21 @@ class ScriptedAgent:
             await self._emit({"type": "remote", **self.remote})
             return
         if kind == "page":
+            # Through the same icon and placeholders the real tool fills
+            # in, so a page in a spec or the README's film is the page the
+            # agent would publish; the browser check is the real tool's.
+            from . import page_icons, page_parts
             from .pages import Pages
 
-            name = Pages(self.state_dir).save(str(step.get("name", "page")), str(step.get("html", "")))
+            source = page_icons.wear(str(step.get("html", "")), str(step.get("icon", page_icons.DEFAULT)))
+            filled = page_parts.fill(source, self.root)
+            name = Pages(self.state_dir).save(str(step.get("name", "page")), source, filled.html)
+            self._counter += 1
+            tool = f"page-{self._counter}"
+            await self._emit({"type": "tool_use", "id": tool, "name": "mcp__nexttex__publish_page",
+                              "input": {"name": name}})
+            await self._emit({"type": "tool_done", "id": tool, "name": "mcp__nexttex__publish_page",
+                              "ms": 900, "ok": True})
             await self._emit({"type": "page", "name": name})
             return
         if kind == "refused":

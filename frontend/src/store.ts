@@ -1748,6 +1748,8 @@ export function summariseTool(name: string, input: any): string {
   // drawer already holds, since the call names the thread only by its id.
   const bare = name.replace(/^mcp__nexttex__/, "");
   if (bare === "list_comments") return input.path ? `on ${input.path}` : "";
+  // A page is named by its address; it has no path.
+  if (bare === "publish_page" || bare === "read_page" || bare === "edit_page") return String(input.name ?? "");
   if (bare === "reply_to_comment") {
     const thread = state.comments.find((one) => one.id === input.thread);
     return thread?.quote ? `on ${thread.quote}` : "";

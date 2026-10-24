@@ -134,3 +134,14 @@ def test_the_build_compresses_webassembly_and_module_workers():
     script = (Path(__file__).resolve().parent.parent / "frontend" / "precompress.mjs").read_text()
     listed = script.split("const WORTH_IT", 1)[1].split("\n", 1)[0]
     assert '".wasm"' in listed and '".mjs"' in listed
+
+
+def test_katex_answers_a_published_pages_sandbox_and_nothing_else_does(assets):
+    """A published page has an origin of its own, and a font is fetched with
+    CORS: without the header every KaTeX font was refused and the maths
+    fell back to the system's serif. Only the KaTeX folder says it."""
+    (assets / "katex" / "fonts").mkdir(parents=True)
+    (assets / "katex" / "fonts" / "KaTeX_Main-Regular.woff2").write_bytes(b"font")
+    font = fetch(assets, "katex/fonts/KaTeX_Main-Regular.woff2", "gzip, br")
+    assert font.headers["access-control-allow-origin"] == "*"
+    assert "access-control-allow-origin" not in fetch(assets, "app.js", "gzip, br").headers

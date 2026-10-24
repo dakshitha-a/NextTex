@@ -264,6 +264,26 @@ For the conference kits nobody may pass on, it says where to get them.
 </td>
 <td><picture><source media="(prefers-color-scheme: dark)" srcset="docs/tour/templates-dark.webp"><img src="docs/tour/templates-light.webp" alt="The template browser: a search field, chips for each kind, the conference templates with ACM chosen, and a guide to ICML opened to its steps and the official page." width="380"></picture></td>
 </tr>
+<tr>
+<td><img src="docs/tour/page.webp" alt="Asked to explain why Figure 1 needs two time constants, the agent publishes a page; Open shows it: the paper's figure, then the derivation in four steps with its maths typeset." width="380"></td>
+<td>
+
+### Pages you can send
+
+Ask the agent to explain something and it can publish a page: a derivation
+worked step by step, a table for a co-author, a summary to read on your
+phone. The maths is typeset with your own macros, the figures are the ones in
+your project, and an equation can be quoted straight from your source.
+
+Before you see it, NextTex opens the page in a browser and tells the agent
+what went wrong, so a broken page gets fixed rather than handed to you. Each
+page gets an icon for its browser tab, and opens in the same light or dark
+theme as NextTex. Open it, or copy the link.
+
+[More on pages →](docs/guide.md#it-publishes-a-page-you-can-send)
+
+</td>
+</tr>
 </table>
 
 <details>

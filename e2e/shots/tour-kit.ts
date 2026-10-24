@@ -43,7 +43,10 @@ export const OUT = join(ROOT, "docs", "tour");
 export const FRAMES = join(tmpdir(), "nexttex-tour-frames");
 export const PYTHON = join(ROOT, ".venv", "bin", "python");
 
-export type Scene = { home: string; app: Instance; tab: Page; root: string };
+/** `script` is the scripted agent's script for every turn, so a scene that
+ *  asks the agent something types only the question; the `#script:` line a
+ *  spec can put first would show in the composer. */
+export type Scene = { home: string; app: Instance; tab: Page; root: string; script: string };
 
 export const ABSTRACT = [
   "  Molecules that absorb light often return to the ground state through a",
@@ -51,6 +54,7 @@ export const ABSTRACT = [
 ];
 
 export const test = base.extend<Scene>({
+  script: ["reply", { option: true }],
   home: async ({}, use) => {
     const home = mkdtempSync(join(tmpdir(), "nexttex-tour-"));
     mkdirSync(join(home, "papers"), { recursive: true });
@@ -59,9 +63,11 @@ export const test = base.extend<Scene>({
     await use(home);
     rmSync(home, { recursive: true, force: true });
   },
-  app: async ({ home }, use) => {
+  app: async ({ home, script }, use) => {
     const pandoc = join(process.env.HOME ?? "", ".local", "bin", "pandoc");
-    const instance = await startServer({ HOME: home, ...(existsSync(pandoc) ? { NEXTTEX_PANDOC: pandoc } : {}) });
+    const instance = await startServer({
+      HOME: home, NEXTTEX_SCRIPTED_AGENT: script, ...(existsSync(pandoc) ? { NEXTTEX_PANDOC: pandoc } : {}),
+    });
     await use(instance);
     await instance.stop();
   },

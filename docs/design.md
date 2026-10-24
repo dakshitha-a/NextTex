@@ -12584,3 +12584,33 @@ under 400 px, Remote folds to its dot, its word in the title, and the
 turn's age leaves the line. At rest Remote keeps its word.
 `e2e/specs/fix-opens-claude.spec.ts` and `e2e/specs/session.spec.ts` drive
 these.
+
+## 123. Pages, made to be read
+
+Drawn on the direction page under Pages, made to be read, 24 October 2026,
+at the writer's request and decided by me. The thesis's agent published a
+derivation whose equations it had to draw by hand, and one stray parenthesis
+left every equation blank while the tool said it had worked.
+
+**What a writer sees** is only in the pages and the turn. A page's maths is
+set by KaTeX with the project's own macros, its figures are the project's,
+and an equation can be the paper's own, quoted by label. Each page wears an
+icon in its browser tab from a set of fifteen, white on a rounded square in
+the pen's violet, since a page is the agent's work: page, tracker, checklist,
+timer, explanation, derivation, table, chart, plot, figure, report,
+comparison, schedule, notes and reading. In the turn, the tool line reads
+"Published a page" with the page's name, "Changed a page" for an edit and
+"Read a page" for a read; the chip is unchanged. A page opened from NextTex
+is in NextTex's theme, dark from a dark NextTex and light from a light one,
+at the writer's request the same day; a copied link opened elsewhere follows
+that reader's system.
+
+**What the agent sees** is a browser's account of the page and a picture of
+its top, after every publish, so it fixes what broke before the writer opens
+it. A machine with no Chrome, Chromium or Edge tells it the page was not
+checked.
+
+The README carries the scene as "Pages you can send", filmed by
+`e2e/shots/tour.spec.ts` as `docs/tour/page.webp`: asked why Figure 1 needs
+two time constants, the agent publishes a page that derives them, with the
+figure and Equation (1) from the paper.

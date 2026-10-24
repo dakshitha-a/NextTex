@@ -405,6 +405,22 @@ Nothing at present. The last entries were read and closed on 8 October
 
 ### Deliberately not done, and worth revisiting only if something changes
 
+- [ ] **ChatGPT and a local model have no page tools.** `publish_page`,
+      `read_page` and `edit_page` are the Claude provider's, and the
+      OpenAI provider's function list was never given them. Adding them
+      is three specs and the same methods; left until a writer on that
+      provider asks for a page, since its tool results are words and
+      the picture the check returns would not reach the model.
+- [ ] **A figure's labels are not checked for overlap by the script
+      tools.** The thesis's session asked for `run_plot_script` to
+      report text that collides; the agent already gets the figure as
+      a picture and is told to look for exactly that. Revisit if the
+      writer still finds overlaps the agent missed.
+- [ ] **No chart library for pages.** A plot goes on a page as the
+      project's own figure, `{{figure:...}}`, drawn by matplotlib as
+      the writer's figures are; a chart library would be a second way
+      to draw the same thing, in a style the paper does not use.
+
 - [ ] **A text file that is not UTF-8 cannot be opened.** The tree reads
       the first 8 kB of a file it has no name for, so an old program's
       output in Latin-1 is a download, and one that turns to Latin-1 past

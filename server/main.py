@@ -48,7 +48,7 @@ from nexttex import (
     plots, rename, report, submit, synctex, texpkg,
 )
 from nexttex.version import VERSION
-from nexttex.pages import POLICY as PAGE_POLICY, Pages
+from nexttex.pages import Pages, policy as page_policy, themed
 from server.collab import identity as collab_identity
 from server.collab import transport as collab_transport
 from server.collab import endpoint as collab_endpoint
@@ -687,6 +687,8 @@ app = FastAPI(title="NextTex", lifespan=lifespan, docs_url=None, redoc_url=None)
 # Reachable without credentials, because they are how you get credentials, or
 # because they are needed to draw the page that asks for them.
 OPEN_PATHS = ("/assets/", "/favicon", "/api/login")
+#: KaTeX for published pages; readable from any origin, see `authenticate`.
+KATEX_PATH = "/assets/katex/"
 
 
 def _client_address(request: Request) -> str:
@@ -981,6 +983,13 @@ async def wait_for_closing(request: Request, call_next):
 
 @app.middleware("http")
 async def authenticate(request: Request, call_next):
+    # KaTeX is loaded by the agent's published pages, whose sandbox makes
+    # every load cross-site, and the check below refused them all, a 403
+    # the browser then blocked as an opaque response: the maths stayed
+    # source. It is the bundle's own static copy, served to anyone signed
+    # in or not, so reading it from elsewhere gives nothing away.
+    if request.method in SAFE_METHODS and request.url.path.startswith(KATEX_PATH):
+        return await call_next(request)
     if not _same_origin_request(request):
         return JSONResponse(
             {"error": "This request came from another page, so it was refused."},
@@ -7019,20 +7028,23 @@ async def list_pages(project_id: str):
 
 
 @app.get("/api/projects/{project_id}/pages/{name}")
-async def serve_page(project_id: str, name: str):
+async def serve_page(project_id: str, name: str, request: Request, theme: str = ""):
     """A published page, sandboxed: the policy gives it an origin of its
     own, so a script in it cannot read this install's cookie or call its
-    API, and it may load nothing from anywhere but itself and Google's
-    fonts. A name that is not a page's, `..` among them, is not found."""
+    API, and it may load nothing from anywhere but itself, Google's fonts
+    and this server's KaTeX folder. A name that is not a page's, `..`
+    among them, is not found. `theme` is the theme of the NextTex that
+    opened it, written onto the page's root for its styles to follow."""
     session = session_for(project_id)
     body = Pages(session.project.state_dir).read(name)
     if body is None:
         raise HTTPException(404, "no such page")
+    body = themed(body, theme)
     return Response(
         content=body,
         media_type="text/html; charset=utf-8",
         headers={
-            "Content-Security-Policy": PAGE_POLICY,
+            "Content-Security-Policy": page_policy(str(request.base_url)),
             "X-Content-Type-Options": "nosniff",
             "Referrer-Policy": "no-referrer",
             "Cache-Control": "no-store",
@@ -7808,6 +7820,12 @@ class PrecompressedStatic(StaticFiles):
         response = await self._encoded(path, scope)
         if response.status_code == 200 and HASHED_ASSET.search(path):
             response.headers["cache-control"] = "public, max-age=31536000, immutable"
+        # KaTeX is loaded by the agent's published pages, whose sandbox
+        # gives them an origin of their own, and a font is fetched with
+        # CORS: without this header every KaTeX font was refused and the
+        # maths fell back to the system's serif.
+        if path.startswith("katex/"):
+            response.headers["access-control-allow-origin"] = "*"
         return response
 
     async def _encoded(self, path: str, scope):
