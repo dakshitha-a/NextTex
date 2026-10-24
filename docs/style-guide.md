@@ -262,6 +262,10 @@ else.
   into view, unfolding it when docked and opening it when parked, then
   seeds the composer with the caret at the end; it never sends. With an
   agent chosen but not set up, it says so in the notice instead.
+- A header row with more marks than room gives way in a fixed order: the
+  working line's activity truncates first, then the turn's age leaves,
+  then a state mark folds to its dot with its word in the title. Controls
+  and the column's name never fold, and nothing paints past its own box.
 - The tree's file card arms after 400 ms and the editor's hover cards
   after 250, never on touch; a key press, a scroll or a menu opening
   dismisses the card. The editor's card stays while the pointer is over

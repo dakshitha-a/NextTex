@@ -115,3 +115,47 @@ test("a page the agent publishes is a chip in the turn and a row in the Session 
   await expect(tab.getByTestId("session-page")).toHaveCount(0);
   await expect(tab.getByTestId("session-pages")).toContainText("Nothing published yet.");
 });
+
+test("the working line keeps to its own room beside Remote and Auto", async ({ tab }) => {
+  // Found on 24 October: on a docked column with Remote on, the working
+  // line's counters ran on under the Remote mark, since the activity's
+  // text would not shrink below its own width.
+  await tab.setViewportSize({ width: 1500, height: 1000 });
+  await tab.getByTestId("session-open").click();
+  await tab.getByTestId("session-view").getByTestId("session-remote").click();
+  await tab.getByTestId("session-back").click();
+  const remote = tab.getByTestId("remote-mark");
+  await expect(remote).toHaveText("Remote");
+  // The column at its narrowest, where the header has the least room.
+  const handle = tab.getByRole("separator", { name: /Resize the .* column/ });
+  await handle.focus();
+  for (let step = 0; step < 12; step += 1) await tab.keyboard.press("Shift+ArrowRight");
+  await expect.poll(async () => Math.round((await tab.getByTestId("chat-panel").boundingBox())!.width)).toBeLessThan(330);
+
+  await ask(tab, "working", "Read the theory chapter.");
+  const working = tab.getByTestId("working");
+  await expect(working).toBeVisible({ timeout: 20_000 });
+  // Wait for the step's counter, then for the turn's own, the widest the
+  // line gets; at this width the turn's age gives way, so it is hidden.
+  await expect(working).toContainText(/\d+s/, { timeout: 10_000 });
+  await expect(working.locator("[data-turn-age]")).toBeHidden({ timeout: 10_000 });
+  await expect(remote).toHaveText("Remote");
+  await expect(remote.getByText("Remote")).toBeHidden();
+  const overlap = await working.evaluate((line) => {
+    const mark = document.querySelector('[data-testid="remote-mark"]')!.getBoundingClientRect();
+    const ends = [...line.querySelectorAll("*")].map((child) => child.getBoundingClientRect().right);
+    return Math.max(...ends) - mark.left;
+  });
+  expect(overlap).toBeLessThanOrEqual(0);
+  // And nothing in the header runs past the column's edge.
+  const spill = await tab.getByTestId("chat-header").evaluate((head) => {
+    const edge = head.getBoundingClientRect().right;
+    return Math.max(...[...head.children].map((child) => child.getBoundingClientRect().right)) - edge;
+  });
+  expect(spill).toBeLessThanOrEqual(0);
+  // Once the turn ends there is room again, and Remote has its word back.
+  await expect(working).toHaveCount(0, { timeout: 20_000 });
+  await expect(remote.getByText("Remote")).toBeVisible();
+  await tab.getByTestId("session-open").click();
+  await tab.getByTestId("session-view").getByTestId("session-remote").click();
+});

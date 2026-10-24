@@ -12577,4 +12577,10 @@ It asks the agent to read the last build's errors, fix each with the
 smallest change, build again, and stop to ask when an error needs the
 writer's decision.
 
-`e2e/specs/fix-opens-claude.spec.ts` drives these.
+**The header at its narrowest.** The writer caught the working line's
+counters running under the Remote mark at the column's 320 px floor. The
+line now keeps inside its own room, and while a turn works in a header
+under 400 px, Remote folds to its dot, its word in the title, and the
+turn's age leaves the line. At rest Remote keeps its word.
+`e2e/specs/fix-opens-claude.spec.ts` and `e2e/specs/session.spec.ts` drive
+these.

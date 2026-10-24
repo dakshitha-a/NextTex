@@ -697,12 +697,12 @@ export default function Chat({
           {thinking || blocked ? (
             <span className="nx-column-work" data-testid="working" aria-live="polite">
               <span className={`nx-working ${blocked ? "bg-warn" : "bg-pen"}`} />
-              <span className="truncate" title={activity}>{activity}</span>
+              <span className="min-w-0 truncate" title={activity}>{activity}</span>
               <Elapsed since={blocked ? null : current?.since ?? null} />
               {/* The turn's own age, as distinct from the age of whatever
                   it is doing this second, parenthesised so the pair reads
                   as one thing rather than two competing counters. */}
-              {turnSince && !blocked ? <Elapsed since={turnSince} parenthesised /> : null}
+              {turnSince && !blocked ? <Elapsed since={turnSince} parenthesised turn /> : null}
             </span>
           ) : null}
           {/* The state, always on screen, as distinct from the control,
@@ -722,7 +722,7 @@ export default function Chat({
               }
             >
               <i aria-hidden="true" />
-              Remote
+              <span className="nx-column-remote-word">Remote</span>
             </span>
           ) : null}
           {mode !== "ask" ? (
@@ -1687,9 +1687,12 @@ function ToolRow({ item }: { item: Extract<ChatItem, { kind: "tool" }> }) {
 function Elapsed({
   since,
   parenthesised = false,
+  turn = false,
 }: {
   since: number | null;
   parenthesised?: boolean;
+  /** The turn's own age, which the header gives up first when narrow. */
+  turn?: boolean;
 }) {
   const [now, setNow] = useState(() => Date.now());
   useEffect(() => {
@@ -1704,6 +1707,7 @@ function Elapsed({
   return (
     <span
       className="t-micro shrink-0 text-right tabular-nums text-ink-3"
+      data-turn-age={turn ? "" : undefined}
       style={{ minWidth: "3ch" }}
     >
       {parenthesised ? "(" : ""}

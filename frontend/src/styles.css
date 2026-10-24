@@ -1780,10 +1780,14 @@ button.nx-row { width: 100%; text-align: left; }
    column draws the same row with a back control in front of its title.
    Past conversations are rows with the question and its stamp; what the
    agent reads is sections with a title, a hint and 28 px file rows. */
-.nx-column-head { display: flex; align-items: center; gap: 2px; height: 36px; padding: 0 8px 0 16px; flex: none; min-width: 0; background: var(--surround); }
+.nx-column-head { display: flex; align-items: center; gap: 2px; height: 36px; padding: 0 8px 0 16px; flex: none; min-width: 0; background: var(--surround); container-type: inline-size; }
 .nx-column-head .nx-icon-button { color: var(--ink-2); }
 .nx-column-head .nx-icon-button:hover, .nx-column-head .nx-icon-button[data-on] { color: var(--ink); }
-.nx-column-work { display: inline-flex; flex: 1; align-items: center; gap: 6px; min-width: 0; color: var(--ink-3); font-size: 12.5px; line-height: 17px; }
+/* The working line takes the slack and keeps inside it: the activity
+   truncates, the counters keep their width, and anything past the line's
+   edge is clipped there rather than drawn over Remote or Auto. Its floor
+   is the dot and a counter. */
+.nx-column-work { display: inline-flex; flex: 1; align-items: center; gap: 6px; min-width: calc(6px + 6px + 3ch); overflow: hidden; color: var(--ink-3); font-size: 12.5px; line-height: 17px; }
 .nx-column-work .nx-working { width: 6px; height: 6px; border-radius: 50%; flex: none; }
 .nx-column-auto { color: var(--warn); font-size: 12px; font-weight: 500; padding: 0 6px; flex: none; }
 /* Remote control's state beside Auto: the second ink, a dot in the ok ink
@@ -1792,6 +1796,14 @@ button.nx-row { width: 100%; text-align: left; }
 .nx-column-remote { display: inline-flex; align-items: center; gap: 5px; color: var(--ink-2); font-size: 12px; font-weight: 500; padding: 0 6px; flex: none; }
 .nx-column-remote > i { width: 6px; height: 6px; border-radius: 50%; background: var(--ok); }
 .nx-column-remote[data-state="connecting"] > i { background: var(--warn); }
+/* At the column's narrowest, while a turn is working, the header cannot
+   hold every word: Remote folds to its dot, whose title says what it is,
+   and the turn's own age leaves the working line, which keeps the current
+   step's. At rest there is room, and Remote keeps its word. */
+@container (max-width: 400px) {
+  .nx-column-head:has(.nx-column-work) .nx-column-remote-word { display: none; }
+  .nx-column-work [data-turn-age] { display: none; }
+}
 .nx-past-row { display: flex; flex-direction: column; align-items: flex-start; text-align: left; padding: 7px 8px; border-radius: var(--nx-radius-control); color: var(--ink); }
 .nx-past-row small { color: var(--ink-3); font-size: 12px; line-height: 16px; font-variant-numeric: tabular-nums; }
 .nx-past-row:hover, .nx-past-row:focus-visible { background: var(--wash); }
