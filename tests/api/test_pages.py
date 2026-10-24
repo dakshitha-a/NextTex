@@ -35,7 +35,10 @@ def test_a_page_name_cannot_leave_the_pages_folder(client, opened):
     (state / "secret.html").write_text("not a page")
     for name in ("..%2Fsecret", "%2E%2E%2Fsecret", "../secret", "..", "secret.html", "Three-Fits"):
         served = client.get(f"/api/projects/{opened['id']}/pages/{name}")
-        assert served.status_code == 404, name
+        # 405 where the client folded `..` into the project's own address
+        # before sending, which depends on the HTTP library's version: not
+        # a page either way, which is the point.
+        assert served.status_code in (404, 405), name
         assert "not a page" not in served.text
         # A bare `..` is resolved by the client before it is sent, to the
         # project's own address, so only the forms that reach this route
