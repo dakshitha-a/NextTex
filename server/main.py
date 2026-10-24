@@ -7556,7 +7556,10 @@ async def agent_status():
             "keyTail": SETTINGS.openai_key[-4:] if SETTINGS.openai_key else "",
             "baseUrl": SETTINGS.openai_base_url,
         }
-    status = claude_auth.status()
+    # `claude auth status` is a process that can take seconds, and this
+    # route is asked on every boot and every Fix; run on the loop, it held
+    # every other tab's requests and editing sockets while it ran.
+    status = await asyncio.to_thread(claude_auth.status)
     return {
         "provider": "claude", "ready": bool(status.get("loggedIn")), **status,
         "compactPercent": SETTINGS.compact_percent,
@@ -7638,7 +7641,7 @@ async def agent_provider(
 
 @app.get("/api/claude/status")
 async def claude_status():
-    return claude_auth.status()
+    return await asyncio.to_thread(claude_auth.status)
 
 
 @app.post("/api/claude/login/start")

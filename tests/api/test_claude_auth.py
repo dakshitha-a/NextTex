@@ -263,3 +263,27 @@ def test_a_second_sign_in_is_told_about_the_first_and_can_take_over(monkeypatch,
     assert refused["ok"] is False and refused["busy"] is True
     assert refused["error"] == claude_auth.ALREADY_SIGNING_IN
     assert seen[-1] == "replaced", seen
+
+
+def test_the_status_check_runs_off_the_event_loop(client, monkeypatch):
+    """`claude auth status` is a process that can take seconds. Asked on the
+    loop, it held every other tab's requests and editing sockets while it
+    ran, and the browser asks it at every boot and every press of Fix."""
+    import asyncio
+    from nexttex import claude_auth
+
+    on_loop = []
+
+    def status():
+        try:
+            asyncio.get_running_loop()
+            on_loop.append(True)
+        except RuntimeError:
+            on_loop.append(False)
+        return {"installed": True, "loggedIn": True}
+
+    monkeypatch.setattr(claude_auth, "status", status)
+    monkeypatch.setattr("server.main.SETTINGS.provider", "claude")
+    assert client.get("/api/claude/status").json()["loggedIn"] is True
+    assert client.get("/api/agent/status").json()["ready"] is True
+    assert on_loop == [False, False]
