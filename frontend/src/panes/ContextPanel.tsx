@@ -208,7 +208,7 @@ export default function ContextPanel({
                         : "text-ink-3"
                     }`}
                   >
-                    {editing.length} / {memory?.limit ?? 4000}
+                    {editing.length} / {memory?.limit ?? 8000}
                   </span>
                 </div>
               </>
