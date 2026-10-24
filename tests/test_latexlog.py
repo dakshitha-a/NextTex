@@ -157,3 +157,41 @@ def test_each_file_in_a_log_is_looked_up_on_disk_once(tmp_path, monkeypatch):
     assert len(log.warnings) == 300
     assert {d.file.name for d in log.warnings} == {"one.tex", "two.tex"}
     assert len(resolved) <= 3
+
+
+def test_every_kind_of_line_is_still_read_when_the_first_character_picks_the_pattern():
+    """The parser tries a line only against the patterns its first
+    character allows. Each pattern's own first characters are here, side by
+    side, so a pattern that starts matching something new and is not added
+    to the choice fails this rather than going quiet."""
+    log = (
+        "This is pdfTeX (preloaded format=pdflatex) (./main.tex (./one.tex\n"
+        "./one.tex:7: Undefined control sequence.\n"
+        "l.7 \\nope\n"
+        "\n"
+        "C:/project/two.tex:9: Missing $ inserted.\n"
+        "\n"
+        "! Emergency stop.\n"
+        "l.12 \\end\n"
+        "Overfull \\hbox (3.0pt too wide) in paragraph at lines 4--5\n"
+        "Underfull \\vbox (badness 10000) has occurred while \\output is active\n"
+        "LaTeX Warning: Reference `fig' on page 1 undefined on input line 3.\n"
+        "Package natbib Warning: Citation `k' on page 1 undefined on input line 8.\n"
+        ") (Font) )\n"
+        "Output written on build/main.pdf (3 pages, 1000 bytes).\n"
+    )
+    result = parse_log(log, ROOT, MAIN)
+    assert [(e.message, e.line) for e in result.errors] == [
+        ("Undefined control sequence.", 7),
+        ("Missing $ inserted.", 9),
+        ("Emergency stop.", 12),
+    ]
+    assert [w.message.split(" (")[0] for w in result.warnings] == [
+        "Overfull \\hbox",
+        "Underfull \\vbox",
+        "Reference `fig' on page 1 undefined",
+        "Citation `k' on page 1 undefined",
+    ]
+    assert {w.file.name for w in result.warnings} == {"one.tex"}
+    assert result.warnings[3].package == "natbib"
+    assert result.pages == 3

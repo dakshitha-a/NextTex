@@ -108,6 +108,16 @@ SUPPRESSED = (
     "Font shape",             # substitution notices; never actionable in source
 )
 
+# Each list above as one pattern, so a message is searched once rather than
+# once per entry: `emit` runs for every warning, and on a log of 72,000
+# warnings the per-entry `in` tests were a tenth of the parse.
+_ANY_BIBLIOGRAPHY_STALE = re.compile("|".join(map(re.escape, BIBLIOGRAPHY_STALE)))
+_ANY_RERUN_HINT = re.compile("|".join(map(re.escape, RERUN_HINTS)))
+_ANY_SUPPRESSED = re.compile("|".join(map(re.escape, SUPPRESSED)))
+
+# Where to find the next parenthesis on a line, for `_FileStack.feed`.
+_PAREN = re.compile(r"[()]")
+
 
 @dataclass
 class Diagnostic:
@@ -243,14 +253,19 @@ class _FileStack:
         # build's 72,000 warnings asked for its file's real path again.
         # Measured on a 5.5 MB log, those `lstat`s were most of a
         # 3.3-second parse.
+        # Both are keyed by what the log wrote, so a repeat builds no `Path`
+        # at all: parsing the same path text into a new `Path` for every
+        # file TeX opened was a fifth of a 13.7 MB log's parse.
         self._resolved: dict[str, Path] = {}
         self._real: dict[Path, Path] = {}
+        # What `current` reports for a stack entry: its real path when it
+        # is a source file, None when it is a style or class file.
+        self._source: dict[Path, Path | None] = {}
 
-    def resolve(self, path: Path) -> Path:
-        key = str(path)
-        found = self._resolved.get(key)
+    def resolve(self, text: str) -> Path:
+        found = self._resolved.get(text)
         if found is None:
-            found = self._resolved[key] = self._resolve(path)
+            found = self._resolved[text] = self._resolve(Path(text))
         return found
 
     def real(self, path: Path) -> Path:
@@ -280,13 +295,20 @@ class _FileStack:
         return against_base
 
     def feed(self, line: str) -> None:
-        i, n = 0, len(line)
-        while i < n:
-            char = line[i]
-            if char == "(":
-                match = FILE_OPEN_PATH.match(line, i + 1)
+        # Most lines hold no parenthesis, and the ones that do are walked
+        # from one to the next by a search rather than a character at a time.
+        if "(" not in line and ")" not in line:
+            return
+        i = 0
+        while True:
+            found = _PAREN.search(line, i)
+            if found is None:
+                return
+            i = found.end()
+            if found.group() == "(":
+                match = FILE_OPEN_PATH.match(line, i)
                 if match:
-                    path = self.resolve(Path(match.group(0)))
+                    path = self.resolve(match.group(0))
                     self.stack.append(path)
                     self.opened.add(path)
                     i = match.end()
@@ -294,10 +316,8 @@ class _FileStack:
                 # A parenthesis that opens no file still has to be
                 # balanced, or its `)` will close somebody else's file.
                 self.stack.append(None)
-            elif char == ")":
-                if self.stack:
-                    self.stack.pop()
-            i += 1
+            elif self.stack:
+                self.stack.pop()
 
     @property
     def current(self) -> Path | None:
@@ -308,8 +328,16 @@ class _FileStack:
         even though they are tracked for balance.
         """
         for entry in reversed(self.stack):
-            if entry is not None and entry.suffix.lower() in self.SOURCE_SUFFIXES:
-                return self.real(entry)
+            if entry is None:
+                continue
+            try:
+                source = self._source[entry]
+            except KeyError:
+                source = self._source[entry] = (
+                    self.real(entry) if entry.suffix.lower() in self.SOURCE_SUFFIXES else None
+                )
+            if source is not None:
+                return source
         return None
 
 
@@ -333,16 +361,18 @@ def parse(
     pending: Diagnostic | None = None
 
     def emit(diag: Diagnostic) -> None:
-        if any(s in diag.message for s in BIBLIOGRAPHY_STALE):
+        message = diag.message
+        if _ANY_BIBLIOGRAPHY_STALE.search(message):
             result.bibliography_stale = True
-        elif any(s in diag.message for s in RERUN_HINTS):
+        elif _ANY_RERUN_HINT.search(message):
             result.rerun_needed = True
-        if any(s in diag.message for s in SUPPRESSED):
+        if _ANY_SUPPRESSED.search(message):
             return
         if diag.file is None:
             diag.file = stack.current or main_file
-        if diag.key() not in seen:
-            seen.add(diag.key())
+        key = diag.key()
+        if key not in seen:
+            seen.add(key)
             result.diagnostics.append(diag)
 
     for raw in lines:
@@ -367,9 +397,18 @@ def parse(
 
         stack.feed(line)
 
-        match = FILE_LINE_ERROR.match(line)
+        # Every pattern below can match only a line that starts in a
+        # particular way, so the first character says which are worth
+        # trying. Most of a long log is file openings, closings and prose
+        # that none of them match, and trying all five on each of those
+        # lines was the largest part of the parse.
+        if not line:
+            continue
+        first = line[0]
+
+        match = FILE_LINE_ERROR.match(line) if first in "./" or line[1:2] == ":" else None
         if match and not line.startswith("l."):
-            path = stack.resolve(Path(match.group("file")))
+            path = stack.resolve(match.group("file"))
             pending = Diagnostic(
                 severity="error",
                 message=match.group("msg").strip(),
@@ -378,17 +417,17 @@ def parse(
             )
             continue
 
-        match = BARE_ERROR.match(line)
+        match = BARE_ERROR.match(line) if first == "!" else None
         if match:
             pending = Diagnostic(severity="error", message=match.group("msg").strip())
             continue
 
-        match = OUTPUT_WRITTEN.match(line)
+        match = OUTPUT_WRITTEN.match(line) if first == "O" else None
         if match:
             result.pages = int(match.group("pages"))
             continue
 
-        match = BOX_WARNING.match(line)
+        match = BOX_WARNING.match(line) if first in "OU" else None
         if match:
             start = match.group("line")
             emit(
@@ -404,7 +443,7 @@ def parse(
             )
             continue
 
-        match = LATEX_WARNING.match(line)
+        match = LATEX_WARNING.match(line) if first in "LP" else None
         if match:
             emit(
                 Diagnostic(
