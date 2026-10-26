@@ -1309,6 +1309,35 @@ const SURFACES: Record<string, Surface> = {
       await tab.getByTestId("permission-card").waitFor({ state: "detached" });
     },
   },
+  "composer-working": {
+    // The composer's ring while a turn runs, held at the start of its
+    // breath so the photograph is the drawing's live column.
+    open: async (tab) => {
+      const composer = tab.locator("textarea");
+      await composer.click();
+      await composer.fill("#script:working\nRead the theory chapter, then rebuild.");
+      await composer.press("Enter");
+      await tab.locator('[data-testid="composer"][data-working="working"]').waitFor({ timeout: 20_000 });
+      await tab.getByTestId("composer").evaluate((card) => {
+        for (const a of card.getAnimations({ subtree: true })) { a.pause(); a.currentTime = 0; }
+      });
+      return tab.getByTestId("chat");
+    },
+  },
+  "composer-waiting": {
+    // A permission card open: the ring in the warn ink, as the dot is.
+    open: async (tab) => {
+      const composer = tab.locator("textarea");
+      await composer.click();
+      await composer.fill("#script:permission\nRun the command.");
+      await composer.press("Enter");
+      await tab.locator('[data-testid="composer"][data-working="waiting"]').waitFor({ timeout: 20_000 });
+      await tab.getByTestId("composer").evaluate((card) => {
+        for (const a of card.getAnimations({ subtree: true })) { a.pause(); a.currentTime = 0; }
+      });
+      return tab.getByTestId("chat");
+    },
+  },
   "find-vim": {
     // The source pane with find open and the Vim bar under it, as the
     // page's dark strips drawing has them.

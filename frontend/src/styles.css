@@ -1858,10 +1858,29 @@ button.nx-reads-x[data-always]:hover { color: var(--pen); }
   overflow-y: hidden;
 }
 .nx-composer-box::placeholder { color: var(--ink-3); }
+/* A turn is running: a 1 px ring inside the card's edge, in the pen, or in
+   the warn ink while the agent waits on an answer, as the header's dot is.
+   It breathes on the dot's own 1400 ms so the two never drift apart, and
+   it is drawn on a layer of its own so the loop is an opacity change and
+   the card's box never moves.  Its resting opacity is the visible one, so
+   under reduced motion, where every animation stops, the ring stays. */
+.nx-composer[data-working] { position: relative; }
+.nx-composer[data-working]::after {
+  content: ""; position: absolute; inset: 0; border-radius: inherit; pointer-events: none;
+  box-shadow: inset 0 0 0 1px var(--pen); opacity: 0.7;
+  animation: nx-composer-breath 1400ms var(--ease) infinite;
+}
+.nx-composer[data-working="waiting"]::after { box-shadow: inset 0 0 0 1px var(--warn); }
+@keyframes nx-composer-breath {
+  0%, 100% { opacity: 0.7; }
+  50% { opacity: 0.2; }
+}
 /* A file or a tree row over the composer: the drop target the tree shows,
    the hint's wash and edge, and the box says what a drop does. */
 .nx-composer[data-dropping] { background: var(--hint-wash); box-shadow: inset 0 0 0 1.5px var(--hint); }
 .nx-composer[data-dropping] .nx-composer-box::placeholder { color: var(--ink); }
+/* The drop target is the one edge while it lasts. */
+.nx-composer[data-dropping]::after { display: none; }
 /* A chip's glyph for a file with no thumbnail, in the tree's third ink. */
 .nx-attachment-glyph { display: inline-flex; color: var(--ink-3); }
 .nx-composer-tools { display: flex; align-items: center; gap: 2px; min-width: 0; }
@@ -2282,8 +2301,9 @@ button.nx-reads-x[data-always]:hover { color: var(--pen); }
   background: var(--pen); animation: sweep 900ms linear infinite;
 }
 
-/* The one animation in the app that repeats without being asked, and the
-   only thing on screen that says "still working".  It starts 400ms into a
+/* The build's sign that it is still working, one of the few animations
+   that repeat without being asked; the agent's dot and the composer's ring
+   are the others, and all of them mean work in progress.  It starts 400ms into a
    build, so the ordinary sub-second rebuild comes and goes without it.
    `alternate` gives a real ease-in-out from the app's single curve rather
    than introducing a second one.  The background lives in the class rather

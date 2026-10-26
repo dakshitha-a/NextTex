@@ -996,10 +996,13 @@ export default function Chat({
         ) : null}
         {/* The composer is one card on the first surface, as the page
             draws it: what goes with the question as chips at the top, the
-            box, and one row of tools under it. */}
+            box, and one row of tools under it.  While a turn runs its edge
+            breathes with the header's dot, in the same tone, so the place
+            the writer is looking says the agent is at work too. */}
         <div
           className="nx-composer"
           data-dropping={dropping > 0 || undefined}
+          data-working={blocked ? "waiting" : thinking ? "working" : undefined}
           data-testid="composer"
           onDragEnter={(event) => {
             if (!carries(event)) return;

@@ -12632,3 +12632,28 @@ prose's ink in either theme, a step larger than the sentence around it.
 A price such as "between $5 and $10" stays prose. Maths KaTeX cannot read
 shows as its source in the code face, so a typo costs that one expression
 and not the paragraph.
+
+## 125. The composer breathes while the agent works
+
+Drawn on the direction page under The composer breathes while the agent
+works, 26 October 2026, at the writer's request and decided by me. The
+header said a turn was running, with its breathing dot and a line saying
+what was being done, but the header is at the top of the column and the
+writer's eyes are on the composer at the bottom.
+
+**What a writer sees** is a thin ring inside the composer card's edge while
+a turn runs, in the pen, the agent's colour. It fades and returns every
+1.4 seconds, on the header dot's own beat, so the two read as one sign.
+While a permission card waits for an answer the ring is in the warn ink,
+as the dot is. Only the ring's light changes: the card keeps its size and
+nothing under the pointer moves. With reduced motion asked for, the ring
+holds still at its stronger opacity. A file dragged over the composer
+shows the drop target's edge instead, and when the turn ends the ring goes.
+
+**How it is built.** `Chat.tsx` sets `data-working` on the composer,
+`working` while a turn runs and `waiting` while one is held for an answer,
+from the same two values the header's dot reads. `styles.css` draws the
+ring as the card's `::after`, an inset 1 px shadow animated by opacity
+alone on 1400 ms, the dot's period. `e2e/specs/agent.spec.ts` reads the
+ring's animation, its colour, its period beside the dot's and the card's
+size, in a running turn, a waiting one and under reduced motion.

@@ -427,7 +427,11 @@ The rules:
   preview, which replaces itself after a build, so it fades rather than
   cuts. Nothing loops except a sign that work is in progress. A layout
   put back rather than changed, as a project opening with the panes it
-  was left with, is placed, not moved.
+  was left with, is placed, not moved. The loops there are three: the
+  build's breathing dot, the agent's working dot in the Claude column's
+  header, and the composer's ring while a turn runs, which breathes on
+  the dot's period by opacity alone and holds still at its visible
+  opacity under reduced motion, so the sign stays when the motion goes.
 - **Switching what a pane shows is instant.** A tab, a drawer's
   instrument, a file, and the narrow window's source and preview toggle
   change at once, because the writer is already looking where the

@@ -227,6 +227,80 @@ test("the panel says what the agent is doing, not just that it is busy", async (
   await expect(working).toBeHidden({ timeout: 30_000 });
 });
 
+/** The composer's edge, read where the browser draws it: the ring is the
+ *  card's `::after`, so its animation, its colour and the card's box are
+ *  all measured rather than assumed from the attribute. */
+async function composerRing(page: Page) {
+  return page.getByTestId("composer").evaluate((card) => {
+    const after = getComputedStyle(card, "::after");
+    const box = card.getBoundingClientRect();
+    return {
+      state: card.getAttribute("data-working"),
+      animation: after.animationName,
+      shadow: after.boxShadow,
+      width: box.width,
+      height: box.height,
+    };
+  });
+}
+
+test("the composer breathes while a turn runs, with the header's dot, and rests after", async ({
+  tab,
+}) => {
+  const rest = await composerRing(tab);
+  expect(rest.state).toBeNull();
+  expect(rest.animation).toBe("none");
+
+  await ask(tab, "working", "Read the theory chapter.");
+  await expect(tab.getByTestId("working")).toBeVisible({ timeout: 20_000 });
+  await expect(tab.getByTestId("composer")).toHaveAttribute("data-working", "working");
+  const busy = await composerRing(tab);
+  expect(busy.animation).toBe("nx-composer-breath");
+  // The header's dot keeps the same period, so the two never drift apart.
+  const dot = await tab.locator(".nx-working").evaluate((el) => getComputedStyle(el).animationDuration);
+  const ring = await tab.getByTestId("composer").evaluate((el) => getComputedStyle(el, "::after").animationDuration);
+  expect(ring).toBe(dot);
+  // A ring inside the edge: the card is the size it was at rest.
+  expect(busy.width).toBe(rest.width);
+
+  await expect(tab.getByTestId("working")).toBeHidden({ timeout: 30_000 });
+  await expect(tab.getByTestId("composer")).not.toHaveAttribute("data-working", /.*/);
+  expect((await composerRing(tab)).animation).toBe("none");
+});
+
+test("the composer's ring takes the warn ink while a card waits for an answer", async ({
+  tab,
+}) => {
+  await ask(tab, "permission", "Run the command.");
+  await expect(tab.getByTestId("allow")).toBeVisible({ timeout: 20_000 });
+  await expect(tab.getByTestId("composer")).toHaveAttribute("data-working", "waiting");
+  const waiting = await composerRing(tab);
+  const warn = await tab.evaluate(() => {
+    const probe = document.createElement("i");
+    probe.style.color = "var(--warn)";
+    document.body.append(probe);
+    const colour = getComputedStyle(probe).color;
+    probe.remove();
+    return colour;
+  });
+  expect(waiting.shadow).toContain(warn);
+});
+
+test.describe("under reduced motion", () => {
+  test("the composer's ring stays, still", async ({ tab }) => {
+    await tab.emulateMedia({ reducedMotion: "reduce" });
+    await ask(tab, "working", "Read the theory chapter.");
+    await expect(tab.getByTestId("composer")).toHaveAttribute("data-working", "working", { timeout: 20_000 });
+    const still = await tab.getByTestId("composer").evaluate((card) => {
+      const after = getComputedStyle(card, "::after");
+      return { animation: after.animationName, opacity: Number(after.opacity), shadow: after.boxShadow };
+    });
+    expect(still.animation).toBe("none");
+    expect(still.opacity).toBeGreaterThan(0.5);
+    expect(still.shadow).not.toBe("none");
+  });
+});
+
 test("a new conversation empties the panel and keeps the tally", async ({
   tab,
 }) => {
