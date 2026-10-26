@@ -347,10 +347,10 @@ def test_the_launch_agent_can_see_the_tools_the_survey_found(sandbox):
     conda = _service_with_tools_found(sandbox, "macos")
     plist = _plist_path(sandbox, "").read_text()
     path = plist.split("<key>PATH</key><string>", 1)[1].split("</string>", 1)[0]
-    parts = path.split(":")
-    assert conda in parts, path
-    assert parts.index(conda) > parts.index("/bin"), path
-    assert "/somewhere/else/bin" not in parts, path
+    # Read from the end rather than split on ":", which on a Windows runner
+    # also splits the drive letter of the test's home directory.
+    assert path.endswith("/bin:" + conda), path
+    assert "/somewhere/else/bin" not in path, path
 
 
 def test_the_systemd_unit_can_see_them_too(sandbox):
