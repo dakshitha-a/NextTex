@@ -47,10 +47,22 @@ TEX_PATH = {
 }
 
 
-def service_path(platform: str, home: Path) -> str:
-    return ":".join(
-        part.format(home=str(home)) for part in TEX_PATH.get(platform, [])
-    )
+def service_path(platform: str, home: Path, extra=()) -> str:
+    """The PATH a service starts with: the fixed list, then `extra`.
+
+    `extra` is where the installer's survey found the tools the server
+    runs.  launchd and systemd start a service with none of the login
+    shell's PATH, so a pandoc in `~/anaconda3/bin` was "Found" by the
+    survey and missing at every start of the server (a Mac, 26 October
+    2026).  The found directories go after the fixed ones rather than
+    before, because a directory like Anaconda's carries its own python,
+    perl and curl, and nothing the fixed list finds should be shadowed.
+    """
+    parts = [part.format(home=str(home)) for part in TEX_PATH.get(platform, [])]
+    for directory in extra:
+        if directory and str(directory) not in parts:
+            parts.append(str(directory))
+    return ":".join(parts)
 
 
 def unit_name(instance: str) -> str:
@@ -61,7 +73,8 @@ def plist_label(instance: str) -> str:
     return f"com.nexttex.server-{instance}" if instance else "com.nexttex.server"
 
 
-def systemd_unit(root: Path, home: Path, state: Path, instance: str) -> str:
+def systemd_unit(root: Path, home: Path, state: Path, instance: str,
+                 tools=()) -> str:
     return f"""[Unit]
 Description=NextTex
 After=network-online.target
@@ -72,7 +85,7 @@ WorkingDirectory={root}
 Environment=HOME={home}
 Environment=PYTHONUNBUFFERED=1
 Environment=NEXTTEX_INSTANCE={instance}
-Environment=PATH={service_path("linux", home)}
+Environment=PATH={service_path("linux", home, tools)}
 ExecStart={root}/.venv/bin/python {root}/server/run.py
 Restart=on-failure
 RestartSec=3
@@ -82,7 +95,8 @@ WantedBy=default.target
 """
 
 
-def launchd_plist(root: Path, home: Path, state: Path, instance: str) -> str:
+def launchd_plist(root: Path, home: Path, state: Path, instance: str,
+                  tools=()) -> str:
     label = plist_label(instance)
     return f"""<?xml version="1.0" encoding="UTF-8"?>
 <!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN"
@@ -101,7 +115,7 @@ def launchd_plist(root: Path, home: Path, state: Path, instance: str) -> str:
     <key>HOME</key><string>{home}</string>
     <key>PYTHONUNBUFFERED</key><string>1</string>
     <key>NEXTTEX_INSTANCE</key><string>{instance}</string>
-    <key>PATH</key><string>{service_path("macos", home)}</string>
+    <key>PATH</key><string>{service_path("macos", home, tools)}</string>
   </dict>
   <key>RunAtLoad</key><true/>
   <key>KeepAlive</key>

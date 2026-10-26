@@ -605,7 +605,8 @@ def install_service(console: Console, root: Path, platform: str, instance: str,
     if result.service == "launchd":
         path = service_mod.plist_path(home, instance)
         path.parent.mkdir(parents=True, exist_ok=True)
-        path.write_text(service_mod.launchd_plist(root, home, state, instance),
+        path.write_text(service_mod.launchd_plist(root, home, state, instance,
+                                                  tools=_tool_dirs(result)),
                         encoding="utf-8")
         console.note(f"  launch agent written to {path}")
         # A second install replaces the agent, and launchd only reads the
@@ -622,7 +623,8 @@ def install_service(console: Console, root: Path, platform: str, instance: str,
         path = service_mod.unit_path(home, instance,
                                      os.environ.get("XDG_CONFIG_HOME", ""))
         path.parent.mkdir(parents=True, exist_ok=True)
-        path.write_text(service_mod.systemd_unit(root, home, state, instance),
+        path.write_text(service_mod.systemd_unit(root, home, state, instance,
+                                                 tools=_tool_dirs(result)),
                         encoding="utf-8")
         console.note(f"  unit written to {path}")
         console.run("Reloading systemd", ["systemctl", "--user", "daemon-reload"])
@@ -693,6 +695,27 @@ def ready(console: Console, root: Path, platform: str, instance: str,
 
 # ---------------------------------------------------------------------------
 # Small things
+
+
+#: The tools the server runs that the survey looks for on PATH, and so
+#: the ones whose directories the service has to be given.
+SERVICE_TOOLS = ("git", "pdftotext", "pandoc", "tailscale", "claude")
+
+
+def _tool_dirs(result) -> list:
+    """The directories the survey found the server's tools in.
+
+    What the survey reports as found has to be what the server finds, and
+    a service started at login does not have the shell's PATH the survey
+    ran under; `service.service_path` says why that mattered.
+    """
+    dirs: list = []
+    for finding in result.findings:
+        if finding.key in SERVICE_TOOLS and finding.kind == PRESENT and finding.where:
+            directory = str(Path(finding.where).parent)
+            if directory not in dirs:
+                dirs.append(directory)
+    return dirs
 
 
 def _venv_advice(platform: str) -> str:

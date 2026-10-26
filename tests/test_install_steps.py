@@ -321,6 +321,45 @@ def test_macos_gets_a_plist_and_linux_gets_a_unit(sandbox):
     assert "systemctl" not in console.ran
 
 
+def _service_with_tools_found(sandbox, platform):
+    """An install whose survey found pandoc under Anaconda, as a Mac's did."""
+    from nexttex.install.survey import PRESENT, Finding
+
+    result = a_survey(sandbox, platform)
+    conda = str(Path.home() / "anaconda3" / "bin")
+    result.findings.append(Finding("pandoc", "pandoc", PRESENT,
+                                   where=conda + "/pandoc"))
+    result.findings.append(Finding("python", "Python", PRESENT,
+                                   where="/somewhere/else/bin/python3"))
+    plan = build_plan(result, interactive=True,
+                      answers={"tex": "none", "service": "yes"})
+    installer.execute(Recorder(), plan, sandbox, platform, "")
+    return conda
+
+
+def test_the_launch_agent_can_see_the_tools_the_survey_found(sandbox):
+    """launchd starts the server with none of the login shell's PATH, so a
+    pandoc in ~/anaconda3/bin was "Found" by the survey and missing at every
+    start of the server (a Mac, 26 October 2026). Its directory goes on the
+    agent's PATH, after the fixed ones so Anaconda's own python and curl
+    shadow nothing, and a directory found for something the server does not
+    run, like the installer's Python, stays off."""
+    conda = _service_with_tools_found(sandbox, "macos")
+    plist = _plist_path(sandbox, "").read_text()
+    path = plist.split("<key>PATH</key><string>", 1)[1].split("</string>", 1)[0]
+    parts = path.split(":")
+    assert conda in parts, path
+    assert parts.index(conda) > parts.index("/bin"), path
+    assert "/somewhere/else/bin" not in parts, path
+
+
+def test_the_systemd_unit_can_see_them_too(sandbox):
+    conda = _service_with_tools_found(sandbox, "linux")
+    unit = _unit_path(sandbox, "").read_text()
+    line = next(l for l in unit.splitlines() if l.startswith("Environment=PATH="))
+    assert line.endswith(":" + conda), line
+
+
 def test_a_first_install_on_a_mac_does_not_unload_an_agent_that_is_not_there(sandbox, monkeypatch):
     """`launchctl unload` of an agent that is not loaded prints "Unload
     failed: 5: Input/output error" and "try running as root", and the

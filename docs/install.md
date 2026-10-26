@@ -122,6 +122,10 @@ downloaded rather than built, with Node 22.13+ used only if that download
 fails. Whether the server answers on localhost only or also on your tailnet.
 And a `systemd --user` unit on Linux, a launchd agent on macOS, or a logon
 task on Windows, written only if you asked for one.
+A service started at login does not get your shell's PATH, so the unit
+or agent is given the folders where the survey found git, pdftotext,
+pandoc, tailscale and claude, and the server finds what the survey
+said was there.
 
 The plan ends with every place outside the install directory it is about
 to write: the state directory with your settings and the log, TeX, the
