@@ -108,7 +108,11 @@ discover.
 and `resvg` tried separately, from wheels only, so a platform with no build
 for one loses sharing, or SVG figures drawn as pictures in a Word download,
 rather than the install; the survey says which. TinyTeX if you want one, or MiKTeX on Windows, and `tlmgr` to
-add whichever of the five tools are missing. The TeX it installs is the
+add whichever of the five tools are missing, updating itself first if a
+fresh TinyTeX's `tlmgr` is older than its repository. On a Mac, TinyTeX
+is not put on your shell's PATH, so it never asks for your password; the
+TeX step prints the one line to add to `~/.zshrc` if you want TeX in a
+terminal as well. The TeX it installs is the
 one NextTex builds with afterwards, even on a machine that already had
 another: the installer writes it down in the install's `config.json` as
 `tex`, and `NEXTTEX_TEX`, a directory, overrides both. A writing agent, if any.
@@ -118,6 +122,10 @@ downloaded rather than built, with Node 22.13+ used only if that download
 fails. Whether the server answers on localhost only or also on your tailnet.
 And a `systemd --user` unit on Linux, a launchd agent on macOS, or a logon
 task on Windows, written only if you asked for one.
+
+The plan ends with every place outside the install directory it is about
+to write: the state directory with your settings and the log, TeX, the
+login item, and the desktop shortcut, each only when it is going ahead.
 
 All of it is idempotent. Run it again after installing something it said was
 missing and it picks up where it left off without touching your projects.

@@ -434,6 +434,46 @@ def test_windows_tinytex_runs_the_script_not_the_wrapper(monkeypatch, tmp_path):
     assert console.ran.endswith("install-tinytex.ps1"), console.ran
 
 
+def _unix_tinytex_argv(monkeypatch, tmp_path, platform):
+    def download(console, label, url, dest, counter=""):
+        Path(dest).write_text("", encoding="utf-8")
+        return Result(True, 0, 0.0, [])
+
+    monkeypatch.setattr(steps, "download", download)
+    console = Recorder()
+    steps.install_tex(console, tmp_path, platform, "tinytex")
+    return console.calls[-1]
+
+
+def test_a_mac_tinytex_is_told_to_leave_path_alone(monkeypatch, tmp_path):
+    """TinyTeX's script asks sudo for a password on most Macs, and sudo
+    reads the terminal directly, so the "Password:" prompt was drawn over
+    by the spinner and the install waited on a question nobody could see.
+    The flag is the second argument: the first is a directory the script
+    moves its bundle into under `set -e`, and `--no-path` there would stop
+    the install after TeX was unpacked."""
+    argv = _unix_tinytex_argv(monkeypatch, tmp_path, "macos")
+    assert argv[0] == "sh" and argv[1].endswith("install-tinytex.sh"), argv
+    assert argv[3] == "--no-path", argv
+    assert Path(argv[2]) == Path(argv[1]).parent, argv
+
+
+def test_linux_tinytex_keeps_its_own_path_links(monkeypatch, tmp_path):
+    argv = _unix_tinytex_argv(monkeypatch, tmp_path, "linux")
+    assert argv[0] == "sh" and len(argv) == 2, argv
+
+
+def test_a_mac_install_says_how_to_have_tex_in_a_terminal(sandbox, monkeypatch):
+    tex = Path.home() / "Library" / "TinyTeX" / "bin" / "universal-darwin"
+    tex.mkdir(parents=True)
+    from nexttex import tools
+    monkeypatch.setattr(tools, "TEX_HINTS", [tex])
+    console = Recorder()
+    run_install(console, sandbox, platform="macos", tex="tinytex", service="no")
+    printed = console.stream.getvalue()
+    assert 'export PATH="$HOME/Library/TinyTeX/bin/universal-darwin:$PATH"' in printed
+
+
 def test_a_tex_tool_in_the_tex_directory_counts_as_present(tmp_path):
     """TinyTeX does not put its bin directory on PATH, so `shutil.which`
     answers "no" for tools that are sitting right there. Windows spells an
@@ -692,8 +732,34 @@ def test_the_promise_names_the_shortcut_it_is_about_to_write(sandbox):
     installer.show_plan(quiet, build_plan(
         a_survey(sandbox, desktop=True), interactive=True,
         answers={"tex": "none", "service": "no", "shortcut": "no"}))
-    assert "Nothing outside this directory is written." in " ".join(
-        quiet.stream.getvalue().split())
+    assert "shortcut" not in quiet.stream.getvalue()
+
+
+def test_the_promise_lists_everything_a_mac_install_writes_outside(sandbox):
+    """A Mac user found the sentence left out the state directory, the
+    login agent and the PATH links. Each is named now when it is going
+    ahead, and the state directory always, since every install writes it."""
+    plan = build_plan(a_survey(sandbox, "macos", desktop=True), interactive=True,
+                      answers={"tex": "tinytex", "service": "yes", "shortcut": "yes"})
+    places = installer.outside_writes(plan)
+    joined = " | ".join(places)
+    assert places[0].startswith("its settings and log, in ~/"), joined
+    assert "~/Library/TinyTeX" in joined, joined
+    assert "~/Library/LaunchAgents/com.nexttex.server.plist" in joined, joined
+    assert "a shortcut on your desktop" in joined, joined
+
+    bare = build_plan(a_survey(sandbox, "macos", desktop=True), interactive=True,
+                      answers={"tex": "none", "service": "no", "shortcut": "no"})
+    assert len(installer.outside_writes(bare)) == 1
+
+
+def test_the_promise_names_the_links_linux_tinytex_makes(sandbox):
+    (Path.home() / ".local" / "bin").mkdir(parents=True)
+    plan = build_plan(a_survey(sandbox, "linux"), interactive=True,
+                      answers={"tex": "tinytex", "service": "yes", "shortcut": "no"})
+    joined = " | ".join(installer.outside_writes(plan))
+    assert "~/.TinyTeX, with links to its programs in ~/.local/bin" in joined, joined
+    assert "systemd/user/" in joined, joined
 
 
 def test_a_headless_machine_is_not_promised_a_shortcut(sandbox):
@@ -706,4 +772,4 @@ def test_a_headless_machine_is_not_promised_a_shortcut(sandbox):
     assert plan.choice("shortcut") == "no"
     installer.show_plan(console, plan)
     printed = " ".join(console.stream.getvalue().split())
-    assert "Nothing outside this directory is written." in printed, printed
+    assert "shortcut" not in printed, printed

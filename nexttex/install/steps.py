@@ -292,8 +292,35 @@ def install_tex(console: Console, root: Path, platform: str, choice: str,
                        counter)
         if not got.ok:
             return got
-        return console.run("Installing TinyTeX", ["sh", str(script)], cwd=root,
-                           counter=counter)
+        return console.run("Installing TinyTeX",
+                           tinytex_unix_argv(platform, script, Path(work)),
+                           cwd=root, counter=counter)
+
+
+def tinytex_unix_argv(platform: str, script: Path, work: Path) -> list:
+    """How TinyTeX's shell installer is run, which on a Mac is told to
+    leave PATH alone.
+
+    On a Mac whose `/usr/local/bin` is not writable, which is every Apple
+    Silicon Mac without Homebrew's Intel prefix, the script asks `sudo`
+    for a password to write `/etc/paths.d/TinyTeX`.  sudo reads the
+    terminal directly, so its "Password:" was drawn over by the spinner
+    and the install sat waiting on a question nobody could see (a Mac
+    install on 26 October 2026).  NextTex finds the TeX through
+    `TEX_HINTS` and the recorded directory and needs none of that, so
+    `--no-path` skips it, and the closing screen says how to put TeX on
+    the shell's PATH for anyone who wants it there.
+
+    The flag goes second.  The script's first argument is a directory it
+    moves the downloaded bundle into, under `set -e`, so `--no-path` alone
+    would be read as that directory and `mv` would stop the install after
+    TeX was unpacked.  `work` is the temporary directory the script itself
+    is in, and goes with it.  Linux keeps the script's own `tlmgr path
+    add`, which links into `~/.local/bin` or `~/bin` and asks for nothing.
+    """
+    if platform == "macos":
+        return ["sh", str(script), str(work), "--no-path"]
+    return ["sh", str(script)]
 
 
 def install_tex_extras(console: Console, root: Path, missing: list,

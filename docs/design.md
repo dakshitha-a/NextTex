@@ -2652,6 +2652,23 @@ promised a shortcut that was never going to be written. Fixing the text
 without moving the default would have left the screen lying in a quieter way
 than before.
 
+**The sentence became a list.** A Mac user's report on 26 October 2026
+pointed out that it was false on every install: the settings and the log
+live in the state directory, a login agent goes into
+`~/Library/LaunchAgents`, and TeX's own installer links its programs onto
+PATH. So the plan now ends with "Outside this directory, the install writes
+only:" and one line per place, built by `outside_writes` from the same
+choices the steps read. The state directory is always first, since every
+install writes it.
+
+The same report found the Mac's TeX step waiting on a password nobody could
+see. TinyTeX's script asks sudo for one to put TeX on PATH, and sudo reads
+the terminal directly, so its prompt was drawn over by the spinner. NextTex
+finds its TeX without PATH, so on a Mac the script is run with `--no-path`,
+and the TeX step prints the one `export PATH=...` line to add to `~/.zshrc`
+for a writer who wants TeX in a terminal too. Linux keeps the script's own
+links in `~/.local/bin`, which ask for nothing, and the list names them.
+
 ## 19. Navigating a long document, and where the agent's controls belong
 
 Three changes, all of them about a project that has grown past the size the

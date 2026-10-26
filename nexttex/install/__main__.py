@@ -29,7 +29,7 @@ import shutil
 import sys
 from pathlib import Path
 
-from ..paths import state_home
+from ..paths import instance_name, state_home
 from . import service as service_mod
 from . import steps
 from .plan import build_plan
@@ -235,20 +235,63 @@ def show_plan(console: Console, plan) -> None:
         for line in lines[1:]:
             console.write(indent + line)
     console.write("")
-    # The promise is the reason the desktop shortcut is on the plan at all.
-    # Writing a file to somebody's desktop under a sentence saying nothing
-    # outside this directory is written would make the sentence false, and
-    # that sentence is most of why anybody trusts the screen above it.
-    outside = []
-    if plan.choice("tex") in ("tinytex", "miktex"):
-        outside.append("TeX, in its own folder in your home directory")
+    console.paragraph("Outside this directory, the install writes only:")
+    for place in outside_writes(plan):
+        console.paragraph(place, lead=console.bullet + " ")
+
+
+def outside_writes(plan) -> list:
+    """Everything the plan will write outside the install directory.
+
+    The promise is the reason the desktop shortcut is on the plan at all.
+    Writing a file to somebody's desktop under a sentence saying nothing
+    outside this directory is written would make the sentence false, and
+    that sentence is most of why anybody trusts the screen above it.  It
+    was false anyway until 26 October 2026, when a Mac user listed what it
+    left out: the state directory, which every install writes, the login
+    agent, and the PATH links TeX's own installer makes.  So it is a list
+    now, built from the same choices the steps read.
+    """
+    platform = plan.survey.platform
+    places = [f"its settings and log, in {_tilde(state_home())}"]
+    tex = plan.choice("tex")
+    if tex == "tinytex":
+        if platform == "macos":
+            places.append("TeX, in ~/Library/TinyTeX")
+        elif platform == "windows":
+            places.append("TeX, in its own folder in your home directory, "
+                          "added to your PATH")
+        else:
+            # The rule TinyTeX's own script uses for where its links go.
+            bindir = ("~/.local/bin" if (Path.home() / ".local" / "bin").is_dir()
+                      else "~/bin")
+            places.append(f"TeX, in ~/.TinyTeX, with links to its programs "
+                          f"in {bindir}")
+    elif tex == "miktex":
+        places.append("MiKTeX, which winget installs and adds to your PATH")
+    if plan.choice("agent") == "claude" and not plan.survey.claude:
+        places.append("the Claude CLI, where its own installer puts it")
+    if plan.choice("service") == "yes":
+        if platform == "macos":
+            places.append("a login agent, " + _tilde(
+                service_mod.plist_path(Path.home(), instance_name())))
+        elif platform == "windows":
+            places.append("a logon task, or a shortcut in your Startup folder")
+        else:
+            places.append("a login service, " + _tilde(service_mod.unit_path(
+                Path.home(), instance_name(),
+                os.environ.get("XDG_CONFIG_HOME", ""))))
     if plan.choice("shortcut") == "yes":
-        outside.append("a shortcut on your desktop")
-    if outside:
-        console.paragraph("Nothing outside this directory is written except "
-                          + " and ".join(outside) + ".")
-    else:
-        console.paragraph("Nothing outside this directory is written.")
+        places.append("a shortcut on your desktop")
+    return places
+
+
+def _tilde(path: Path) -> str:
+    """A path under the home directory written the short way."""
+    try:
+        return "~/" + Path(path).relative_to(Path.home()).as_posix()
+    except ValueError:
+        return str(path)
 
 
 def confirm(console: Console, plan, interactive: bool) -> bool:
@@ -354,6 +397,8 @@ def execute(console: Console, plan, root: Path, platform: str,
             notes.append("TeX did not install, so builds will fail")
         else:
             _record_tex(tex_choice)
+            if platform == "macos" and tex_choice == "tinytex":
+                _say_how_to_put_tex_on_path(console)
 
     # Whatever happened above, TeX's own directory goes on PATH before
     # anything asks what is installed.  This used to run only where TinyTeX
@@ -694,6 +739,23 @@ def _add_tex_to_path() -> None:
             ahead.append(str(hint))
     rest = [entry for entry in current if entry not in ahead]
     os.environ["PATH"] = os.pathsep.join([*ahead, *rest])
+
+
+def _say_how_to_put_tex_on_path(console: Console) -> None:
+    """The one line a Mac writer adds to have TeX in their own terminal.
+
+    TinyTeX is installed there with `--no-path`, for the reason
+    `steps.tinytex_unix_argv` gives, so NextTex finds it and a terminal
+    does not.  The line is printed whole, never wrapped, to be copied.
+    """
+    from ..tools import distribution_dir
+
+    directory = distribution_dir("tinytex")
+    if directory is None:
+        return
+    console.paragraph("NextTex finds this TeX by itself. To use it in a "
+                      "terminal as well, add this line to ~/.zshrc:")
+    console.note(f'  export PATH="{_tilde(directory).replace("~", "$HOME", 1)}:$PATH"')
 
 
 def _record_tex(choice: str) -> None:
