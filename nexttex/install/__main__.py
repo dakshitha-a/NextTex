@@ -422,7 +422,8 @@ def execute(console: Console, plan, root: Path, platform: str,
         extras = steps.install_tex_extras(console, root, missing, tlmgr)
         if not extras.ok:
             notes.append("tlmgr could not add " + ", ".join(missing)
-                         + "; NextTex says which at startup")
+                         + _tlmgr_said(extras)
+                         + "; NextTex says which are missing at startup")
     elif missing:
         notes.append("no tlmgr, so " + ", ".join(missing) + " are still "
                      "missing; a project that uses them will not build")
@@ -706,6 +707,18 @@ def _answers(port: int, timeout: float = 20.0) -> bool:
         if time.monotonic() >= deadline:
             return False
         time.sleep(0.5)
+
+
+def _tlmgr_said(result) -> str:
+    """tlmgr's own reason for a failure, as a clause for the closing note.
+
+    tlmgr ends nearly every run by naming the repository it used, so the
+    last line is seldom the reason; the last one that is not that is.
+    """
+    for line in reversed(result.last_lines(8)):
+        if not line.startswith("tlmgr: package repository"):
+            return f' (it said "{line}")'
+    return ""
 
 
 def _missing_tex_extras(tex_dir=None) -> list:

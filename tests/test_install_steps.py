@@ -650,7 +650,10 @@ def test_a_stale_mirror_is_not_answered_with_a_self_update(sandbox, monkeypatch)
         "tlmgr: Remote repository is newer than local (2025 < 2026)",
     ])
     assert "update --self" not in console.ran
-    assert "tlmgr could not add" in " ".join(console.stream.getvalue().split())
+    printed = " ".join(console.stream.getvalue().split())
+    assert "tlmgr could not add" in printed
+    # tlmgr's own reason, on the summary rather than only in the log.
+    assert "Remote repository is newer than local" in printed, printed
 
 
 def test_a_self_update_that_fails_does_not_try_the_install_again(sandbox, monkeypatch):

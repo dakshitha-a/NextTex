@@ -91,6 +91,11 @@ class Result:
     def tail(self) -> list[str]:
         return self.output[-30:]
 
+    def last_lines(self, count: int = 5) -> list[str]:
+        """The last `count` lines that say anything."""
+        said = [line.strip() for line in self.output if line.strip()]
+        return said[-count:]
+
 
 def _supports(stream, text: str) -> bool:
     encoding = getattr(stream, "encoding", None) or "ascii"
@@ -332,7 +337,25 @@ class Console:
         seconds = time.monotonic() - started
         ok = process.returncode == 0
         self._settle(prefix, label, seconds, ok=ok)
-        return Result(ok, process.returncode or 0, seconds, kept)
+        result = Result(ok, process.returncode or 0, seconds, kept)
+        if not ok and self.animate:
+            self._show_why(result)
+        return result
+
+    def _show_why(self, result: Result) -> None:
+        """A failed step's last lines, under its cross.
+
+        Only on a terminal: there the spinner had been showing one line at
+        a time, so the cause was gone when the step settled and sat only in
+        the log.  A Mac install on 26 October 2026 printed "Adding biber,
+        synctex, chktex, texcount" with a cross and nothing else, while
+        tlmgr had said exactly what it needed.  Plain output has already
+        streamed every line, and `_STEPS` in server/main.py reads that
+        stream, so it is left as it is.
+        """
+        width = min(self.width, 78) - 8
+        for line in result.last_lines():
+            self.note("  " + self.dim(line[:width]))
 
     def _draw(self, prefix: str, label: str, started: float, frame: str,
               tail: str) -> None:

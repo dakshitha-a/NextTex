@@ -110,6 +110,37 @@ def test_with_a_terminal_the_line_is_redrawn_in_place(monkeypatch):
     assert "Installing" in seen
 
 
+def test_on_a_terminal_a_failed_step_leaves_its_last_lines_under_the_cross(monkeypatch):
+    """The spinner shows one line of a child's output at a time and clears
+    it when the step settles, so a Mac install printed only "Adding biber,
+    synctex, chktex, texcount" with a cross, while tlmgr had said exactly
+    what it needed. The last lines that say anything now stay on screen."""
+    monkeypatch.delenv("CI", raising=False)
+    parent, child = pty.openpty()
+    try:
+        stream = os.fdopen(child, "w", buffering=1)
+        console = ui.Console(stream=stream)
+        console.run("Adding biber", ["sh", "-c",
+                    "echo 'tlmgr itself needs to be updated.'; echo; "
+                    "echo '  tlmgr update --self'; exit 1"])
+        stream.flush()
+        os.set_blocking(parent, False)
+        try:
+            seen = os.read(parent, 65536).decode("utf-8", "replace")
+        except BlockingIOError:
+            seen = ""
+    finally:
+        os.close(parent)
+    settled = seen.rsplit("Adding biber", 1)[-1]
+    assert "tlmgr itself needs to be updated." in settled, seen
+    assert "tlmgr update --self" in settled, seen
+
+
+def test_the_last_lines_skip_the_blank_ones():
+    result = ui.Result(False, 1, 0.0, ["a", "", "b", "   ", "c"])
+    assert result.last_lines(2) == ["b", "c"]
+
+
 def test_a_terminal_in_ci_still_gets_the_plain_output(monkeypatch):
     """A build log is read afterwards, not watched, so a spinner in one is
     thousands of redraws nobody ever saw.
