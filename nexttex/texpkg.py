@@ -27,6 +27,7 @@ import shutil
 from pathlib import Path
 
 from . import tools
+from .install.steps import SELF_UPDATE, needs_self_update
 from .proctree import end_tree
 
 #: A package name, and nothing else: no option, no URL, no path.
@@ -215,6 +216,13 @@ async def install(package: str) -> dict:
     `{"ok": bool, "err": str}`, with the manager's own words on failure:
     a TinyTeX behind its mirror fails with "remote repository is newer
     than local", and the writer needs to read that rather than "failed".
+
+    A tlmgr older than its repository answers "tlmgr itself needs to be
+    updated" and installs nothing, which is a normal state for TinyTeX.
+    That one answer is met the way the installer's `install_tex_extras`
+    meets it: `tlmgr update --self` once, inside the same lock, and the
+    install again.  The search needs no such step, since tlmgr asks it
+    only of `install` and `update`.
     """
     if not PACKAGE.match(package):
         return {"ok": False, "err": f"{package!r} is not a package name."}
@@ -227,6 +235,10 @@ async def install(package: str) -> dict:
         CURRENT = package
         try:
             code, output = await _run(argv, INSTALL_TIMEOUT)
+            if code != 0 and kind == "tlmgr" and needs_self_update(output):
+                code, output = await _run([path, *SELF_UPDATE], INSTALL_TIMEOUT)
+                if code == 0:
+                    code, output = await _run(argv, INSTALL_TIMEOUT)
         except asyncio.TimeoutError:
             return {"ok": False, "err": "The install was still running after five minutes."}
         except OSError as error:

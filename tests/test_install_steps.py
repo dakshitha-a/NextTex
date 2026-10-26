@@ -553,6 +553,75 @@ def test_tlmgr_is_run_by_the_path_it_was_found_at(sandbox, monkeypatch):
     assert adding[0][0] == tlmgr_path, adding[0]
 
 
+def _install_with_a_tlmgr_that_says(monkeypatch, sandbox, first_answer,
+                                     self_update_ok=True):
+    """A fresh TinyTeX install whose first `tlmgr install` fails with
+    `first_answer`, and whose later ones succeed."""
+    seen = {"tlmgr": False, "installs": 0}
+
+    def which(name):
+        if not seen["tlmgr"]:
+            return None
+        return (f"/Users/ada/Library/TinyTeX/bin/universal-darwin/{name}"
+                if name in ("tlmgr", "pdflatex") else None)
+
+    console = Recorder()
+
+    def run(label, argv, **kwargs):
+        argv = [str(a) for a in argv]
+        console.calls.append(argv)
+        joined = " ".join(argv)
+        if "install-tinytex" in joined:
+            seen["tlmgr"] = True
+        if argv[1:3] == ["update", "--self"]:
+            return Result(self_update_ok, 0 if self_update_ok else 1, 0.0,
+                          [] if self_update_ok else ["tlmgr: cannot reach the mirror"])
+        if argv[1:2] == ["install"]:
+            seen["installs"] += 1
+            if seen["installs"] == 1:
+                return Result(False, 1, 0.0, first_answer)
+        return Result(True, 0, 0.0, [])
+
+    console.run = run
+    monkeypatch.setattr(installer.shutil, "which", which)
+    run_install(console, sandbox, platform="macos", tex="tinytex", service="no")
+    return console
+
+
+def test_a_tinytex_behind_its_repository_updates_tlmgr_and_adds_the_extras(sandbox, monkeypatch):
+    """A fresh macOS install on 26 October 2026: TinyTeX's prebuilt bundle
+    lags the rolling repository, so its tlmgr refused `install biber
+    synctex chktex texcount` with "tlmgr itself needs to be updated", and
+    the summary said only that tlmgr could not add them."""
+    console = _install_with_a_tlmgr_that_says(monkeypatch, sandbox, [
+        "tlmgr itself needs to be updated.",
+        "Please do this via either",
+        "  tlmgr update --self",
+        "tlmgr: Terminating; please see warning above!",
+    ])
+    tlmgr = [call[1:] for call in console.calls if call[0].endswith("/tlmgr")]
+    assert tlmgr[0][0] == "install" and tlmgr[1] == ["update", "--self"], tlmgr
+    assert tlmgr[2] == tlmgr[0], tlmgr
+    assert "tlmgr could not add" not in console.stream.getvalue()
+
+
+def test_a_stale_mirror_is_not_answered_with_a_self_update(sandbox, monkeypatch):
+    console = _install_with_a_tlmgr_that_says(monkeypatch, sandbox, [
+        "tlmgr: Remote repository is newer than local (2025 < 2026)",
+    ])
+    assert "update --self" not in console.ran
+    assert "tlmgr could not add" in " ".join(console.stream.getvalue().split())
+
+
+def test_a_self_update_that_fails_does_not_try_the_install_again(sandbox, monkeypatch):
+    console = _install_with_a_tlmgr_that_says(monkeypatch, sandbox, [
+        "tlmgr itself needs to be updated.",
+    ], self_update_ok=False)
+    installs = [c for c in console.calls if c[0].endswith("/tlmgr") and c[1] == "install"]
+    assert len(installs) == 1, console.ran
+    assert "tlmgr could not add" in " ".join(console.stream.getvalue().split())
+
+
 def test_the_address_is_checked_rather_than_just_printed():
     """An install that prints a link and the word Ready has claimed
     something it never looked at. A server that died on startup left the

@@ -151,6 +151,65 @@ def test_a_failing_install_returns_the_managers_own_words(monkeypatch):
     assert "Remote repository is newer than local" in result["err"]
 
 
+#: What a TinyTeX whose tlmgr is older than its repository answers, as a
+#: fresh macOS install printed it on 26 October 2026.
+SELF_UPDATE_FIRST = (
+    "tlmgr itself needs to be updated.\n"
+    "Please do this via either\n"
+    "  tlmgr update --self\n"
+    "tlmgr: Terminating; please see warning above!\n"
+    "tlmgr: package repository https://tlnet.yihui.org (not verified: gpg unavailable)\n"
+)
+
+
+def _tlmgr_behind_its_repository(monkeypatch, self_update_code=0):
+    """A tlmgr that refuses `install` until `update --self` has run."""
+    seen: list[list[str]] = []
+    state = {"updated": False}
+
+    async def fake_exec(*argv, **_):
+        seen.append(list(argv))
+        if list(argv[1:]) == ["update", "--self"]:
+            state["updated"] = self_update_code == 0
+            return Done(self_update_code, b"tlmgr: no self-updates for tlmgr available")
+        if state["updated"]:
+            return Done(0, b"tlmgr: package log updated")
+        return Done(1, SELF_UPDATE_FIRST.encode())
+
+    monkeypatch.setattr(asyncio, "create_subprocess_exec", fake_exec)
+    monkeypatch.setenv("NEXTTEX_TLMGR", "/fake/tlmgr")
+    return seen
+
+
+def test_a_tlmgr_that_must_update_itself_does_so_once_and_installs(monkeypatch):
+    """TinyTeX's bundle lags the rolling repository, so its tlmgr can refuse
+    every install until `tlmgr update --self` has run. The button runs it
+    and tries again, rather than showing the writer a terminal command."""
+    seen = _tlmgr_behind_its_repository(monkeypatch)
+    assert asyncio.run(texpkg.install("minted")) == {"ok": True, "err": ""}
+    assert seen == [
+        ["/fake/tlmgr", "install", "minted"],
+        ["/fake/tlmgr", "update", "--self"],
+        ["/fake/tlmgr", "install", "minted"],
+    ]
+
+
+def test_a_self_update_that_fails_is_reported_and_not_followed_by_an_install(monkeypatch):
+    seen = _tlmgr_behind_its_repository(monkeypatch, self_update_code=1)
+    result = asyncio.run(texpkg.install("minted"))
+    assert result["ok"] is False
+    assert [call[1:] for call in seen] == [["install", "minted"], ["update", "--self"]]
+
+
+def test_a_cross_release_mirror_is_not_answered_with_a_self_update(monkeypatch):
+    """`update --self` cannot cure "Remote repository is newer than local",
+    so that failure is returned as it is."""
+    stale = "tlmgr: Remote repository is newer than local (2025 < 2026)\n"
+    seen = fake_tlmgr(monkeypatch, {("install", "minted"): (1, stale)})
+    asyncio.run(texpkg.install("minted"))
+    assert seen == [["/fake/tlmgr", "install", "minted"]]
+
+
 def test_an_install_that_hangs_is_given_up_on(monkeypatch):
     class Never:
         returncode = None

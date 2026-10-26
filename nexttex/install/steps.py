@@ -311,9 +311,41 @@ def install_tex_extras(console: Console, root: Path, missing: list,
     honours PATHEXT, and `CreateProcess` appends only `.exe` to a bare name.
     Detection and execution disagreed about what "tlmgr" meant.  The npm
     step below had already learned this; this one had not.
+
+    A TinyTeX installed a moment ago can refuse the install outright with
+    "tlmgr itself needs to be updated", because its prebuilt bundle lags
+    the rolling repository it points at; a fresh Mac install failed that
+    way on 26 October 2026.  tlmgr then wants `update --self` and nothing
+    else, so that is run once and the install tried again.  It is run only
+    on that message: the cross-release "Remote repository is newer than
+    local" is not cured by it, and a writer's own TeX Live is not updated
+    unasked.
     """
-    return console.run("Adding " + ", ".join(missing),
-                       [tlmgr, "install", *missing], cwd=root, counter=counter)
+    label = "Adding " + ", ".join(missing)
+    added = console.run(label, [tlmgr, "install", *missing], cwd=root,
+                        counter=counter)
+    if added.ok or not needs_self_update(added.output):
+        return added
+    updated = console.run("Updating tlmgr itself", [tlmgr, *SELF_UPDATE],
+                          cwd=root, counter=counter)
+    if not updated.ok:
+        return updated
+    return console.run(label, [tlmgr, "install", *missing], cwd=root,
+                       counter=counter)
+
+
+#: What tlmgr prints, from `critical_updates_warning`, when it will install
+#: nothing until it has updated itself, and the arguments that do that.
+#: The server's `texpkg` reads both from here, so the two callers agree.
+SELF_UPDATE_NEEDED = "tlmgr itself needs to be updated"
+SELF_UPDATE = ["update", "--self"]
+
+
+def needs_self_update(output) -> bool:
+    """Whether tlmgr's output, a string or its lines, says it must update
+    itself before it will install anything."""
+    text = output if isinstance(output, str) else "\n".join(output)
+    return SELF_UPDATE_NEEDED in text
 
 
 # ---------------------------------------------------------------------------
