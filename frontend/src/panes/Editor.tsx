@@ -1,4 +1,6 @@
 import { Suspense, lazy, useCallback, useEffect, useRef, useState } from "react";
+import { setProjectMacros } from "./katex-load";
+import { macrosFrom } from "./math-hover";
 import {
   EDITOR_SIZES,
   applyAppearance,
@@ -1395,6 +1397,7 @@ export default function Editor({
       .then((found) => {
         if (cancelled) return;
         symbols.current = found;
+        setProjectMacros(macrosFrom(found));
         outlineContext.current = contextOf(found.commands);
         refreshOutlineRef.current?.();
       })

@@ -2444,6 +2444,11 @@ button.nx-reads-x[data-always]:hover { color: var(--pen); }
 }
 /* KaTeX ships its own colours; make it take the theme's ink instead. */
 .nx-math-tooltip .katex { color: var(--ink); font-size: 1.18em; }
+/* Maths in a reply or the Markdown preview: the prose's ink, a step over
+   the sentence around it. */
+.nx-chat-maths .katex { color: inherit; font-size: 1.1em; }
+/* Its own line carries the 4 px of air, not KaTeX's 1 em. */
+.nx-chat-maths .katex-display { margin: 0; }
 /* A table in the same card: drawn as the page would set it, in the face
    KaTeX brings for the maths beside it, the columns as the spec aligns
    them, the booktabs rules as rules and a header where one follows the

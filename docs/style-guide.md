@@ -142,6 +142,17 @@ own box, so the prose around it keeps the column's width. A short cell,
 or one with no space in it such as a path, keeps its line; a cell long
 enough to be a sentence wraps, but no narrower than 12 rem.
 
+Maths in prose, a reply's or a README's, is `Maths` in
+`frontend/src/panes/prose.tsx`, set by KaTeX in its own Computer Modern
+face, the one exception to the single family, since an equation in
+Source Sans is not the equation the page prints. It takes the prose's
+ink, never KaTeX's black, at 1.1 em, a step over the sentence around it
+as KaTeX's own default is, and a little under the hover card's 1.18.
+Display maths sits on its own line with 4 px of air above and below and
+scrolls inside its box when it is wider than the column. Maths KaTeX
+cannot read, and maths waiting for KaTeX to load, shows as its source in
+`t-code-sm`, which is the honest failure.
+
 A menu item that is on and off, such as the preview's *Dark page*, is a
 `MenuItem` with `role="menuitemcheckbox"`, `aria-checked`, and
 `CheckIcon`, the same stroke as Submit's, in its icon column when it is

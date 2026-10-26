@@ -173,8 +173,9 @@ Ask it for what you would ask a sharp co-author:
 
 If you can describe it, you can ask for it.
 
-Every edit shows up with an undo, and it asks before running anything. Use
-Claude, OpenAI, a model on your own machine, or none.
+Every edit shows up with an undo, and it asks before running anything. Its
+answers show their equations typeset, with your own macros. Use Claude,
+OpenAI, a model on your own machine, or none.
 
 With Claude, the column's foot shows how full the conversation is and how
 much of your plan you have used, and a long conversation is summarized

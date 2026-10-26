@@ -21,36 +21,14 @@ import { shortcut } from "../keys";
 import { hoverCards, type HoverKind } from "../appearance";
 import type { Cell, Table } from "./table-hover";
 import type { LinkKind } from "./latex-links";
+import { loadKatex } from "./katex-load";
 
 /** Which chip on the settings sheet each link kind answers to.  The
  *  writer's names for them are Cross-references, Citations, Figures and
  *  Files; the code's are the link scanner's. */
 const CARD_FOR: Record<LinkKind, HoverKind> = { ref: "refs", cite: "cites", image: "figures", input: "files", source: "files" };
 
-type Katex = typeof import("katex");
-let katex: Katex | null = null;
-let loading: Promise<Katex> | null = null;
-
-async function load(): Promise<Katex> {
-  if (katex) return katex;
-  if (!loading) {
-    loading = Promise.all([
-      import("katex"),
-      import("katex/dist/katex.min.css"),
-    ]).then(([module]) => {
-      katex = (module as any).default ?? module;
-      return katex as Katex;
-    }).catch((failure) => {
-      // The rejected promise was kept, so one failed fetch, on a flaky
-      // connection or during a deploy, meant every equation for the rest
-      // of the session hovered as nothing with no way to try again short
-      // of reloading. `spellcheck.ts` clears its own the same way.
-      loading = null;
-      throw failure;
-    });
-  }
-  return loading;
-}
+const load = loadKatex;
 
 type Span = { from: number; to: number; body: string; display: boolean };
 

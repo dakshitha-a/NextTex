@@ -12614,3 +12614,21 @@ The README carries the scene as "Pages you can send", filmed by
 `e2e/shots/tour.spec.ts` as `docs/tour/page.webp`: asked why Figure 1 needs
 two time constants, the agent publishes a page that derives them, with the
 figure and Equation (1) from the paper.
+
+## 124. Maths in the Claude column
+
+Drawn on the direction page under Maths in the Claude column, 25 October
+2026, at the writer's request and decided by me. The thesis's agent
+explained an equation and the column showed its source: `$\dot{\mathbf{R}}$`
+as typed, and every `_` between two dollars read as italics, so the
+subscripts vanished and the rest of the paragraph leaned.
+
+**What a writer sees** is the maths set, in a reply, a past conversation
+and the Markdown preview, which share one renderer. `$...$` and `\(...\)`
+sit in the sentence; `$$...$$` and `\[...\]` take a line of their own and
+scroll sideways when they are wider than the column. The project's own
+`\newcommand`s work, as they do in the hover card. The maths takes the
+prose's ink in either theme, a step larger than the sentence around it.
+A price such as "between $5 and $10" stays prose. Maths KaTeX cannot read
+shows as its source in the code face, so a typo costs that one expression
+and not the paragraph.

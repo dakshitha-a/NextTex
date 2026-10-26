@@ -1,4 +1,5 @@
-import { memo, useMemo, useState, type ReactNode } from "react";
+import { memo, useEffect, useMemo, useState, type ReactNode } from "react";
+import { loadKatex, loaded, projectMacros } from "./katex-load";
 import { Button } from "../ui/Button";
 import { ExternalLink, linkable } from "../ui/controls";
 
@@ -7,7 +8,10 @@ import { ExternalLink, linkable } from "../ui/controls";
  *  A library would be 40 KB to render seven constructs, and would bring its
  *  own opinions about typography into a column whose type is the app's
  *  own.  Anything not handled here is left as the literal text the model
- *  wrote, which is the honest failure mode.
+ *  wrote, which is the honest failure mode.  Maths is the exception that
+ *  earns a library, since an answer about a thesis is full of it and the
+ *  source of an equation is not how a writer reads one: KaTeX, which the
+ *  editor's hover already fetches, and only once there is maths to set.
  */
 
 /** Every block carries `line`, the 1-based source line it starts on, and
@@ -174,7 +178,7 @@ export function parseBlocks(source: string): Block[] {
   return blocks;
 }
 
-/** Inline spans: code, links, bold, italic.  Code wins, so `**` inside a
+/** Inline spans: code, links, bold, italic, maths.  Code wins, so `**` inside a
  *  path is left alone -- which matters when the paths are LaTeX -- and so
  *  an address inside backticks stays code.
  *
@@ -196,6 +200,12 @@ const INLINE = new RegExp(
     "(\\*\\*[^*]+\\*\\*)",
     "(\\*[^*\\n]+\\*)",
     "(_[^_\\n]+_)",
+    // Display maths, $$...$$ or \[...\], and inline maths, \(...\) or
+    // $...$.  An inline dollar must hug its maths on both sides and not be
+    // followed by a digit, Pandoc's rule, so "between $5 and $10" stays
+    // prose.
+    "(\\$\\$[\\s\\S]+?\\$\\$|\\\\\\[[\\s\\S]+?\\\\\\])",
+    "(\\\\\\([\\s\\S]+?\\\\\\)|\\$(?![\\s$])(?:\\\\[\\s\\S]|[^$\\\\])+?(?<![\\s\\\\])\\$(?!\\d))",
   ].join("|"),
   "g",
 );
@@ -217,6 +227,47 @@ function trimAddress(address: string): string {
     }
   }
   return address.slice(0, end);
+}
+
+/** Maths in prose, set by KaTeX with the project's macros.
+ *
+ *  The library is fetched the first time an answer has maths in it; until
+ *  it arrives, and for good if it cannot, the maths shows as the source
+ *  the model wrote, in the code face, which is what a reader of LaTeX can
+ *  still read.  An expression KaTeX cannot parse is shown the same way
+ *  rather than as KaTeX's red error text, since the rest of the answer is
+ *  still worth reading around it.  Display maths is its own line, and
+ *  scrolls rather than widening the column. */
+function Maths({ tex, source, display }: { tex: string; source: string; display: boolean }) {
+  const [katex, setKatex] = useState(loaded);
+  useEffect(() => {
+    if (katex) return;
+    let live = true;
+    loadKatex().then((module) => live && setKatex(() => module)).catch(() => undefined);
+    return () => {
+      live = false;
+    };
+  }, [katex]);
+  const html = useMemo(() => {
+    if (!katex) return null;
+    try {
+      return katex.renderToString(tex, {
+        displayMode: display, throwOnError: true, macros: projectMacros(),
+      });
+    } catch {
+      return null;
+    }
+  }, [katex, tex, display]);
+  if (html === null) {
+    return <span className="t-code-sm" data-maths="source">{source}</span>;
+  }
+  return (
+    <span
+      className={display ? "nx-chat-maths block overflow-x-auto py-1" : "nx-chat-maths"}
+      data-maths={display ? "display" : "inline"}
+      dangerouslySetInnerHTML={{ __html: html }}
+    />
+  );
 }
 
 export function inline(text: string, keyPrefix: string): ReactNode[] {
@@ -263,13 +314,19 @@ export function inline(text: string, keyPrefix: string): ReactNode[] {
     } else if (match[4]) {
       nodes.push(
         <strong key={key} className="font-semibold">
-          {token.slice(2, -2)}
+          {inline(token.slice(2, -2), key)}
         </strong>,
+      );
+    } else if (match[7] || match[8]) {
+      const display = Boolean(match[7]);
+      const fence = token.startsWith("$$") ? 2 : token.startsWith("$") ? 1 : 2;
+      nodes.push(
+        <Maths key={key} tex={token.slice(fence, -fence)} source={token} display={display} />,
       );
     } else {
       nodes.push(
         <em key={key} className="italic">
-          {token.slice(1, -1)}
+          {inline(token.slice(1, -1), key)}
         </em>,
       );
     }
