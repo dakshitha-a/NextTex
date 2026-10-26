@@ -270,6 +270,12 @@ OpenAI provider against OpenAI itself.
 
 ### Known gaps, with a cost somebody will eventually pay
 
+- [ ] **The browser tier's fake tlmgr never asks to update itself.**
+      `texpkg.install` runs `tlmgr update --self` and installs again when
+      tlmgr says it must, which `tests/test_texpkg.py` holds with a fake
+      `create_subprocess_exec`. `tests/fake_tlmgr.py` has no package that
+      answers that way, so no browser spec has seen the drawer's button
+      through the retry.
 - [ ] **A full pass that never ran biber is reported as clean.** With a
       latexmk on the PATH that has no biber beside it, a 222-page thesis
       built in one pass with no `.bbl` and came back "ok" with no errors,
