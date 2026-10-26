@@ -222,6 +222,11 @@ test("no surface clips text without saying so, at any width", async ({
     if (await row.count()) await row.click().catch(() => undefined);
     await tab.waitForTimeout(200);
   }
+  // The page's menu needs a page.  The writes above start a build that
+  // supersedes the one the project opened with, and the page arrives
+  // when that one lands; a stopped build once came back "ok" with a page
+  // early, which is the only reason this ever passed without waiting.
+  await expect(tab.locator(".nx-page canvas").first()).toBeVisible({ timeout: 45_000 });
 
   // Before trusting a pass: plant exactly the fault this is looking for
   // and require it to be seen.  A scan that finds nothing is worth having
