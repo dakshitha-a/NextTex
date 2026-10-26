@@ -155,9 +155,11 @@ def test_a_template_says_which_packages_this_tex_lacks(client, monkeypatch):
     venues.forget()
     monkeypatch.setattr(venues, "_present", lambda names: None)
     rows = {t["name"]: t for t in client.get("/api/templates").json()["templates"]}
-    # No kpsewhich, as on a machine with no TeX: nobody can say.
+    # No kpsewhich, as on a machine with no TeX: nobody can say, for the
+    # article as for a venue, since it too needs what TinyTeX lacks.
     assert rows["acm"]["missing"] is None
-    assert rows["basic"]["missing"] == []
+    assert rows["basic"]["missing"] is None
+    assert rows["ams"]["missing"] is None
     venues.forget()
 
 
