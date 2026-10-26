@@ -13,6 +13,7 @@ scaffold = false
 [needs]
 moderncv = "moderncv.cls"
 fontawesome6 = "fontawesome6.sty"
+pgf = "tikz.sty"
 
 [checked]
 moderncv = "2.6.1"

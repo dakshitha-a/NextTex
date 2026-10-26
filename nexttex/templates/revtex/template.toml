@@ -12,6 +12,7 @@ licence = "LPPL 1.3c"
 # the package's source; scripts/check_templates.py compares them again.
 [needs]
 revtex = "revtex4-2.cls"
+textcase = "textcase.sty"
 
 [checked]
 revtex = "4.2f"

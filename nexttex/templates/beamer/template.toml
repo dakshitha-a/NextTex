@@ -1,3 +1,11 @@
 title = "A talk"
 kind = "talk"
 order = 3
+
+# Each TeX Live package the first build needs, with a file of its that
+# says whether it is here, as a clean TinyTeX asked for them.
+[needs]
+beamer = "beamer.cls"
+pgf = "tikz.sty"
+siunitx = "siunitx.sty"
+biblatex = "biblatex.sty"

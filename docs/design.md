@@ -2677,6 +2677,17 @@ needs to update itself first". The last lines under a real failure leave out
 rules and the lines tlmgr prints on every run, and wrap rather than stop at
 the edge of the window.
 
+The third report from that Mac was a blank preview on a new project. The
+article, NextTex's default template, loads parskip, microtype, siunitx,
+tikz and biblatex, and TinyTeX's bundle has none of them. The New project
+sheet already installs what a template's `[needs]` names before the project
+opens, but only the venue templates had that table, because every machine
+that had built the article had a fuller TeX. Every template now has the
+packages a clean TinyTeX asked for, measured by building each one on a
+fresh TinyTeX and installing what each failed build named until it was
+clean, and the sheet says "Installs parskip" for the article the way it
+always has for a venue.
+
 ## 19. Navigating a long document, and where the agent's controls belong
 
 Three changes, all of them about a project that has grown past the size the

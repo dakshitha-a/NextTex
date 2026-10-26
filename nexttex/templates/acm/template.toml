@@ -12,11 +12,18 @@ licence = "LPPL 1.3"
 # the package's source; scripts/check_templates.py compares them again.
 [needs]
 acmart = "acmart.cls"
-comment = "comment.sty"
+xstring = "xstring.sty"
+microtype = "microtype.sty"
+totpages = "totpages.sty"
+everyshi = "everyshi.sty"
 environ = "environ.sty"
 hyperxmp = "hyperxmp.sty"
 ncctools = "manyfoot.sty"
-totpages = "totpages.sty"
+cmap = "cmap.sty"
+caption = "caption.sty"
+comment = "comment.sty"
+fancyhdr = "fancyhdr.sty"
+preprint = "balance.sty"
 
 [checked]
 acmart = "2.20"

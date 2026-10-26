@@ -10,7 +10,9 @@ licence = "Other free"
 # says whether it is here.  `checked` is the version last compared with
 # the package's source; scripts/check_templates.py compares them again.
 [needs]
+beamer = "beamer.cls"
 "beamertheme-metropolis" = "beamerthememetropolis.sty"
+biblatex = "biblatex.sty"
 
 [checked]
 "beamertheme-metropolis" = "1.2"

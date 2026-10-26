@@ -12,6 +12,7 @@ licence = "LPPL 1.3"
 # the package's source; scripts/check_templates.py compares them again.
 [needs]
 elsarticle = "elsarticle.cls"
+grfext = "grfext.sty"
 
 [checked]
 elsarticle = "3.5"

@@ -12,6 +12,7 @@ licence = "LPPL 1.3"
 # the package's source; scripts/check_templates.py compares them again.
 [needs]
 ieeetran = "IEEEtran.cls"
+cite = "cite.sty"
 
 [checked]
 ieeetran = "1.8b"

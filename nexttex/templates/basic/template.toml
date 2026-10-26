@@ -1,3 +1,12 @@
 title = "An article"
 kind = "general"
 order = 1
+
+# Each TeX Live package the first build needs, with a file of its that
+# says whether it is here, as a clean TinyTeX asked for them.
+[needs]
+parskip = "parskip.sty"
+microtype = "microtype.sty"
+siunitx = "siunitx.sty"
+pgf = "tikz.sty"
+biblatex = "biblatex.sty"

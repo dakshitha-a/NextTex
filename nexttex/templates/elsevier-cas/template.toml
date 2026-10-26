@@ -12,10 +12,15 @@ licence = "LPPL 1.3c"
 # the package's source; scripts/check_templates.py compares them again.
 [needs]
 "els-cas-templates" = "cas-sc.cls"
+makecell = "makecell.sty"
+multirow = "multirow.sty"
+colortbl = "colortbl.sty"
+sttools = "stfloats.sty"
+xstring = "xstring.sty"
 footmisc = "footmisc.sty"
 moreverb = "moreverb.sty"
-sttools = "stfloats.sty"
 wrapfig = "wrapfig.sty"
+grfext = "grfext.sty"
 
 [checked]
 "els-cas-templates" = "2.4"

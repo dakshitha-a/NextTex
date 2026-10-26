@@ -11,6 +11,9 @@ licence = "LPPL 1.3c"
 # the package's source; scripts/check_templates.py compares them again.
 [needs]
 memoir = "memoir.cls"
+xpatch = "xpatch.sty"
+microtype = "microtype.sty"
+biblatex = "biblatex.sty"
 
 [checked]
 memoir = "3.8.4b"

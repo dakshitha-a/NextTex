@@ -1,3 +1,11 @@
 title = "A report, in chapters"
 kind = "general"
 order = 2
+
+# Each TeX Live package the first build needs, with a file of its that
+# says whether it is here, as a clean TinyTeX asked for them.
+[needs]
+parskip = "parskip.sty"
+microtype = "microtype.sty"
+siunitx = "siunitx.sty"
+biblatex = "biblatex.sty"
