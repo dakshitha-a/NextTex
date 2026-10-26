@@ -270,6 +270,13 @@ OpenAI provider against OpenAI itself.
 
 ### Known gaps, with a cost somebody will eventually pay
 
+- [ ] **An update repairs nothing an install step fixed.** `scripts/update.sh`
+      does not run the TeX extras step again, so a missing synctex stays
+      missing after an update that fixed the step, and it does not rewrite
+      the service, so a launch agent keeps the PATH it was written with.
+      Running `scripts/install.sh` again does both. Left on the owner's word
+      on 26 October 2026: there was one Mac install, and new ones start
+      from scratch.
 - [ ] **The browser tier's fake tlmgr never asks to update itself.**
       `texpkg.install` runs `tlmgr update --self` and installs again when
       tlmgr says it must, which `tests/test_texpkg.py` holds with a fake
