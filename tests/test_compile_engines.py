@@ -280,3 +280,55 @@ def test_a_build_superseded_while_it_ran_is_cancelled_whatever_its_engine_return
     assert result.outcome is build_module.Outcome.CANCELLED
     assert build._needs_full is True, "a killed full pass must not count as one"
 
+
+
+def test_a_build_the_session_cancels_before_it_queues_is_cancelled(tmp_path, monkeypatch):
+    """The session stops the build in flight before it queues, and the
+    newer build only takes a generation once the queue lets it in.  A pass
+    stopped in that gap whose latexmk exited with a code of its own came
+    back "ok", with no errors and the last good PDF put back, which the
+    preview showed as "This build stopped" with nowhere named; and its torn
+    `.aux` stayed, so every build after it cleaned and began again."""
+    from nexttex import compile as build_module
+
+    (tmp_path / "main.tex").write_text(
+        "\\documentclass{article}\\begin{document}x\\end{document}\n", encoding="utf-8"
+    )
+    paths = paths_in(tmp_path)
+    paths.build_dir.mkdir(parents=True)
+    aux = paths.build_dir / "main.aux"
+    aux.write_text("\\relax\n", encoding="utf-8")
+    build = CompileScheduler(paths)
+    for name in ("end_tree", "descendants"):
+        monkeypatch.setattr(build_module, name, lambda *_, **__: [])
+
+    async def gone(_pids, timeout=3.0):
+        return None
+
+    monkeypatch.setattr(build_module, "_outlived", gone)
+
+    class Trapped:
+        returncode = None
+        pid = 999_999_999
+        waited = False
+
+        async def wait(self):
+            if not self.waited:
+                self.waited = True
+                # Halfway through a line when the signal lands.
+                aux.write_text("\\relax\n\\newlabel{a}{{1}{", encoding="utf-8")
+                # A newer build stops this one, and has no generation yet.
+                await build.cancel()
+            self.returncode = 0
+            return 0
+
+    async def fake_exec(*argv, **_):
+        return Trapped()
+
+    monkeypatch.setattr(asyncio, "create_subprocess_exec", fake_exec)
+    monkeypatch.setattr(build_module, "_VERSIONS", {"pdflatex": "pdfTeX"})
+    assert build._needs_full is True
+    result = asyncio.run(build.build())
+    assert result.outcome is build_module.Outcome.CANCELLED
+    assert build._needs_full is True, "a stopped full pass must not count as one"
+    assert aux.read_text(encoding="utf-8") == "\\relax\n", "the torn .aux is put back"

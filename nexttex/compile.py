@@ -701,6 +701,9 @@ class CompileScheduler:
         self._last_escape: str | None = None
         self._rerun_pending = False
         self._process: asyncio.subprocess.Process | None = None
+        # The last process `cancel` stopped.  A run whose own process this
+        # is was stopped, whatever its exit code and its generation say.
+        self._stopped: asyncio.subprocess.Process | None = None
         self._lock = asyncio.Lock()
         self._generation = 0
         # Set when an edit touches citations, labels or the preamble; the
@@ -775,6 +778,7 @@ class CompileScheduler:
         proc = self._process
         if proc is None or proc.returncode is not None:
             return
+        self._stopped = proc
         # latexmk spawns pdflatex and biber; killing only the parent
         # leaves them writing into the build directory. The whole tree, on
         # either platform: see `nexttex/proctree.py`.
@@ -1012,7 +1016,7 @@ class CompileScheduler:
             self._process = None
 
         killed = proc.returncode is not None and proc.returncode < 0
-        if killed or generation != self._generation:
+        if killed or generation != self._generation or self._stopped is proc:
             # Superseded while it ran.  A newer build has cancelled this
             # one and is about to run, and its result is the one that
             # counts.  The second test matters on its own: latexmk traps
@@ -1020,6 +1024,11 @@ class CompileScheduler:
             # its engine mid-run, so a superseded full pass was reported
             # as finished, cleared the mark that asked for a full pass, and
             # left a torn .aux for the next fast pass to typeset against.
+            # The third is the same trap reached another way: the session
+            # cancels before it queues, and the newer build only takes a
+            # generation once the queue lets it in, so a pass stopped in
+            # that gap came back "ok" with the last good PDF put back,
+            # which the preview shows as a build that stopped nowhere.
             await asyncio.to_thread(self._restore, held, main_source)
             return CompileResult(
                 Outcome.CANCELLED, None, None, time.monotonic() - started, scope,

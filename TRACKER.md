@@ -49,6 +49,13 @@ new file twice, once when the agent says where it will write and once when
 it has, and over Tailscale both opens woke on one manifest update and built
 a document each; the first, overtaken, destroyed the second's. Fixed in
 `collab.ts`, held by a unit test and a browser spec with slowed sockets.
+Reviewed again on 25 October: no crash and no server error. The thesis
+preview stopped updating under "This build stopped" with no place named:
+a build the session cancelled before queueing came back "ok" with the old
+PDF put back, and its torn `.aux` made each build after it start clean.
+Fixed in `compile.py`. The review also found 232 `biber` processes stopped
+since the browser runs of 25 to 27 September, about 2 GB, left for the
+owner to end.
 
 Before it, on 12 October 2026, at 4.33.0, the run on the page
 losing the writing in a reflowing thesis closed, at the writer's request.
@@ -263,6 +270,15 @@ OpenAI provider against OpenAI itself.
 
 ### Known gaps, with a cost somebody will eventually pay
 
+- [ ] **A full pass that never ran biber is reported as clean.** With a
+      latexmk on the PATH that has no biber beside it, a 222-page thesis
+      built in one pass with no `.bbl` and came back "ok" with no errors,
+      seen while reproducing the 25 October fault. `_damaged` does not look
+      for it; the live install's PATH has TinyTeX, so nobody has hit it yet.
+- [ ] **The diagnostics log fills with ResizeObserver lines.** 3,940 in
+      four days, all the browser's harmless "loop completed with
+      undelivered notifications"; they bury the browser errors a review
+      is looking for and should be counted rather than kept.
 - [ ] **History calls an agent's version "Claude" whatever the agent.**
       A version records that the agent made it, not which provider, so with
       ChatGPT or a local model the History drawer still says Claude. The
