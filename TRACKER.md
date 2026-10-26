@@ -270,6 +270,13 @@ OpenAI provider against OpenAI itself.
 
 ### Known gaps, with a cost somebody will eventually pay
 
+- [ ] **The page check's broken-page test flaked once on CI.**
+      `test_a_broken_page_comes_back_to_the_agent_with_its_error_and_a_picture`
+      failed on the Linux runner on 26 October 2026 with "had not read it
+      back after 20 seconds", and passed on a rerun with nothing changed.
+      Which browser `find_browser` picked there was not looked at; the full
+      Chromium hanging on `--dump-dom`, as it does on the owner's machine,
+      would explain it.
 - [ ] **A template loaded into an existing project installs nothing.** The
       New project sheet installs a template's `[needs]`; the empty page's
       button and the agent column's template action call
