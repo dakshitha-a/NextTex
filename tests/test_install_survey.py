@@ -279,6 +279,35 @@ def test_a_version_wider_than_its_column_still_ends_in_a_gap():
     assert "starting at login " in text and "logina logon" not in text, text
 
 
+def test_a_long_path_is_wrapped_at_a_slash_not_inside_a_name():
+    """A Mac's Homebrew Python was printed as `.../bin/python3.1` with `3`
+    on the line below, because textwrap cuts a word wider than the line
+    wherever the line ends (26 October 2026)."""
+    import io
+
+    from nexttex.install import __main__ as installer
+    from nexttex.install.survey import PRESENT, Finding, Survey
+    from nexttex.install.ui import Console
+
+    class Narrow(Console):
+        width = 60
+
+    where = ("/opt/homebrew/Cellar/python@3.13/3.13.11/Frameworks/"
+             "Python.framework/Versions/3.13/bin/python3.13")
+    console = Narrow(stream=io.StringIO(), plain=True)
+    result = Survey(platform="macos", root=Path("."))
+    result.findings.append(Finding("python", "Python", PRESENT, where=where,
+                                   version="3.13.11"))
+    installer.show_survey(console, result)
+    rows = [line.split()[-1] for line in console.stream.getvalue().splitlines()
+            if line.strip()]
+    first = next(i for i, row in enumerate(rows) if row.startswith("/opt"))
+    pieces = rows[first:]
+    assert "".join(pieces) == where, pieces
+    assert all(piece.endswith("/") for piece in pieces[:-1]), pieces
+    assert len(pieces) > 1, pieces
+
+
 @pytest.mark.parametrize("platform", PLATFORMS)
 def test_a_command_meant_to_be_copied_is_never_wrapped(platform, tmp_path):
     """A copy-paste line broken across two rows is one somebody has to

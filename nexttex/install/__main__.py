@@ -185,6 +185,8 @@ def show_survey(console: Console, result) -> None:
             for paragraph in said:
                 # A command is never wrapped: it is meant to be copied.
                 pieces = ([paragraph] if paragraph == finding.command
+                          else _wrap_path(paragraph, body)
+                          if paragraph == finding.where
                           else textwrap.wrap(paragraph, body) or [""])
                 if paragraph == finding.command:
                     # Never wrapped, and pulled left rather than off the edge
@@ -203,6 +205,41 @@ def show_survey(console: Console, result) -> None:
         console.write("")
         console.note(console.red("Cannot reach: " + ", ".join(result.offline)))
         console.note("  The downloads below will fail. Check your connection first.")
+
+
+def _wrap_path(text: str, width: int) -> list:
+    """A location wrapped at its separators rather than inside a name.
+
+    `textwrap` breaks a word longer than the line wherever the line ends,
+    so a Mac's Homebrew Python was printed as `.../bin/python3.1` with `3`
+    on the line below it (26 October 2026).  A path wider than the column
+    is broken after a `/` or a `\\` instead, and only a single name wider
+    than the whole column is cut.
+    """
+    import re
+    import textwrap
+
+    lines: list = []
+    for line in textwrap.wrap(text, width, break_long_words=False,
+                              break_on_hyphens=False) or [""]:
+        if len(line) <= width:
+            lines.append(line)
+            continue
+        current = ""
+        for part in re.split(r"(?<=[/\\])", line):
+            while len(part) > width:
+                if current:
+                    lines.append(current)
+                    current = ""
+                lines.append(part[:width])
+                part = part[width:]
+            if len(current) + len(part) > width:
+                lines.append(current)
+                current = ""
+            current += part
+        if current:
+            lines.append(current)
+    return lines
 
 
 def _column(text: str, width: int) -> str:
