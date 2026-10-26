@@ -92,9 +92,24 @@ class Result:
         return self.output[-30:]
 
     def last_lines(self, count: int = 5) -> list[str]:
-        """The last `count` lines that say anything."""
-        said = [line.strip() for line in self.output if line.strip()]
+        """The last `count` lines that say anything.
+
+        A rule, or a line a tool prints at the end of every run, is not
+        one.  tlmgr closes each run by naming its repository, and its
+        warnings sit between two rows of `=` followed by "Terminating;
+        please see warning above", so on 4.42.1 the last five lines of a
+        tlmgr refusal were the rule, that line and the repository, and
+        the line that said what to do was not among them.
+        """
+        said = [line.strip() for line in self.output
+                if line.strip() and not _NOISE.search(line.strip())]
         return said[-count:]
+
+
+#: Lines that are never a failure's reason: a rule drawn with one
+#: character, and what tlmgr prints whether or not anything went wrong.
+_NOISE = re.compile(r"^([=*_~#-])\1{4,}$|^tlmgr: package repository |"
+                    r"please see warning above")
 
 
 def _supports(stream, text: str) -> bool:
@@ -258,7 +273,18 @@ class Console:
         env: dict | None = None,
         counter: str = "",
         shell_input: str | None = None,
+        expected=None,
     ) -> Result:
+        """Run one step, and show how it ended.
+
+        `expected` is for a failure the caller already has an answer to.
+        It is given the failed result and returns a sentence, or "" when
+        this is a failure it does not recognise.  A sentence settles the
+        step with a dot and that sentence rather than a red cross and the
+        output, since a cross that the very next step makes good reads as
+        a failure (tlmgr asking to update itself, on 4.42.1).  The result
+        is still not ok, so the caller's own logic is unchanged.
+        """
         prefix = f"  {counter} " if counter else "  "
         self.log_line("$ " + " ".join(str(a) for a in argv))
         started = time.monotonic()
@@ -336,11 +362,23 @@ class Console:
         thread.join(timeout=2)
         seconds = time.monotonic() - started
         ok = process.returncode == 0
-        self._settle(prefix, label, seconds, ok=ok)
         result = Result(ok, process.returncode or 0, seconds, kept)
+        answer = expected(result) if (expected and not ok) else ""
+        if answer:
+            self._settle_expected(prefix, label, seconds, answer)
+            return result
+        self._settle(prefix, label, seconds, ok=ok)
         if not ok and self.animate:
             self._show_why(result)
         return result
+
+    def _settle_expected(self, prefix: str, label: str, seconds: float,
+                         answer: str) -> None:
+        took = f"  ({_clock(seconds)})" if seconds >= 1 else ""
+        if self.animate:
+            self.write(f"{prefix}{self.bullet} {answer}{took}")
+        else:
+            self.write(f"{prefix}{label}{took} -- {answer}")
 
     def _show_why(self, result: Result) -> None:
         """A failed step's last lines, under its cross.
@@ -353,9 +391,14 @@ class Console:
         streamed every line, and `_STEPS` in server/main.py reads that
         stream, so it is left as it is.
         """
-        width = min(self.width, 78) - 8
+        import textwrap
+
+        # Wrapped, never cut: a reason that ends mid-word at the edge of
+        # the window ("not verified: gpg u") is one nobody can act on.
+        width = max(24, min(self.width, 78) - 8)
         for line in result.last_lines():
-            self.note("  " + self.dim(line[:width]))
+            for piece in textwrap.wrap(line, width, subsequent_indent="  "):
+                self.note("  " + self.dim(piece))
 
     def _draw(self, prefix: str, label: str, started: float, frame: str,
               tail: str) -> None:

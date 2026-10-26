@@ -349,11 +349,16 @@ def install_tex_extras(console: Console, root: Path, missing: list,
     unasked.
     """
     label = "Adding " + ", ".join(missing)
-    added = console.run(label, [tlmgr, "install", *missing], cwd=root,
-                        counter=counter)
+    added = console.run(
+        label, [tlmgr, "install", *missing], cwd=root, counter=counter,
+        expected=lambda result: ("tlmgr needs to update itself first"
+                                 if needs_self_update(result.output) else ""),
+    )
     if added.ok or not needs_self_update(added.output):
         return added
-    updated = console.run("Updating tlmgr itself", [tlmgr, *SELF_UPDATE],
+    # Not "Updating ...": `_STEPS` in server/main.py takes that word for
+    # git's, and this step can run under the update footer one day.
+    updated = console.run("Bringing tlmgr up to date", [tlmgr, *SELF_UPDATE],
                           cwd=root, counter=counter)
     if not updated.ok:
         return updated

@@ -749,13 +749,11 @@ def _answers(port: int, timeout: float = 20.0) -> bool:
 def _tlmgr_said(result) -> str:
     """tlmgr's own reason for a failure, as a clause for the closing note.
 
-    tlmgr ends nearly every run by naming the repository it used, so the
-    last line is seldom the reason; the last one that is not that is.
+    `last_lines` already leaves out the repository line tlmgr ends nearly
+    every run with, and the rules around its warnings.
     """
-    for line in reversed(result.last_lines(8)):
-        if not line.startswith("tlmgr: package repository"):
-            return f' (it said "{line}")'
-    return ""
+    said = result.last_lines(1)
+    return f' (it said "{said[0]}")' if said else ""
 
 
 def _missing_tex_extras(tex_dir=None) -> list:

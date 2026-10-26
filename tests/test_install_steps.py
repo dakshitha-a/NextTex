@@ -38,7 +38,7 @@ class Recorder(Console):
         self.output = list(output)
 
     def run(self, label, argv, *, cwd=None, env=None, counter="",
-            shell_input=None):
+            shell_input=None, expected=None):
         argv = [str(a) for a in argv]
         self.calls.append(argv)
         joined = " ".join(argv)
@@ -619,7 +619,10 @@ def _install_with_a_tlmgr_that_says(monkeypatch, sandbox, first_answer,
         if argv[1:2] == ["install"]:
             seen["installs"] += 1
             if seen["installs"] == 1:
-                return Result(False, 1, 0.0, first_answer)
+                failed = Result(False, 1, 0.0, first_answer)
+                expected = kwargs.get("expected")
+                console.expected_said = expected(failed) if expected else ""
+                return failed
         return Result(True, 0, 0.0, [])
 
     console.run = run
@@ -643,6 +646,8 @@ def test_a_tinytex_behind_its_repository_updates_tlmgr_and_adds_the_extras(sandb
     assert tlmgr[0][0] == "install" and tlmgr[1] == ["update", "--self"], tlmgr
     assert tlmgr[2] == tlmgr[0], tlmgr
     assert "tlmgr could not add" not in console.stream.getvalue()
+    # Shown as the step it now is, not as a failure.
+    assert console.expected_said == "tlmgr needs to update itself first"
 
 
 def test_a_stale_mirror_is_not_answered_with_a_self_update(sandbox, monkeypatch):
@@ -650,6 +655,7 @@ def test_a_stale_mirror_is_not_answered_with_a_self_update(sandbox, monkeypatch)
         "tlmgr: Remote repository is newer than local (2025 < 2026)",
     ])
     assert "update --self" not in console.ran
+    assert console.expected_said == "", "a stale mirror is a real failure"
     printed = " ".join(console.stream.getvalue().split())
     assert "tlmgr could not add" in printed
     # tlmgr's own reason, on the summary rather than only in the log.

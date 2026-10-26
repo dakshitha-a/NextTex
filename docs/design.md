@@ -2669,6 +2669,14 @@ and the TeX step prints the one `export PATH=...` line to add to `~/.zshrc`
 for a writer who wants TeX in a terminal too. Linux keeps the script's own
 links in `~/.local/bin`, which ask for nothing, and the list names them.
 
+The reporter's follow-up on 4.42.1 found the retry drawn as a failure: a red
+cross over "Adding biber, synctex, chktex, texcount", made good by the next
+two steps. A step can now name a failure it expects, through `expected` on
+`Console.run`, and such a failure settles with a dot and a sentence, "tlmgr
+needs to update itself first". The last lines under a real failure leave out
+rules and the lines tlmgr prints on every run, and wrap rather than stop at
+the edge of the window.
+
 ## 19. Navigating a long document, and where the agent's controls belong
 
 Three changes, all of them about a project that has grown past the size the

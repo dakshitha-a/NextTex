@@ -141,6 +141,88 @@ def test_the_last_lines_skip_the_blank_ones():
     assert result.last_lines(2) == ["b", "c"]
 
 
+def _on_a_terminal(monkeypatch, columns, *calls):
+    """What a console on a pty of `columns` printed for each call."""
+    monkeypatch.delenv("CI", raising=False)
+    monkeypatch.setattr(ui.shutil, "get_terminal_size",
+                        lambda fallback=None: os.terminal_size((columns, 24)))
+    parent, child = pty.openpty()
+    try:
+        stream = os.fdopen(child, "w", buffering=1)
+        console = ui.Console(stream=stream)
+        for label, argv, kwargs in calls:
+            console.run(label, argv, **kwargs)
+        stream.flush()
+        os.set_blocking(parent, False)
+        seen = ""
+        try:
+            while True:
+                seen += os.read(parent, 65536).decode("utf-8", "replace")
+        except (BlockingIOError, OSError):
+            pass
+    finally:
+        os.close(parent)
+    return seen
+
+
+#: What tlmgr printed on a fresh Mac on 4.42.1, warning, rules and all.
+TLMGR_REFUSAL = """\
+=====================================
+tlmgr itself needs to be updated.
+Please do this via either
+  tlmgr update --self
+or by getting the latest updater for Unix-ish systems:
+  https://tlnet.yihui.org/update-tlmgr-latest.sh
+and/or Windows systems:
+  https://tlnet.yihui.org/update-tlmgr-latest.exe
+Then continue with other updates as usual.
+=====================================
+tlmgr: Terminating; please see warning above!
+tlmgr: package repository https://tlnet.yihui.org (not verified: gpg unavailable)
+"""
+
+
+def test_a_failure_the_caller_expected_is_a_dot_and_a_sentence(monkeypatch, tmp_path):
+    """On 4.42.1 tlmgr's request to update itself showed as a red cross
+    over a step the next one made good, which reads as a failure."""
+    script = tmp_path / "refuse.sh"
+    script.write_text("cat <<'EOF'\n" + TLMGR_REFUSAL + "EOF\nexit 1\n")
+    seen = _on_a_terminal(monkeypatch, 80, (
+        "Adding biber", ["sh", str(script)],
+        {"expected": lambda r: "tlmgr needs to update itself first"},
+    ))
+    settled = seen.rsplit("\x1b[2K", 1)[-1]
+    assert "tlmgr needs to update itself first" in settled, seen
+    assert "\u2717" not in settled and "!!" not in settled, seen
+    assert "update-tlmgr-latest" not in settled, seen
+
+
+def test_an_expected_answer_of_nothing_is_an_ordinary_failure():
+    console = quiet_console()
+    result = console.run("Adding", ["sh", "-c", "echo nope; exit 1"],
+                         expected=lambda r: "")
+    assert result.ok is False
+    assert "FAILED" in console.stream.getvalue()
+
+
+def test_the_last_lines_leave_out_rules_and_what_tlmgr_always_says():
+    result = ui.Result(False, 1, 0.0, TLMGR_REFUSAL.splitlines())
+    last = result.last_lines()
+    assert last[-1] == "Then continue with other updates as usual.", last
+    assert not any(line.startswith("====") for line in last), last
+    assert not any("package repository" in line for line in last), last
+    assert not any("Terminating" in line for line in last), last
+
+
+def test_a_long_last_line_is_wrapped_not_cut(monkeypatch):
+    """4.42.1 cut a line at the window's edge: "not verified: gpg u"."""
+    long = "the mirror at https://example.org/a/long/path said it was not verified because gpg is unavailable"
+    seen = _on_a_terminal(monkeypatch, 60, (
+        "Adding", ["sh", "-c", f"echo '{long}'; exit 1"], {}))
+    flat = " ".join(seen.replace("\x1b[2m", "").replace("\x1b[0m", "").split())
+    assert "gpg is unavailable" in flat, seen
+
+
 def test_a_terminal_in_ci_still_gets_the_plain_output(monkeypatch):
     """A build log is read afterwards, not watched, so a spinner in one is
     thousands of redraws nobody ever saw.
