@@ -217,24 +217,30 @@ class PaperPdfs:
         with self._lock:
             self.pdfs = found
 
-    def touched(self, paths: Iterable[str]) -> bool:
-        """Fold a watcher event into the list. True when the answer may
-        have changed: a PDF came or went or changed, or a `.bib` did."""
-        changed = False
+    def touched(self, paths: Iterable[str]) -> str:
+        """Fold a watcher event into the list, and say what it calls for:
+        "" for nothing, "refresh" when a PDF or a `.bib` came, went or
+        changed, "reseed" when a folder did, or a path that is not a file
+        now. A folder made with a PDF in it is often reported alone, the
+        file's own event lost while the watch on the new folder was being
+        set up, so only a fresh walk finds the PDF."""
+        wanted = ""
         for path in paths:
             name = str(path).replace("\\", "/")
             lower = name.lower()
             if lower.endswith(".bib"):
-                changed = True
+                wanted = wanted or "refresh"
             elif lower.endswith(".pdf"):
-                changed = True
+                wanted = wanted or "refresh"
                 exists = (self.root / name).is_file()
                 with self._lock:
                     if exists:
                         self.pdfs.add(name)
                     else:
                         self.pdfs.discard(name)
-        return changed
+            elif not (self.root / name).is_file():
+                wanted = "reseed"
+        return wanted
 
     # -- matching ------------------------------------------------------
     def resolve(

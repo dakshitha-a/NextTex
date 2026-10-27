@@ -188,15 +188,33 @@ def test_the_watcher_adds_and_drops_pdfs(tmp_path):
     root = tmp_path / "p"
     root.mkdir()
     (root / "refs.bib").write_text(BIB)
+    (root / "intro.tex").write_text("x")
     found = index(root, tmp_path / "s")
     assert found.resolve(["refs.bib"], home=tmp_path) == {}
     pdf(root / "new" / "tully1990.pdf")
-    assert found.touched(["new/tully1990.pdf"]) is True
+    assert found.touched(["new/tully1990.pdf"]) == "refresh"
     assert "tully1990" in found.resolve(["refs.bib"], home=tmp_path)
     (root / "new" / "tully1990.pdf").unlink()
-    assert found.touched(["new/tully1990.pdf"]) is True
+    assert found.touched(["new/tully1990.pdf"]) == "refresh"
     assert found.resolve(["refs.bib"], home=tmp_path) == {}
-    assert found.touched(["chapters/intro.tex"]) is False
+    assert found.touched(["intro.tex"]) == ""
+    assert found.touched(["refs.bib"]) == "refresh"
+
+
+def test_a_new_folder_reported_alone_asks_for_a_fresh_walk(tmp_path):
+    """The watcher often reports a folder made with a PDF already in it and
+    loses the file's own event; the folder is enough to walk again."""
+    root = tmp_path / "p"
+    root.mkdir()
+    (root / "refs.bib").write_text(BIB)
+    found = index(root, tmp_path / "s")
+    pdf(root / "literature" / "books" / "tully1990.pdf")
+    assert found.touched(["literature", "literature/books"]) == "reseed"
+    assert found.resolve(["refs.bib"], home=tmp_path) == {}
+    found.seed(_tree(root, root))
+    assert "tully1990" in found.resolve(["refs.bib"], home=tmp_path)
+    # A folder that is gone asks the same.
+    assert found.touched(["old-papers"]) == "reseed"
 
 
 def test_a_documents_own_output_is_not_a_paper(tmp_path):

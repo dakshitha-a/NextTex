@@ -382,6 +382,7 @@ class ProjectSession:
         self.papers = PaperPdfs(project.root, project.state_dir)
         self._papers_seeded = False
         self._papers_started = False
+        self._papers_lock = asyncio.Lock()
         self._papers_timer: asyncio.TimerHandle | None = None
         self._papers_reseed = False
         self._papers_reading: asyncio.Task | None = None
@@ -1022,12 +1023,14 @@ class ProjectSession:
             return
         kind = event.get("type")
         if kind == "files_changed":
-            structural = bool(event.get("structural"))
-            relevant = self.papers.touched(event.get("paths") or [])
-            if not (relevant or structural):
+            wanted = self.papers.touched(event.get("paths") or [])
+            if event.get("structural"):
+                wanted = "reseed"
+            if not wanted:
                 return
-            # A folder moved or deleted names the folder, not its PDFs.
-            self._papers_reseed = self._papers_reseed or structural
+            # A folder made, moved or deleted names the folder, not its
+            # PDFs, so the list is walked again.
+            self._papers_reseed = self._papers_reseed or wanted == "reseed"
         elif not (kind == "library_scan" and event.get("phase") in ("done", "stopped")):
             return
         try:
@@ -1049,7 +1052,18 @@ class ProjectSession:
         return bibs, library.papers(), library.sources(), skip
 
     async def _refresh_papers(self, seed: bool = False, announce: bool = True) -> None:
+        # One at a time. The first ask's walk and a watcher event's refresh
+        # ran side by side, and the first, slower and from an older walk,
+        # finished last and put back a list without the PDF that had just
+        # landed, with the newer version.
+        async with self._papers_lock:
+            await self._refresh_papers_now(seed, announce)
+
+    async def _refresh_papers_now(self, seed: bool, announce: bool) -> None:
         if self.closing:
+            return
+        if seed and self._papers_seeded and not announce:
+            # A second first ask, behind the one that has just seeded.
             return
         self._papers_reseed = False
         before = self.papers.as_dict()
