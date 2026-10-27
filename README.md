@@ -317,6 +317,9 @@ theme as NextTex. Open it, or copy the link.
   its entry in the typeset bibliography. NextTex finds the PDF wherever it is
   in the project, by its name, its DOI or the link Zotero or JabRef wrote, and
   opens the DOI page when there is no PDF.
+
+  <picture><source media="(prefers-color-scheme: dark)" srcset="docs/screenshot-cite-paper-dark.png"><img src="docs/screenshot-cite-paper-light.png" alt="A citation's card over its line in the editor: the book's title and author, the path of its PDF three folders down, and Open PDF before Find references and Rename." width="400"></picture>
+
 - **Vim or Emacs keys**, a white page in a dark theme, and colour for commands
   if you like it.
 

@@ -275,6 +275,58 @@ for (const theme of ["light", "dark"] as const) {
     await tab.screenshot({ path: shot(`hover-detail-${theme}`), clip: { x: 0, y: 0, width, height: Math.round(width / 1.36) } });
   });
 
+  /** A citation's card with its paper on disk (4.44.0): the PDF named
+   *  after the key, three folders down, and the pointer on Open PDF. The
+   *  picture is cut round the card and the line it belongs to. */
+  test(`the citation card, ${theme}`, async ({ tab, home }) => {
+    await dress(tab, theme, 1280, 800);
+    await expect(tab.locator(".cm-editor")).toBeVisible({ timeout: 30_000 });
+    const folder = join(home, "papers", "nonadiabatic-dynamics-review", "literature", "books", "1984");
+    mkdirSync(folder, { recursive: true });
+    writeFileSync(join(folder, "knuth1984.pdf"), "%PDF-1.4\n%%EOF\n");
+    // The citation's line into the middle of the view.
+    await tab.locator(".cm-line", { hasText: "cite{knuth1984}" }).first().evaluate((line) => line.scrollIntoView({ block: "center" }));
+    await tab.waitForTimeout(300);
+    const card = tab.locator(".nx-link-tooltip");
+    await expect.poll(async () => {
+      await tab.mouse.move(640, 790);
+      await tab.waitForTimeout(150);
+      const point = await tab.evaluate(() => {
+        const line = [...document.querySelectorAll(".cm-line")].find((el) => el.textContent?.includes("\\cite{knuth1984}"));
+        if (!line) return null;
+        const at = line.textContent!.indexOf("knuth1984") + 3;
+        const walker = document.createTreeWalker(line, NodeFilter.SHOW_TEXT);
+        let seen = 0;
+        for (let node = walker.nextNode(); node; node = walker.nextNode()) {
+          const length = node.textContent!.length;
+          if (seen + length > at) {
+            const range = document.createRange();
+            range.setStart(node, at - seen);
+            range.setEnd(node, at - seen + 1);
+            const box = range.getBoundingClientRect();
+            return { x: box.x + box.width / 2, y: box.y + box.height / 2 };
+          }
+          seen += length;
+        }
+        return null;
+      });
+      if (!point) return 0;
+      await tab.mouse.move(point.x, point.y);
+      await tab.mouse.move(point.x + 1, point.y);
+      await card.waitFor({ timeout: 3_000 }).catch(() => undefined);
+      await tab.waitForTimeout(300);
+      return tab.getByTestId("link-paper").count();
+    }, { timeout: 45_000, intervals: [700] }).toBeGreaterThan(0);
+    await tab.getByTestId("link-paper").hover();
+    await tab.waitForTimeout(300);
+    const box = (await card.boundingBox())!;
+    const line = (await tab.locator(".cm-line", { hasText: "cite{knuth1984}" }).first().boundingBox())!;
+    const top = Math.max(Math.min(box.y, line.y) - 24, 0);
+    const bottom = Math.max(box.y + box.height, line.y + line.height) + 24;
+    const left = Math.max(box.x - 48, 0);
+    await tab.screenshot({ path: shot(`cite-paper-${theme}`), clip: { x: left, y: top, width: Math.max(box.width, 420) + 96, height: bottom - top } });
+  });
+
   /** The share sheet over the list, in its shared state, with an invite
    *  made: shared through the route first, the way the row's Share
    *  reaches it. */
