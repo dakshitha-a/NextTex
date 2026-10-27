@@ -1858,22 +1858,29 @@ button.nx-reads-x[data-always]:hover { color: var(--pen); }
   overflow-y: hidden;
 }
 .nx-composer-box::placeholder { color: var(--ink-3); }
-/* A turn is running: a 1 px ring inside the card's edge, in the pen, or in
-   the warn ink while the agent waits on an answer, as the header's dot is.
-   It breathes on the dot's own 1400 ms so the two never drift apart, and
-   it is drawn on a layer of its own so the loop is an opacity change and
-   the card's box never moves.  Its resting opacity is the visible one, so
-   under reduced motion, where every animation stops, the ring stays. */
-.nx-composer[data-working] { position: relative; }
+/* A turn is running: a halo round the card, in the pen, or in the warn ink
+   while the agent waits on an answer, as the header's dot is.  A 1 px ring
+   inside the edge, a 3 px band just outside it and a 12 px glow, the glow
+   no wider than the column's gutter so the pane never clips it.  It swells
+   and settles over 2800 ms, two of the dot's beats, so the two never drift
+   apart, and it is drawn on a layer of its own so the loop is an opacity
+   change and the card's box never moves.  It never fades below 35 per
+   cent, where the ring the halo replaced fell to 20 and read as flicker.
+   Its resting opacity is the full one, so under reduced motion, where
+   every animation stops, the halo stays. */
+.nx-composer[data-working] { position: relative; --halo: var(--pen); }
+.nx-composer[data-working="waiting"] { --halo: var(--warn); }
 .nx-composer[data-working]::after {
   content: ""; position: absolute; inset: 0; border-radius: inherit; pointer-events: none;
-  box-shadow: inset 0 0 0 1px var(--pen); opacity: 0.7;
-  animation: nx-composer-breath 1400ms var(--ease) infinite;
+  box-shadow:
+    inset 0 0 0 1px var(--halo),
+    0 0 0 3px color-mix(in oklab, var(--halo) 22%, transparent),
+    0 0 12px color-mix(in oklab, var(--halo) 28%, transparent);
+  animation: nx-composer-halo 2800ms var(--ease) infinite;
 }
-.nx-composer[data-working="waiting"]::after { box-shadow: inset 0 0 0 1px var(--warn); }
-@keyframes nx-composer-breath {
-  0%, 100% { opacity: 0.7; }
-  50% { opacity: 0.2; }
+@keyframes nx-composer-halo {
+  0%, 100% { opacity: 1; }
+  50% { opacity: 0.35; }
 }
 /* A file or a tree row over the composer: the drop target the tree shows,
    the hint's wash and edge, and the box says what a drop does. */

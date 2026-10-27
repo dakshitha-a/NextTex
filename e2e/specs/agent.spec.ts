@@ -227,7 +227,7 @@ test("the panel says what the agent is doing, not just that it is busy", async (
   await expect(working).toBeHidden({ timeout: 30_000 });
 });
 
-/** The composer's edge, read where the browser draws it: the ring is the
+/** The composer's edge, read where the browser draws it: the halo is the
  *  card's `::after`, so its animation, its colour and the card's box are
  *  all measured rather than assumed from the attribute. */
 async function composerRing(page: Page) {
@@ -244,7 +244,7 @@ async function composerRing(page: Page) {
   });
 }
 
-test("the composer breathes while a turn runs, with the header's dot, and rests after", async ({
+test("the composer glows while a turn runs, on the header dot's beat, and rests after", async ({
   tab,
 }) => {
   const rest = await composerRing(tab);
@@ -255,20 +255,25 @@ test("the composer breathes while a turn runs, with the header's dot, and rests 
   await expect(tab.getByTestId("working")).toBeVisible({ timeout: 20_000 });
   await expect(tab.getByTestId("composer")).toHaveAttribute("data-working", "working");
   const busy = await composerRing(tab);
-  expect(busy.animation).toBe("nx-composer-breath");
-  // The header's dot keeps the same period, so the two never drift apart.
+  expect(busy.animation).toBe("nx-composer-halo");
+  // The halo takes two of the header dot's beats, so the two never drift
+  // apart.  The build writes 2800ms as 2.8s, so both are read as seconds.
+  const seconds = (d: string) => parseFloat(d) * (d.endsWith("ms") ? 0.001 : 1);
   const dot = await tab.locator(".nx-working").evaluate((el) => getComputedStyle(el).animationDuration);
-  const ring = await tab.getByTestId("composer").evaluate((el) => getComputedStyle(el, "::after").animationDuration);
-  expect(ring).toBe(dot);
-  // A ring inside the edge: the card is the size it was at rest.
+  const halo = await tab.getByTestId("composer").evaluate((el) => getComputedStyle(el, "::after").animationDuration);
+  expect(seconds(halo)).toBeCloseTo(2 * seconds(dot), 5);
+  // The halo is a shadow on a layer of its own: the card is the size it
+  // was at rest, and the glow is outside it.
   expect(busy.width).toBe(rest.width);
+  expect(busy.height).toBe(rest.height);
+  expect(busy.shadow.match(/inset/g)?.length).toBe(1);
 
   await expect(tab.getByTestId("working")).toBeHidden({ timeout: 30_000 });
   await expect(tab.getByTestId("composer")).not.toHaveAttribute("data-working", /.*/);
   expect((await composerRing(tab)).animation).toBe("none");
 });
 
-test("the composer's ring takes the warn ink while a card waits for an answer", async ({
+test("the composer's halo takes the warn ink while a card waits for an answer", async ({
   tab,
 }) => {
   await ask(tab, "permission", "Run the command.");
@@ -287,7 +292,7 @@ test("the composer's ring takes the warn ink while a card waits for an answer", 
 });
 
 test.describe("under reduced motion", () => {
-  test("the composer's ring stays, still", async ({ tab }) => {
+  test("the composer's halo stays, still", async ({ tab }) => {
     await tab.emulateMedia({ reducedMotion: "reduce" });
     await ask(tab, "working", "Read the theory chapter.");
     await expect(tab.getByTestId("composer")).toHaveAttribute("data-working", "working", { timeout: 20_000 });

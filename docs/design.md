@@ -12693,3 +12693,30 @@ ring as the card's `::after`, an inset 1 px shadow animated by opacity
 alone on 1400 ms, the dot's period. `e2e/specs/agent.spec.ts` reads the
 ring's animation, its colour, its period beside the dot's and the card's
 size, in a running turn, a waiting one and under reduced motion.
+
+## 126. The composer glows while the agent works
+
+Drawn on the direction page under The composer breathes while the agent
+works, 27 October 2026, at the writer's request. The writer asked for the
+ring of section 125 to change a little. Six variations were drawn live in
+both themes on a page of their own, and the writer chose the halo. The
+ring faded to 20 per cent every 1.4 seconds, which at its faintest read as
+a flicker rather than a breath.
+
+**What a writer sees** is a soft halo round the composer card while a turn
+runs, in the pen. It is a thin ring at the card's edge, a faint band just
+outside it and a glow past that. The halo swells and settles every 2.8
+seconds, two of the header dot's beats, so the two still move as one sign.
+It never fades below 35 per cent, so it is always there. A waiting
+permission card turns it to the warn ink. Only its light changes, so the
+card keeps its size. Under reduced motion it holds still at full strength.
+A drop target's edge still replaces it, and it goes when the turn ends.
+
+**How it is built.** `styles.css` draws the halo as the card's `::after`,
+three shadows in one colour that `data-working` sets: an inset 1 px ring,
+a 3 px band at 22 per cent and a 12 px glow at 28 per cent. The glow is
+as wide as the gutter beside the composer, so the column never clips
+it. The animation is `nx-composer-halo`, opacity alone from 1 to 0.35 and
+back over 2800 ms. `e2e/specs/agent.spec.ts` reads its name, a period of
+twice the dot's, the warn ink while waiting, the card's unchanged size and
+the still halo under reduced motion.

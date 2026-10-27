@@ -429,9 +429,11 @@ The rules:
   put back rather than changed, as a project opening with the panes it
   was left with, is placed, not moved. The loops there are three: the
   build's breathing dot, the agent's working dot in the Claude column's
-  header, and the composer's ring while a turn runs, which breathes on
-  the dot's period by opacity alone and holds still at its visible
-  opacity under reduced motion, so the sign stays when the motion goes.
+  header, and the composer's halo while a turn runs, which swells and
+  settles over two of the dot's periods by opacity alone, never below
+  35 per cent, and holds still at full opacity under reduced motion, so
+  the sign stays when the motion goes. A loop's glow stays inside the
+  gutter around what it lights, so no pane clips it.
 - **Switching what a pane shows is instant.** A tab, a drawer's
   instrument, a file, and the narrow window's source and preview toggle
   change at once, because the writer is already looking where the
