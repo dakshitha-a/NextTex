@@ -1748,13 +1748,24 @@ export default function Pdf({
     setMenuCitation(null);
     const projectId = get().projectId;
     const point = pageMenu?.point;
-    if (!projectId || !point || source) return;
+    const document = doc.current;
+    if (!projectId || !point || source || !document) return;
+    // An entry's own box says which it is, with no query at all.
+    const box = (point.target as HTMLElement).closest(".nx-page-link[data-paper]") as HTMLElement | null;
+    if (box) {
+      setMenuCitation(box.dataset.paper ?? null);
+      return;
+    }
     const spot = spotOf(point);
     if (!spot) return;
     let live = true;
-    api.inverse(projectId, spot.page, spot.x, spot.y, showing)
+    // Asked of SyncTeX only for a document without hyperref's anchors:
+    // one that has them has a box over every entry, so a right-click off
+    // the boxes is not on an entry, and a query on a thesis is not free.
+    void anchorsOf(document)
+      .then((anchors) => (live && !anchors.size ? api.inverse(projectId, spot.page, spot.x, spot.y, showing) : null))
       .then((result) => {
-        if (live && result.citation) setMenuCitation(result.citation);
+        if (live && result?.citation) setMenuCitation(result.citation);
       })
       .catch(() => undefined);
     return () => {

@@ -158,6 +158,22 @@ test("an entry in the typeset bibliography opens its paper on a click", async ({
   await tully.click();
   expect(await opened(page)).toEqual(["https://doi.org/10.1063/1.459170"]);
 
+  // The page menu over an entry offers its paper, read off the box, and
+  // asks SyncTeX nothing; nor does a right-click elsewhere on this page,
+  // whose entries all have boxes.
+  const asked: string[] = [];
+  page.on("request", (request) => {
+    if (request.url().includes("/synctex/inverse")) asked.push(request.url());
+  });
+  await tully.click({ button: "right" });
+  await expect(page.getByRole("menuitem", { name: "Open this reference" })).toBeVisible();
+  await page.keyboard.press("Escape");
+  await page.locator(".nx-page").first().locator(".nx-text-layer span", { hasText: "Knuth wrote" }).first().click({ button: "right" });
+  await expect(page.getByRole("menuitem", { name: "Show this in the source" })).toBeVisible();
+  await page.keyboard.press("Escape");
+  await page.waitForTimeout(300);
+  expect(asked).toEqual([]);
+
   await knuth.click();
   await expect(page.getByRole("button", { name: "knuth1984.pdf", exact: true }).first()).toBeVisible({ timeout: 10_000 });
 });
