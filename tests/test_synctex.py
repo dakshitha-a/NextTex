@@ -149,3 +149,28 @@ def test_pdf_to_source_maps_the_shadow_back_to_the_main_file_one_line_up(
     assert found is not None
     assert found.file == main
     assert found.line == 3
+
+
+def test_a_click_in_the_bibliography_names_the_entry(tmp_path):
+    """A bibliography entry lands in the `.bbl`, which nobody edits; the
+    answer is the entry's key, so the preview can open the paper."""
+    from nexttex.synctex import citation_at
+
+    bibtex = tmp_path / "main.bbl"
+    bibtex.write_text(
+        "\\begin{thebibliography}{2}\n\n"
+        "\\bibitem[{Smith et~al.(2020)}]{smith2020}\n"
+        "J. Smith.\n\\newblock A paper.\n\n"
+        "\\bibitem{knuth}\nKnuth.\n\\end{thebibliography}\n"
+    )
+    assert [citation_at(bibtex, n) for n in (1, 3, 5, 7, 8)] == [
+        None, "smith2020", "smith2020", "knuth", "knuth",
+    ]
+    biblatex = tmp_path / "thesis.bbl"
+    biblatex.write_text(
+        "\\refsection{0}\n  \\entry{tully1990}{article}{}\n    \\name{author}{1}{}{%\n"
+        "  \\endentry\n  \\entry{lamport}{book}{}\n  \\endentry\n"
+    )
+    assert citation_at(biblatex, 3) == "tully1990"
+    assert citation_at(biblatex, 6) == "lamport"
+    assert citation_at(tmp_path / "missing.bbl", 3) is None

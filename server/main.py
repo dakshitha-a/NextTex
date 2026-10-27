@@ -5162,6 +5162,35 @@ async def library_forget(project_id: str):
     return {"cleared": True}
 
 
+@app.get("/api/projects/{project_id}/papers/pdfs")
+async def paper_pdfs(project_id: str):
+    """Each citation key whose paper is a PDF on disk: where it is, inside
+    the project or outside it, and how it was found. See
+    `nexttex/paperpdfs.py`; `paper_pdfs_changed` carries the same answer
+    whenever the watcher changes it."""
+    session = session_for(project_id)
+    return {"links": await session.paper_pdfs()}
+
+
+@app.get("/api/projects/{project_id}/papers/pdf")
+async def paper_pdf(project_id: str, key: str):
+    """The paper a citation key names, for a PDF outside the project.
+
+    The browser names a key and never a path: the file served is the one
+    the index found for that key, which only ever holds a file in the
+    project, under the writer's home or in a folder the References drawer
+    has read. Served inline, so the browser's own viewer opens it."""
+    session = session_for(project_id)
+    await session.paper_pdfs()
+    path = session.papers.path_for(key)
+    if path is None:
+        raise HTTPException(404, "There is no PDF for that citation.")
+    return FileResponse(
+        path, media_type="application/pdf",
+        headers={"Content-Disposition": f"inline; filename*=UTF-8''{url_quote(path.name)}"},
+    )
+
+
 # ---------------------------------------------------------------------------
 # Project context: the template, the voice samples, the background reading
 #
@@ -6405,6 +6434,10 @@ async def synctex_inverse(
     )
     if position is None:
         return {"found": False}
+    if position.citation:
+        # A bibliography entry: no source to show, but the key, so the
+        # preview can open the paper. See `synctex.citation_at`.
+        return {"found": False, "citation": position.citation}
     try:
         relative = session.project.relative(position.file)
     except ValueError:

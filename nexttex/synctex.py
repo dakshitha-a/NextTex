@@ -27,6 +27,9 @@ class SourcePosition:
     file: Path
     line: int
     column: int | None = None
+    #: Set when the click landed in the bibliography: the `.bbl` is not a
+    #: file to open, so the entry's key is the answer instead.
+    citation: str | None = None
 
 
 @dataclass(frozen=True)
@@ -187,6 +190,32 @@ def to_shadow_line(line: int, shift: int | None) -> int:
     return line + 1
 
 
+
+# An entry's start in a `.bbl`: BibTeX's `\bibitem[label]{key}`, where
+# natbib's label holds braces of its own, and biblatex's `\entry{key}`.
+_BIBITEM = re.compile(r"\\bibitem\s*(?:\[(?:[^\[\]{}]|\{[^{}]*\})*\])?\s*\{([^{}]+)\}")
+_ENTRY = re.compile(r"\\entry\{([^{}]+)\}")
+
+
+def citation_at(bbl: Path, line: int) -> str | None:
+    """The key of the bibliography entry a `.bbl` line belongs to.
+
+    A click on an entry in the typeset bibliography lands, through synctex,
+    on a line of the `.bbl`, which the engine generated and nobody edits.
+    The entry it belongs to is the last one that began at or above it.
+    """
+    try:
+        text = bbl.read_text(encoding="utf-8", errors="replace")
+    except OSError:
+        return None
+    upto = "\n".join(text.split("\n")[:max(line, 0)])
+    found = None
+    for pattern in (_BIBITEM, _ENTRY):
+        for match in pattern.finditer(upto):
+            if found is None or match.start() > found[0]:
+                found = (match.start(), match.group(1).strip())
+    return found[1] if found else None
+
 def pdf_to_source(
     pdf: Path,
     page: int,
@@ -222,6 +251,11 @@ def pdf_to_source(
             continue
 
         path = _normalise(block["Input"], project_root, base)
+        if path.suffix.lower() == ".bbl":
+            # The bibliography: no source to open, but the entry's key,
+            # which opens the paper. See `citation_at`.
+            key = citation_at(path, line)
+            return SourcePosition(file=path, line=line, citation=key) if key else None
         if path.suffix.lower() in GENERATED_SUFFIXES:
             return None
         if shadow_main is not None and main_file is not None:

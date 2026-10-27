@@ -222,10 +222,34 @@ def _bib_entries(text: str, file: str = "") -> list[dict]:
             "venue": _clean(fields.get("journal", "") or fields.get("booktitle", "")
                             or fields.get("publisher", "")),
             "doi": _clean(fields.get("doi", "")),
+            # Where the card sends a writer when no PDF is on disk and there
+            # is no DOI: the arXiv abstract, or the entry's own address.
+            "arxiv": _arxiv(fields),
+            "url": _web(fields.get("url", "")),
             "surnames": _surnames(fields.get("author", "")),
             "file": file,
         })
     return entries
+
+
+ARXIV_ID = re.compile(r"^(?:arxiv:)?(\d{4}\.\d{4,5}(?:v\d+)?|[a-z-]+(?:\.[A-Z]{2})?/\d{7})$", re.I)
+
+
+def _arxiv(fields: dict) -> str:
+    """An arXiv entry's identifier: `eprint` under `archiveprefix` or
+    `eprinttype` arXiv, or an `eprint` that has the shape of one."""
+    eprint = re.sub(r"[{}\s]", "", fields.get("eprint", ""))
+    kind = re.sub(r"[{}\s]", "", fields.get("archiveprefix", "") or fields.get("eprinttype", "")).lower()
+    match = ARXIV_ID.match(eprint)
+    if not match or (kind and kind != "arxiv"):
+        return ""
+    return match.group(1)
+
+
+def _web(value: str) -> str:
+    """An entry's `url`, when it is one a browser should open."""
+    value = re.sub(r"[{}]", "", value).replace("\\_", "_").replace("\\%", "%").strip()
+    return value if re.match(r"^https?://", value, re.I) else ""
 
 
 def _surnames(value: str) -> list[str]:

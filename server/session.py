@@ -19,6 +19,7 @@ from pathlib import Path
 from nexttex import diag
 from nexttex.explain import annotate, summarise
 from nexttex.library import Library
+from nexttex.paperpdfs import PaperPdfs, can_read as can_read_pdfs
 from nexttex.providers import agent_for
 from nexttex.compile import (
     MACHINE_BUILDS, BuildQueue, CompileResult, CompileScheduler, Outcome, ProjectPaths,
@@ -375,6 +376,14 @@ class ProjectSession:
         )
         #: The pending re-scan of the document graph, see `_after_publish`.
         self._rescan: asyncio.TimerHandle | None = None
+        #: Which PDF is each citation's paper, see `paper_pdfs`. Built when a
+        #: browser first asks, so a project the server keeps open on its
+        #: own reads no PDF, and kept by the watcher's events after that.
+        self.papers = PaperPdfs(project.root, project.state_dir)
+        self._papers_seeded = False
+        self._papers_timer: asyncio.TimerHandle | None = None
+        self._papers_reseed = False
+        self._papers_reading: asyncio.Task | None = None
         #: The loop this session lives on, so a version recorded on a
         #: worker thread can reach the event stream; None for a session a
         #: test builds with no loop running, which has no stream to reach.
@@ -966,6 +975,7 @@ class ProjectSession:
         template load publishes one event per file and the scan reads every
         `.tex` nothing reads.
         """
+        self._papers_follow(event)
         if event.get("type") != "files_changed":
             return
         paths = event.get("paths") or []
@@ -985,6 +995,90 @@ class ProjectSession:
         self._rescan = loop.call_later(
             0.3, lambda: spawn(self._publish_documents(), "re-scanning the documents")
         )
+
+    # -- the papers behind the citations ------------------------------------
+    async def paper_pdfs(self) -> dict:
+        """Each citation key with a PDF on disk, for the hover card and the
+        typeset bibliography. The first ask lists the project's PDFs from
+        the file tree and answers from the cheap steps; the PDFs that need
+        reading for their DOI are read after, one at a time, and the
+        answer is published again if it changed."""
+        if not self._papers_seeded:
+            await self._refresh_papers(seed=True, announce=False)
+        return self.papers.as_dict()
+
+    def _papers_follow(self, event: dict) -> None:
+        """A PDF or a `.bib` changed, or the References drawer imported:
+        the answer may have changed, so it is worked out again, once, a
+        second after the last such event."""
+        if not self._papers_seeded or self.closing:
+            return
+        kind = event.get("type")
+        if kind == "files_changed":
+            structural = bool(event.get("structural"))
+            relevant = self.papers.touched(event.get("paths") or [])
+            if not (relevant or structural):
+                return
+            # A folder moved or deleted names the folder, not its PDFs.
+            self._papers_reseed = self._papers_reseed or structural
+        elif not (kind == "library_scan" and event.get("phase") in ("done", "stopped")):
+            return
+        try:
+            loop = asyncio.get_running_loop()
+        except RuntimeError:
+            return
+        if self._papers_timer is not None:
+            self._papers_timer.cancel()
+        self._papers_timer = loop.call_later(1.0, lambda: spawn(
+            self._refresh_papers(seed=self._papers_reseed), "matching citations to their PDFs",
+        ))
+
+    def _paper_inputs(self) -> tuple[list[str], list, list[str], set[str]]:
+        found = self.symbols.get(excluded=self.project._excluded, build_dir=self.project.build_dir)
+        bibs = sorted({c["file"] for c in found.citations if c.get("file")})
+        library = Library(self.project.state_dir / "library")
+        # A document's own output beside its source is not a paper.
+        skip = {Path(name).with_suffix(".pdf").as_posix() for name in self.documents}
+        return bibs, library.papers(), library.sources(), skip
+
+    async def _refresh_papers(self, seed: bool = False, announce: bool = True) -> None:
+        if self.closing:
+            return
+        self._papers_reseed = False
+        before = self.papers.as_dict()
+
+        def work() -> set[str]:
+            if seed:
+                self.papers.seed(self.project.tree())
+            bibs, papers, sources, skip = self._paper_inputs()
+            self.papers.resolve(bibs, papers, sources, skip=skip)
+            return skip
+
+        skip = await asyncio.to_thread(work)
+        self._papers_seeded = True
+        after = self.papers.as_dict()
+        if announce and after != before and not self.closing:
+            await self.events.publish({"type": "paper_pdfs_changed", "links": after})
+        self._read_papers_later(skip)
+
+    def _read_papers_later(self, skip: set[str]) -> None:
+        """Read, in the background, the PDFs step 3 needs and has not read."""
+        if self.closing or not self.papers.wanting or not can_read_pdfs():
+            return
+        if self._papers_reading is not None and not self._papers_reading.done():
+            return
+        pending = self.papers.unread(skip)
+        if not pending:
+            return
+
+        async def read() -> None:
+            await asyncio.to_thread(
+                self.papers.read_pending, pending, stopped=lambda: self.closing,
+            )
+            if not self.closing:
+                await self._refresh_papers()
+
+        self._papers_reading = spawn(read(), "reading the project's PDFs for their DOIs")
 
     async def reload_config(self) -> None:
         """Re-read `nexttex.toml` and tell every tab what it now says.
@@ -1973,6 +2067,11 @@ class ProjectSession:
         if self._rescan is not None:
             self._rescan.cancel()
             self._rescan = None
+        if self._papers_timer is not None:
+            self._papers_timer.cancel()
+            self._papers_timer = None
+        if self._papers_reading is not None and not self._papers_reading.done():
+            self._papers_reading.cancel()
         # Builds before anything slow: the process that closes a session
         # is often about to be killed, and a build left running then has
         # nothing left to end it.
