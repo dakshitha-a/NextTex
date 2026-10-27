@@ -4,8 +4,8 @@
   "areas": [
     {
       "name": "the preview",
-      "sources": ["frontend/src/panes/Pdf.tsx", "frontend/src/panes/pdf-*.ts", "frontend/src/panes/PageWindow.tsx", "frontend/src/panes/PreviewHeader.tsx", "frontend/src/page-window.ts", "frontend/src/follow-preview.ts", "frontend/src/panes/Markdown.tsx", "frontend/src/panes/markdown-source.ts", "frontend/src/panes/locate-on-page.ts", "frontend/src/panes/hold-place.ts", "nexttex/synctex.py"],
-      "specs": ["pdf-*", "preview-swap", "kept-pdf", "previews", "page-window", "appearance", "latex-links", "markdown-preview", "navigation", "inverse-word", "build-flash", "build-follow", "multidoc", "jump-to-page"]
+      "sources": ["frontend/src/panes/Pdf.tsx", "frontend/src/panes/pdf-*.ts", "frontend/src/panes/PageWindow.tsx", "frontend/src/panes/PreviewHeader.tsx", "frontend/src/page-window.ts", "frontend/src/follow-preview.ts", "frontend/src/panes/Markdown.tsx", "frontend/src/panes/markdown-source.ts", "frontend/src/panes/locate-on-page.ts", "frontend/src/panes/hold-place.ts", "nexttex/synctex.py", "frontend/src/paper-open.ts", "nexttex/paperpdfs.py"],
+      "specs": ["pdf-*", "preview-swap", "kept-pdf", "previews", "page-window", "appearance", "latex-links", "markdown-preview", "navigation", "inverse-word", "build-flash", "build-follow", "multidoc", "jump-to-page", "paper-pdfs"]
     },
     {
       "name": "the frame and the panes",
@@ -24,8 +24,8 @@
     },
     {
       "name": "spelling, grammar and the hover cards",
-      "sources": ["frontend/src/panes/spell*.ts", "frontend/src/dictionary/*", "frontend/src/panes/hunspell-speller.ts", "frontend/src/panes/grammar*.ts", "frontend/src/panes/WordMenu.tsx", "frontend/src/panes/hover-card.ts", "frontend/src/panes/math-hover.ts", "frontend/src/panes/table-hover.ts", "frontend/src/panes/place-clear.ts", "frontend/src/panes/thumbnails.ts", "frontend/src/panes/equation-verbs.ts", "nexttex/dictionaries.py", "nexttex/dictionary.py", "nexttex/equation.py"],
-      "specs": ["spelling", "grammar", "hover-cards", "hover-card-placement", "table-hover", "equation", "file-card", "spill"]
+      "sources": ["frontend/src/panes/spell*.ts", "frontend/src/dictionary/*", "frontend/src/panes/hunspell-speller.ts", "frontend/src/panes/grammar*.ts", "frontend/src/panes/WordMenu.tsx", "frontend/src/panes/hover-card.ts", "frontend/src/panes/math-hover.ts", "frontend/src/paper-open.ts", "frontend/src/panes/table-hover.ts", "frontend/src/panes/place-clear.ts", "frontend/src/panes/thumbnails.ts", "frontend/src/panes/equation-verbs.ts", "nexttex/dictionaries.py", "nexttex/dictionary.py", "nexttex/equation.py"],
+      "specs": ["spelling", "grammar", "hover-cards", "hover-card-placement", "table-hover", "equation", "file-card", "spill", "paper-pdfs"]
     },
     {
       "name": "the Claude column",

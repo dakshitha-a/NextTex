@@ -381,9 +381,13 @@ class ProjectSession:
         #: own reads no PDF, and kept by the watcher's events after that.
         self.papers = PaperPdfs(project.root, project.state_dir)
         self._papers_seeded = False
+        self._papers_started = False
         self._papers_timer: asyncio.TimerHandle | None = None
         self._papers_reseed = False
         self._papers_reading: asyncio.Task | None = None
+        #: When the answer last changed, in milliseconds, so a browser keeps
+        #: the newest when the first ask and a change cross on the way.
+        self.papers_version = 0
         #: The loop this session lives on, so a version recorded on a
         #: worker thread can reach the event stream; None for a session a
         #: test builds with no loop running, which has no stream to reach.
@@ -1004,6 +1008,9 @@ class ProjectSession:
         reading for their DOI are read after, one at a time, and the
         answer is published again if it changed."""
         if not self._papers_seeded:
+            # Started before the walk, so an event that lands while the
+            # first answer is being worked out is followed, not dropped.
+            self._papers_started = True
             await self._refresh_papers(seed=True, announce=False)
         return self.papers.as_dict()
 
@@ -1011,7 +1018,7 @@ class ProjectSession:
         """A PDF or a `.bib` changed, or the References drawer imported:
         the answer may have changed, so it is worked out again, once, a
         second after the last such event."""
-        if not self._papers_seeded or self.closing:
+        if not self._papers_started or self.closing:
             return
         kind = event.get("type")
         if kind == "files_changed":
@@ -1057,8 +1064,14 @@ class ProjectSession:
         skip = await asyncio.to_thread(work)
         self._papers_seeded = True
         after = self.papers.as_dict()
+        if after != before:
+            # A clock rather than a count, so a server restarted under an
+            # open tab still says newer.
+            self.papers_version = max(self.papers_version + 1, time.time_ns() // 1_000_000)
         if announce and after != before and not self.closing:
-            await self.events.publish({"type": "paper_pdfs_changed", "links": after})
+            await self.events.publish(
+                {"type": "paper_pdfs_changed", "links": after, "version": self.papers_version}
+            )
         self._read_papers_later(skip)
 
     def _read_papers_later(self, skip: set[str]) -> None:

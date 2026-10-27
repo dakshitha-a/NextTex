@@ -2082,6 +2082,63 @@ const SURFACES: Record<string, Surface> = {
       return tab.getByTestId("settings-sheet");
     },
   },
+  // A citation opens its paper (27 October 2026): the card with a PDF
+  // found three folders deep, the pointer on Open PDF; and an entry of the
+  // typeset bibliography under the pointer.
+  "cite-paper": {
+    open: async (tab) => {
+      const folder = path.join(ctx.root, "literature", "dynamics", "2008");
+      fs.mkdirSync(folder, { recursive: true });
+      fs.writeFileSync(path.join(folder, "knuth1984.pdf"), "%PDF-1.4\n%%EOF\n");
+      await tab.locator(".cm-content").click();
+      await tab.keyboard.press("Control+End");
+      await tab.keyboard.type("\nAs in \\cite{knuth1984}.");
+      const tip = tab.locator(".nx-link-tooltip");
+      await expect.poll(async () => {
+        await tab.mouse.move(5, 5);
+        await tab.waitForTimeout(150);
+        const word = tab.locator(".cm-line", { hasText: "As in" }).last();
+        const box = await word.boundingBox();
+        if (!box) return 0;
+        await tab.mouse.move(box.x + 90, box.y + box.height / 2);
+        await tab.mouse.move(box.x + 91, box.y + box.height / 2);
+        await tip.waitFor({ timeout: 3_000 }).catch(() => undefined);
+        await tab.waitForTimeout(300);
+        return tab.getByTestId("link-paper").count();
+      }, { timeout: 45_000, intervals: [700] }).toBeGreaterThan(0);
+      await tab.getByTestId("link-paper").hover();
+      return tip;
+    },
+  },
+  "bib-paper": {
+    open: async (tab) => {
+      // Into both documents: the harness previews a second one, and
+      // whichever the strip shows then has the bibliography.
+      // biblatex, as the template is, so its `.bbl` is the one on disk.
+      const bibDoc = String.raw`\documentclass{article}
+\usepackage[backend=biber, style=numeric, sorting=none]{biblatex}
+\addbibresource{references.bib}
+\usepackage{hyperref}
+\begin{document}
+Knuth wrote one book~\cite{knuth1984}, Tully a paper~\cite{tully1990}.
+\printbibliography
+\end{document}
+`;
+      for (const name of ["main.tex", "supplement.tex"]) fs.writeFileSync(path.join(ctx.root, name), bibDoc);
+      fs.appendFileSync(path.join(ctx.root, "references.bib"),
+        "\n@article{tully1990,\n  author = {Tully, John C.},\n  title = {Molecular dynamics with electronic transitions},\n  doi = {10.1063/1.459170},\n  year = {1990},\n}\n");
+      fs.mkdirSync(path.join(ctx.root, "papers"), { recursive: true });
+      fs.writeFileSync(path.join(ctx.root, "papers", "knuth1984.pdf"), "%PDF-1.4\n%%EOF\n");
+      const entry = tab.locator('.nx-page-link[data-paper="knuth1984"]');
+      await entry.waitFor({ state: "attached", timeout: 60_000 });
+      await expect.poll(async () => {
+        await tab.mouse.move(5, 5);
+        await entry.hover();
+        return entry.getAttribute("data-open");
+      }, { timeout: 20_000 }).toBe("");
+      return tab.locator(".nx-page").first();
+    },
+  },
 };
 
 async function dress(tab: Page, theme: string) {

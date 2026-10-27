@@ -21,7 +21,8 @@ import { absenceFrom, type Absence } from "./pdf-absence";
 import type { WordHint } from "./locate-word";
 import type { PageRun } from "./locate-on-page";
 import { findIn, spanFor, textOf, type PageHit } from "./pdf-find";
-import { depthOf, labelOf, lineBelow, linksOf, type PageLink } from "./pdf-links";
+import { citeKey, depthOf, entryLinks, labelOf, lineBelow, linksOf, type EntryAnchor, type PageLink } from "./pdf-links";
+import { openPaper, paperActionFor } from "../paper-open";
 import { APPEARANCE_CHANGED, readStored, writeStored } from "../appearance";
 import {
   backingFor,
@@ -197,6 +198,49 @@ function runsOnPage(document: pdfjs.PDFDocumentProxy, number: number): Promise<P
     pages.set(number, runs);
   }
   return runs;
+}
+
+/** Each document's bibliography anchors, read once and kept by page:
+ *  hyperref's `cite.knuth`, biblatex's `cite.0@knuth`. Keyed by the page's
+ *  object reference, which is what a destination names. */
+const entryAnchors = new WeakMap<pdfjs.PDFDocumentProxy, Promise<Map<string, { key: string; explicit: unknown[] }[]>>>();
+function anchorsOf(document: pdfjs.PDFDocumentProxy) {
+  let found = entryAnchors.get(document);
+  if (!found) {
+    found = document.getDestinations().then((all) => {
+      const byPage = new Map<string, { key: string; explicit: unknown[] }[]>();
+      // A Map from pdf.js 6, a plain object before it.
+      const named: [string, unknown][] = all instanceof Map ? [...all] : Object.entries(all ?? {});
+      for (const [name, explicit] of named) {
+        const key = citeKey(name);
+        const ref = Array.isArray(explicit) ? (explicit[0] as { num?: number; gen?: number } | null) : null;
+        if (!key || !ref || typeof ref !== "object") continue;
+        const id = `${ref.num}R${ref.gen}`;
+        if (!byPage.has(id)) byPage.set(id, []);
+        byPage.get(id)!.push({ key, explicit: explicit as unknown[] });
+      }
+      return byPage;
+    }).catch(() => new Map());
+    entryAnchors.set(document, found);
+  }
+  return found;
+}
+
+/** A box over each bibliography entry on a page, opening its paper. */
+async function bibliographyLinks(document: pdfjs.PDFDocumentProxy, page: pdfjs.PDFPageProxy): Promise<PageLink[]> {
+  const ref = page.ref as { num?: number; gen?: number } | null;
+  if (!ref) return [];
+  const here = (await anchorsOf(document)).get(`${ref.num}R${ref.gen}`);
+  if (!here?.length) return [];
+  const runs = await runsOnPage(document, page.pageNumber);
+  if (!runs) return [];
+  const view = page.view;
+  const anchors: EntryAnchor[] = here.map(({ key, explicit }) => ({
+    key,
+    x: typeof explicit[2] === "number" ? explicit[2] - view[0] : 0,
+    depth: depthOf(explicit, view) ?? 0,
+  }));
+  return entryLinks(anchors, runs, view[2] - view[0]);
 }
 
 type PageView = {
@@ -671,9 +715,13 @@ export default function Pdf({
       view.text.replaceChildren();
       view.links.replaceChildren();
       view.linkList = [];
-      void page.getAnnotations({ intent: "display" }).then((annotations) => {
+      void page.getAnnotations({ intent: "display" }).then(async (annotations) => {
         if (mine !== generation.current) return;
-        view.linkList = linksOf(annotations, page.view);
+        // The bibliography's entries first, so a link inside an entry, its
+        // DOI or a back reference, lies over the entry's box and wins.
+        const entries = await bibliographyLinks(document, page).catch(() => []);
+        if (mine !== generation.current) return;
+        view.linkList = [...entries, ...linksOf(annotations, page.view)];
         view.links.replaceChildren(...view.linkList.map((link, at) => {
           const anchor = window.document.createElement("a");
           anchor.className = "nx-page-link";
@@ -683,7 +731,13 @@ export default function Pdf({
           // every place by keyboard.
           anchor.tabIndex = -1;
           anchor.setAttribute("aria-label", labelOf(link));
-          if (link.url) {
+          if (link.paper) {
+            // What it opens is decided under the pointer and on the
+            // click, since the PDFs on disk change while the page stays.
+            anchor.href = "#";
+            anchor.setAttribute("role", "link");
+            anchor.dataset.paper = link.paper;
+          } else if (link.url) {
             anchor.href = link.url;
             anchor.target = "_blank";
             anchor.rel = "noopener noreferrer";
@@ -1609,6 +1663,49 @@ export default function Pdf({
   // ---- SyncTeX ----------------------------------------------------------
   /** When a link in the page was last followed: see the double-click. */
   const linkFollowed = useRef(0);
+  /** Where a point on a page is, as SyncTeX asks: the page, and PDF
+   *  points from its top-left corner as TeX set it, with the word under
+   *  the pointer and its neighbours. */
+  const spotOf = useCallback((event: PagePoint) => {
+    const target = (event.target as HTMLElement).closest(".nx-page") as HTMLElement | null;
+    if (!target) return null;
+    const index = pages.current.findIndex((view) => view.container === target);
+    if (index < 0) return null;
+    // The word under the pointer and the page's text around it, read from
+    // the text layer rather than from the selection the second click
+    // made: Chromium selects nothing on a one-letter span, which is all
+    // of maths, and the matcher needs the neighbours to tell one "the"
+    // in a paragraph from another. See pdf-click.ts.
+    const span = (event.target as HTMLElement).closest(".nx-text-layer span") as
+      | HTMLElement
+      | null;
+    const layer = span?.closest(".nx-text-layer") as HTMLElement | null;
+    const hint = span && layer
+      ? textAtPoint(layer, span, event.clientX, event.clientY) ?? undefined
+      : undefined;
+    const box = target.getBoundingClientRect();
+    // SyncTeX works in PDF points from the top-left corner, and so does
+    // the canvas, so the conversion is the scale factor and nothing else.
+    // Less the page's one pixel border, which the rectangle includes and
+    // the canvas does not.
+    const across = (event.clientX - box.left - target.clientLeft) / drawn.current;
+    // Asked at the middle of the span the click landed in rather than at
+    // the pointer.  A heading's synctex box ends at its baseline, so a
+    // click in the lower part of its glyphs, which is where a pointer
+    // aimed at a big word lands, was answered with the paragraph beneath
+    // it; the middle of the span is inside the box for a heading and for
+    // a body line alike.
+    const middle = span ? span.getBoundingClientRect() : null;
+    const clientY = middle ? middle.top + middle.height / 2 : event.clientY;
+    const down = (clientY - box.top - target.clientTop) / drawn.current;
+    // Back to the page as TeX set it, upright, when it is shown turned.
+    const view = pages.current[index];
+    const { x, y } = view
+      ? fromTurned(view.rotation, view.naturalWidth, view.naturalHeight, across, down)
+      : { x: across, y: down };
+    return { page: index + 1, x, y, hint };
+  }, []);
+
   const onDoubleClick = useCallback(
     async (event: PagePoint) => {
       const projectId = get().projectId;
@@ -1621,46 +1718,17 @@ export default function Pdf({
       // lands on whatever scrolled under the pointer; jumping the editor
       // as well would be two answers to one gesture.
       if (Date.now() - linkFollowed.current < 600) return;
-      const target = (event.target as HTMLElement).closest(".nx-page") as HTMLElement | null;
-      if (!target) return;
-      const index = pages.current.findIndex((view) => view.container === target);
-      if (index < 0) return;
-      // The word under the pointer and the page's text around it, read from
-      // the text layer rather than from the selection the second click
-      // made: Chromium selects nothing on a one-letter span, which is all
-      // of maths, and the matcher needs the neighbours to tell one "the"
-      // in a paragraph from another. See pdf-click.ts.
-      const span = (event.target as HTMLElement).closest(".nx-text-layer span") as
-        | HTMLElement
-        | null;
-      const layer = span?.closest(".nx-text-layer") as HTMLElement | null;
-      const hint = span && layer
-        ? textAtPoint(layer, span, event.clientX, event.clientY) ?? undefined
-        : undefined;
-      const box = target.getBoundingClientRect();
-      // SyncTeX works in PDF points from the top-left corner, and so does
-      // the canvas, so the conversion is the scale factor and nothing else.
-      // Less the page's one pixel border, which the rectangle includes and
-      // the canvas does not.
-      const across = (event.clientX - box.left - target.clientLeft) / drawn.current;
-      // Asked at the middle of the span the click landed in rather than at
-      // the pointer.  A heading's synctex box ends at its baseline, so a
-      // click in the lower part of its glyphs, which is where a pointer
-      // aimed at a big word lands, was answered with the paragraph beneath
-      // it; the middle of the span is inside the box for a heading and for
-      // a body line alike.
-      const middle = span ? span.getBoundingClientRect() : null;
-      const clientY = middle ? middle.top + middle.height / 2 : event.clientY;
-      const down = (clientY - box.top - target.clientTop) / drawn.current;
-      // Back to the page as TeX set it, upright, when it is shown turned.
-      const view = pages.current[index];
-      const { x, y } = view
-        ? fromTurned(view.rotation, view.naturalWidth, view.naturalHeight, across, down)
-        : { x: across, y: down };
+      const spot = spotOf(event);
+      if (!spot) return;
       try {
-        const result = await api.inverse(projectId, index + 1, x, y, showing);
+        const result = await api.inverse(projectId, spot.page, spot.x, spot.y, showing);
         if (result.found && result.file && result.line) {
-          onNavigate(result.file, result.line, hint);
+          onNavigate(result.file, result.line, spot.hint);
+        } else if (result.citation) {
+          // An entry in the bibliography has no source but the generated
+          // `.bbl`; what it does have is a paper.
+          const action = paperActionFor(result.citation);
+          if (action) openPaper(action);
         }
       } catch {
         /* a click that lands on nothing is not an error worth reporting */
@@ -1669,8 +1737,30 @@ export default function Pdf({
     // `showing` is read inside and was missing, so after switching preview
     // tabs a double-click asked synctex about the document that had been
     // open before, and landed the caret in the wrong file.
-    [onNavigate, showing, source],
+    [onNavigate, showing, source, spotOf],
   );
+
+  /** The citation under the page menu's point, when the menu was opened
+   *  over a bibliography entry: the menu then offers its paper. Asked of
+   *  SyncTeX, so it works in a document without hyperref. */
+  const [menuCitation, setMenuCitation] = useState<string | null>(null);
+  useEffect(() => {
+    setMenuCitation(null);
+    const projectId = get().projectId;
+    const point = pageMenu?.point;
+    if (!projectId || !point || source) return;
+    const spot = spotOf(point);
+    if (!spot) return;
+    let live = true;
+    api.inverse(projectId, spot.page, spot.x, spot.y, showing)
+      .then((result) => {
+        if (live && result.citation) setMenuCitation(result.citation);
+      })
+      .catch(() => undefined);
+    return () => {
+      live = false;
+    };
+  }, [pageMenu, showing, source, spotOf]);
 
   // ---- links ------------------------------------------------------------
   /** Follow one of hyperref's links: a contents entry to its heading, a
@@ -2055,8 +2145,31 @@ export default function Pdf({
         className="relative min-h-0 flex-1 overflow-auto"
         onScroll={mode === "scroll" ? onScroll : undefined}
         onDoubleClick={onDoubleClick}
+        onPointerOver={(event) => {
+          // An entry says what a click on it will do, and is marked as a
+          // link only when there is something to open.
+          const anchor = (event.target as HTMLElement).closest(".nx-page-link[data-paper]") as HTMLElement | null;
+          if (!anchor) return;
+          const action = paperActionFor(anchor.dataset.paper!);
+          if (action) {
+            anchor.dataset.open = "";
+            anchor.title = action.label;
+          } else {
+            delete anchor.dataset.open;
+            anchor.removeAttribute("title");
+          }
+        }}
         onClick={(event) => {
           const anchor = (event.target as HTMLElement).closest(".nx-page-link") as HTMLElement | null;
+          // An entry in the bibliography opens its paper, or its page on
+          // the web; one with neither is text.
+          if (anchor?.dataset.paper) {
+            event.preventDefault();
+            linkFollowed.current = Date.now();
+            const action = paperActionFor(anchor.dataset.paper);
+            if (action) openPaper(action);
+            return;
+          }
           // An address outside the document opens in a tab of its own, as
           // its anchor says; a place inside it is this pane's to go to.
           if (!anchor || anchor.getAttribute("href") !== "#") return;
@@ -2233,14 +2346,25 @@ export default function Pdf({
           const fit = scale === 0 ? "width" : scale === -1 ? "page" : "free";
           return (
             <>
-              {point && !source ? (
-                <>
-                  <MenuItem icon={<span className="inline-block w-3.5" />} onClick={run(() => void onDoubleClick(point))}>
-                    Show this in the source
-                  </MenuItem>
-                  <MenuDivider />
-                </>
-              ) : null}
+              {point && !source ? (() => {
+                // Over a bibliography entry there is no source to show,
+                // but there is a paper.
+                const paper = menuCitation ? paperActionFor(menuCitation) : null;
+                return (
+                  <>
+                    {paper ? (
+                      <MenuItem icon={<span className="inline-block w-3.5" />} onClick={run(() => openPaper(paper))}>
+                        Open this reference
+                      </MenuItem>
+                    ) : (
+                      <MenuItem icon={<span className="inline-block w-3.5" />} onClick={run(() => void onDoubleClick(point))}>
+                        Show this in the source
+                      </MenuItem>
+                    )}
+                    <MenuDivider />
+                  </>
+                );
+              })() : null}
               {mode === "page" ? (
                 <>
                   <MenuItem icon={<span className="inline-block w-3.5" />} disabled={current <= 1} onClick={run(() => step(-1))}>

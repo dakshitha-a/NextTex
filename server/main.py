@@ -5169,7 +5169,8 @@ async def paper_pdfs(project_id: str):
     `nexttex/paperpdfs.py`; `paper_pdfs_changed` carries the same answer
     whenever the watcher changes it."""
     session = session_for(project_id)
-    return {"links": await session.paper_pdfs()}
+    links = await session.paper_pdfs()
+    return {"links": links, "version": session.papers_version}
 
 
 @app.get("/api/projects/{project_id}/papers/pdf")

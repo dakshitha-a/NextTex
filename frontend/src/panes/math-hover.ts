@@ -22,6 +22,7 @@ import { hoverCards, type HoverKind } from "../appearance";
 import type { Cell, Table } from "./table-hover";
 import type { LinkKind } from "./latex-links";
 import { loadKatex } from "./katex-load";
+import { openPaper, paperActionFor, type PaperAction } from "../paper-open";
 
 /** Which chip on the settings sheet each link kind answers to.  The
  *  writer's names for them are Cross-references, Citations, Figures and
@@ -572,6 +573,7 @@ function linkTooltip(
         dom.append(name, meta);
         return { dom };
       }
+      let paper: PaperAction | null = null;
       if (citation) {
         // Kind and year at the top with the key in the mono at the right,
         // the title, the authors and the venue, and the DOI in the mono:
@@ -606,6 +608,16 @@ function linkTooltip(
           doi.textContent = citation.doi;
           dom.append(doi);
         }
+        // Which PDF is the paper, when one is on disk: the writer sees the
+        // match before opening it.
+        paper = paperActionFor(citation.key, citation);
+        if (paper?.shown) {
+          const where = document.createElement("code");
+          where.className = "nx-cite-doi";
+          where.dataset.testid = "cite-paper-path";
+          where.textContent = paper.shown;
+          dom.append(where);
+        }
       } else {
         const what = document.createElement("div");
         what.textContent = says;
@@ -628,9 +640,23 @@ function linkTooltip(
       // everywhere.  On a label or a citation key, never on a file or a
       // figure, and only where the pane can edit.
       const kind = link.kind === "ref" ? "label" : link.kind === "cite" ? "cite" : null;
+      const verbs = document.createElement("div");
+      verbs.className = "nx-link-verbs";
+      // A citation's first verb opens its paper, or its page on the web,
+      // and is there in a pane that cannot edit too.
+      if (paper) {
+        const action = paper;
+        const button = document.createElement("button");
+        button.type = "button";
+        button.className = "nx-button";
+        button.dataset.variant = "quiet";
+        button.dataset.size = "inline";
+        button.textContent = action.label;
+        button.dataset.testid = "link-paper";
+        button.addEventListener("click", () => openPaper(action));
+        verbs.append(button);
+      }
       if (kind && onSymbol) {
-        const verbs = document.createElement("div");
-        verbs.className = "nx-link-verbs";
         for (const [label, rename] of [["Find references", false], ["Rename", true]] as const) {
           const button = document.createElement("button");
           button.type = "button";
@@ -646,8 +672,8 @@ function linkTooltip(
           button.addEventListener("click", () => onSymbol(kind, link.name, rename));
           verbs.append(button);
         }
-        dom.append(verbs);
       }
+      if (verbs.childElementCount) dom.append(verbs);
       return { dom };
     },
   };

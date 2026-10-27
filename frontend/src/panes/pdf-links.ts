@@ -27,6 +27,9 @@ export type PageLink = {
   dest?: string | unknown[];
   /** An address outside the document, `\url` or `\href`. */
   url?: string;
+  /** A bibliography entry, by its citation key: the box opens its paper.
+   *  See `entryLinks`. */
+  paper?: string;
 };
 
 /** An address the preview will open: the web and mail, and nothing that
@@ -102,7 +105,76 @@ export function lineBelow(runs: readonly PageRun[], depth: number, reach = 40): 
  *  its places for what they are, `section.2`, `cite.knuth`, `figure.1`,
  *  so the name says where the link goes. */
 export function labelOf(link: PageLink): string {
+  if (link.paper) return `Open the paper for ${link.paper}`;
   if (link.url) return link.url;
   if (typeof link.dest !== "string") return "Go to a place in the document";
   return `Go to ${link.dest.replace(/[._]+/g, " ").trim()}`;
+}
+
+/** The citation key a destination names, or null. hyperref names a
+ *  bibliography entry's anchor `cite.knuth`, and biblatex `cite.0@knuth`,
+ *  the number being the refsection. */
+export function citeKey(name: string): string | null {
+  const match = /^cite\.(?:\d+@)?(.+)$/.exec(name);
+  return match ? match[1] : null;
+}
+
+/** An entry's anchor on its page: its key, its left edge and how far down
+ *  it is, in points from the page's top-left corner. */
+export type EntryAnchor = { key: string; x: number; depth: number };
+
+/** More white space than this under an entry, in points, ends it. */
+const GAP = 16;
+
+/** A box over each bibliography entry on a page, from its anchor.
+ *
+ *  An anchor is a point, so the box is measured from the type: it runs
+ *  from the anchor down to the next anchor in the same column, or to the
+ *  last line under it in that column, and across the lines in between, so
+ *  a hanging label such as "[12]" is inside it. Columns are told apart by
+ *  the anchors' left edges; a two-column bibliography has two. */
+export function entryLinks(anchors: readonly EntryAnchor[], runs: readonly PageRun[], width: number): PageLink[] {
+  if (!anchors.length) return [];
+  // The columns: anchors whose left edges are within 24 points of each
+  // other are one column, parted half way between neighbours.
+  const lefts = [...new Set(anchors.map((a) => Math.round(a.x)))].sort((a, b) => a - b);
+  const columns: number[] = [];
+  for (const left of lefts) {
+    if (!columns.length || left - columns[columns.length - 1] > 24) columns.push(left);
+  }
+  const edges = columns.map((left, at) => [
+    at === 0 ? 0 : (columns[at - 1] + left) / 2,
+    at === columns.length - 1 ? width : (left + columns[at + 1]) / 2,
+  ]);
+  const columnOf = (x: number) => {
+    const at = edges.findIndex(([from, to]) => x >= from - 1 && x < to);
+    return at < 0 ? edges.length - 1 : at;
+  };
+  const links: PageLink[] = [];
+  for (let column = 0; column < columns.length; column++) {
+    const [from, to] = edges[column];
+    const mine = anchors.filter((a) => columnOf(a.x) === column).sort((a, b) => a.depth - b.depth);
+    const text = runs.filter((run) => run.str.trim() && run.left >= from - 1 && run.left < to);
+    mine.forEach((anchor, at) => {
+      const next = mine[at + 1]?.depth ?? Infinity;
+      const under = text
+        .filter((run) => run.top >= anchor.depth - 2 && run.top < next - 1)
+        .sort((a, b) => a.top - b.top);
+      // The entry ends where the type stops: past a gap of more than
+      // `GAP` points, what follows is a page number or a footnote.
+      const lines: PageRun[] = [];
+      for (const run of under) {
+        const last = lines.length ? Math.max(...lines.map((line) => line.bottom)) : null;
+        if (last !== null && run.top - last > GAP) break;
+        lines.push(run);
+      }
+      if (!lines.length) return;
+      const left = Math.min(...lines.map((run) => run.left));
+      const right = Math.max(...lines.map((run) => run.left + run.width));
+      const top = Math.min(...lines.map((run) => run.top));
+      const bottom = Math.max(...lines.map((run) => run.bottom));
+      links.push({ box: { x: left, y: bottom, width: right - left, height: bottom - top }, paper: anchor.key });
+    });
+  }
+  return links;
 }

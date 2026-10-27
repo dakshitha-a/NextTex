@@ -423,8 +423,16 @@ OpenAI provider against OpenAI itself.
 
 ### Flaky, with the trace read
 
-Nothing at present. The last entries were read and closed on 8 October
-2026, and the commits that closed them say how.
+- [ ] **The menu sweep once missed the typeset page's menu.** In the full
+      browser run of 27 October 2026, before 4.44.0 was pushed, both
+      themes of `e2e/specs/menus-contrast.spec.ts` failed their first
+      attempt with "the typeset page's menu: could not be opened" and
+      passed on retry. The same release reworked that menu, adding Open
+      this reference. Twenty-eight runs since, alone and beside the other
+      preview specs, all passed, and the trace of the failing attempt was
+      overwritten before it was read. The likely cause is the one
+      1c2b422 fixed in the clipping sweep, a right-click on a page a
+      newer build replaces; read the trace the next time it fails.
 
 ### Never run against the real thing
 
@@ -452,6 +460,18 @@ Nothing at present. The last entries were read and closed on 8 October
 
 ### Deliberately not done, and worth revisiting only if something changes
 
+- [ ] **A paper's PDF is never matched by its title.** A citation finds
+      its PDF by a link, a name or a DOI (`nexttex/paperpdfs.py`), so a
+      download named "Smith - 2020 - A title.pdf" with no DOI on its
+      first page is not found. A wrong paper opening is worse than none;
+      revisit if writers keep such files and ask for them.
+- [ ] **BibDesk's `bdsk-file-1` links are not read.** They are base64
+      macOS aliases rather than paths; the PDF is still found by its
+      name or DOI if it is in the project.
+- [ ] **An inline bibliography without hyperref has no Open this
+      reference.** SyncTeX names the writer's own `.tex` line there, so
+      the page menu shows Show this in the source; with BibTeX, biblatex
+      or hyperref the entry opens its paper.
 - [ ] **ChatGPT and a local model have no page tools.** `publish_page`,
       `read_page` and `edit_page` are the Claude provider's, and the
       OpenAI provider's function list was never given them. Adding them

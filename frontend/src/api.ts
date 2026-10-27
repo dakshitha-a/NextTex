@@ -207,6 +207,9 @@ export type Symbols = {
   }[];
   citations: {
     key: string; type: string; title: string; author: string; year: string; authors?: string; venue?: string; doi?: string;
+    /** Where the card sends a writer with no PDF and no DOI: the arXiv
+     *  identifier, and the entry's own address. */
+    arxiv?: string; url?: string;
     /** Every author's surname, uncut, for completion to match; and the
      *  `.bib` the entry is in, so completion offers the document's own. */
     surnames?: string[]; file?: string;
@@ -678,6 +681,16 @@ export function landingAfter(problem: unknown): "signin" | "offline" {
   return status === 401 || status === 403 ? "signin" : "offline";
 }
 
+/** A citation's paper on disk: inside the project, by its path there, or
+ *  outside it, served by key from `paperPdfUrl`. */
+export type PaperLink = { where: "project" | "outside"; path: string; how: string };
+
+/** Where the browser opens a paper outside the project. A key, never a
+ *  path: the server serves only what its index found for that key. */
+export function paperPdfUrl(id: string, key: string): string {
+  return `/api/projects/${id}/papers/pdf?key=${encodeURIComponent(key)}`;
+}
+
 async function request<T>(path: string, init?: RequestInit): Promise<T> {
   const began = performance.now();
   const response = await fetch(`/api${path}`, {
@@ -915,6 +928,9 @@ const api = {
       json({ file, line, column, selection, preview }),
     ),
   symbols: (id: string) => request<Symbols>(`/projects/${id}/symbols`),
+  /** Each citation key whose paper is a PDF on disk; see
+   *  `nexttex/paperpdfs.py`. `paper_pdfs_changed` brings a change. */
+  paperPdfs: (id: string) => request<{ links: Record<string, PaperLink>; version: number }>(`/projects/${id}/papers/pdfs`),
 
   /** Run a script from the source pane.  The answer is the same shape the
    *  `script_done` event carries, so a window that asked and one that
@@ -1264,7 +1280,7 @@ const api = {
    *  every engine, which arrives as null.  Named here so the shape is the
    *  route's rather than a subset of it. */
   inverse: (id: string, page: number, x: number, y: number, document = "") =>
-    request<{ found: boolean; file?: string; line?: number; column?: number | null }>(
+    request<{ found: boolean; file?: string; line?: number; column?: number | null; citation?: string }>(
       `/projects/${id}/synctex/inverse?page=${page}&x=${x}&y=${y}` +
         `&document=${encodeURIComponent(document)}`,
     ),

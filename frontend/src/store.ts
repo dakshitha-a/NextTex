@@ -386,6 +386,11 @@ export type State = {
   tools: Record<string, boolean> | null;
   /** A folder-read in flight, or the one that just finished. */
   library: import("./api").LibraryProgress | null;
+  /** Each citation key whose paper is a PDF on disk, for the hover card
+   *  and the typeset bibliography; see `paper-open.ts`. */
+  paperPdfs: Record<string, import("./api").PaperLink>;
+  /** The server's count of answers, so the newest is kept. */
+  paperPdfsVersion: number;
   /** Set only on an install started with `--instance`: a second NextTex
    *  on the same machine, which has to be tellable from the first. */
   instance: string;
@@ -520,6 +525,8 @@ const state: State = {
   tools: null,
   agent: null,
   library: null,
+  paperPdfs: {},
+  paperPdfsVersion: 0,
   cursor: { line: 1, column: 1 },
   shownPath: null,
   lineCount: 1,
@@ -956,6 +963,8 @@ export type EventHandlers = {
   onAgentEdit?: (path: string, line: number, text: string, column: number) => void | Promise<void>;
   onAgentFocus?: (path: string, line: number) => void;
   onRenamed?: (from: string, to: string) => void;
+  /** Open a project file in a tab, as the tree does: a citation's paper. */
+  onOpenFile?: (path: string) => void;
   /** The project's folder is gone from the server's disk. */
   onRootLost?: () => void;
 };
@@ -1103,6 +1112,10 @@ function receive(event: any) {
   switch (event.type) {
     case "library_scan":
       set({ library: event as any });
+      break;
+    case "paper_pdfs_changed":
+      if ((event.version ?? 0) < state.paperPdfsVersion) break;
+      set({ paperPdfs: event.links ?? {}, paperPdfsVersion: event.version ?? 0 });
       break;
     case "previews_changed": {
       // A renamed document moves the tabs and the strip in one write.  The
@@ -1811,6 +1824,16 @@ export async function refreshTrash(projectId: string) {
     set({ trash: (await api.trash(projectId)).entries, trashFailed: false });
   } catch {
     set({ trash: [], trashFailed: true });
+  }
+}
+
+export async function refreshPaperPdfs(projectId: string) {
+  try {
+    const { links, version } = await api.paperPdfs(projectId);
+    if (get().projectId !== projectId || version < get().paperPdfsVersion) return;
+    set({ paperPdfs: links, paperPdfsVersion: version });
+  } catch {
+    /* the next change brings them */
   }
 }
 

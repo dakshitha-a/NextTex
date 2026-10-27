@@ -50,6 +50,7 @@ import {
   handlers,
   reconcile,
   refreshComments,
+  refreshPaperPdfs,
   refreshContext,
   refreshGit,
   refreshHistory,
@@ -874,6 +875,9 @@ export default function App() {
     // mark and gutter icon on the file the moment it is shown.
     set({ comments: [], openThread: null });
     void refreshComments(id);
+    // Before the first hover: which citations have their paper on disk.
+    set({ paperPdfs: {}, paperPdfsVersion: 0 });
+    void refreshPaperPdfs(id);
     setView("editor");
     // So a reload, or a browser restoring its tabs tomorrow morning, comes
     // back to the document rather than to the list of projects.
@@ -1385,6 +1389,9 @@ export default function App() {
     handlers.onShowPage = (_document, page) => {
       pdf.current?.goTo(page);
     };
+    handlers.onOpenFile = (path) => {
+      void openFile(path);
+    };
     // Where the agent is *about* to write, from the moment the fence
     // approves the call. Never takes the caret: see `busyTyping`.
     handlers.onAgentFocus = (path, line) => {
@@ -1514,6 +1521,7 @@ export default function App() {
       handlers.onRootLost = undefined;
       handlers.onReveal = undefined;
       handlers.onShowPage = undefined;
+      handlers.onOpenFile = undefined;
       handlers.onAgentEdit = undefined;
       handlers.onAgentFocus = undefined;
       handlers.onCompileDone = undefined;

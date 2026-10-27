@@ -1,5 +1,5 @@
 import { describe, expect, test } from "vitest";
-import { depthOf, labelOf, lineBelow, linksOf } from "./pdf-links";
+import { citeKey, depthOf, entryLinks, labelOf, lineBelow, linksOf } from "./pdf-links";
 
 // A US letter page, as pdf.js gives its `view`: the box in PDF space,
 // whose y runs up from the bottom.
@@ -88,5 +88,60 @@ describe("labelOf", () => {
     expect(labelOf({ box, dest: "cite.knuth" })).toBe("Go to cite knuth");
     expect(labelOf({ box, dest: [{ num: 5, gen: 0 }, { name: "Fit" }] })).toBe("Go to a place in the document");
     expect(labelOf({ box, url: "https://example.org" })).toBe("https://example.org");
+  });
+});
+
+// A line of type: its text, where it starts, the top of its line and its
+// baseline, all in points from the page's top-left corner.
+const run = (str: string, left: number, top: number, width = 200) => ({ str, left, top, bottom: top + 10, width });
+
+describe("citeKey", () => {
+  test("hyperref's and biblatex's anchors name the key", () => {
+    expect(citeKey("cite.knuth1984")).toBe("knuth1984");
+    expect(citeKey("cite.0@tully1990")).toBe("tully1990");
+    expect(citeKey("cite.Smith:2020a")).toBe("Smith:2020a");
+    expect(citeKey("section.2")).toBeNull();
+  });
+});
+
+describe("entryLinks", () => {
+  test("each entry runs from its anchor to the next, its hanging label inside", () => {
+    const runs = [
+      run("[1]", 72, 100, 14), run("D. Knuth. The TeXbook.", 90, 100), run("Addison-Wesley, 1984.", 90, 112),
+      run("[2]", 72, 130, 14), run("L. Lamport. LaTeX.", 90, 130),
+    ];
+    const links = entryLinks([{ key: "knuth", x: 90, depth: 98 }, { key: "lamport", x: 90, depth: 128 }], runs, 612);
+    expect(links.map((link) => link.paper)).toEqual(["knuth", "lamport"]);
+    expect(links[0].box).toEqual({ x: 72, y: 122, width: 218, height: 22 });
+    expect(links[1].box.y).toBe(140);
+    expect(labelOf(links[0])).toBe("Open the paper for knuth");
+  });
+
+  test("two columns are two lists, neither reaching into the other", () => {
+    const runs = [
+      run("Left one", 50, 100, 200), run("Left two", 50, 130, 200),
+      run("Right one", 320, 100, 200), run("Right one, more", 320, 112, 200),
+    ];
+    const links = entryLinks([
+      { key: "a", x: 50, depth: 98 }, { key: "b", x: 50, depth: 128 }, { key: "c", x: 320, depth: 98 },
+    ], runs, 612);
+    const c = links.find((link) => link.paper === "c")!;
+    expect(c.box).toEqual({ x: 320, y: 122, width: 200, height: 22 });
+    const a = links.find((link) => link.paper === "a")!;
+    expect(a.box.x + a.box.width).toBeLessThan(320);
+    expect(a.box.y).toBe(110);
+  });
+
+  test("the last entry on a page stops before the page number", () => {
+    const runs = [run("Last entry.", 72, 600), run("continues.", 72, 612), run("23", 300, 740, 10)];
+    const [last] = entryLinks([{ key: "z", x: 72, depth: 598 }], runs, 612);
+    expect(last.box.y).toBe(622);
+  });
+
+  test("an entry continued from the page before is left alone above its first anchor", () => {
+    const runs = [run("...end of an entry.", 72, 80), run("[9] Next.", 72, 100)];
+    const links = entryLinks([{ key: "n", x: 72, depth: 98 }], runs, 612);
+    expect(links).toHaveLength(1);
+    expect(links[0].box.y - links[0].box.height).toBe(100);
   });
 });

@@ -12720,3 +12720,49 @@ it. The animation is `nx-composer-halo`, opacity alone from 1 to 0.35 and
 back over 2800 ms. `e2e/specs/agent.spec.ts` reads its name, a period of
 twice the dot's, the warn ink while waiting, the card's unchanged size and
 the still halo under reduced motion.
+
+## 127. A citation opens its paper
+
+Drawn on the direction page under A citation opens its paper, 27 October
+2026, at the writer's request. The writer asked for a citation to open its
+paper, from the editor's hover card and from the bibliography on the
+typeset page, and for its DOI page when the PDF is not on disk. They did
+not want a folder name fixed in advance or the project scanned again and
+again, since a thesis keeps its papers several folders deep under any
+name.
+
+**What a writer sees** on a citation's card is a first verb before Find
+references and Rename. It is Open PDF when the paper is on disk, with the
+file's path in the small code role above the row, so the writer sees
+which PDF was matched. Without a PDF it is Open DOI page, else Open arXiv
+page for an arXiv entry, else Open web page for an entry with only a
+`url`. An entry with none of these has no extra verb. A PDF in the project
+opens in a tab of the preview pane, as every PDF in the project does; one
+elsewhere, in Zotero's storage say, opens in a browser tab. On the typeset
+page an entry in the bibliography behaves like the page's other links:
+nothing at rest, the hint's wash under the pointer with the browser's
+tooltip saying what a click does, and the paper or its page on a click. An
+entry with nothing to open stays text. In a document without hyperref the
+page menu, opened over an entry, says Open this reference in place of Show
+this in the source, and so does a double-click.
+
+**How the paper is found** is by evidence and never by a title: a paper
+the References drawer imported, or the `file` field Zotero, JabRef and
+Mendeley write; then a project PDF named after the key or the DOI; then a
+PDF whose first pages print the entry's DOI and its title. A path outside
+the project is opened only under the writer's home or a folder the drawer
+has read. The PDFs are listed from the file tree when the browser first
+asks, and the watcher keeps the list; a PDF is read once, and only while a
+citation with a DOI is still unmatched.
+
+**How it is built.** `frontend/src/paper-open.ts` turns a key, its citation
+and the server's link into an action, and `openPaper` opens a tab through
+the store's `onOpenFile` or a browser tab. The card adds the verb in
+`math-hover.ts`. The page's entries are boxes in the link layer of
+`Pdf.tsx`: `entryLinks` in `pdf-links.ts` measures each from its `cite.*`
+anchor down to the next in its column, across the lines between, and stops
+at a gap. The mechanics are in `docs/architecture.md` under A citation
+finds its paper by evidence. `e2e/specs/paper-pdfs.spec.ts` hovers a
+citation whose PDF lands three folders deep after the project opens,
+opens a DOI page, clicks the entries of a BibTeX bibliography and uses the
+page menu without hyperref. It adds no token.

@@ -2362,6 +2362,10 @@ button.nx-reads-x[data-always]:hover { color: var(--pen); }
   transition: background-color var(--dur-quick) var(--ease);
 }
 .nx-page-link:hover { background: var(--hint-wash); }
+/* A bibliography entry is a link only when it has a paper or a page on the
+   web to open; Pdf.tsx sets `data-open` under the pointer. */
+.nx-page-link[data-paper]:not([data-open]) { cursor: text; }
+.nx-page-link[data-paper]:not([data-open]):hover { background: none; }
 .nx-flash {
   position: absolute;
   background: var(--pen-wash);

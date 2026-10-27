@@ -313,6 +313,10 @@ theme as NextTex. Open it, or copy the link.
 - **Links on the page.** Click a contents entry, a reference or a citation in
   the preview and it takes you to the section, figure, table, equation or
   bibliography entry it names, when the document loads hyperref.
+- **A citation opens its paper.** Hover a `\cite` and press Open PDF, or click
+  its entry in the typeset bibliography. NextTex finds the PDF wherever it is
+  in the project, by its name, its DOI or the link Zotero or JabRef wrote, and
+  opens the DOI page when there is no PDF.
 - **Vim or Emacs keys**, a white page in a dark theme, and colour for commands
   if you like it.
 
