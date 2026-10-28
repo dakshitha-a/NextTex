@@ -413,3 +413,17 @@ def test_where_a_turn_came_from_is_written_onto_its_line_when_known(tmp_path):
     assert items[0]["text"] == "Say it."
     again = Transcript(tmp_path / "t.jsonl").items()
     assert again[0]["label"] == "A message from nx-a"
+
+
+def test_the_newer_of_two_archives_in_one_second_is_the_one_kept(tmp_path, monkeypatch):
+    """By name, `-2.jsonl` sorted before `.jsonl`, so pruning took the newer
+    of two conversations filed in the same second and kept the older."""
+    from server import transcript as module
+
+    monkeypatch.setattr(module, "MAX_ARCHIVES", 1)
+    record = module.Transcript(tmp_path / "transcript.jsonl")
+    (tmp_path / "transcript-20260101-000000.jsonl").write_text("{}\n", encoding="utf-8")
+    (tmp_path / "transcript-20260101-000000-2.jsonl").write_text("{}\n", encoding="utf-8")
+    record._prune_archives()
+    assert [p.name for p in tmp_path.glob("transcript-*.jsonl")] == ["transcript-20260101-000000-2.jsonl"]
+    assert record.archives()[0]["name"] == "transcript-20260101-000000-2.jsonl"

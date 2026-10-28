@@ -166,7 +166,7 @@ class Transcript:
             names = sorted(
                 (old for old in self.path.parent.glob("transcript-*.jsonl")
                  if self.ARCHIVE_NAME.match(old.name)),
-                key=lambda old: old.name, reverse=True,
+                key=lambda old: self._order_of(old.name), reverse=True,
             )
         except OSError:
             return found
@@ -191,6 +191,16 @@ class Transcript:
             found.append({"name": old.name, "title": title, "size": size,
                           "stamp": self._stamp_of(old.name)})
         return found
+
+    @staticmethod
+    def _order_of(name: str) -> tuple[str, int]:
+        """When an archive was filed, for sorting. Not the bare name: the
+        second archive of one second is `-2.jsonl`, and a hyphen sorts
+        before the full stop, so by name the newer of the two came first
+        and was the one pruned."""
+        parts = name[len("transcript-"):].removesuffix(".jsonl").split("-")
+        attempt = parts[2] if len(parts) > 2 else "1"
+        return ("-".join(parts[:2]), int(attempt) if attempt.isdigit() else 1)
 
     @staticmethod
     def _stamp_of(name: str) -> str:
@@ -220,7 +230,8 @@ class Transcript:
         """
         try:
             archives = sorted(
-                self.path.parent.glob("transcript-*.jsonl"), key=lambda old: old.name
+                self.path.parent.glob("transcript-*.jsonl"),
+                key=lambda old: self._order_of(old.name),
             )
         except OSError:
             return
