@@ -5,11 +5,13 @@ conversation from disk, and the chips and permission records are the audit
 trail of what an assistant did to a dissertation.
 """
 
+import json
+import time
 from pathlib import Path
 
 import pytest
 
-from server.transcript import Transcript
+from server.transcript import Transcript, TranscriptError
 
 
 def test_streamed_text_is_stored_as_one_message(tmp_path):
@@ -413,6 +415,66 @@ def test_where_a_turn_came_from_is_written_onto_its_line_when_known(tmp_path):
     assert items[0]["text"] == "Say it."
     again = Transcript(tmp_path / "t.jsonl").items()
     assert again[0]["label"] == "A message from nx-a"
+
+
+# -- continuing a past conversation ----------------------------------------
+def test_an_archive_keeps_what_continuing_it_needs_and_loses_it_when_pruned(tmp_path, monkeypatch):
+    from server import transcript as module
+
+    monkeypatch.setattr(module, "MAX_ARCHIVES", 1)
+    record = module.Transcript(tmp_path / "transcript.jsonl")
+    record.record({"type": "turn_start", "prompt": "Why does biber fail on the thesis"})
+    first = record.archive({"session_id": "s-1", "name": "", "provider": "claude"})
+    meta = tmp_path / first.replace(".jsonl", ".meta.json")
+    assert json.loads(meta.read_text())["session_id"] == "s-1"
+    [entry] = record.archives()
+    assert entry["conversation"] == "Why does biber fail on the thesis"
+    assert entry["resumable"] is True and entry["named"] is False
+
+    record.record({"type": "turn_start", "prompt": "a second one"})
+    time.sleep(1.1)
+    record.archive({"session_id": "s-2"})
+    # The pruned archive's sidecar went with it.
+    assert not meta.exists()
+    assert len(list(tmp_path.glob("*.meta.json"))) == 1
+
+
+def test_a_past_conversation_is_renamed_deleted_and_restored(tmp_path):
+    record = Transcript(tmp_path / "transcript.jsonl")
+    record.record({"type": "turn_start", "prompt": "Tighten the abstract"})
+    name = record.archive({"session_id": "s-1"})
+    assert record.rename_archive(name, "  Abstract,   second pass ") == "Abstract, second pass"
+    assert record.archives()[0]["conversation"] == "Abstract, second pass"
+    assert record.rename_archive("transcript.jsonl", "x") is None
+
+    # The live conversation has to be filed first; restore never overwrites it.
+    record.record({"type": "turn_start", "prompt": "live"})
+    with pytest.raises(TranscriptError):
+        record.restore(name)
+    record.archive()
+    meta = record.restore(name)
+    assert meta["session_id"] == "s-1" and meta["name"] == "Abstract, second pass"
+    assert [i["text"] for i in record.items() if i["kind"] == "user"] == ["Tighten the abstract"]
+    assert not (tmp_path / name).exists()
+
+    other = record.archives()[0]["name"]
+    assert record.delete_archive(other) is True
+    assert record.archives() == []
+    assert record.delete_archive("../transcript.jsonl") is False
+
+
+def test_the_record_a_fresh_session_reads_is_plain_text(tmp_path):
+    record = Transcript(tmp_path / "transcript.jsonl")
+    assert record.write_record(tmp_path / "r.md") is None
+    record.record({"type": "turn_start", "prompt": "Fix figure 2"})
+    record.record({"type": "text", "text": "Moved the legend."})
+    record.record({"type": "edit", "path": "ch3.tex", "before": "a", "after": "b"})
+    path = record.write_record(tmp_path / "records" / "r.md")
+    text = path.read_text()
+    assert "## The writer\n\nFix figure 2" in text
+    assert "Moved the legend." in text and "- Edited ch3.tex" in text
+    short = record.write_record(tmp_path / "s.md", limit=20).read_text()
+    assert "The start of the conversation is left out." in short
 
 
 def test_the_newer_of_two_archives_in_one_second_is_the_one_kept(tmp_path, monkeypatch):

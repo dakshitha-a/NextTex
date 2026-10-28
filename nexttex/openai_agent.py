@@ -56,6 +56,7 @@ import requests
 from . import comment_tools
 from . import permission_gate as gate
 from .atomic import read_text
+from .conversation import FROM_RECORD
 from .explain import compile_report
 from .references import appended, entry_for
 from .lines import first_changed_line
@@ -552,6 +553,11 @@ class OpenAIAgent:
         #: still allowed its one honest ending.
         self._ended = False
         self._messages: list[dict] = self._load_messages()
+        #: Writes the live conversation's record and returns its path; set
+        #: by the project session, which owns the transcript.
+        self.conversation_record: Callable[[], Path | None] = lambda: None
+        # Whether the next question should be pointed at that record.
+        self._from_record = False
         self.usage = self._load_usage()
 
     # -- the shape ProjectSession and the routes expect --------------------
@@ -775,6 +781,14 @@ class OpenAIAgent:
             # The question as typed is what the conversation shows; the
             # model is given the passage the writer had selected as well.
             await self._emit({"type": "turn_start", "prompt": prompt})
+            if self._from_record:
+                # A past conversation with no message list of its own, so
+                # the model is pointed at its record, as the Claude side
+                # is when its session is gone.
+                self._from_record = False
+                record = self.conversation_record()
+                if record is not None:
+                    prompt = FROM_RECORD.format(path=record) + "\n\n" + prompt
             self._messages.append({
                 "role": "user",
                 "content": self._with_context(
@@ -1433,9 +1447,26 @@ class OpenAIAgent:
             raise RuntimeError("a turn is still running")
         self._messages = []
         self.messages_path.unlink(missing_ok=True)
+        self._from_record = False
         # An answer given "for this conversation" was for the one that has
         # just ended.
         self.gate.forget_conversation()
+
+    def conversation_state(self) -> dict:
+        """What continuing this conversation needs: the message list, which
+        here is the whole of the model's memory, at the length kept."""
+        return {"messages": self._messages[-40:]}
+
+    async def restore_conversation(self, state: dict) -> bool:
+        """Make a filed-away conversation the live one: its message list
+        back, or, for an archive without one, the record to read first."""
+        if self.busy:
+            raise RuntimeError("a turn is still running")
+        messages = state.get("messages")
+        self._messages = list(messages) if isinstance(messages, list) else []
+        self._save_messages()
+        self._from_record = not self._messages
+        return bool(self._messages)
 
     @property
     def messages_path(self) -> Path:

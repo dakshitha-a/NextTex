@@ -1,13 +1,20 @@
-import { useEffect, useState } from "react";
+import { useEffect, useRef, useState, type MouseEvent as ReactMouseEvent } from "react";
 import api, { type Archive } from "../api";
 import { chatFromTranscript, useStore, type ChatItem } from "../store";
 import Prose from "./prose";
 import { decisionWords } from "./Chat";
-import { usageNote } from "../agent-name";
+import { agentName, usageNote } from "../agent-name";
 import { ColumnHeader } from "./column-header";
-import { Pressable } from "../ui/controls";
+import { Button, IconButton } from "../ui/Button";
+import { Field, Pressable } from "../ui/controls";
+import { Menu, MenuDivider, MenuItem } from "../ui/Menu";
+import { MoreIcon } from "../ui/icons";
+import { atPointer, claimsRightClick, under, type Wanted } from "../place-menu";
 
 type Usage = Awaited<ReturnType<typeof api.usage>>;
+
+/** The kit menu's width, which the More button's menu hangs from. */
+const MENU_WIDTH = 232;
 
 /** A token count a person reads: 120k rather than 120000. */
 function compact(value: number): string {
@@ -19,16 +26,21 @@ function compact(value: number): string {
 
 /** The conversations "New conversation" filed away, and one of them open.
  *
- *  Read-only, and drawn with its own renderers rather than the live
- *  panel's. That is not a shortcut: an edit chip in the live panel has an
- *  Undo that writes to a file, and a permission card has Allow and Deny
- *  that answer an id the agent is waiting on. A conversation from last
- *  week has neither an agent waiting nor a file in the state it was, so
- *  every control on it would be a promise the app cannot keep. What is
+ *  A past conversation is drawn with its own renderers rather than the
+ *  live panel's. That is not a shortcut: an edit chip in the live panel
+ *  has an Undo that writes to a file, and a permission card has Allow and
+ *  Deny that answer an id the agent is waiting on. A conversation from
+ *  last week has neither an agent waiting nor a file in the state it was,
+ *  so every control on it would be a promise the app cannot keep. What is
  *  shown is what was said and what was done, as a record.
  *
- *  It never touches the store's `chat`: the live conversation stays where
- *  it was, and Back returns to it untouched.
+ *  What it does offer is the conversation as a whole: Continue makes it
+ *  the live one again, its memory with it where the session still exists,
+ *  and Rename and Delete look after the list. Each row has them under its
+ *  More button and at a right-click; an open one has Continue at its foot.
+ *
+ *  It never touches the store's `chat` itself: Continue goes through the
+ *  server, which tells every tab to draw the conversation it now holds.
  */
 export default function PastConversation({
   onBack,
@@ -45,9 +57,26 @@ export default function PastConversation({
 }) {
   const projectId = useStore((s) => s.projectId);
   const session = useStore((s) => s.session);
+  const busy = useStore((s) => s.thinking);
   const [archives, setArchives] = useState<Archive[] | null>(null);
   const [failed, setFailed] = useState("");
   const [open, setOpen] = useState<{ name: string; items: ChatItem[] } | null>(null);
+  /** The row whose menu is open, and where it hangs. */
+  const [menu, setMenu] = useState<{ name: string; at: Wanted | null } | null>(null);
+  const [confirming, setConfirming] = useState(false);
+  /** The archive being renamed, and the name as typed so far. */
+  const [renaming, setRenaming] = useState<{ name: string; text: string } | null>(null);
+  const [continuing, setContinuing] = useState(false);
+  const moreButton = useRef<HTMLButtonElement | null>(null);
+
+  const refresh = async () => {
+    if (!projectId) return;
+    try {
+      setArchives((await api.archives(projectId)).archives);
+    } catch (error: any) {
+      setFailed(error.message);
+    }
+  };
 
   useEffect(() => {
     if (!projectId) return;
@@ -61,6 +90,8 @@ export default function PastConversation({
     };
   }, [projectId]);
 
+  const entryOf = (name: string) => archives?.find((entry) => entry.name === name);
+
   const read = async (entry: Archive) => {
     if (!projectId) return;
     try {
@@ -71,21 +102,163 @@ export default function PastConversation({
     }
   };
 
+  const closeMenu = () => {
+    setMenu(null);
+    setConfirming(false);
+  };
+
+  const proceed = async (name: string) => {
+    if (!projectId || busy) return;
+    closeMenu();
+    setContinuing(true);
+    setFailed("");
+    try {
+      await api.continueArchive(projectId, name);
+      // The server tells every tab, this one too, to draw the conversation
+      // it now holds; what is left here is to go back to it.
+      onBack();
+    } catch (error: any) {
+      setFailed(error.message);
+      setContinuing(false);
+    }
+  };
+
+  const remove = async (name: string) => {
+    if (!projectId) return;
+    closeMenu();
+    try {
+      await api.deleteArchive(projectId, name);
+      if (open?.name === name) setOpen(null);
+      await refresh();
+    } catch (error: any) {
+      setFailed(error.message);
+    }
+  };
+
+  const saveName = async () => {
+    if (!projectId || !renaming) return;
+    const { name, text } = renaming;
+    setRenaming(null);
+    if (text.trim() === (entryOf(name)?.conversation ?? "")) return;
+    try {
+      await api.renameArchive(projectId, name, text);
+      await refresh();
+    } catch (error: any) {
+      setFailed(error.message);
+    }
+  };
+
+  const startRename = (name: string) => {
+    closeMenu();
+    setRenaming({ name, text: entryOf(name)?.conversation ?? "" });
+  };
+
+  const openMenu = (name: string, at: Wanted | null) => {
+    setConfirming(false);
+    setMenu(menu?.name === name ? null : { name, at });
+  };
+
+  /** The four things to do with a conversation, under its More button or
+   *  at a right-click; the open one leaves out Open. */
+  const actions = (name: string, inside: boolean) => (
+    <Menu
+      open
+      wanted={menu?.at ?? null}
+      anchor={moreButton}
+      label="Past conversation"
+      testid="past-menu"
+      width={MENU_WIDTH}
+      revision={confirming}
+      onClose={closeMenu}
+    >
+      {confirming ? (
+        <div className="nx-past-confirm" data-testid="past-delete-confirm">
+          <p className="text-ink">Delete NextTex's record of this conversation?</p>
+          <p className="t-meta text-ink-3">Claude Code keeps its own copy until it clears it.</p>
+          <div className="nx-past-confirm-actions">
+            <Button variant="danger" data-testid="past-delete-yes" onClick={() => void remove(name)}>
+              Delete
+            </Button>
+            <Button onClick={() => setConfirming(false)}>Cancel</Button>
+          </div>
+        </div>
+      ) : (
+        <>
+          {inside ? null : (
+            <MenuItem
+              onClick={() => {
+                closeMenu();
+                const entry = entryOf(name);
+                if (entry) void read(entry);
+              }}
+            >
+              Open
+            </MenuItem>
+          )}
+          {/* Present only when it can act: a menu leaves out what does
+              not apply rather than disabling it in place. */}
+          {busy ? null : (
+            <MenuItem onClick={() => void proceed(name)}>Continue this conversation</MenuItem>
+          )}
+          <MenuItem onClick={() => startRename(name)}>Rename</MenuItem>
+          <MenuDivider />
+          <MenuItem danger onClick={() => setConfirming(true)}>
+            Delete
+          </MenuItem>
+        </>
+      )}
+    </Menu>
+  );
+
+  const nameField = (variant: "row" | "head") =>
+    renaming ? (
+      <Field
+        autoFocus
+        frameClassName={variant === "row" ? "nx-past-name-field" : "nx-past-head-field"}
+        aria-label="The conversation's name"
+        data-testid="past-rename"
+        value={renaming.text}
+        maxLength={80}
+        onFocus={(event) => event.currentTarget.select()}
+        onChange={(event) => setRenaming({ ...renaming, text: event.target.value })}
+        onBlur={() => void saveName()}
+        onKeyDown={(event) => {
+          if (event.key === "Enter") (event.target as HTMLInputElement).blur();
+          if (event.key === "Escape") {
+            event.stopPropagation();
+            setRenaming(null);
+          }
+        }}
+      />
+    ) : null;
+
+  const openEntry = open ? entryOf(open.name) : undefined;
+  const openTitle = open ? openEntry?.conversation || openEntry?.stamp || open.name : "Past conversations";
+
   return (
     <div className="flex h-full min-h-0 flex-col" data-testid="past-conversations">
       <ColumnHeader
-        title={
-          open
-            ? archives?.find((entry) => entry.name === open.name)?.stamp ?? open.name
-            : "Past conversations"
-        }
+        title={open && renaming?.name === open.name ? "" : openTitle}
         onBack={() => (open ? setOpen(null) : onBack())}
         backLabel={open ? "All past conversations" : "Back"}
         backTestid="past-back"
         onFold={onFold}
       >
-        <span className="min-w-0 flex-1" />
+        {open && renaming?.name === open.name ? nameField("head") : <span className="min-w-0 flex-1" />}
+        {open ? (
+          <IconButton
+            ref={moreButton}
+            label="More for this conversation"
+            data-testid="past-open-more"
+            on={menu?.name === open.name}
+            aria-expanded={menu?.name === open.name}
+            onClick={(event) => openMenu(open.name, under(event.currentTarget, MENU_WIDTH, "right"))}
+          >
+            <MoreIcon />
+          </IconButton>
+        ) : null}
       </ColumnHeader>
+      {open && menu?.name === open.name ? actions(open.name, true) : null}
       <div className="flex min-h-0 flex-1 flex-col overflow-auto px-2 pb-2">
         {failed ? <p className="t-meta text-error">{failed}</p> : null}
         {!open && archives === null && !failed ? (
@@ -99,17 +272,46 @@ export default function PastConversation({
         ) : null}
         {!open && archives && archives.length ? (
           <div className="flex flex-col">
-            {archives.map((entry) => (
-              <Pressable
-                key={entry.name}
-                className="nx-past-row"
-                data-testid="past-conversation"
-                onClick={() => read(entry)}
-              >
-                <span>{entry.title || "A conversation with no question in it"}</span>
-                <small>{whenFiled(entry.stamp)}</small>
-              </Pressable>
-            ))}
+            {archives.map((entry) =>
+              renaming?.name === entry.name ? (
+                <div key={entry.name} className="nx-past-row nx-past-renaming">
+                  {nameField("row")}
+                </div>
+              ) : (
+                <div
+                  key={entry.name}
+                  className="nx-past-row"
+                  data-open={menu?.name === entry.name || undefined}
+                  data-testid="past-conversation"
+                  onContextMenu={(event: ReactMouseEvent<HTMLDivElement>) => {
+                    if (!claimsRightClick(event)) return;
+                    event.preventDefault();
+                    const button = event.currentTarget.querySelector<HTMLButtonElement>(".nx-past-more");
+                    moreButton.current = button;
+                    openMenu(entry.name, atPointer(event, button, MENU_WIDTH));
+                  }}
+                >
+                  <Pressable className="nx-past-open" onClick={() => read(entry)}>
+                    <span className="nx-past-name">{entry.conversation || "A conversation with no question in it"}</span>
+                    <small>{whenFiled(entry.stamp)}</small>
+                  </Pressable>
+                  <IconButton
+                    className="nx-past-more"
+                    label={`More for ${entry.conversation || "this conversation"}`}
+                    data-testid="past-more"
+                    on={menu?.name === entry.name}
+                    aria-expanded={menu?.name === entry.name}
+                    onClick={(event) => {
+                      moreButton.current = event.currentTarget;
+                      openMenu(entry.name, under(event.currentTarget, MENU_WIDTH, "right"));
+                    }}
+                  >
+                    <MoreIcon />
+                  </IconButton>
+                  {menu?.name === entry.name ? actions(entry.name, false) : null}
+                </div>
+              ),
+            )}
           </div>
         ) : null}
         {/* What this project has cost, once, at the foot of the list: the
@@ -138,13 +340,32 @@ export default function PastConversation({
           </p>
         ) : null}
         {open ? (
-          <div className="flex flex-col gap-3" data-testid="past-items">
+          <div className="flex flex-col gap-3 pt-1" data-testid="past-items">
             {open.items.map((item) => (
               <Row key={item.id} item={item} />
             ))}
           </div>
         ) : null}
       </div>
+      {open ? (
+        <div className="nx-past-foot" data-testid="past-continue-foot">
+          <Button
+            variant="pen"
+            size="md"
+            className="w-full justify-center"
+            data-testid="past-continue"
+            disabled={busy || continuing}
+            onClick={() => void proceed(open.name)}
+          >
+            Continue this conversation
+          </Button>
+          <p className="t-meta text-ink-3">
+            {busy
+              ? `${agentName(provider as any)} is answering. Continue when it finishes.`
+              : "Files the current conversation away and picks this one up where it stopped."}
+          </p>
+        </div>
+      ) : null}
     </div>
   );
 }

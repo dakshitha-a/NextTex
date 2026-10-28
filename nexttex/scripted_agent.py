@@ -29,6 +29,7 @@ import time
 from pathlib import Path
 from typing import Any, AsyncIterator, Callable
 
+from .conversation import clean_name, title_from
 from .lines import first_changed_line
 from .modes import MODES
 
@@ -136,6 +137,10 @@ class ScriptedAgent:
         # and remote control on disk, the rest as a script last set it.
         self.compact_percent = compact_percent or (lambda: 60)
         self.session_settings = self._load_session_settings()
+        #: The conversation's id, as the CLI's session id stands for it.
+        self.session_id = "scripted-session"
+        #: Set by the project session, as on the real agents.
+        self.conversation_record: Callable[[], Path | None] = lambda: None
         self.context: dict | None = None
         self.remote: dict = {"state": "off", "url": ""}
         self.limits: dict[str, dict] = {}
@@ -153,11 +158,43 @@ class ScriptedAgent:
         except (OSError, json.JSONDecodeError):
             saved = {}
         name = saved.get("name") if isinstance(saved.get("name"), str) else ""
-        return {"name": name, "remote": saved.get("remote") is True}
+        auto = saved.get("auto") if isinstance(saved.get("auto"), str) else ""
+        return {"name": name, "auto": auto, "remote": saved.get("remote") is True}
+
+    def _save_session_settings(self) -> None:
+        (self.state_dir / "session-settings.json").write_text(
+            json.dumps(self.session_settings), encoding="utf-8",
+        )
+
+    @property
+    def conversation_name(self) -> str:
+        return self.session_settings.get("name") or self.session_settings.get("auto") or ""
 
     @property
     def session_name(self) -> str:
-        return self.session_settings.get("name") or self.root.name
+        named = self.conversation_name
+        return f"{self.root.name}: {named}" if named else self.root.name
+
+    def conversation_state(self) -> dict:
+        """As the real agent keeps it, with a session id that is the
+        script's and that `restore_conversation` takes back."""
+        return {
+            "session_id": self.session_id,
+            "name": self.session_settings.get("name", ""),
+            "auto": self.session_settings.get("auto", ""),
+        }
+
+    async def restore_conversation(self, state: dict) -> bool:
+        if self.busy:
+            raise RuntimeError("a turn is still running")
+        self.session_id = str(state.get("session_id") or "")
+        self.session_settings["name"] = clean_name(state.get("name") or "")
+        self.session_settings["auto"] = clean_name(state.get("auto") or "")
+        self._save_session_settings()
+        # A session id the script calls gone stands for one Claude Code
+        # has deleted, so a browser test can reach the fallback's notice.
+        kept = bool(self.session_id) and not self.session_id.startswith("gone-")
+        return kept
 
     async def set_session(self, *, name: str | None = None, remote: bool | None = None) -> None:
         if name is not None:
@@ -169,9 +206,7 @@ class ScriptedAgent:
                 if remote else {"state": "off", "url": ""}
             )
             await self._emit({"type": "remote", **self.remote})
-        (self.state_dir / "session-settings.json").write_text(
-            json.dumps(self.session_settings), encoding="utf-8",
-        )
+        self._save_session_settings()
 
     async def connect_now(self) -> None:
         if self.session_settings["remote"] and self.remote["state"] == "off":
@@ -184,8 +219,10 @@ class ScriptedAgent:
         except (TypeError, ValueError):
             compact = 60
         return {
-            "id": "scripted-session",
-            "name": self.session_name,
+            "id": self.session_id,
+            "name": self.session_settings.get("name", ""),
+            "autoName": self.session_settings.get("auto", ""),
+            "sessionName": self.session_name,
             "folderName": self.root.name,
             "remote": {"enabled": bool(self.session_settings["remote"]), **self.remote},
             "context": self.context,
@@ -227,6 +264,10 @@ class ScriptedAgent:
             raise RuntimeError("a turn is still running")
         self.asked.clear()
         self._conversation_allow.clear()
+        self.session_id = f"scripted-{time.time_ns()}"
+        self.session_settings["name"] = ""
+        self.session_settings["auto"] = ""
+        self._save_session_settings()
 
     def set_mode(self, mode: str) -> None:
         if mode not in MODES:
@@ -294,6 +335,9 @@ class ScriptedAgent:
             prompt = rest.lstrip()
         self.asked.append(prompt)
         self.contexts.append(context)
+        if not self.conversation_name and title_from(prompt):
+            self.session_settings["auto"] = title_from(prompt)
+            self._save_session_settings()
         self._why = prompt.strip().splitlines()[0][:120] if prompt.strip() else ""
         self._turn = asyncio.create_task(self._run(prompt))
 

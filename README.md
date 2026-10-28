@@ -179,10 +179,12 @@ OpenAI, a model on your own machine, or none.
 
 With Claude, the column's foot shows how full the conversation is and how
 much of your plan you have used, and a long conversation is summarized
-before it gets heavy. Give the session a name and turn on remote control,
-and you can reach your project's agent from claude.ai/code, the Claude app
-or your other Claude Code sessions while the project is open. Ask it for a
-page and it publishes one you can open or send a link to.
+before it gets heavy. Turn on remote control, and you can reach your
+project's agent from claude.ai/code, the Claude app or your other Claude
+Code sessions while the project is open. Every conversation has a name,
+and an old one can be picked up again from Past conversations, with
+Claude's memory of it. Ask it for a page and it publishes one you can open
+or send a link to.
 
 [More on the agent →](docs/guide.md#the-agent)
 

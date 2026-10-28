@@ -88,15 +88,17 @@ export default function SessionView({
       </ColumnHeader>
       <div className="nx-session min-h-0 flex-1 overflow-y-auto">
         <section className="nx-session-sec">
-          <h3 className="nx-session-title">Name</h3>
+          <h3 className="nx-session-title">Conversation name</h3>
+          {/* The live conversation's name, the one Past conversations lists
+              it under once it is filed. Empty means the name its first
+              question gave it, shown as the placeholder. */}
           <Field
-            className="nx-field-mono"
             frameClassName="nx-session-field"
-            aria-label="The session's name"
+            aria-label="The conversation's name"
             data-testid="session-name"
             value={name}
             maxLength={80}
-            placeholder={session?.folderName ?? ""}
+            placeholder={session?.autoName || "Named from its first question"}
             onChange={(event) => setName(event.target.value)}
             onBlur={() => {
               if (name.trim() !== (session?.name ?? "")) void change({ name });
@@ -105,7 +107,7 @@ export default function SessionView({
               if (event.key === "Enter") (event.target as HTMLInputElement).blur();
             }}
           />
-          <p className="nx-session-hint">Other Claude Code sessions reach this one by this name.</p>
+          <p className="nx-session-hint">The same name as in Past conversations.</p>
         </section>
 
         {session?.account?.remoteAvailable !== false ? (
@@ -123,13 +125,22 @@ export default function SessionView({
             {remote?.enabled ? (
               <>
                 <p className="nx-session-hint" data-testid="session-remote-state">
-                  {remote.state === "connected"
-                    ? "Connected while this project is open."
-                    : remote.state === "failed"
-                      ? "The CLI did not open remote control. Turn it off and on to try again."
-                      : "Connecting to claude.ai."}{" "}
+                  {remote.state === "connected" ? (
+                    <>
+                      Connected while this project is open. On claude.ai as{" "}
+                      <span className="nx-session-remote-name" data-testid="session-remote-name">
+                        {session?.sessionName ?? session?.folderName ?? ""}
+                      </span>
+                      .
+                    </>
+                  ) : remote.state === "failed"
+                    ? "The CLI did not open remote control. Turn it off and on to try again."
+                    : "Connecting to claude.ai."}
                   {remote.state === "connected" && remote.url ? (
-                    <ExternalLink href={remote.url}>Open it on claude.ai</ExternalLink>
+                    <>
+                      <br />
+                      <ExternalLink href={remote.url}>Open it on claude.ai</ExternalLink>
+                    </>
                   ) : null}
                 </p>
                 <p className="nx-session-hint mt-1">

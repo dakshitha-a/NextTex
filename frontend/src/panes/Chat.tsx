@@ -1458,6 +1458,17 @@ const Item = memo(function Item({
     return <Plan item={item} />;
   }
 
+  if (item.kind === "notice" && item.tone === "continued") {
+    // A past conversation became the live one: said as the compaction is,
+    // a quiet line with its mark, the clock past conversations open from.
+    return (
+      <div className="nx-quiet-line" data-testid="continued">
+        <HistoryIcon size={12} />
+        <span>{item.text}</span>
+      </div>
+    );
+  }
+
   if (item.kind === "notice") {
     return (
       <div className={`text-compact leading-4.5 ${item.tone === "error" ? "text-error" : "text-ink-3"}`}>

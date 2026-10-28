@@ -81,11 +81,14 @@ def test_a_new_client_is_named_and_asked_how_full_it_is(tmp_path):
 
 
 def test_remote_control_is_opened_with_the_sessions_name(tmp_path):
+    """claude.ai lists the session as "project: conversation", so a list of
+    sessions tells the projects apart."""
     subject = make_agent(tmp_path)
-    subject.session_settings = {"name": "thesis-ch3", "remote": True}
+    subject.session_settings = {"name": "Chapter 3 figures", "auto": "", "remote": True}
     client = Client()
     asyncio.run(subject._after_connect(client))
-    assert {"subtype": "remote_control", "enabled": True, "name": "thesis-ch3"} in client._query.sent
+    assert {"subtype": "remote_control", "enabled": True,
+            "name": "thesis: Chapter 3 figures"} in client._query.sent
     assert subject.remote == {"state": "connecting", "url": "https://claude.ai/code/session_x"}
 
 
@@ -111,13 +114,13 @@ def test_renaming_and_switching_tell_a_live_client(tmp_path):
 
     asyncio.run(go())
     assert client._query.sent == [
-        {"subtype": "rename_session", "title": "chapter three"},
-        {"subtype": "remote_control", "enabled": True, "name": "chapter three"},
+        {"subtype": "rename_session", "title": "thesis: chapter three"},
+        {"subtype": "remote_control", "enabled": True, "name": "thesis: chapter three"},
         {"subtype": "remote_control", "enabled": False},
     ]
     # Kept for the next client, in the state folder.
     assert ProjectAgent(tmp_path / "thesis", tmp_path / "state").session_settings == {
-        "name": "chapter three", "remote": False,
+        "name": "chapter three", "auto": "", "remote": False,
     }
     subject._client = None
 

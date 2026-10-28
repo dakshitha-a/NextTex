@@ -19,6 +19,8 @@ import secrets
 import time
 from pathlib import Path
 
+from nexttex.conversation import NAME_CHARS, clean_name, title_from
+
 # Enough to scroll back through a few weeks of work without the file
 # growing without bound.
 MAX_ITEMS = 4000
@@ -103,8 +105,16 @@ class Transcript:
         except OSError:
             temp.unlink(missing_ok=True)
 
-    def archive(self) -> str | None:
+    def archive(self, meta: dict | None = None) -> str | None:
         """Set this conversation aside and start an empty one.
+
+        `meta` is what continuing it later needs: the agent's account of
+        the conversation (the Claude session's id, or the OpenAI
+        provider's message list), its name and the provider. It goes in a
+        sidecar beside the archive, `<archive>.meta.json`, written before
+        the rename so an archive never exists without the sidecar it was
+        given; one that fails to write costs the continue, not the
+        conversation, which then continues from its record.
 
         Renamed rather than deleted.  The transcript is the record of what
         an assistant did to somebody's dissertation -- every edit with its
@@ -134,9 +144,12 @@ class Transcript:
         # next thing said was appended to the end of the old file. `None`
         # meant both "there was nothing to file away" and "it would not go",
         # which the caller could not tell apart either.
+        if meta:
+            self._write_meta(target, meta)
         try:
             self.path.rename(target)
         except OSError as failure:
+            self._meta_path(target).unlink(missing_ok=True)
             raise TranscriptError(str(failure)) from failure
         self._buffer.clear()
         self._counter = 0
@@ -188,9 +201,149 @@ class Transcript:
                             break
             except OSError:
                 pass
-            found.append({"name": old.name, "title": title, "size": size,
-                          "stamp": self._stamp_of(old.name)})
+            meta = self._read_meta(old)
+            named = clean_name(meta.get("name") or "")
+            found.append({
+                "name": old.name,
+                # The writer's name for it, or one made from its first
+                # question; `title` stays the question itself.
+                "conversation": named or title_from(title),
+                "named": bool(named),
+                "title": title,
+                "size": size,
+                "stamp": self._stamp_of(old.name),
+                # Whether its memory can come back with it, as far as
+                # NextTex knows: Claude Code may since have deleted the
+                # session, which only the CLI can say.
+                "resumable": bool(meta.get("session_id") or meta.get("messages")),
+            })
         return found
+
+    # -- the sidecar: what continuing a conversation needs -----------------
+    @staticmethod
+    def _meta_path(archive: Path) -> Path:
+        return archive.with_name(archive.name[: -len(".jsonl")] + ".meta.json")
+
+    def _write_meta(self, archive: Path, meta: dict) -> None:
+        target = self._meta_path(archive)
+        temp = target.with_name(target.name + ".tmp")
+        try:
+            temp.write_text(json.dumps(meta, default=str), encoding="utf-8")
+            temp.replace(target)
+        except (OSError, TypeError, ValueError):
+            temp.unlink(missing_ok=True)
+
+    def _read_meta(self, archive: Path) -> dict:
+        try:
+            meta = json.loads(self._meta_path(archive).read_text(encoding="utf-8"))
+        except (OSError, json.JSONDecodeError):
+            return {}
+        return meta if isinstance(meta, dict) else {}
+
+    def _archive_path(self, name: str) -> Path | None:
+        """The archive a route names, or None. The name is matched against
+        the shape `archive()` writes before anything is opened, so a route
+        cannot be pointed at another file."""
+        if not self.ARCHIVE_NAME.match(name):
+            return None
+        target = self.path.with_name(name)
+        return target if target.is_file() else None
+
+    def rename_archive(self, name: str, new_name: str) -> str | None:
+        """Give a past conversation a name; an empty one goes back to the
+        name made from its first question. None if there is no such
+        archive."""
+        target = self._archive_path(name)
+        if target is None:
+            return None
+        meta = self._read_meta(target)
+        meta["name"] = clean_name(new_name)[:NAME_CHARS]
+        self._write_meta(target, meta)
+        return meta["name"]
+
+    def delete_archive(self, name: str) -> bool:
+        """Delete NextTex's record of a past conversation and its sidecar.
+
+        Only NextTex's: Claude Code keeps its own copy of the session
+        under the home folder until it clears it, and that is the CLI's.
+        """
+        target = self._archive_path(name)
+        if target is None:
+            return False
+        try:
+            target.unlink()
+        except OSError as failure:
+            raise TranscriptError(str(failure)) from failure
+        self._meta_path(target).unlink(missing_ok=True)
+        return True
+
+    def restore(self, name: str) -> dict | None:
+        """Make a past conversation the live one again, and return its
+        sidecar, or None if there is no such archive.
+
+        The live conversation must already have been filed away, which the
+        route does first: this refuses rather than overwrite it. The file is
+        moved, not copied, so one conversation is never in two places, and
+        the in-memory buffer and counters start again, as `archive()` leaves
+        them, since every id the file carries is unique on its own.
+        """
+        target = self._archive_path(name)
+        if target is None:
+            return None
+        self._flush_text()
+        if self.path.exists():
+            raise TranscriptError("the live conversation has not been filed away")
+        meta = self._read_meta(target)
+        try:
+            target.rename(self.path)
+        except OSError as failure:
+            raise TranscriptError(str(failure)) from failure
+        self._meta_path(target).unlink(missing_ok=True)
+        self._buffer.clear()
+        self._counter = 0
+        self._appends = 0
+        return meta
+
+    def write_record(self, target: Path, limit: int = 400_000) -> Path | None:
+        """The live conversation as plain text a model can read, or None
+        when there is nothing in it.
+
+        For a conversation whose session Claude Code no longer has: the
+        fresh session is pointed at this file rather than handed the
+        transcript in its first message, which can be megabytes, the way an
+        attachment goes on disk and the question carries its path. What was
+        said, a line per tool call and per edit; the most recent part when
+        it is longer than `limit` characters, since the end is what a
+        continuation needs.
+        """
+        lines: list[str] = []
+        for item in self.items():
+            kind = item.get("kind")
+            if kind == "user":
+                lines.append(f"## The writer\n\n{item.get('text', '')}\n")
+            elif kind == "claude":
+                lines.append(f"## Claude\n\n{item.get('text', '')}\n")
+            elif kind == "tool":
+                lines.append(f"- Tool call: {item.get('name', '')}")
+            elif kind == "edit":
+                state = " (later undone)" if item.get("state") == "reverted" else ""
+                lines.append(f"- Edited {item.get('path', '')}{state}")
+            elif kind == "notice" and item.get("text"):
+                lines.append(f"- {item['text']}")
+        if not lines:
+            return None
+        text = "\n".join(lines)
+        if len(text) > limit:
+            text = "[The start of the conversation is left out.]\n\n" + text[-limit:]
+        try:
+            target.parent.mkdir(parents=True, exist_ok=True)
+            target.write_text(
+                "# The record of an earlier conversation in this project\n\n" + text + "\n",
+                encoding="utf-8",
+            )
+        except OSError:
+            return None
+        return target
 
     @staticmethod
     def _order_of(name: str) -> tuple[str, int]:
@@ -214,10 +367,8 @@ class Transcript:
         """One filed-away conversation's items, or None if there is no
         such archive. Read through the same tail the live transcript uses,
         so a very long past conversation shows its end."""
-        if not self.ARCHIVE_NAME.match(name):
-            return None
-        target = self.path.with_name(name)
-        if not target.is_file():
+        target = self._archive_path(name)
+        if target is None:
             return None
         return Transcript(target).items()
 
@@ -239,7 +390,8 @@ class Transcript:
             try:
                 old.unlink()
             except OSError:
-                pass
+                continue
+            self._meta_path(old).unlink(missing_ok=True)
 
     def _flush_text(self) -> None:
         if not self._buffer:
@@ -438,7 +590,10 @@ class Transcript:
             self._append({
                 "kind": "notice",
                 "text": event.get("message", ""),
-                "tone": "error" if kind == "error" else "plain",
+                # `continued` is the line that says a past conversation
+                # became the live one, drawn as a quiet line of its own.
+                "tone": "error" if kind == "error"
+                else "continued" if event.get("tone") == "continued" else "plain",
             })
         return event
 

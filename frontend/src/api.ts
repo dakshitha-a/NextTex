@@ -337,6 +337,14 @@ export type WordScope = "file" | "document" | "selection" | "section";
 /** A conversation filed away by "New conversation". */
 export type Archive = {
   name: string;
+  /** What the list calls it: the writer's name, or one made from its
+   *  first question. */
+  conversation: string;
+  /** Whether `conversation` is the writer's own name for it. */
+  named: boolean;
+  /** Whether its memory is expected back on Continue, as far as NextTex
+   *  knows; Claude Code may since have deleted the session. */
+  resumable: boolean;
   /** The first thing the writer asked, so the list can be read. */
   title: string;
   size: number;
@@ -1229,6 +1237,9 @@ const api = {
         paths: options.paths ?? null,
       }),
     ),
+  /** The live conversation's rows, as opening the project returns them. */
+  agentTranscript: (id: string) =>
+    request<{ items: any[]; busy: boolean }>(`/projects/${id}/agent/transcript`),
   /** The conversations "New conversation" filed away, newest first. */
   archives: (id: string) =>
     request<{ archives: Archive[] }>(`/projects/${id}/agent/archives`),
@@ -1236,6 +1247,24 @@ const api = {
   archive: (id: string, name: string) =>
     request<{ name: string; items: any[] }>(
       `/projects/${id}/agent/archives/${encodeURIComponent(name)}`,
+    ),
+  /** Name a past conversation; an empty name goes back to its question. */
+  renameArchive: (id: string, name: string, title: string) =>
+    request<{ name: string; conversation: string }>(
+      `/projects/${id}/agent/archives/${encodeURIComponent(name)}/rename`,
+      json({ title }),
+    ),
+  /** Delete NextTex's record of a past conversation, and only that. */
+  deleteArchive: (id: string, name: string) =>
+    request<{ ok: boolean }>(
+      `/projects/${id}/agent/archives/${encodeURIComponent(name)}`,
+      { method: "DELETE" },
+    ),
+  /** Make a past conversation the live one, filing the current one away. */
+  continueArchive: (id: string, name: string) =>
+    request<{ ok: boolean; filed: string | null; remembered: boolean }>(
+      `/projects/${id}/agent/archives/${encodeURIComponent(name)}/continue`,
+      { method: "POST" },
     ),
   /** The engine's own log for one document. `build/` is out of the file
    *  tree, so this is the only way the drawer can show it. */
@@ -1734,7 +1763,12 @@ export type AgentLimit = {
 export type AgentSession = {
   available: boolean;
   id?: string;
+  /** The live conversation's name as the writer gave it. */
   name?: string;
+  /** The name its first question gave it. */
+  autoName?: string;
+  /** What the CLI and claude.ai call the session: "project: conversation". */
+  sessionName?: string;
   folderName?: string;
   remote?: { enabled: boolean; state: string; url: string };
   context?: AgentContext | null;

@@ -39,6 +39,12 @@ from server.collab.peers import PeerNetwork
 from server.collab.store import CollabStore
 from server.collab.sync import SyncHub
 from server.transcript import Transcript
+from nexttex.conversation import (
+    AGENT_CONTINUED_NOTICE,
+    CLAUDE_GONE_NOTICE,
+    CONTINUED_NOTICE,
+    KEPT_NOTHING_NOTICE,
+)
 from nexttex.project import (
     CONFIG_NAME, IGNORED_DIRS, PreviewList, Project, ProjectConfig,
     guess_document, is_ours, under_ignored_directory,
@@ -479,6 +485,10 @@ class ProjectSession:
             base_url=base_url,
             compact_percent=lambda: self.settings().compact_percent,
         )
+
+        # The record a session reads when the memory of the conversation
+        # it continues is gone, written from the transcript on demand.
+        self.agent.conversation_record = self._conversation_record
 
         self._editor_state: dict = {}
         #: Documents with an edit waiting for the debounce to fire.
@@ -1740,6 +1750,72 @@ class ProjectSession:
             self.events.publish({"type": "history_changed", "paths": paths}),
             "announcing new versions",
         )
+
+    # -- conversations: filing one away, continuing one -------------------
+    def _conversation_record(self) -> Path | None:
+        """The live conversation as text, for a model whose memory of it
+        is gone. One file, rewritten each time it is needed."""
+        return self.transcript.write_record(
+            self.project.state_dir / "records" / "conversation.md"
+        )
+
+    def _conversation_meta(self) -> dict:
+        """What the live conversation's archive keeps for continuing it."""
+        state = getattr(self.agent, "conversation_state", None)
+        meta = dict(state()) if callable(state) else {}
+        meta["provider"] = self.provider
+        return meta
+
+    async def file_conversation(self) -> str | None:
+        """Put the live conversation away, as "New conversation" does.
+
+        The agent's account of it is read before `reset` forgets it, and
+        it goes into the archive's sidecar so the conversation can be
+        continued. Raises `RuntimeError` while a turn runs and
+        `TranscriptError` when the record would not move.
+        """
+        meta = self._conversation_meta()
+        await self.agent.reset()
+        return self.transcript.archive(meta)
+
+    async def continue_conversation(self, name: str) -> dict | None:
+        """Make the past conversation `name` the live one again.
+
+        The live one is filed away first, then the archive moves back into
+        place and the agent is handed its sidecar. None if there is no such
+        archive. A different provider's conversation comes back as its
+        record: a Claude session id means nothing to the OpenAI provider,
+        nor a message list to Claude.
+        """
+        if not self.transcript.ARCHIVE_NAME.match(name) or self.transcript.archived(name) is None:
+            return None
+        restore = getattr(self.agent, "restore_conversation", None)
+        if restore is None:
+            raise RuntimeError("this agent cannot continue a conversation")
+        if self.agent.busy:
+            raise RuntimeError("a turn is still running")
+        filed = await self.file_conversation()
+        meta = self.transcript.restore(name) or {}
+        if meta.get("provider", self.provider) != self.provider:
+            meta = {"name": meta.get("name", ""), "auto": meta.get("auto", "")}
+        remembered = await restore(meta)
+        # Written into the record here, before any tab is told, so the
+        # reload every tab makes already has it; sent through the agent's
+        # queue it could land after a reload and be lost from the screen.
+        claude = self.provider != "openai"
+        notice = {
+            (True, True): CONTINUED_NOTICE, (True, False): AGENT_CONTINUED_NOTICE,
+            (False, True): CLAUDE_GONE_NOTICE, (False, False): KEPT_NOTHING_NOTICE,
+        }[(bool(remembered), claude)]
+        self.transcript.record({"type": "notice", "message": notice, "tone": "continued"})
+        # Every tab, so none is left holding the conversation just filed.
+        await self.events.publish({"type": "conversation_continued", "filed": filed})
+        settings = getattr(self.agent, "session_settings", {}) or {}
+        if settings.get("remote") and hasattr(self.agent, "connect_now"):
+            # Remote control follows the live conversation, so the CLI is
+            # started on it now rather than at the next question.
+            spawn(self.agent.connect_now(), "reopening remote control on a continued conversation")
+        return {"filed": filed, "remembered": remembered}
 
     def _agent_context(self) -> str:
         parts = [self.context.prompt_section(), self.library.prompt_section()]

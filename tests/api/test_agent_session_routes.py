@@ -23,12 +23,14 @@ def session(client, project_id):
 def test_a_session_is_named_after_its_folder_until_it_is_renamed(client, opened):
     view = session(client, opened["id"])
     assert view["available"] is True
-    assert view["name"] == view["folderName"]
+    assert view["name"] == ""
+    assert view["sessionName"] == view["folderName"]
     response = client.post(f"/api/projects/{opened['id']}/agent/session",
                            json={"name": "  thesis   ch3 "})
     assert response.status_code == 200
     assert response.json()["name"] == "thesis ch3"
     assert session(client, opened["id"])["name"] == "thesis ch3"
+    assert session(client, opened["id"])["sessionName"] == f"{view['folderName']}: thesis ch3"
 
 
 def test_remote_control_is_kept_with_the_project_on_this_computer(client, opened):

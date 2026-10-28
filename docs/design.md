@@ -6041,6 +6041,9 @@ app cannot keep. What is shown is what was said and what was done: the prose,
 a line per tool call, a line per edit with its counts, a line per card with
 how it was answered.
 
+Section 128 adds what a conversation as a whole can do: Continue, Rename
+and Delete. The rows inside one stay a record.
+
 A very long past conversation shows its end, through the same tail the live
 transcript is read through. That is a limit, and it is written here rather
 than fixed, because the case is a conversation longer than four megabytes of
@@ -12766,3 +12769,56 @@ finds its paper by evidence. `e2e/specs/paper-pdfs.spec.ts` hovers a
 citation whose PDF lands three folders deep after the project opens,
 opens a DOI page, clicks the entries of a BibTeX bibliography and uses the
 page menu without hyperref. It adds no token.
+
+## 128. A past conversation can be continued
+
+Past conversations were a record and nothing more. "New conversation"
+deleted the session id the model remembers by, so a conversation filed
+away could be read and never picked up again. The writer asked, on 28
+October 2026, for a way to resume one, for names, and for an account of
+how this meets remote control. The design was delegated, drawn on the
+direction page as "A past conversation can be continued", and built.
+
+Each row now carries the conversation's name over when it was filed. The
+name is the writer's, or the first question cut at a word near sixty
+characters. Under the pointer, on focus and while its menu is open, a
+More button shows at the row's end. It holds four things: Open, Continue
+this conversation, Rename and Delete, the last in the error ink after a
+divider. A right-click on the row opens the same menu at the pointer,
+since the row now has more than one thing to do; the right-click rule of
+4.11.0 moved Past conversations from its "out" list to its "in"
+list on the same day.
+
+An open past conversation keeps its record, still drawn with no controls
+on the rows, and gains a foot pinned to the column's bottom edge: a full
+width pen button, "Continue this conversation", over one line saying what
+it does. While the agent is answering, the button is drawn in surface-3
+and the third ink, the pair the disabled send button uses, and the line
+says to wait. Continue files the current conversation away, so nothing is
+lost, and goes back to the live column, which now holds the continued
+conversation. A quiet line with the history mark follows its last turn:
+"Continued. Claude remembers this conversation." Claude Code deletes its
+own copy of a session after about thirty days; continuing one older than
+that starts a fresh session that reads the old record before its first
+answer, and the line says so instead.
+
+Rename turns the row, or the open conversation's title, into the kit's
+field with the name selected. Enter or leaving the field saves, and
+Escape puts it back. Delete asks first, inside the menu: "Delete
+NextTex's record of this conversation?", with a line under it saying that
+Claude Code keeps its own copy until it clears it. That second line is
+the honest one; the record NextTex deletes is the only one it owns.
+
+Remote control stays a project setting and follows whichever conversation
+is live. The session is called "project: conversation" on claude.ai and
+to other Claude Code sessions, so a list of sessions tells projects
+apart. The Session view's name field is now "Conversation name", empty
+until the writer types one, with the name the first question gave as its
+placeholder, and the remote control line says what claude.ai calls the
+session. Continuing a different conversation gives the claude.ai side a
+new link.
+
+The mechanics are in `docs/architecture.md` under A past conversation can
+be continued. `e2e/specs/past-continue.spec.ts` continues, renames and
+deletes a conversation and reads the Session view's names. It adds no
+token.

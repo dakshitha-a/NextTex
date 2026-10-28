@@ -361,6 +361,19 @@ describe("a notice reaches the panel and keeps its tone", () => {
     expect(after[1]).toMatchObject({ text: "Working on it. Done.", streaming: false });
   });
 
+  test("a continued conversation is not read as an interrupted one", () => {
+    // The line saying it was continued comes after the last turn's end,
+    // and was taken for that turn's last row: every continued conversation
+    // came back saying its answer was interrupted by a restart.
+    replayTranscript([
+      { kind: "user", text: "Tighten the abstract" }, { kind: "claude", text: "Done." }, { kind: "turn_end" },
+      { kind: "notice", text: "Continued. Claude remembers this conversation.", tone: "continued" },
+    ]);
+    const chat = get().chat;
+    expect(chat.at(-1)).toMatchObject({ kind: "notice", tone: "continued" });
+    expect(chat.some((item: any) => /interrupted/.test(item.text ?? ""))).toBe(false);
+  });
+
   test("a turn with no end is still interrupted when nothing is running", () => {
     replayTranscript([{ kind: "user", text: "hello" }, { kind: "turn_end" }, { kind: "user", text: "again" }]);
     expect(get().chat.at(-1)).toMatchObject({ kind: "notice", text: "That answer was interrupted when NextTex restarted." });

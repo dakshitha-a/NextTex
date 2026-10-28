@@ -54,6 +54,12 @@ from . import comment_tools
 from . import page_icons
 from . import permission_gate as gate
 from .project import is_control_path
+from .conversation import (
+    CLAUDE_GONE_NOTICE as GONE_NOTICE,
+    FROM_RECORD,
+    clean_name,
+    title_from,
+)
 from .explain import compile_report
 from .pages import Pages
 from .writing import PROSE
@@ -85,6 +91,13 @@ SESSION_FILE = "session.json"
 #: remote control opens a connection from the writer's own account, and a
 #: co-author's copy of a shared project must not carry that with it.
 SESSION_SETTINGS_FILE = "session-settings.json"
+
+#: What the CLI says when it is asked to resume a session it no longer
+#: has, measured against 2.1.312 on 28 October 2026: `connect()` raises a
+#: `ResultError` carrying this text. Claude Code deletes a session's file
+#: after `cleanupPeriodDays`, thirty by default, so a project left that
+#: long, or a past conversation older than that, asks for one.
+NO_SESSION = "No conversation found with session ID"
 
 #: Where the CLI summarizes the conversation, as a percentage of the
 #: model's window.  The CLI's own default waits for a nearly full window,
@@ -577,6 +590,12 @@ class ProjectAgent:
         self.context: dict | None = None
         #: Remote control as the CLI last reported it.
         self.remote: dict = {"state": "off", "url": ""}
+        #: Writes the live conversation's record to disk and returns its
+        #: path, for a session that has to start again from it. The
+        #: project session sets it; the transcript is the server's.
+        self.conversation_record: Callable[[], Path | None] = lambda: None
+        # Whether the next question should be pointed at that record.
+        self._from_record = False
         # Whether the running turn began outside NextTex while remote
         # control is on.  Such a turn never raises a card.
         self._remote_turn = False
@@ -2911,11 +2930,30 @@ class ProjectAgent:
         self._memory_dirty = False
         self._built_compact = self._compact_now()
         client = ClaudeSDKClient(options=self._options())
-        await client.connect()
+        try:
+            await client.connect()
+        except Exception as exc:
+            if NO_SESSION not in str(exc):
+                raise
+            # The session this conversation remembers by is gone. Asking
+            # again would fail the same way on every question, which is
+            # what a project left for a month used to do, so it starts a
+            # fresh one and the next question is pointed at the record.
+            log.info("the CLI no longer has session %s; starting a fresh one",
+                     self._session_id or self._load_session())
+            self._forget_session_id()
+            self._from_record = True
+            await self._emit({"type": "notice", "message": GONE_NOTICE, "tone": "continued"})
+            client = ClaudeSDKClient(options=self._options())
+            await client.connect()
         self._client = client
         self._cost_seen = 0.0
         await self._after_connect(client)
         return client
+
+    def _forget_session_id(self) -> None:
+        self._session_id = None
+        self._session_path.unlink(missing_ok=True)
 
     def _compact_now(self) -> int:
         try:
@@ -2933,7 +2971,9 @@ class ProjectAgent:
         except (OSError, json.JSONDecodeError):
             saved = {}
         name = saved.get("name") if isinstance(saved.get("name"), str) else ""
-        return {"name": name.strip()[:80], "remote": saved.get("remote") is True}
+        auto = saved.get("auto") if isinstance(saved.get("auto"), str) else ""
+        return {"name": clean_name(name), "auto": clean_name(auto),
+                "remote": saved.get("remote") is True}
 
     def _save_session_settings(self) -> None:
         try:
@@ -2945,10 +2985,67 @@ class ProjectAgent:
             log.warning("could not save the session's settings: %s", exc)
 
     @property
+    def conversation_name(self) -> str:
+        """The live conversation's name: the writer's, or the one made from
+        its first question, or nothing before anything was asked."""
+        return self.session_settings.get("name") or self.session_settings.get("auto") or ""
+
+    @property
     def session_name(self) -> str:
-        """What other Claude Code sessions call this one: the writer's
-        name for it, or the project folder's."""
-        return self.session_settings.get("name") or self.root.name
+        """What other Claude Code sessions and claude.ai call this one:
+        "project: conversation", so a list of sessions tells the projects
+        apart, or the project folder's name before the conversation has
+        one."""
+        named = self.conversation_name
+        return f"{self.root.name}: {named}" if named else self.root.name
+
+    async def _name_from(self, prompt: str) -> None:
+        """Name an unnamed conversation from its first question, and tell
+        a live CLI, so claude.ai's list says what the session is about."""
+        if self.conversation_name:
+            return
+        auto = title_from(prompt)
+        if not auto:
+            return
+        self.session_settings["auto"] = auto
+        self._save_session_settings()
+        if self._client is not None:
+            await self._control(self._client, {"subtype": "rename_session", "title": self.session_name})
+
+    def conversation_state(self) -> dict:
+        """What continuing this conversation later needs, for the sidecar
+        its archive keeps: the session id the CLI resumes by, and its name."""
+        return {
+            "session_id": self._session_id or self._load_session() or "",
+            "name": self.session_settings.get("name", ""),
+            "auto": self.session_settings.get("auto", ""),
+        }
+
+    async def restore_conversation(self, state: dict) -> bool:
+        """Make a filed-away conversation the live one, from its sidecar.
+
+        The route has already filed the current one away and called
+        `reset`, and moved the transcript back. What is left is the model's
+        side: the id the next client resumes by, and the name. Without an
+        id, an archive from before archives kept one, the next question is
+        pointed at the record instead; with one the CLI no longer has,
+        `_ensure_client` finds that out on connect and does the same.
+        Returns whether the model's own memory is expected back.
+        """
+        if self.busy:
+            raise RuntimeError("a turn is still running")
+        await self.disconnect()
+        session_id = str(state.get("session_id") or "")
+        if session_id:
+            self._session_id = session_id
+            self._save_session(session_id)
+        else:
+            self._forget_session_id()
+        self._from_record = not session_id
+        self.session_settings["name"] = clean_name(state.get("name") or "")
+        self.session_settings["auto"] = clean_name(state.get("auto") or "")
+        self._save_session_settings()
+        return bool(session_id)
 
     async def _control(self, client: Any, request: dict) -> dict | None:
         """Send the CLI a control request the SDK has no method for.
@@ -3066,7 +3163,12 @@ class ProjectAgent:
         """What the Session view and the column's foot show."""
         return {
             "id": self._session_id or self._load_session() or "",
-            "name": self.session_name,
+            # The conversation's name as the writer gave it, the one its
+            # first question gave it, and what the CLI and claude.ai are
+            # told, which puts the project in front.
+            "name": self.session_settings.get("name", ""),
+            "autoName": self.session_settings.get("auto", ""),
+            "sessionName": self.session_name,
             "folderName": self.root.name,
             "remote": {"enabled": bool(self.session_settings.get("remote")), **self.remote},
             "context": self.context,
@@ -3358,6 +3460,7 @@ class ProjectAgent:
         self._last_event = time.monotonic()
         self._why = prompt.strip().splitlines()[0][:120] if prompt.strip() else ""
         await self._emit({"type": "turn_start", "prompt": prompt})
+        await self._name_from(prompt)
         self._turn = asyncio.create_task(
             self._run_turn(f"{context}\n\n{prompt}" if context else prompt)
         )
@@ -3491,6 +3594,11 @@ class ProjectAgent:
             self._last_used = time.monotonic()
             client = await self._ensure_client()
             if prompt is not None:
+                if self._from_record:
+                    self._from_record = False
+                    record = self.conversation_record()
+                    if record is not None:
+                        prompt = FROM_RECORD.format(path=record) + "\n\n" + prompt
                 await client.query(prompt)
 
             # With include_partial_messages on, text arrives twice: as
@@ -3793,8 +3901,13 @@ class ProjectAgent:
         """
         if self.busy:
             raise RuntimeError("a turn is still running")
-        self._session_id = None
-        self._session_path.unlink(missing_ok=True)
+        self._forget_session_id()
+        self._from_record = False
+        # A new conversation has no name until its first question gives
+        # it one; remote control is the project's and stays.
+        self.session_settings["name"] = ""
+        self.session_settings["auto"] = ""
+        self._save_session_settings()
         # The point of "for this conversation" is that this is where it
         # ends.  The remembered rules stay, for the reason given above.
         self._conversation_allow.clear()

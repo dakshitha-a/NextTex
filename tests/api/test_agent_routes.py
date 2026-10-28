@@ -353,3 +353,73 @@ def test_only_an_archive_can_be_read_through_the_archive_route(client, opened):
     for name in ("transcript.jsonl", "..%2F..%2Fmain.tex", "transcript-20260101-000000.jsonl"):
         answer = client.get(f"/api/projects/{pid}/agent/archives/{name}")
         assert answer.status_code == 404, (name, answer.text)
+
+
+def test_a_past_conversation_is_continued_with_its_session(client, opened):
+    """Continue files the live conversation away and makes the chosen one
+    live again, with the session id it remembers by and its name."""
+    from server import main as server_main
+
+    pid = opened["id"]
+    client.post(f"/api/projects/{pid}/agent/ask", json={"prompt": "Tighten the abstract"})
+    wait_idle(pid)
+    agent = server_main.SESSIONS[pid].agent
+    kept_id = agent.session_id
+    first = client.post(f"/api/projects/{pid}/agent/reset").json()["archived"]
+    client.post(f"/api/projects/{pid}/agent/ask", json={"prompt": "Now the methods"})
+    wait_idle(pid)
+
+    listed = client.get(f"/api/projects/{pid}/agent/archives").json()["archives"]
+    assert listed[0]["conversation"] == "Tighten the abstract" and listed[0]["resumable"]
+
+    answer = client.post(f"/api/projects/{pid}/agent/archives/{first}/continue")
+    assert answer.status_code == 200, answer.text
+    assert answer.json()["remembered"] is True
+    assert agent.session_id == kept_id
+    items = client.post(f"/api/projects/{pid}/open").json()["transcript"]
+    assert [i["text"] for i in items if i["kind"] == "user"] == ["Tighten the abstract"]
+    assert items[-1] == {**items[-1], "kind": "notice",
+                         "text": "Continued. Claude remembers this conversation."}
+    # The conversation it replaced is now the one filed away.
+    now = client.get(f"/api/projects/{pid}/agent/archives").json()["archives"]
+    assert [entry["conversation"] for entry in now] == ["Now the methods"]
+    session = client.get(f"/api/projects/{pid}/agent/session").json()
+    assert session["autoName"] == "Tighten the abstract"
+    assert session["sessionName"].endswith(": Tighten the abstract")
+
+
+def test_a_past_conversation_is_renamed_and_deleted(client, opened):
+    pid = opened["id"]
+    client.post(f"/api/projects/{pid}/agent/ask", json={"prompt": "first"})
+    wait_idle(pid)
+    name = client.post(f"/api/projects/{pid}/agent/reset").json()["archived"]
+    renamed = client.post(f"/api/projects/{pid}/agent/archives/{name}/rename",
+                          json={"title": "Chapter 3 figures"})
+    assert renamed.status_code == 200 and renamed.json()["conversation"] == "Chapter 3 figures"
+    assert client.get(f"/api/projects/{pid}/agent/archives").json()["archives"][0]["named"]
+    assert client.delete(f"/api/projects/{pid}/agent/archives/{name}").status_code == 200
+    assert client.get(f"/api/projects/{pid}/agent/archives").json()["archives"] == []
+
+
+@pytest.mark.parametrize("name", ["transcript.jsonl", "..%2F..%2Fmain.tex", "..%2Ftranscript.jsonl",
+                                  "transcript-20260101-000000.jsonl"])
+def test_only_an_archive_can_be_renamed_deleted_or_continued(client, opened, name):
+    """Path escape: each route takes an archive's name, and a name outside
+    the shape `archive()` writes is refused before anything is opened. An
+    encoded slash never reaches the route at all, which is a refusal too."""
+    from server import main as server_main
+
+    pid = opened["id"]
+    client.post(f"/api/projects/{pid}/agent/ask", json={"prompt": "keep me"})
+    wait_idle(pid)
+    session = server_main.SESSIONS[pid]
+    live = session.transcript.path.read_text()
+    main = session.project.root / "main.tex"
+    before = main.read_text() if main.exists() else None
+    refused = (404, 405)
+    assert client.post(f"/api/projects/{pid}/agent/archives/{name}/rename",
+                       json={"title": "x"}).status_code in refused
+    assert client.delete(f"/api/projects/{pid}/agent/archives/{name}").status_code in refused
+    assert client.post(f"/api/projects/{pid}/agent/archives/{name}/continue").status_code in refused
+    assert session.transcript.path.read_text() == live
+    assert (main.read_text() if main.exists() else None) == before

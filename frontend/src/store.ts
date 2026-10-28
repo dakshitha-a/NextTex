@@ -122,7 +122,7 @@ export type ChatItem =
       id: string;
       items: { text: string; state: "pending" | "active" | "done" }[];
     }
-  | { kind: "notice"; id: string; text: string; tone: "error" | "plain" }
+  | { kind: "notice"; id: string; text: string; tone: "error" | "plain" | "continued" }
   /** The CLI summarized the conversation to make room. `before` and
    *  `after` are how full it was, in per cent of the window; `after` is
    *  known only when the turn ends. */
@@ -698,7 +698,7 @@ export function chatFromTranscript(items: any[], options: { running?: boolean } 
       // recorded one came from an `error` event, so an absent tone is red.
       chat.push({
         kind: "notice", id: nextId(), text: item.text ?? "",
-        tone: item.tone === "plain" ? "plain" : "error",
+        tone: item.tone === "plain" || item.tone === "continued" ? item.tone : "error",
       });
     } else if (item.kind === "turn_end") {
       chat.push({ kind: "turn_end", id: nextId() });
@@ -747,9 +747,13 @@ function danglingTurn(chat: ChatItem[]): boolean {
   // A record written before this existed has no `turn_end` in it at all,
   // so the old shape test is kept for those: an old transcript reads as it
   // always did rather than as one long interruption.
-  const last = chat[chat.length - 1];
+  // The line saying a past conversation was continued belongs to no turn:
+  // it follows the last turn's end, and read as that turn's last row it
+  // called a finished conversation interrupted.
+  const turns = chat.filter((item) => !(item.kind === "notice" && item.tone === "continued"));
+  const last = turns[turns.length - 1];
   if (!last) return false;
-  if (chat.some((item) => item.kind === "turn_end")) return last.kind !== "turn_end";
+  if (turns.some((item) => item.kind === "turn_end")) return last.kind !== "turn_end";
   return last.kind === "user" || last.kind === "tool" || last.kind === "edit";
 }
 
@@ -1295,6 +1299,12 @@ function receive(event: any) {
       // transcript the server has filed away and will not answer for.
       clearChat();
       break;
+    case "conversation_continued":
+      // A past conversation became the live one, from this tab or
+      // another: every tab draws it from the server's record, which
+      // already ends with the line saying how it was continued.
+      void reloadConversation();
+      break;
     case "agent_settings":
       // `mode` where a current server sends one, and the old boolean where
       // it does not, so a browser talking to an install that has not been
@@ -1645,7 +1655,7 @@ function receive(event: any) {
         kind: "notice",
         id: nextId(),
         text: event.message ?? "",
-        tone: "plain",
+        tone: event.tone === "continued" ? "continued" : "plain",
       });
       break;
     case "compacted":
@@ -1781,6 +1791,26 @@ export function summariseTool(name: string, input: any): string {
  *
  *  Not `usage`, which is what this project has cost rather than what was
  *  said, and not the composer draft, which is the writer's own typing. */
+/** The live conversation again, from the server, and the session's name
+ *  with it, since a continued conversation brings its own. */
+export async function reloadConversation(): Promise<void> {
+  const projectId = state.projectId;
+  if (!projectId) return;
+  try {
+    const answer = await api.agentTranscript(projectId);
+    if (state.projectId !== projectId) return;
+    replayTranscript(answer.items, { running: answer.busy });
+  } catch {
+    // The next event or a reload draws it; nothing here to say.
+  }
+  try {
+    const session = await api.agentSession(projectId);
+    if (state.projectId === projectId) set({ session });
+  } catch {
+    /* the Session view asks again when it opens */
+  }
+}
+
 export function clearChat(): void {
   set({ chat: [], thinking: false, awaitingPermission: false, activity: null });
 }

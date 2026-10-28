@@ -6856,6 +6856,15 @@ async def agent_ask(
     return {"ok": True, "attached": paths, "files": [item.path for item in pointed]}
 
 
+@app.get("/api/projects/{project_id}/agent/transcript")
+async def agent_transcript(project_id: str):
+    """The live conversation's rows, for a tab told that a past one was
+    continued: what opening the project returns, without the rest."""
+    session = session_for(project_id)
+    items = await asyncio.to_thread(session.transcript.items)
+    return {"items": items, "busy": bool(session.agent.busy)}
+
+
 @app.get("/api/projects/{project_id}/agent/archives")
 async def agent_archives(project_id: str):
     """The conversations filed away by "New conversation", newest first."""
@@ -6877,6 +6886,56 @@ async def agent_archive(project_id: str, name: str):
     return {"name": name, "items": items}
 
 
+@app.post("/api/projects/{project_id}/agent/archives/{name}/rename")
+async def agent_archive_rename(project_id: str, name: str, title: str = Body(..., embed=True)):
+    """Name a past conversation; an empty name goes back to the one made
+    from its first question."""
+    session = session_for(project_id)
+    if len(title) > 200:
+        raise HTTPException(400, "a conversation's name is at most 80 characters")
+    named = await asyncio.to_thread(session.transcript.rename_archive, name, title)
+    if named is None:
+        raise HTTPException(404, "no such conversation")
+    return {"name": name, "conversation": named}
+
+
+@app.delete("/api/projects/{project_id}/agent/archives/{name}")
+async def agent_archive_delete(project_id: str, name: str):
+    """Delete NextTex's record of a past conversation.
+
+    Only NextTex's: Claude Code keeps its own copy of the session until it
+    clears it, and the panel's confirm says so.
+    """
+    session = session_for(project_id)
+    try:
+        deleted = await asyncio.to_thread(session.transcript.delete_archive, name)
+    except TranscriptError as failure:
+        raise HTTPException(409, f"The conversation could not be deleted: {failure}")
+    if not deleted:
+        raise HTTPException(404, "no such conversation")
+    return {"ok": True}
+
+
+@app.post("/api/projects/{project_id}/agent/archives/{name}/continue")
+async def agent_archive_continue(project_id: str, name: str):
+    """Make a past conversation the live one, filing the current one away.
+
+    Refused while a turn runs, as "New conversation" is. `remembered` says
+    whether the model's own memory is expected back; without it the next
+    question is pointed at the conversation's record.
+    """
+    session = session_for(project_id)
+    try:
+        answer = await session.continue_conversation(name)
+    except RuntimeError as exc:
+        raise HTTPException(409, str(exc))
+    except TranscriptError as failure:
+        raise HTTPException(409, f"The conversation could not be continued: {failure}")
+    if answer is None:
+        raise HTTPException(404, "no such conversation")
+    return {"ok": True, **answer}
+
+
 @app.post("/api/projects/{project_id}/agent/reset")
 async def agent_reset(project_id: str):
     """Put this conversation away and start an empty one.
@@ -6888,11 +6947,9 @@ async def agent_reset(project_id: str):
     """
     session = session_for(project_id)
     try:
-        await session.agent.reset()
+        archived = await session.file_conversation()
     except RuntimeError as exc:
         raise HTTPException(409, str(exc))
-    try:
-        archived = session.transcript.archive()
     except TranscriptError as failure:
         # The conversation is still there, so saying it was cleared would
         # be a lie the panel then acts on: it empties itself and the next

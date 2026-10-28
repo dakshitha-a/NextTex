@@ -270,6 +270,16 @@ OpenAI provider against OpenAI itself.
 
 ### Known gaps, with a cost somebody will eventually pay
 
+- [ ] **The record a fresh session reads is long for a small model.**
+      When a continued conversation's memory is gone, the agent is pointed
+      at `conversation.md`, up to 400,000 characters. Claude reads that
+      comfortably; a local model through the OpenAI provider may not, and
+      its `read_file` returns the whole file. A limit per provider, or a
+      summary, would serve it better.
+- [ ] **Delete leaves Claude Code's copy of the session.** Past
+      conversations' Delete removes NextTex's record only, and says so.
+      Removing the CLI's own file under the home folder too would need
+      the CLI's folder naming, which is its business, not ours.
 - [ ] **The page check's broken-page test flaked once on CI.**
       `test_a_broken_page_comes_back_to_the_agent_with_its_error_and_a_picture`
       failed on the Linux runner on 26 October 2026 with "had not read it
@@ -436,6 +446,11 @@ OpenAI provider against OpenAI itself.
 
 ### Never run against the real thing
 
+- [ ] **Continuing a conversation with remote control on.** The
+      rename and the reopened remote session after a continue were checked
+      against the scripted stand-in and a fake client, not at claude.ai.
+      The session should appear there as "project: conversation" with a
+      new link; one look settles it.
 - [ ] **A venue template's install on MiKTeX.** Each template's
       `[needs]` names TeX Live packages, and `texpkg.install_argv` hands
       the name to MiKTeX unchanged; most names coincide, some may not.
