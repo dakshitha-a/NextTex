@@ -300,12 +300,6 @@ OpenAI provider against OpenAI itself.
       Running `scripts/install.sh` again does both. Left on the owner's word
       on 26 October 2026: there was one Mac install, and new ones start
       from scratch.
-- [ ] **The browser tier's fake tlmgr never asks to update itself.**
-      `texpkg.install` runs `tlmgr update --self` and installs again when
-      tlmgr says it must, which `tests/test_texpkg.py` holds with a fake
-      `create_subprocess_exec`. `tests/fake_tlmgr.py` has no package that
-      answers that way, so no browser spec has seen the drawer's button
-      through the retry.
 - [ ] **History calls an agent's version "Claude" whatever the agent.**
       A version records that the agent made it, not which provider, so with
       ChatGPT or a local model the History drawer still says Claude. The

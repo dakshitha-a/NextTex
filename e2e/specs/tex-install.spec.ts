@@ -158,3 +158,44 @@ test("an install queued behind another project's says it is waiting, then instal
     await app.stop();
   }
 });
+
+test("a tlmgr that must update itself first still installs from the row", async ({
+  page,
+}, info) => {
+  // TinyTeX's tlmgr lags its repository and refuses every install until
+  // `tlmgr update --self` has run; the button runs it and tries again.
+  const log = join(info.outputPath(), "tlmgr.jsonl");
+  const app = await startServer({
+    NEXTTEX_TLMGR: join(ROOT, "tests", "fake_tlmgr.py"),
+    NEXTTEX_FAKE_TLMGR_LOG: log,
+  });
+  try {
+    const project = await seedProject(app, `tex-self-${Date.now()}`);
+    await put(
+      app, project.id, "main.tex",
+      "\\documentclass{article}\n\\usepackage{selfupdate}\n\\begin{document}\nHello.\n\\end{document}\n",
+    );
+    await page.goto(`${app.base}/?token=${app.token}`);
+    await page.getByText("Projects", { exact: false }).first().waitFor();
+    await openProject(page, project.root);
+    await expect(page.getByTestId("status")).toHaveAttribute("data-state", "errors", {
+      timeout: 60_000,
+    });
+    await page.getByTestId("status").click();
+    await page.getByTestId("diagnostics").getByRole("button", { name: /selfupdate\.sty/ })
+      .first().click();
+    const install = page.getByTestId("tex-install");
+    await expect(install).toHaveText("Install selfupdate-pkg", { timeout: 15_000 });
+    await install.click();
+    await install.click();
+    await expect(page.getByTestId("tex-install-done")).toBeVisible({ timeout: 15_000 });
+    const calls = readFileSync(log, "utf-8").trim().split("\n").map((line) => JSON.parse(line));
+    expect(calls.slice(1)).toEqual([
+      ["install", "selfupdate-pkg"],
+      ["update", "--self"],
+      ["install", "selfupdate-pkg"],
+    ]);
+  } finally {
+    await app.stop();
+  }
+});
