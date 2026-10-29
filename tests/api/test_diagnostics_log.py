@@ -161,11 +161,10 @@ def test_a_superseded_build_is_recorded_with_what_replaced_it(client, opened, lo
     state.compiler.build = fake_build
     state.compiler.cancel = cancel
     assert client.post(f"/api/projects/{opened['id']}/compile",
-                       json={"cause": "open"}).status_code == 200
-    wait_idle(client)
+                       json={"cause": "rebuild"}).status_code == 200
     builds = [row for row in log("build") if not row["settling"]]
     cancelled = [row for row in builds if row["outcome"] == "cancelled"]
-    assert cancelled and cancelled[0]["cause"] == "open"
+    assert cancelled and cancelled[0]["cause"] == "rebuild"
     assert cancelled[0]["superseded_by"] == "edit"
     assert any(row["outcome"] == "ok" and row["cause"] == "edit" for row in builds)
 

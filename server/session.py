@@ -33,7 +33,7 @@ from nexttex.atomic import read_text, write_atomically
 from nexttex.config import Settings
 from nexttex.history import History
 from nexttex.scripts import ScriptRuns
-from nexttex.symbols import SymbolCache
+from nexttex.symbols import SymbolCache, walk_project
 from nexttex.trash import Trash
 from server.collab.peers import PeerNetwork
 from server.collab.store import CollabStore
@@ -1378,6 +1378,10 @@ class ProjectSession:
         references are waiting on.
         """
         state = self.document_for(document)
+        if cause == "open" and not (force_full or clean):
+            reused = await self._reuse_on_open(state)
+            if reused is not None:
+                return reused
         if follow and not settling and state.debounce is not None and not state.debounce.done():
             state.debounce.cancel()
         # Every build carries an id, and its result carries the same one.
@@ -1475,6 +1479,66 @@ class ProjectSession:
         if result.outcome is Outcome.CANCELLED and follow:
             return await self._result_after(state, build, result)
         return result
+
+    async def _reuse_on_open(self, state: DocumentState) -> CompileResult | None:
+        """What an open of the project can be answered with short of a build
+        of its own, or None when it needs one.
+
+        Only for a project being opened: every other cause has a reason to
+        build.  A build already running is joined rather than replaced.
+        Otherwise the scheduler must vouch for the PDF on disk and its log,
+        and no file of the writer's may be newer than the PDF, which is the
+        download route's test widened to every file, since a figure or a
+        `nexttex.toml` changed while the server was off matters to the page
+        as much as a `.tex`.  A newer file of any kind means a build; that
+        is the safe direction to be wrong in.
+        """
+        if state.debounce is not None and not state.debounce.done():
+            return None
+        if state.in_flight:
+            # Another tab, or this one before a reload, already asked: the
+            # build running is the page this open wants, and replacing it
+            # threw its work away.  Four opens after the 27 October restart
+            # waited 78 s behind builds that kept superseding each other.
+            fallback = CompileResult(Outcome.CANCELLED, None, None, 0.0, "full", "fast")
+            joined = await self._result_after(state, state.finished, fallback)
+            return None if joined is fallback else joined
+        if state.edited_at > state.covered_at and state.last_result is not None:
+            return None
+        result = await state.compiler.on_disk()
+        if result is None:
+            return None
+        stamp = state.paths.pdf.stat().st_mtime
+        if await asyncio.to_thread(self._changed_since, stamp):
+            return None
+        state.build_id += 1
+        build = state.build_id
+        payload = await self.client_payload(result, state.path)
+        state.last_result, state.last_payload = result, payload
+        state.diagnostics = payload.get("diagnostics", [])
+        state.finished = max(state.finished, build)
+        diag.event("build", project=self.project.root.name, document=state.path,
+                   outcome="reused", ms=0, waited_ms=0, scope="full",
+                   engine_pass="none", engine=result.engine, settling=False,
+                   errors=len(result.log.errors) if result.log else 0, recovered="",
+                   cause="open")
+        await self.events.publish(
+            {"type": "compile_done", "build": build, "document": state.path,
+             "settling": False, **payload}
+        )
+        return result
+
+    def _changed_since(self, stamp: float) -> bool:
+        """Whether any file of the writer's was written after `stamp`."""
+        for path in walk_project(self.project.root, build_dir=self.project.build_dir):
+            if is_ours(path.name):
+                continue
+            try:
+                if path.stat().st_mtime > stamp:
+                    return True
+            except OSError:
+                continue
+        return False
 
     async def _result_after(
         self, state: DocumentState, build: int, fallback: CompileResult,

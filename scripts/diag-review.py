@@ -221,7 +221,8 @@ def resources(rows: list[dict]) -> None:
 def work(rows: list[dict]) -> None:
     section("Builds and agent turns")
     every = [r for r in rows if r["kind"] == "build"]
-    builds = [r for r in every if r["outcome"] != "cancelled"]
+    builds = [r for r in every if r["outcome"] not in ("cancelled", "reused")]
+    reused = [r for r in every if r["outcome"] == "reused"]
     if builds:
         by = defaultdict(list)
         for row in builds:
@@ -239,6 +240,8 @@ def work(rows: list[dict]) -> None:
     causes = Counter(r["cause"] for r in builds if r.get("cause"))
     if causes:
         print(f"\nWhat asked for them: {dict(causes.most_common())}")
+    if reused:
+        print(f"{len(reused)} opens answered from the PDF on disk without a build")
     cancelled = [r for r in every if r["outcome"] == "cancelled"]
     if cancelled:
         lost = defaultdict(int)

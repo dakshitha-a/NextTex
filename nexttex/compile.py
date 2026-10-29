@@ -1237,6 +1237,36 @@ class CompileScheduler:
         ):
             self._require_full()
 
+    async def on_disk(self) -> CompileResult | None:
+        """The last whole build, read back from disk, when it can stand.
+
+        Opening a project asked for a build of every previewed document,
+        and on the thesis that was a 9 s full pass, then 37 s once a server
+        had restarted, for a PDF already current.  This answers instead
+        when the PDF is the whole document by its scope marker and its log
+        asks for no rerun.  Whether any source is newer is the caller's to
+        say, since it knows the project.  Nothing here changes what the next
+        build does: `needs_full` is untouched, so after a restart the first
+        edit still gets the full pass a cold scheduler owes.
+        """
+        if self._process is not None and self._process.returncode is None:
+            return None
+        if not self.paths.pdf.is_file() or not self.pdf_is_complete():
+            return None
+        log = await asyncio.to_thread(self._read_log)
+        if log is None or log.rerun_needed or log.bibliography_stale:
+            return None
+        try:
+            main_source = await asyncio.to_thread(
+                self.paths.main.read_text, encoding="utf-8", errors="replace")
+        except OSError:
+            return None
+        engine = engine_for(main_source, self.engine_setting())
+        return CompileResult(
+            Outcome.ERRORS if log.errors else Outcome.OK, log, self.paths.pdf, 0.0,
+            "full", "full", engine, self.shell_escape(), _VERSIONS.get(engine, ""),
+        )
+
     def _read_log(self) -> ParsedLog | None:
         """Read and parse the engine's log, off the loop.
 

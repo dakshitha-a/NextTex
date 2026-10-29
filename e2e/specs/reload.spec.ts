@@ -136,3 +136,23 @@ test("a reload in the middle of a turn comes back to a turn in progress", async 
   await expect(tab.getByText("That answer was interrupted when NextTex restarted.")).toHaveCount(0);
   await tab.getByTestId("stop").click();
 });
+
+test("a reload with nothing changed shows the page without building it again", async ({
+  tab,
+}) => {
+  // The first open builds, and may settle after; wait until it rests.
+  const strip = tab.getByTestId("status");
+  await expect(strip).toHaveAttribute("data-state", "built", { timeout: 60_000 });
+  await tab.waitForTimeout(2_500);
+  await expect(strip).toHaveAttribute("data-state", "built", { timeout: 60_000 });
+  const answered = tab.waitForResponse(
+    (response) => response.url().endsWith("/compile") && response.request().method() === "POST",
+    { timeout: 30_000 },
+  );
+  await tab.reload();
+  const answer = await (await answered).json();
+  // Answered from disk: an ok outcome that took no time to typeset.
+  expect(answer.outcome).toBe("ok");
+  expect(answer.durationMs).toBe(0);
+  await expect(tab.getByTestId("pdf-sheet").first()).toBeVisible({ timeout: 20_000 });
+});
