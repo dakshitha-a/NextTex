@@ -49,6 +49,7 @@ of these, every setting and every file by typing.
 |---|---|
 | `⌘F` / `Ctrl-F` | Find on the typeset page |
 | Double-click | Go to the line that set this |
+| `⌥←` / `Alt-Left` | Back to where you were before following a link on the page |
 
 ## In the Files drawer
 

@@ -82,9 +82,10 @@ installer](docs/install.md#installing)
 <br>
 
 NextTex updates itself from the projects screen: the update button lights up
-when a new version has passed its tests. The commands for starting, stopping
-and updating by hand on Linux, macOS and Windows are in
-[docs/install.md](docs/install.md#running-it).
+when a new version has passed its tests. A tab left open across an update
+says so and offers Reload, or reloads itself if you are not looking at it.
+The commands for starting, stopping and updating by hand on Linux, macOS
+and Windows are in [docs/install.md](docs/install.md#running-it).
 
 </details>
 

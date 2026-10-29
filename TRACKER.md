@@ -56,6 +56,16 @@ PDF put back, and its torn `.aux` made each build after it start clean.
 Fixed in `compile.py`. The review also found 232 `biber` processes stopped
 since the browser runs of 25 to 27 September, about 2 GB, left for the
 owner to end.
+Reviewed again on 28 October, for 26 to 28 October: no crash, no server
+error, no stall, and the `biber` processes gone. Every project open ran a
+full build of a current PDF, 9 s and 37 s after a restart, and one open
+waited 78 s behind builds that replaced each other; opens now reuse the
+PDF and join a running build (4.47.0, live since 29 October and seen
+answering in 15 ms). Builds are logged with their cause, cancelled and
+download builds too; a tab left open across an update now notices; the
+ResizeObserver line is counted. Memory still rises 6 to 9 MB an hour
+under real use, and a probe found edits, builds and reads flat, so what
+is left is under Measured and left below.
 
 Before it, on 12 October 2026, at 4.33.0, the run on the page
 losing the writing in a reflowing thesis closed, at the writer's request.
