@@ -270,12 +270,6 @@ OpenAI provider against OpenAI itself.
 
 ### Known gaps, with a cost somebody will eventually pay
 
-- [ ] **The record a fresh session reads is long for a small model.**
-      When a continued conversation's memory is gone, the agent is pointed
-      at `conversation.md`, up to 400,000 characters. Claude reads that
-      comfortably; a local model through the OpenAI provider may not, and
-      its `read_file` returns the whole file. A limit per provider, or a
-      summary, would serve it better.
 - [ ] **Delete leaves Claude Code's copy of the session.** Past
       conversations' Delete removes NextTex's record only, and says so.
       Removing the CLI's own file under the home folder too would need

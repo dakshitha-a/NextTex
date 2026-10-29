@@ -661,3 +661,29 @@ def test_the_bibliography_can_be_checked_on_this_provider_too(tmp_path, monkeypa
     assert len(seen) == 1 and seen[0].endswith(".bib")
     assert "checked by hand (g16)" in answer
     assert "check_references" in {tool["function"]["name"] for tool in TOOLS}
+
+
+def test_a_long_file_is_read_in_parts_that_say_how_to_go_on():
+    """A resumed conversation's record can be 400,000 characters; the
+    local model's read_file returned all of it."""
+    from nexttex.openai_agent import READ_LINES, read_part
+
+    text = "".join(f"line {n}\n" for n in range(1, 2001))
+    first = read_part(text)
+    assert first.count("\n") == READ_LINES
+    assert first.endswith(f"[Lines 1 to {READ_LINES} of 2000. Read on with offset={READ_LINES + 1}.]")
+    tail = read_part(text, -3)
+    assert tail.startswith("line 1998\n") and "of 2000" in tail
+    assert read_part(text, 10, 2).startswith("line 10\nline 11\n[Lines 10 to 11")
+    # Short files come back whole, as before.
+    assert read_part("a\nb\n") == "a\nb\n"
+    # A run of long lines stops at the character bound, never mid-line.
+    wide = ("x" * 1000 + "\n") * 100
+    part = read_part(wide)
+    assert len(part) < 42_000 and "[Lines 1 to " in part
+
+
+def test_the_record_prompt_on_this_provider_says_to_read_the_end_first():
+    from nexttex.openai_agent import RECORD_IN_PARTS
+
+    assert "negative offset" in RECORD_IN_PARTS

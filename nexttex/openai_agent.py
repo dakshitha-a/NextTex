@@ -152,10 +152,18 @@ TOOLS: list[dict] = [
         "type": "function",
         "function": {
             "name": "read_file",
-            "description": "Read one file in the project.",
+            "description": (
+                "Read one file in the project. A long file comes back in parts: "
+                "the answer says which lines it holds and how to ask for the next."
+            ),
             "parameters": {
                 "type": "object",
-                "properties": {"path": {"type": "string"}},
+                "properties": {
+                    "path": {"type": "string"},
+                    "offset": {"type": "integer",
+                               "description": "The first line to read, from 1; negative counts from the end."},
+                    "limit": {"type": "integer", "description": "How many lines to read."},
+                },
                 "required": ["path"],
             },
         },
@@ -462,6 +470,49 @@ ROUND_LIMIT_NOTICE = (
     f"Stopped after {ROUNDS} rounds of tools without finishing. "
     'Say "carry on" to continue, or ask for less at once.'
 )
+
+
+#: The most of a file one `read_file` answer carries.  A resumed
+#: conversation's record can be 400,000 characters, which Claude reads
+#: comfortably and a local model's context does not hold at all.
+READ_LINES = 600
+READ_CHARS = 40_000
+
+#: Said beside FROM_RECORD on this provider, since the record is read in
+#: parts here and its newest turns are the ones a question is about.
+RECORD_IN_PARTS = ("It may be long: read its end first, with a negative offset, "
+                   "and earlier parts only if you need them.")
+
+
+def read_part(text: str, offset=None, limit=None) -> str:
+    """The lines of `text` a read asked for, bounded, with a line saying
+    what was left out and how to ask for it."""
+    lines = text.splitlines(keepends=True)
+    total = len(lines)
+    try:
+        start = int(offset) if offset is not None else 1
+    except (TypeError, ValueError):
+        start = 1
+    try:
+        count = max(1, min(int(limit), READ_LINES)) if limit is not None else READ_LINES
+    except (TypeError, ValueError):
+        count = READ_LINES
+    first = max(0, total + start) if start < 0 else max(0, start - 1)
+    chosen, size = [], 0
+    for line in lines[first:first + count]:
+        if chosen and size + len(line) > READ_CHARS:
+            break
+        chosen.append(line)
+        size += len(line)
+    if first == 0 and len(chosen) == total:
+        return text
+    last = first + len(chosen)
+    note = f"[Lines {first + 1} to {last} of {total}."
+    if last < total:
+        note += f" Read on with offset={last + 1}."
+    if first > 0:
+        note += " Earlier lines are there with a smaller offset."
+    return "".join(chosen) + ("" if not chosen or chosen[-1].endswith("\n") else "\n") + note + "]"
 
 
 class RoundLimit(Exception):
@@ -788,7 +839,8 @@ class OpenAIAgent:
                 self._from_record = False
                 record = self.conversation_record()
                 if record is not None:
-                    prompt = FROM_RECORD.format(path=record) + "\n\n" + prompt
+                    prompt = (FROM_RECORD.format(path=record) + " " + RECORD_IN_PARTS
+                              + "\n\n" + prompt)
             self._messages.append({
                 "role": "user",
                 "content": self._with_context(
@@ -1077,7 +1129,9 @@ class OpenAIAgent:
             if target is None:
                 return "That file is outside the project."
             text = read_text(target)
-            return text if text is not None else "That file could not be read as text."
+            if text is None:
+                return "That file could not be read as text."
+            return read_part(text, args.get("offset"), args.get("limit"))
 
         if name in ("write_file", "edit_file"):
             return await self._write(name, args)

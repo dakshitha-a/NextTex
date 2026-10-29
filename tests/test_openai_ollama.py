@@ -151,3 +151,22 @@ async def turn_with_context(agent: OpenAIAgent, prompt: str, context: str) -> li
     await agent.ask(prompt, context=context)
     await asyncio.wait_for(reader, timeout=TURN_SECONDS)
     return seen
+
+
+def test_a_long_file_is_read_from_its_end(tmp_path):
+    """A resumed conversation's record runs to 400,000 characters; read
+    whole it filled a local model's context.  Read in parts, the model can
+    find what is at the end."""
+    agent = make(tmp_path)
+    lines = [f"Line {n}: nothing of note here." for n in range(1, 4001)]
+    lines[-1] = "Line 4000: the code word is heliotrope."
+    (agent.root / "notes.txt").write_text("\n".join(lines) + "\n", encoding="utf-8")
+    seen = asyncio.run(turn(
+        agent,
+        "notes.txt is long. Use read_file to find its last line, and answer "
+        "with only the code word it gives.",
+    ))
+    reads = [e for e in seen if e["type"] == "tool" and "read_file" in str(e)]
+    said = "".join(str(e.get("text", "")) for e in seen if e["type"] in ("text", "assistant"))
+    assert seen[-1]["subtype"] == "success", [e for e in seen if e["type"] == "error"]
+    assert "heliotrope" in said.lower(), (said, reads)
