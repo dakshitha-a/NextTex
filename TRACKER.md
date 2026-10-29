@@ -407,17 +407,15 @@ OpenAI provider against OpenAI itself.
 
 ### Never run against the real thing
 
-- [ ] **A venue template's install on MiKTeX.** Tried on the owner's
-      laptop on 29 October 2026, with MiKTeX 25.12 and its basic set.
-      4.48.1 fixed the check, which had waited on MiKTeX's install
-      dialog, and the install, which MiKTeX refused over a package it had.
-      ieee-conference then built on the first try. acm needed 21 more
-      packages and elsevier at least 6, found one build at a time and now
-      in their `[needs]` in 4.48.2, with the drawer naming amscls and
-      psnfss where MiKTeX's ids differ from the file. elsevier's list is
-      a lower bound, since acm's installs ran first on that laptop; the
-      other venue templates were not tried there. Still to see: a fresh
-      acm and elsevier building on the first try.
+- [ ] **Most venue templates are untried on a bare MiKTeX.** On the
+      owner's laptop on 29 October 2026, MiKTeX 25.12, 4.48.2 built fresh
+      acm, elsevier, ieee-conference and lncs projects on their first
+      build, after 4.48.1 and 4.48.2 fixed the check, the install and
+      both manifests. The others were not built there. The templates
+      list named plausible missing packages for each, and MiKTeX's own
+      list now filters out any id it does not know. A manifest that
+      lacks a dependency still fails its first build, and the drawer
+      offers that one package at a time.
 - [ ] **The OpenAI provider has never spoken to OpenAI itself.**
       Everything above the transport runs for real against a stub, and
       since the backlog close-out against a real local server too:
