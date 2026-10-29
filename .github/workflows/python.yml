@@ -71,13 +71,6 @@ jobs:
             Write-Host "ok $($file.Name)"
           }
 
-      # The page check prefers Chrome's headless shell, and without one here
-      # it took the runner's google-chrome, which on 26 October 2026 sat on
-      # `--dump-dom` until the check gave up and failed a test that passed
-      # on a rerun. The shell is what this machine's own runs use.
-      - name: Chrome's headless shell, for the page check
-        run: npx --yes playwright@1.63.0 install chromium-headless-shell
-
       # From the repository root: `tests/conftest.py` puts it on sys.path,
       # since there is no packaging metadata to install from.
       - name: Test

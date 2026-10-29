@@ -368,6 +368,15 @@ OpenAI provider against OpenAI itself.
 
 ### Flaky, with the trace read
 
+- [ ] **The page check on CI uses the runner's full Chrome.** It failed
+      once on 26 October 2026 with "had not read it back". Installing
+      Playwright's headless shell in the `python` workflow, in 4.47.0, made
+      every page check on the runner time out instead, probably because
+      Ubuntu 24.04 restricts the unprivileged user namespaces Chrome's
+      sandbox needs (`kernel.apparmor_restrict_unprivileged_userns`). The
+      step was taken out again. Allowing the namespaces on the runner
+      before the suite is the next thing to try; the unchecked sentence now
+      names the browser, so the next failure says which one it was.
 - [ ] **The menu sweep once missed the typeset page's menu.** In the full
       browser run of 27 October 2026, before 4.44.0 was pushed, both
       themes of `e2e/specs/menus-contrast.spec.ts` failed their first
