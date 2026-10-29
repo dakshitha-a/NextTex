@@ -30,9 +30,12 @@ export function who(version: Version, me: string): string {
   if (version.by === "outside") {
     return mine ? "On disk" : `On ${version.who || `${version.peer!.slice(0, 6)}…`}'s disk`;
   }
-  if (mine) return version.by === "claude" ? "Claude" : "you";
+  // The agent that made it, which a version records since 29 October
+  // 2026; one recorded before that was Claude's, the only agent there was.
+  const agent = version.agent || "Claude";
+  if (mine) return version.by === "claude" ? agent : "you";
   const them = version.who || `${version.peer!.slice(0, 6)}…`;
-  return version.by === "claude" ? `${them}'s Claude` : them;
+  return version.by === "claude" ? `${them}'s ${agent}` : them;
 }
 
 /** The author's ink: the agent's pen, the disk in the second ink, since

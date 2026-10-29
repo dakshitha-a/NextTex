@@ -26,6 +26,9 @@ export type Diagnostic = {
   endLine?: number | null;
   context?: string;
   package?: string | null;
+  /** From a build whose file changed while it ran, of the kind half an
+   *  edit produces; the drawer sets it apart and the strip does not count it. */
+  transient?: boolean;
   explain?: Explanation;
   /** The style, class or definition file a "not found" names, when a
    *  package manager could supply it; the drawer's Install button. */
@@ -243,6 +246,9 @@ export type Version = {
   peer?: string;
   /** The name that peer went by at the time. */
   who?: string;
+  /** The agent that made a version `by` "claude", "Claude" or "ChatGPT";
+   *  absent on one recorded before it was kept, which was Claude's. */
+  agent?: string;
   /** Whether this version's contents are on this machine.
    *
    *  A collaborator's version arrives as a line and its contents come when

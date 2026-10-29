@@ -26,6 +26,12 @@ describe("who wrote a version", () => {
     expect(who(version({ by: "claude" }), ME)).toBe("Claude");
   });
 
+  test("a version names the agent that made it", () => {
+    expect(who(version({ by: "claude", agent: "ChatGPT" }), ME)).toBe("ChatGPT");
+    expect(who(version({ peer: THEM, who: "Priya", by: "claude", agent: "ChatGPT" }), ME))
+      .toBe("Priya's ChatGPT");
+  });
+
   test("this install's own versions still say you", () => {
     expect(who(version({ peer: ME }), ME)).toBe("you");
     expect(who(version({ peer: ME, by: "claude" }), ME)).toBe("Claude");

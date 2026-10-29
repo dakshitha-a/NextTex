@@ -138,6 +138,11 @@ class Version:
     # than looked up, because somebody who leaves a project should not turn
     # into a hexadecimal string in the history of what they wrote.
     who: str = ""
+    # Which agent made a version `by` "claude": "Claude" or "ChatGPT".
+    # `by` keeps the role, which the undo chip and the kept-version rule
+    # match on; empty, as every record before 29 October 2026 is, reads
+    # as Claude.  An older NextTex reading a newer log leaves it unread.
+    agent: str = ""
 
     def as_dict(self) -> dict:
         return {
@@ -151,6 +156,7 @@ class Version:
             "source": self.source,
             "peer": self.peer,
             "who": self.who,
+            "agent": self.agent,
         }
 
     @classmethod
@@ -166,6 +172,7 @@ class Version:
             source=str(data.get("source") or ""),
             peer=str(data.get("peer") or ""),
             who=str(data.get("who") or ""),
+            agent=str(data.get("agent") or ""),
         )
 
     @property
@@ -763,6 +770,7 @@ class History:
         source: str = "",
         peer: str = "",
         who: str = "",
+        agent: str = "",
     ) -> Version | None:
         """Note what a file contains now. Returns the version, or None.
 
@@ -772,6 +780,7 @@ class History:
         return self.record_of(
             self.key_of(relative_path), relative_path, text,
             by=by, why=why, op=op, label=label, source=source, peer=peer, who=who,
+            agent=agent,
         )
 
     def record_of(
@@ -787,6 +796,7 @@ class History:
         source: str = "",
         peer: str = "",
         who: str = "",
+        agent: str = "",
     ) -> Version | None:
         """`record`, for a caller that already knows the file's key: the
         trash, restoring a file whose name has since been taken."""
@@ -824,7 +834,7 @@ class History:
                 at = floor + 1.0
             version = Version(
                 at=at, sha=sha, bytes=len(data), by=by, why=why, op=op,
-                label=label, source=source, peer=peer, who=who,
+                label=label, source=source, peer=peer, who=who, agent=agent,
             )
 
             # One editing burst is one version.  Never across authors: what

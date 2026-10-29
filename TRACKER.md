@@ -281,11 +281,6 @@ OpenAI provider against OpenAI itself.
       Running `scripts/install.sh` again does both. Left on the owner's word
       on 26 October 2026: there was one Mac install, and new ones start
       from scratch.
-- [ ] **History calls an agent's version "Claude" whatever the agent.**
-      A version records that the agent made it, not which provider, so with
-      ChatGPT or a local model the History drawer still says Claude. The
-      column's strip and resize label now say the agent's name; History
-      needs the provider kept with each version to do the same.
 - [ ] **A turn sent from claude.ai is labelled from the CLI's origin, which
       was not seen live.** Messages from other Claude Code sessions were
       checked against the real CLI on 23 October 2026 and read "A message

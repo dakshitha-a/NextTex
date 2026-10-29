@@ -2007,6 +2007,7 @@ class ProjectSession:
         self.history.record(
             relative, text, by=by, why=why, op=op, source=source,
             peer=self._peer_id(), who=self._peer_name(),
+            agent=self.agent_label if by == "claude" else "",
         )
 
     def _peer_id(self) -> str:
@@ -2146,6 +2147,12 @@ class ProjectSession:
         )
         return state.path
 
+    @property
+    def agent_label(self) -> str:
+        """The agent's name as the writer sees it, "Claude" or "ChatGPT",
+        which `frontend/src/agent-name.ts` also says."""
+        return "ChatGPT" if self.provider == "openai" else "Claude"
+
     def _agent_threads(self):
         """The project's threads, as the agent reads and writes them: its
         replies under its own name and a peer of its own, so no window
@@ -2153,7 +2160,7 @@ class ProjectSession:
         from server.collab.comments import Comments
         from server.collab.identity import peer_id
 
-        name = "ChatGPT" if self.provider == "openai" else "Claude"
+        name = self.agent_label
         return Comments(self.collab, lambda: {"name": name, "peer": f"{peer_id()}:agent"})
 
     def agent_comments(self, path: str) -> list[dict]:

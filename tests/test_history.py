@@ -292,3 +292,28 @@ def test_the_timeline_folds_one_watcher_tick_into_one_row(tmp_path):
     assert rows[2]["path"] == "c.tex" and rows[2]["source"] == "tab-a"
     # Folded before the limit: a limit of two still shows the tick whole.
     assert [row.get("count") for row in store.timeline(limit=2)] == [None, 3]
+
+
+def test_the_agent_that_made_a_version_is_kept_and_an_old_log_reads_without_it(tmp_path):
+    h = history(tmp_path)
+    made = h.record("main.tex", "one", by="claude", agent="ChatGPT")
+    assert made.agent == "ChatGPT"
+    again = History(tmp_path / "history").versions("main.tex")
+    assert again[-1].agent == "ChatGPT" and again[-1].by == "claude"
+    # A record written before the field existed, as an older NextTex left it.
+    old = {"at": 1.0, "sha": "x", "bytes": 1, "by": "claude", "why": "", "op": "edit"}
+    assert Version.from_dict(old).agent == ""
+    # And what an older NextTex does with a newer record: it reads the
+    # fields it knows, so the extra one costs it nothing.
+    known = {k: v for k, v in made.as_dict().items() if k != "agent"}
+    assert Version.from_dict(known).by == "claude"
+
+
+def test_a_chatgpt_sessions_versions_say_chatgpt(tmp_path):
+    from types import SimpleNamespace
+
+    from server.session import ProjectSession
+
+    session = SimpleNamespace(provider="openai")
+    assert ProjectSession.agent_label.fget(session) == "ChatGPT"
+    assert ProjectSession.agent_label.fget(SimpleNamespace(provider="claude")) == "Claude"
