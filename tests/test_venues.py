@@ -84,7 +84,8 @@ def test_missing_reads_kpsewhich_output_as_the_files_it_found(monkeypatch, tmp_p
         stdout = "/tex/acmart.cls\n/tex/comment.sty\n"
         returncode = 1
 
-    monkeypatch.setattr(venues.shutil, "which", lambda name: "/bin/kpsewhich")
+    monkeypatch.setattr(venues.shutil, "which", lambda name, **_: "/bin/kpsewhich")
+    monkeypatch.setattr(venues.texpkg, "manager_here", lambda: ("tlmgr", "/bin/tlmgr"))
     monkeypatch.setattr(venues, "ensure_tex_on_path", lambda: None)
     monkeypatch.setattr(subprocess, "run", lambda *a, **k: Done())
     assert venues._present(["acmart.cls", "comment.sty", "environ.sty"]) == {"acmart.cls", "comment.sty"}
@@ -95,6 +96,56 @@ def test_missing_reads_kpsewhich_output_as_the_files_it_found(monkeypatch, tmp_p
         "ncctools", "cmap", "caption", "fancyhdr", "preprint",
     ]
     venues.forget()
+
+
+
+def test_on_miktex_the_package_list_answers_and_kpsewhich_is_not_asked(monkeypatch):
+    """MiKTeX's kpsewhich, asked for a file of a package it lacks, waits on
+    an install dialog; on the owner's laptop on 29 October 2026 the check
+    never returned. The package manager's own list is asked instead, and a
+    name MiKTeX does not know is left for the build to name."""
+    import subprocess
+
+    calls = []
+
+    class Done:
+        returncode = 0
+        stdout = "acmart true\neveryshi true\nxstring false\nmicrotype false\ncmap false\n"
+
+    def run(argv, **_):
+        calls.append(argv)
+        return Done()
+
+    monkeypatch.setattr(venues.texpkg, "manager_here", lambda: ("miktex", "C:/m/miktex.exe"))
+    monkeypatch.setattr(subprocess, "run", run)
+    venues.forget()
+    try:
+        assert venues.missing(venues.get("acm")) == ["xstring", "microtype", "cmap"]
+        assert calls == [["C:/m/miktex.exe", "packages", "list", "--template={id} {isInstalled}"]]
+    finally:
+        venues.forget()
+
+
+def test_a_check_that_cannot_answer_names_every_package_when_a_manager_is_there(monkeypatch):
+    """A kpsewhich that hangs past the limit is not "nothing missing": with
+    a package manager to install them, every package is named."""
+    import subprocess
+
+    def hang(argv, **_):
+        raise subprocess.TimeoutExpired(argv, venues.TIMEOUT)
+
+    monkeypatch.setattr(venues.texpkg, "manager_here", lambda: ("tlmgr", "/t/tlmgr"))
+    monkeypatch.setenv("NEXTTEX_KPSEWHICH", "/t/kpsewhich")
+    monkeypatch.setattr(subprocess, "run", hang)
+    venues.forget()
+    try:
+        acm = venues.get("acm")
+        assert venues.missing(acm) == list(acm.needs)
+        monkeypatch.setattr(venues.texpkg, "manager_here", lambda: ("", ""))
+        venues.forget()
+        assert venues.missing(acm) is None
+    finally:
+        venues.forget()
 
 
 TEX = venues.shutil.which("latexmk")

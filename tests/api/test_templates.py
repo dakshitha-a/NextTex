@@ -154,12 +154,19 @@ def test_a_template_says_which_packages_this_tex_lacks(client, monkeypatch):
     assert len(asked) == 1
     venues.forget()
     monkeypatch.setattr(venues, "_present", lambda names: None)
+    monkeypatch.setattr(venues.texpkg, "manager_here", lambda: ("", ""))
     rows = {t["name"]: t for t in client.get("/api/templates").json()["templates"]}
     # No kpsewhich, as on a machine with no TeX: nobody can say, for the
     # article as for a venue, since it too needs what TinyTeX lacks.
     assert rows["acm"]["missing"] is None
     assert rows["basic"]["missing"] is None
     assert rows["ams"]["missing"] is None
+    # A kpsewhich that did not answer beside a manager that can install:
+    # every package is named, so the sheet installs them.
+    venues.forget()
+    monkeypatch.setattr(venues.texpkg, "manager_here", lambda: ("tlmgr", "/t/tlmgr"))
+    rows = {t["name"]: t for t in client.get("/api/templates").json()["templates"]}
+    assert rows["acm"]["missing"] == list(venues.get("acm").needs)
     venues.forget()
 
 

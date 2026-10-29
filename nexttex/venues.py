@@ -26,6 +26,7 @@ import subprocess
 from dataclasses import dataclass, field
 from pathlib import Path
 
+from . import texpkg
 from .tools import ensure_tex_on_path
 
 try:
@@ -174,16 +175,18 @@ def guides(root: Path = ROOT) -> tuple[Guide, ...]:
 
 
 #: The answer kpsewhich gave for each file, kept until a package is
-#: installed: `None` when there is no kpsewhich to ask.
+#: installed: `None` when there is no kpsewhich to ask. On MiKTeX the
+#: answer is the package manager's instead, in `_miktex`.
 _found: set[str] | None = None
+_miktex: tuple[set[str], set[str]] | None = None
 _asked = False
 TIMEOUT = 10
 
 
 def forget() -> None:
     """Ask the TeX again next time; a package was just installed."""
-    global _found, _asked
-    _found, _asked = None, False
+    global _found, _miktex, _asked
+    _found, _miktex, _asked = None, None, False
 
 
 def _present(names: list[str]) -> set[str] | None:
@@ -209,16 +212,59 @@ def _present(names: list[str]) -> set[str] | None:
     return {Path(line.strip()).name for line in done.stdout.splitlines() if line.strip()}
 
 
+def _miktex_packages(path: str) -> tuple[set[str], set[str]] | None:
+    """MiKTeX's packages: the ones it has, and every one it knows, from
+    its own list, or `None` when the list does not answer.
+
+    Asked of the package manager, not kpsewhich: MiKTeX's kpsewhich,
+    asked for a file a package it lacks would provide, opens its
+    "Package Installation" dialog on the desktop and waits there. On the
+    owner's laptop on 29 October 2026 the check of all 53 files never
+    returned, so no template said what it needed. The list answers in
+    under a second.
+    """
+    try:
+        done = subprocess.run(
+            [path, "packages", "list", "--template={id} {isInstalled}"],
+            capture_output=True, text=True, timeout=TIMEOUT,
+        )
+    except (subprocess.SubprocessError, OSError):
+        return None
+    have, known = set(), set()
+    for line in done.stdout.splitlines():
+        parts = line.split()
+        if len(parts) == 2:
+            known.add(parts[0])
+            if parts[1] == "true":
+                have.add(parts[0])
+    return (have, known) if known else None
+
+
 def missing(template: Template) -> list[str] | None:
     """The packages this template needs that the TeX lacks, in the order
     the manifest names them; `[]` when it has them all, and `None` when
-    there is no way to tell."""
-    global _found, _asked
+    there is no way to tell.
+
+    When the TeX cannot say but a package manager is there, every package
+    is named: installing one that is present costs a moment, while naming
+    none left an acm project on MiKTeX failing its first build.
+    """
+    global _found, _miktex, _asked
     if not template.needs:
         return []
+    kind, path = texpkg.manager_here()
     if not _asked:
-        wanted = sorted({f for t in templates() for f in t.needs.values()})
-        _found, _asked = _present(wanted), True
+        if kind == "miktex":
+            _miktex = _miktex_packages(path)
+        if _miktex is None:
+            wanted = sorted({f for t in templates() for f in t.needs.values()})
+            _found = _present(wanted) if kind not in ("miktex", "mpm") else None
+        _asked = True
+    if _miktex is not None:
+        # A name MiKTeX does not know would fail the whole install; the
+        # build names whatever file it was for.
+        have, known = _miktex
+        return [p for p in template.needs if p in known and p not in have]
     if _found is None:
-        return None
+        return list(template.needs) if kind else None
     return [package for package, file in template.needs.items() if file not in _found]

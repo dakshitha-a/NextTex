@@ -118,6 +118,15 @@ def manager_here() -> tuple[str, str]:
     return "", ""
 
 
+#: How MiKTeX says a package is there already, which ends its install.
+ALREADY = re.compile(r"([A-Za-z0-9][A-Za-z0-9._+-]*): package is already installed")
+
+
+def already_installed(output: str) -> list[str]:
+    """The packages MiKTeX said it already has."""
+    return ALREADY.findall(output)
+
+
 def install_argv(kind: str, path: str, package: str | list[str]) -> list[str]:
     """The command that installs one package, or several in one run, with
     this kind of manager.  Each takes a list: tlmgr and `miktex packages
@@ -255,6 +264,20 @@ async def install(package: str | list[str]) -> dict:
                 code, output = await _run([path, *SELF_UPDATE], INSTALL_TIMEOUT)
                 if code == 0:
                     code, output = await _run(argv, timeout)
+            # MiKTeX refuses the whole list over one package it already
+            # has, "everyshi: package is already installed", and installs
+            # none (the owner's laptop, 29 October 2026). Each such name is
+            # dropped and the rest asked again; a list that empties is done.
+            left = list(names)
+            while code != 0 and kind in ("miktex", "mpm"):
+                there = [n for n in already_installed(output) if n in left]
+                if not there:
+                    break
+                left = [n for n in left if n not in there]
+                if not left:
+                    code = 0
+                    break
+                code, output = await _run(install_argv(kind, path, left), timeout)
         except asyncio.TimeoutError:
             if len(names) == 1:
                 return {"ok": False, "err": "The install was still running after five minutes."}

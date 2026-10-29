@@ -377,3 +377,51 @@ def test_a_list_with_one_bad_name_installs_nothing(monkeypatch):
     result = asyncio.run(texpkg.install(["parskip", "--location=evil"]))
     assert result["ok"] is False and seen == []
     assert asyncio.run(texpkg.install([]))["ok"] is False
+
+
+def _miktex_that_has(monkeypatch, installed: set[str]):
+    """A `miktex packages install` that refuses the whole list over the
+    first package it already has, as MiKTeX 25.12 did on the owner's
+    laptop on 29 October 2026, and otherwise installs them all."""
+    seen: list[list[str]] = []
+
+    async def fake_exec(*argv, **_):
+        seen.append(list(argv))
+        for name in argv[3:]:
+            if name in installed:
+                return Done(1, f"Sorry, but: {name}: package is already installed\n".encode())
+        installed.update(argv[3:])
+        return Done(0, b"")
+
+    monkeypatch.setattr(asyncio, "create_subprocess_exec", fake_exec)
+    monkeypatch.setattr(texpkg, "manager_here", lambda: ("miktex", "/m/miktex"))
+    return seen
+
+
+def test_a_miktex_list_with_installed_packages_installs_the_rest(monkeypatch):
+    have = {"everyshi", "caption"}
+    seen = _miktex_that_has(monkeypatch, have)
+    result = asyncio.run(texpkg.install(["xstring", "everyshi", "caption", "cmap"]))
+    assert result == {"ok": True, "err": ""}
+    assert seen == [
+        ["/m/miktex", "packages", "install", "xstring", "everyshi", "caption", "cmap"],
+        ["/m/miktex", "packages", "install", "xstring", "caption", "cmap"],
+        ["/m/miktex", "packages", "install", "xstring", "cmap"],
+    ]
+    assert {"xstring", "cmap"} <= have
+
+
+def test_a_miktex_list_that_is_all_installed_is_done(monkeypatch):
+    seen = _miktex_that_has(monkeypatch, {"everyshi", "caption"})
+    assert asyncio.run(texpkg.install(["everyshi", "caption"])) == {"ok": True, "err": ""}
+    assert len(seen) == 2
+
+
+def test_another_miktex_failure_is_reported_as_it_was(monkeypatch):
+    async def fake_exec(*argv, **_):
+        return Done(1, b"Sorry, but: nosuch: unknown package\n")
+
+    monkeypatch.setattr(asyncio, "create_subprocess_exec", fake_exec)
+    monkeypatch.setattr(texpkg, "manager_here", lambda: ("miktex", "/m/miktex"))
+    result = asyncio.run(texpkg.install(["nosuch", "cmap"]))
+    assert result["ok"] is False and "unknown package" in result["err"]

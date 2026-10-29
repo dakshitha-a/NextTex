@@ -408,13 +408,16 @@ OpenAI provider against OpenAI itself.
       against the scripted stand-in and a fake client, not at claude.ai.
       The session should appear there as "project: conversation" with a
       new link; one look settles it.
-- [ ] **A venue template's install on MiKTeX.** Each template's
-      `[needs]` names TeX Live packages, and `texpkg.install_argv` hands
-      the name to MiKTeX unchanged; most names coincide, some may not.
-      MiKTeX also installs on the fly during a build, so a name it does
-      not know shows the "did not install" notice and the build may
-      still succeed. Tried only on TinyTeX; worth one ACM project on the
-      owner's Windows laptop.
+- [ ] **A venue template's install on MiKTeX.** Tried on the owner's
+      laptop on 29 October 2026, with MiKTeX 25.12, and an acm project's
+      first build stopped on `acmart.cls`. Two faults, both fixed in
+      4.48.1: the check of what a template lacks asked kpsewhich, which
+      waits on MiKTeX's install dialog, so no template named anything;
+      and MiKTeX refused the whole list over one package it already had.
+      The check now reads MiKTeX's package list, and the install drops
+      what is already there. A name MiKTeX does not list is left for the
+      build to name. Still to see: acm, ieee-conference and elsevier
+      building on the first try there.
 - [ ] **The OpenAI provider has never spoken to OpenAI itself.**
       Everything above the transport runs for real against a stub, and
       since the backlog close-out against a real local server too:
