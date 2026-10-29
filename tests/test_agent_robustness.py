@@ -1157,6 +1157,39 @@ def test_a_message_typed_on_claude_ai_shows_its_text(tmp_path):
     assert events[-1]["subtype"] == "success"
 
 
+
+def test_a_conversation_begun_from_claude_ai_is_named_from_it(tmp_path):
+    """A turn typed here names an unnamed conversation from its first
+    question; one sent from claude.ai does too, or claude.ai's list calls
+    it only by the project."""
+    from claude_agent_sdk import UserMessage
+
+    subject = make_agent(tmp_path)
+    subject.remote = {"state": "connected", "url": ""}
+    subject.session_settings["auto"] = ""
+    client = ListeningClient(_quick)
+    subject._client = client
+    named = []
+
+    async def name_from(text):
+        named.append(text)
+
+    subject._name_from = name_from
+
+    async def run():
+        await subject.ask("first")
+        await drain(subject)
+        named.clear()
+        client.inject(
+            UserMessage(content="Check the RRKM caption", origin={"kind": "human"}),
+            _text("Done."), _result(),
+        )
+        return await drain(subject)
+
+    asyncio.run(run())
+    assert named == ["Check the RRKM caption"]
+
+
 def test_a_human_message_between_turns_without_remote_control_is_not_a_turn(tmp_path):
     """Only remote control brings a person's message in from elsewhere; with
     it off, a stray echo is not drawn as a turn."""

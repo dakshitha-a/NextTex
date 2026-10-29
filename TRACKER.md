@@ -70,7 +70,11 @@ On 29 October the writer sent a message from claude.ai into the thesis
 session with remote control on. The label read "Sent over remote
 control", as expected, but the line was empty: the CLI writes a bridged
 message to NextTex only with `--replay-user-messages`, which it now
-gets, and the message's text is shown.
+gets, and the message's text is shown. The writer then continued a
+past conversation with remote control on and prompted it from
+claude.ai: both turns showed their text, but claude.ai named the
+session only by its project, since that archive predated named
+conversations. It is now named from its first question.
 
 Before it, on 12 October 2026, at 4.33.0, the run on the page
 losing the writing in a reflowing thesis closed, at the writer's request.
@@ -403,21 +407,17 @@ OpenAI provider against OpenAI itself.
 
 ### Never run against the real thing
 
-- [ ] **Continuing a conversation with remote control on.** The
-      rename and the reopened remote session after a continue were checked
-      against the scripted stand-in and a fake client, not at claude.ai.
-      The session should appear there as "project: conversation" with a
-      new link; one look settles it.
 - [ ] **A venue template's install on MiKTeX.** Tried on the owner's
-      laptop on 29 October 2026, with MiKTeX 25.12, and an acm project's
-      first build stopped on `acmart.cls`. Two faults, both fixed in
-      4.48.1: the check of what a template lacks asked kpsewhich, which
-      waits on MiKTeX's install dialog, so no template named anything;
-      and MiKTeX refused the whole list over one package it already had.
-      The check now reads MiKTeX's package list, and the install drops
-      what is already there. A name MiKTeX does not list is left for the
-      build to name. Still to see: acm, ieee-conference and elsevier
-      building on the first try there.
+      laptop on 29 October 2026, with MiKTeX 25.12 and its basic set.
+      4.48.1 fixed the check, which had waited on MiKTeX's install
+      dialog, and the install, which MiKTeX refused over a package it had.
+      ieee-conference then built on the first try. acm needed 21 more
+      packages and elsevier at least 6, found one build at a time and now
+      in their `[needs]` in 4.48.2, with the drawer naming amscls and
+      psnfss where MiKTeX's ids differ from the file. elsevier's list is
+      a lower bound, since acm's installs ran first on that laptop; the
+      other venue templates were not tried there. Still to see: a fresh
+      acm and elsevier building on the first try.
 - [ ] **The OpenAI provider has never spoken to OpenAI itself.**
       Everything above the transport runs for real against a stub, and
       since the backlog close-out against a real local server too:

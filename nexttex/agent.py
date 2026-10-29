@@ -601,6 +601,7 @@ class ProjectAgent:
         self.context: dict | None = None
         #: Remote control as the CLI last reported it.
         self.remote: dict = {"state": "off", "url": ""}
+        self._name_pending = ""
         #: Writes the live conversation's record to disk and returns its
         #: path, for a session that has to start again from it. The
         #: project session sets it; the transcript is the server's.
@@ -3442,6 +3443,9 @@ class ProjectAgent:
         )
         if origin is not None and origin.get("remote"):
             view["label"] = "Sent over remote control"
+        # A conversation begun from claude.ai is named from what was typed
+        # there, as one begun here is from its first question.
+        self._name_pending = view["text"] if origin is not None and origin.get("remote") else ""
         self._injected_turn = origin is None
         # With remote control on, a turn the browser did not start may come
         # from claude.ai with nobody at this screen, and a message from
@@ -3509,6 +3513,9 @@ class ProjectAgent:
         # starts with a call already running, so this starts empty.
         self._running_tools.clear()
         self._result_consumed = False
+        pending, self._name_pending = self._name_pending, ""
+        if pending:
+            await self._name_from(pending)
         watchdog = asyncio.create_task(self._watch_for_silence())
         try:
             await self._stream(prompt, first)

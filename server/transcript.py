@@ -43,6 +43,24 @@ COMPACT_ABOVE_BYTES = 24_000_000
 MAX_ARCHIVES = 50
 
 
+
+def first_question(path: Path) -> str:
+    """The first thing asked in a conversation's record, typed here or
+    sent from claude.ai, or "" when it has none."""
+    try:
+        with path.open("r", encoding="utf-8", errors="replace") as handle:
+            for line in handle:
+                try:
+                    item = json.loads(line)
+                except json.JSONDecodeError:
+                    continue
+                if item.get("kind") in ("user", "injected") and str(item.get("text") or "").strip():
+                    return str(item.get("text", ""))[:120]
+    except OSError:
+        pass
+    return ""
+
+
 class TranscriptError(Exception):
     """The record could not be filed away, and still holds what it held.
 
@@ -188,19 +206,7 @@ class Transcript:
                 size = old.stat().st_size
             except OSError:
                 continue
-            title = ""
-            try:
-                with old.open("r", encoding="utf-8", errors="replace") as handle:
-                    for line in handle:
-                        try:
-                            item = json.loads(line)
-                        except json.JSONDecodeError:
-                            continue
-                        if item.get("kind") == "user":
-                            title = str(item.get("text", ""))[:120]
-                            break
-            except OSError:
-                pass
+            title = first_question(old)
             meta = self._read_meta(old)
             named = clean_name(meta.get("name") or "")
             found.append({
@@ -294,6 +300,11 @@ class Transcript:
         if self.path.exists():
             raise TranscriptError("the live conversation has not been filed away")
         meta = self._read_meta(target)
+        if not clean_name(meta.get("name") or "") and not clean_name(meta.get("auto") or ""):
+            # An archive from before conversations were named, or one whose
+            # sidecar was lost: the name the list shows for it is the one
+            # it continues under, so claude.ai says what it is about.
+            meta["auto"] = title_from(first_question(target))
         try:
             target.rename(self.path)
         except OSError as failure:

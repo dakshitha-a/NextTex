@@ -463,6 +463,22 @@ def test_a_past_conversation_is_renamed_deleted_and_restored(tmp_path):
     assert record.delete_archive("../transcript.jsonl") is False
 
 
+
+def test_an_unnamed_archive_continues_under_the_name_the_list_shows(tmp_path):
+    """The writer continued a conversation from before conversations were
+    named, on 29 October 2026, and claude.ai called it only the project.
+    Its sidecar had no name; the one the list shows is the one it keeps."""
+    from nexttex.conversation import title_from
+
+    record = Transcript(tmp_path / "transcript.jsonl")
+    record.record({"type": "turn_start", "prompt": "Check the RRKM caption against the SI window"})
+    name = record.archive({"session_id": "s-1"})
+    shown = record.archives()[0]["conversation"]
+    assert shown == title_from("Check the RRKM caption against the SI window")
+    meta = record.restore(name)
+    assert meta["auto"] == shown and meta["session_id"] == "s-1"
+
+
 def test_the_record_a_fresh_session_reads_is_plain_text(tmp_path):
     record = Transcript(tmp_path / "transcript.jsonl")
     assert record.write_record(tmp_path / "r.md") is None
