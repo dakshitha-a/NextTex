@@ -32,7 +32,6 @@ names where.
 
 from __future__ import annotations
 
-import functools
 import re
 from collections import defaultdict
 
@@ -133,9 +132,21 @@ def _row(kind: str, message: str, path: str, line: int, other: str = "") -> dict
     return row
 
 
-@functools.lru_cache(maxsize=256)
-def _masked(text: str) -> str:
-    return mask(text)
+#: Each file's last text and its masked form.  This was an lru_cache of
+#: 256 texts, keyed on the text, so every keystroke's version of a chapter
+#: was a new entry, each held twice: on a thesis, tens of megabytes kept
+#: for nothing, which the memory probe of 29 October 2026 found growing
+#: by one entry a build.  One entry per file is all a check reuses.
+_MASKED: dict[str, tuple[str, str]] = {}
+
+
+def _masked(name: str, text: str) -> str:
+    kept = _MASKED.get(name)
+    if kept is not None and kept[0] == text:
+        return kept[1]
+    masked = mask(text)
+    _MASKED[name] = (text, masked)
+    return masked
 
 
 def check(texts: dict[str, str], path: str) -> list[dict]:
@@ -144,7 +155,9 @@ def check(texts: dict[str, str], path: str) -> list[dict]:
     sources = {name: body for name, body in texts.items() if name.lower().endswith(".tex")}
     if path not in sources:
         return []
-    masked = {name: _masked(body) for name, body in sources.items()}
+    masked = {name: _masked(name, body) for name, body in sources.items()}
+    for gone in set(_MASKED) - set(sources):
+        _MASKED.pop(gone, None)
     rows: list[dict] = []
     rows += _compounds(masked, path)
     rows += _abbreviations(masked, path)

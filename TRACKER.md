@@ -303,6 +303,17 @@ OpenAI provider against OpenAI itself.
 
 ### Measured and left, worth revisiting with a measurement
 
+- [ ] **The live server's memory rises 6 to 9 MB an hour.** Seen in every
+      server life in the diagnostics log of 26 to 28 October 2026, about
+      100 MB to 325 MB over 27 hours, masked by the daily update restart.
+      Probed on 29 October in one process with a project open: 600 rounds of
+      edits, builds and every read route left resident memory flat at about
+      340 MB (within 2 MB), and an idle open project grew nothing in three
+      minutes. The probe's one Python finding, the consistency check keeping
+      256 whole texts, is fixed. What the probe did not exercise is the
+      likely source: agent turns, the browser's event streams and editing
+      sockets, and the PDF routes under a real tab. The next measurement is
+      the `sample` lines' gauges beside `rss_mb` across a day of use.
 - [ ] **The log parser stays Python.** Asked on 24 October 2026 what a
       Rust rewrite would buy: the build is TeX's time, and the parser,
       the one hot Python loop, now reads a real 0.14 MB thesis log in
