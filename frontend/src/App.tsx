@@ -1472,7 +1472,7 @@ export default function App() {
     // whatever the build it settles followed, unless the reader has moved
     // the page themselves since; that is asked when it lands, since it
     // starts the moment the fast pass lands, before anyone could.
-    handlers.onCompileStart = (document, settling) => {
+    handlers.onCompileStart = (document, settling, held) => {
       const replay = settling ? lastFollow.current : null;
       lastFollow.current = null;
       replayFrom.current = 0;
@@ -1481,7 +1481,7 @@ export default function App() {
         if (replay.agent && !agentWrote.current) agentWrote.current = replay.agent;
         replayFrom.current = replay.at;
       } else {
-        followCaret.current = agentWrote.current === null && busyTyping();
+        followCaret.current = agentWrote.current === null && busyTyping(Date.now(), held);
       }
       editor.current?.buildStarted(document);
     };

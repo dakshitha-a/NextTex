@@ -95,8 +95,13 @@ export function noteTyping(now = Date.now()): void {
  *  enough that a writer who has stopped to read gets taken to the edit. */
 export const TYPING_GRACE = 3000;
 
-export function busyTyping(now = Date.now()): boolean {
-  return typedAt > 0 && now - typedAt < TYPING_GRACE;
+/** `held` is how much longer than usual the server waited before the build
+ *  that asks: a file that looked half typed, an open brace or a lone `$`,
+ *  is held four seconds instead of one and a half, and a writer who
+ *  stopped mid-equation was past the grace by the time it started, so its
+ *  page did not follow the caret. */
+export function busyTyping(now = Date.now(), held = 0): boolean {
+  return typedAt > 0 && now - typedAt < TYPING_GRACE + Math.max(0, held);
 }
 
 /** For tests, and for a document being closed. */

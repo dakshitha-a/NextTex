@@ -335,11 +335,6 @@ OpenAI provider against OpenAI itself.
       through `_query._send_control_request`. An SDK that renames it turns
       both features off quietly; a public method should replace it when
       one exists.
-- [ ] **A build started mid-edit reports a transient brace error.** The
-      thesis's writer pasted `File ended while scanning use of \revised`
-      from a build that ran while a brace was half deleted; the agent found
-      nothing wrong. Holding a build while braces are unbalanced, or
-      marking such an error as passing, would spare the question.
 - [ ] **A project can track NextTex's own preview file in git.** The
       thesis tracks `.nexttex-preview-main.tex`, so its git panel always
       shows it modified; its `.gitignore` names `.nexttex-preview.tex`, an
@@ -364,15 +359,6 @@ OpenAI provider against OpenAI itself.
       reader scrolls back by hand. Left because a viewer's history, a
       back key and where it lives on screen, is a feature of its own;
       found on 17 October 2026 building the page's links.
-
-- [ ] **A build after a pause inside an unfinished construct does not
-      follow the caret.** The server waits `UNSETTLED_DEBOUNCE`, four
-      seconds, when the file looks half typed, and `TYPING_GRACE` in
-      `frontend/src/timing.ts` is three, so by the build's start nobody
-      counts as typing. Left because a writer stopped in the middle of an
-      equation is arguably not to be followed, and the next keystroke's
-      build follows; found on 12 October 2026 reading why a probe's build
-      did not follow.
 
 ### Measured and left, worth revisiting with a measurement
 

@@ -127,6 +127,9 @@ class DocumentState:
     #: sets it too, since it runs on the same scheduler without a build id.
     newest_cause: str = ""
     newest_asked: float = 0.0
+    #: How much longer than the ordinary debounce the pending build was held
+    #: because the file looked half typed, in seconds; sent with its start.
+    held: float = 0.0
 
 
 MATH_DELIMITER = re.compile(r"(?<!\\)\$")
@@ -1443,9 +1446,13 @@ class ProjectSession:
         state.in_flight = build
         asked = time.time()
         state.newest_cause, state.newest_asked = cause, asked
+        # A build held for a half-typed file starts seconds after the last
+        # keystroke, when the browser no longer counts the writer as typing;
+        # `held` lets it count from when the build would otherwise have run.
+        held = round(state.held * 1000) if cause == "edit" else 0
         await self.events.publish(
             {"type": "compile_start", "build": build, "document": state.path,
-             "settling": settling}
+             "settling": settling, "held": held}
         )
         # Supersede any build of this same document *before* joining the
         # queue. A request that queued first would be waiting for a slot
@@ -1713,6 +1720,7 @@ class ProjectSession:
             delay = UNSETTLED_DEBOUNCE if state.unsettled else COMPILE_DEBOUNCE
             if name != self.visible:
                 delay = max(delay, BACKGROUND_DEBOUNCE)
+            state.held = delay - COMPILE_DEBOUNCE if state.unsettled else 0.0
             state.debounce = spawn(
                 self._wait_then_build(name, delay), "the debounced build"
             )

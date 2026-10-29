@@ -960,7 +960,7 @@ export type EventHandlers = {
    *  decide, *before* the build's duration is known, whether this build was
    *  caused by the writer's own typing. `settling` is the full pass the
    *  server runs after a fast one whose page flow had not settled. */
-  onCompileStart?: (document: string, settling: boolean) => void;
+  onCompileStart?: (document: string, settling: boolean, held: number) => void;
   onPreviewsChanged?: (previews: string[]) => void;
   /** `text` is the file as the agent left it and `column` where on
    *  `line` it changed, so the flash after the build can be placed on a
@@ -1223,7 +1223,7 @@ function receive(event: any) {
           [name]: { ...(state.builds[name] ?? NO_BUILD), compiling: true, stale: false },
         },
       });
-      handlers.onCompileStart?.(name, Boolean(event.settling));
+      handlers.onCompileStart?.(name, Boolean(event.settling), Number(event.held) || 0);
       break;
     }
     case "compile_done": {

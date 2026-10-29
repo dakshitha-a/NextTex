@@ -109,6 +109,16 @@ describe("running work once somebody has stopped", () => {
  *  editor for the whole time somebody is reading their own paragraph.
  */
 describe("whether the writer is mid-sentence", () => {
+  test("a build held for a half-typed file counts the hold as typing", () => {
+    // The server waits four seconds instead of one and a half for an open
+    // brace or a lone dollar; the build that starts then still follows.
+    forgetTyping();
+    noteTyping(1_000_000);
+    expect(busyTyping(1_000_000 + 4_100)).toBe(false);
+    expect(busyTyping(1_000_000 + 4_100, 2_400)).toBe(true);
+    expect(busyTyping(1_000_000 + TYPING_GRACE + 2_500, 2_400)).toBe(false);
+  });
+
   test("nobody has typed yet, so nothing is pinned", () => {
     forgetTyping();
     expect(busyTyping()).toBe(false);

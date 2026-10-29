@@ -243,3 +243,36 @@ def test_a_keystroke_during_a_debounced_build_does_not_cancel_its_task(
     assert not first.cancelled()
     assert fake.killed == 1
     assert fake.ran == 2
+
+
+def test_a_build_held_for_a_half_typed_file_says_how_long(client, opened, monkeypatch):
+    """The browser follows the caret only while the writer counts as
+    typing, three seconds; a file that looks half typed is held four, so
+    the page of a writer who stopped mid-equation never followed."""
+    import time
+
+    monkeypatch.setattr(session_module, "COMPILE_DEBOUNCE", 0.05)
+    monkeypatch.setattr(session_module, "UNSETTLED_DEBOUNCE", 0.3)
+    session = server_main.SESSIONS[opened["id"]]
+    _stand_in(client, opened["id"])
+    queue = session.events.subscribe()
+    state = session.documents["main.tex"]
+
+    async def edit_half_typed() -> None:
+        state.unsettled = True
+        state.edited_at = time.time()
+        session._dirty = {"main.tex"}
+        session.schedule_compile()
+
+    client.portal.call(edit_half_typed)
+    deadline = time.monotonic() + 5
+    started = None
+    while time.monotonic() < deadline and started is None:
+        while not queue.empty():
+            event = queue.get_nowait()
+            if isinstance(event, dict) and event.get("type") == "compile_start":
+                started = event
+        time.sleep(0.02)
+    session.events.unsubscribe(queue)
+    assert started is not None
+    assert started["held"] == 250
