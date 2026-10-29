@@ -66,6 +66,11 @@ download builds too; a tab left open across an update now notices; the
 ResizeObserver line is counted. Memory still rises 6 to 9 MB an hour
 under real use, and a probe found edits, builds and reads flat, so what
 is left is under Measured and left below.
+On 29 October the writer sent a message from claude.ai into the thesis
+session with remote control on. The label read "Sent over remote
+control", as expected, but the line was empty: the CLI writes a bridged
+message to NextTex only with `--replay-user-messages`, which it now
+gets, and the message's text is shown.
 
 Before it, on 12 October 2026, at 4.33.0, the run on the page
 losing the writing in a reflowing thesis closed, at the writer's request.
@@ -291,13 +296,6 @@ OpenAI provider against OpenAI itself.
       Running `scripts/install.sh` again does both. Left on the owner's word
       on 26 October 2026: there was one Mac install, and new ones start
       from scratch.
-- [ ] **A turn sent from claude.ai is labelled from the CLI's origin, which
-      was not seen live.** Messages from other Claude Code sessions were
-      checked against the real CLI on 23 October 2026 and read "A message
-      from" their sender. A turn typed on claude.ai into a session with
-      remote control on is expected to carry a `human` or `person` origin,
-      or none, and to read "Sent over remote control"; that needs one look
-      by somebody at claude.ai.
 - [ ] **Remote control and the session's name use the SDK's private
       control channel.** The SDK has no call for `remote_control` or
       `rename_session`, so `_control` in `nexttex/agent.py` sends them

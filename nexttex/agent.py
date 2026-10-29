@@ -323,13 +323,24 @@ def _message_text(message) -> str:
     return "\n".join(parts)
 
 
-def _injected(message) -> dict | None:
+def _injected(message, remote: bool = False) -> dict | None:
     """The origin of a message that starts a turn the CLI began itself, or
-    None. Human-kind and unattributed messages are this client's own."""
+    None. Human-kind and unattributed messages are this client's own, except
+    while remote control is open: one that arrives between turns then came
+    from claude.ai, and is named so."""
     origin = getattr(message, "origin", None)
     if not origin or origin.get("kind") in (None, "", "human"):
+        if remote and _message_text(message).strip() and not _has_tool_result(message):
+            return {"kind": "human", "remote": True}
         return None
     return origin
+
+
+def _has_tool_result(message) -> bool:
+    content = getattr(message, "content", "")
+    return not isinstance(content, str) and any(
+        type(block).__name__ == "ToolResultBlock" for block in content or []
+    )
 
 
 def landing_line(tool_name: str, data: dict, before: str) -> int | None:
@@ -2854,6 +2865,15 @@ class ProjectAgent:
             # The project's own CLAUDE.md and settings load; NextTex's do not.
             setting_sources=["project"],
             include_partial_messages=True,
+            # A message typed on claude.ai into a session open to remote
+            # control reaches the CLI over its bridge, and the CLI starts
+            # the turn without writing that message to this process unless
+            # asked to echo the user messages it takes in. Without it the
+            # panel showed "Sent over remote control" over nothing (seen
+            # live on 29 October 2026). NextTex's own prompt is echoed too,
+            # inside `_stream`, where a user message is read as tool results
+            # and carries none.
+            extra_args={"replay-user-messages": None},
             # The SDK frames the CLI's stdout as one JSON line per message
             # and refuses a line over its 1 MiB default, which is not much
             # once a figure is involved.  An image tool result is base64,
@@ -3379,7 +3399,8 @@ class ProjectAgent:
             async for message in client.receive_messages():
                 if client is not self._client:
                     return
-                origin = _injected(message) if isinstance(message, UserMessage) else None
+                remote = self.remote.get("state") in ("connecting", "connected")
+                origin = _injected(message, remote) if isinstance(message, UserMessage) else None
                 if origin is not None or isinstance(message, (StreamEvent, AssistantMessage)):
                     self._begin_injected(message, origin)
                     return
@@ -3419,6 +3440,8 @@ class ProjectAgent:
             origin_view(origin, _message_text(first) if isinstance(first, UserMessage) else "")
             if origin is not None else dict(ORIGIN_PENDING)
         )
+        if origin is not None and origin.get("remote"):
+            view["label"] = "Sent over remote control"
         self._injected_turn = origin is None
         # With remote control on, a turn the browser did not start may come
         # from claude.ai with nobody at this screen, and a message from

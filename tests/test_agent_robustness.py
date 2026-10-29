@@ -1126,6 +1126,87 @@ def test_a_peer_message_as_the_real_cli_sends_it(tmp_path):
     assert events[3]["origin"]["text"] == "Reply with exactly the word heliotrope."
 
 
+
+def test_a_message_typed_on_claude_ai_shows_its_text(tmp_path):
+    """Seen live on 29 October 2026: a message sent from claude.ai into a
+    session open to remote control was labelled "Sent over remote control"
+    over an empty line, because the CLI did not echo it. With
+    `--replay-user-messages` it arrives first, as a human user message
+    between turns, and the line names it and shows what was typed."""
+    from claude_agent_sdk import UserMessage
+
+    subject = make_agent(tmp_path)
+    subject.remote = {"state": "connected", "url": "https://claude.ai/code/x"}
+    client = ListeningClient(_quick)
+    subject._client = client
+
+    async def run():
+        await subject.ask("first")
+        await drain(subject)
+        client.inject(
+            UserMessage(content="This is a test message. hello", origin={"kind": "human"}),
+            _text("Hello."), _result(),
+        )
+        return await drain(subject)
+
+    events = asyncio.run(run())
+    kinds = [e["type"] for e in events]
+    assert kinds[0] == "turn_start" and "turn_origin" not in kinds, kinds
+    assert events[0]["origin"]["label"] == "Sent over remote control"
+    assert events[0]["origin"]["text"] == "This is a test message. hello"
+    assert events[-1]["subtype"] == "success"
+
+
+def test_a_human_message_between_turns_without_remote_control_is_not_a_turn(tmp_path):
+    """Only remote control brings a person's message in from elsewhere; with
+    it off, a stray echo is not drawn as a turn."""
+    from claude_agent_sdk import UserMessage
+
+    subject = make_agent(tmp_path)
+    client = ListeningClient(_quick)
+    subject._client = client
+
+    async def run():
+        await subject.ask("first")
+        await drain(subject)
+        await client.inject(UserMessage(content="echo", origin={"kind": "human"}))
+        await asyncio.sleep(0.05)
+        await subject.ask("next")
+        return await drain(subject)
+
+    events = asyncio.run(run())
+    assert [e["type"] for e in events].count("turn_start") == 1
+    texts = "".join(e.get("text", "") for e in events if e["type"] == "text")
+    assert texts == "Answer to next", events
+
+
+def test_the_echo_of_our_own_prompt_changes_nothing(tmp_path):
+    """The CLI echoes NextTex's own prompt inside the turn, too; it is read
+    as a user message with no tool results, and the turn is as before."""
+    from claude_agent_sdk import UserMessage
+
+    subject = make_agent(tmp_path)
+    subject.remote = {"state": "connected", "url": ""}
+    client = ListeningClient(
+        lambda prompt: [UserMessage(content=prompt), 0.01, _text(f"Answer to {prompt}"), _result()]
+    )
+    subject._client = client
+
+    async def run():
+        await subject.ask("one")
+        return await drain(subject)
+
+    events = asyncio.run(run())
+    texts = "".join(e.get("text", "") for e in events if e["type"] == "text")
+    assert texts == "Answer to one", events
+    assert events[-1]["subtype"] == "success"
+    assert client.buffer.empty()
+
+
+def test_the_cli_is_asked_to_echo_the_messages_it_takes_in(tmp_path):
+    assert "replay-user-messages" in make_agent(tmp_path)._options().extra_args
+
+
 # -- Cost is the CLI's running total ------------------------------------------
 #
 # `total_cost_usd` is a running total for the CLI process, measured on
