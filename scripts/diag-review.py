@@ -272,6 +272,12 @@ def browser(rows: list[dict]) -> None:
             (r.get("error_kind"), PROJECT_ID.sub("/projects/*", str(r.get("message", "")))[:140])
             for r in errors).most_common(15):
         print(f"{count:>4}x  {kind}: {message}")
+    noise = Counter()
+    for row in rows:
+        if row["kind"] == "client-noise":
+            noise.update(row.get("counts") or {})
+    if noise:
+        print("Counted as harmless: " + ", ".join(f"{n}x {what}" for what, n in noise.most_common()))
     perf = [r for r in rows if r["kind"] == "client-perf"]
     if perf:
         tasks = sum(r.get("long_tasks", 0) for r in perf)

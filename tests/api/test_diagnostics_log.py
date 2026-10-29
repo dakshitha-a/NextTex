@@ -67,6 +67,17 @@ def test_what_the_browser_sends_is_bounded(client, log):
                        json={"frames": [{"cause": "c" * 5000}]}).status_code == 422
     assert client.post("/api/client-log",
                        json={"errors": [{"message": "m" * 5000}]}).status_code == 422
+    assert client.post("/api/client-log",
+                       json={"noise": {f"k{i}": 1 for i in range(50)}}).status_code == 422
+    assert client.post("/api/client-log", json={"noise": {"k": -1}}).status_code == 422
+    assert not log("client")
+
+
+def test_harmless_browser_noise_is_one_counted_line(client, log):
+    assert client.post("/api/client-log", json={
+        "noise": {"ResizeObserver loop": 41}, "page": "/"}).status_code == 204
+    rows = log("client-noise")
+    assert rows == [{**rows[0], "counts": {"ResizeObserver loop": 41}}]
     assert not log("client")
 
 

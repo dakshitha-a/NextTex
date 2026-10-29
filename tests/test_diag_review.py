@@ -48,6 +48,7 @@ def test_the_review_summarises_a_log(tmp_path):
                    frames=[{"cause": "TimerHandler:setTimeout > draw in Pdf-bb.js",
                             "n": 1, "ms": 300, "max": 300},
                            {"cause": "style and layout", "n": 1, "ms": 250, "max": 250}])
+        diag.event("client-noise", page="/", counts={"ResizeObserver loop": 7})
         diag.event("stopped", why="restarting for an update")
     finally:
         diag.uninstall()
@@ -56,6 +57,7 @@ def test_the_review_summarises_a_log(tmp_path):
                          capture_output=True, text=True, check=True).stdout
     assert "started 9.9.9 at abc1234" in out
     assert "36.0 s of work thrown away" in out
+    assert "Counted as harmless: 7x ResizeObserver loop" in out
     assert "1x  a build for open replaced by one for edit" in out
     assert "What asked for them: {'edit': 1}" in out
     assert "stopped 1x: restarting for an update" in out

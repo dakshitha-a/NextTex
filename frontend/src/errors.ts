@@ -35,7 +35,26 @@ function clock(): string {
   return new Date().toISOString().slice(11, 19);
 }
 
+/** Messages a browser reports that say nothing is wrong, counted per send
+ *  rather than kept.  Chromium's ResizeObserver line fills the error event
+ *  whenever an observed box changes size inside its own callback, and it
+ *  put 3,940 lines in four days of the diagnostics log, burying the errors
+ *  a review was looking for. */
+export const HARMLESS: readonly RegExp[] = [
+  /^ResizeObserver loop (completed with undelivered notifications|limit exceeded)/,
+];
+
+let noise = new Map<string, number>();
+
 export function record(kind: Kind, message: unknown, stack = ""): void {
+  const text = String(message ?? "");
+  const harmless = HARMLESS.find((pattern) => pattern.test(text));
+  if (harmless) {
+    const key = harmless.source.slice(1, 60);
+    noise.set(key, (noise.get(key) ?? 0) + 1);
+    schedule();
+    return;
+  }
   const entry = {
     at: clock(),
     kind,
@@ -153,13 +172,16 @@ function schedule(): void {
 export function send(leaving: boolean): void {
   if (timer) clearTimeout(timer);
   timer = null;
-  if (!sender || (!unsent.length && !slow.length && !longTasks && !frames.size)) return;
+  if (!sender || (!unsent.length && !slow.length && !longTasks && !frames.size && !noise.size)) {
+    return;
+  }
   const body = JSON.stringify({
     errors: unsent,
     slow,
     long_tasks: longTasks,
     long_task_max_ms: longestTask,
     frames: [...frames.values()],
+    noise: Object.fromEntries(noise),
     page: typeof location === "undefined" ? "" : location.pathname.slice(0, 200),
     browser: typeof navigator === "undefined" ? "" : navigator.userAgent.slice(0, 300),
   });
@@ -168,6 +190,7 @@ export function send(leaving: boolean): void {
   longTasks = 0;
   longestTask = 0;
   frames = new Map();
+  noise = new Map();
   try {
     sender(body, leaving);
   } catch {
@@ -201,6 +224,7 @@ export function reset(): void {
   longTasks = 0;
   longestTask = 0;
   frames = new Map();
+  noise = new Map();
   if (timer) clearTimeout(timer);
   timer = null;
 }

@@ -322,10 +322,6 @@ OpenAI provider against OpenAI itself.
       built in one pass with no `.bbl` and came back "ok" with no errors,
       seen while reproducing the 25 October fault. `_damaged` does not look
       for it; the live install's PATH has TinyTeX, so nobody has hit it yet.
-- [ ] **The diagnostics log fills with ResizeObserver lines.** 3,940 in
-      four days, all the browser's harmless "loop completed with
-      undelivered notifications"; they bury the browser errors a review
-      is looking for and should be counted rather than kept.
 - [ ] **History calls an agent's version "Claude" whatever the agent.**
       A version records that the agent made it, not which provider, so with
       ChatGPT or a local model the History drawer still says Claude. The

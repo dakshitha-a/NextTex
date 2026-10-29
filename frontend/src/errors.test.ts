@@ -139,6 +139,21 @@ describe("sending what was recorded to the server's log", () => {
     expect(sent).toHaveLength(0);
   });
 
+  it("counts harmless browser noise instead of keeping it", () => {
+    const sent: string[] = [];
+    const stop = install(new EventTarget(), (body) => sent.push(body));
+    for (let index = 0; index < 30; index++) {
+      record("error", "ResizeObserver loop completed with undelivered notifications.");
+    }
+    record("error", "a real one");
+    vi.advanceTimersByTime(SEND_AFTER_MS);
+    const body = JSON.parse(sent[0]);
+    expect(body.errors.map((e: any) => e.message)).toEqual(["a real one"]);
+    expect(Object.values(body.noise)).toEqual([30]);
+    expect(snapshot().map((e) => e.message)).toEqual(["a real one"]);
+    stop();
+  });
+
   it("names the event a slow stream handler was handling", () => {
     noteHandled("files_changed", 1000, 3400);
     // A quick event after it does not take its place.

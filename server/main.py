@@ -29,7 +29,7 @@ from functools import partial
 from contextlib import asynccontextmanager
 from dataclasses import dataclass, field
 from pathlib import Path
-from typing import Optional
+from typing import Annotated, Optional
 from urllib.parse import quote as url_quote, urlsplit
 
 from starlette.background import BackgroundTask
@@ -41,7 +41,7 @@ from fastapi.responses import (
     FileResponse, HTMLResponse, JSONResponse, Response, StreamingResponse,
 )
 from fastapi.staticfiles import StaticFiles
-from pydantic import BaseModel, Field
+from pydantic import BaseModel, Field, StringConstraints
 
 from nexttex import (
     arrive, attachments, auth, auxlabels, claude_auth, dictionaries, equation, gitrepo, headings,
@@ -7408,6 +7408,9 @@ class ClientLog(BaseModel):
     long_tasks: int = Field(default=0, ge=0)
     long_task_max_ms: int = Field(default=0, ge=0)
     frames: list[LongFrame] = Field(default_factory=list, max_length=report.MAX_CLIENT_ERRORS)
+    #: Harmless browser messages, counted rather than sent one by one.
+    noise: dict[Annotated[str, StringConstraints(max_length=60)],
+                Annotated[int, Field(ge=0)]] = Field(default_factory=dict, max_length=8)
     page: str = Field(default="", max_length=200)
     browser: str = Field(default="", max_length=300)
 
@@ -7431,6 +7434,8 @@ async def client_log(body: ClientLog) -> Response:
                    long_task_max_ms=body.long_task_max_ms,
                    slow=[call.model_dump() for call in body.slow],
                    frames=[frame.model_dump() for frame in body.frames])
+    if body.noise:
+        diag.event("client-noise", page=body.page, counts=body.noise)
     return Response(status_code=204)
 
 
