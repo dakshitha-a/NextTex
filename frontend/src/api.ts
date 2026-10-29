@@ -982,6 +982,9 @@ const api = {
   texInstalling: () => request<{ package: string }>("/tex/installing"),
   texInstall: (id: string, pkg: string) =>
     request<{ ok: boolean; err: string }>(`/projects/${id}/tex/install`, json({ package: pkg })),
+  /** A template's whole list in one manager run, with one build after. */
+  texInstallAll: (id: string, packages: string[]) =>
+    request<{ ok: boolean; err: string }>(`/projects/${id}/tex/install`, json({ packages })),
 
   history: (id: string, path: string) =>
     request<{ path: string; versions: Version[] }>(
@@ -1089,7 +1092,7 @@ const api = {
       report: string;
     }>(`/projects/${id}/library/verify`, json({})),
   loadTemplate: (id: string, name = "basic") =>
-    request<{ ok: boolean; written: string[] }>(
+    request<{ ok: boolean; written: string[]; missing?: string[] }>(
       `/projects/${id}/template`,
       json({ name }),
     ),

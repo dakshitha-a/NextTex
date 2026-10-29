@@ -293,17 +293,6 @@ OpenAI provider against OpenAI itself.
       Which browser `find_browser` picked there was not looked at; the full
       Chromium hanging on `--dump-dom`, as it does on the owner's machine,
       would explain it.
-- [ ] **A template loaded into an existing project installs nothing.** The
-      New project sheet installs a template's `[needs]`; the empty page's
-      button and the agent column's template action call
-      `api.loadTemplate` alone, so on a fresh TinyTeX the article's first
-      build there stops on parskip and the Build drawer offers the
-      packages one at a time.
-- [ ] **Create installs a template's packages one call at a time.** Each
-      `api.texInstall` is its own tlmgr run and schedules its own full
-      build; the OUP template's seventeen packages are seventeen runs.
-      One install of the whole list, then one build, would be minutes
-      shorter on a fresh TinyTeX.
 - [ ] **An update repairs nothing an install step fixed.** `scripts/update.sh`
       does not run the TeX extras step again, so a missing synctex stays
       missing after an update that fixed the step, and it does not rewrite

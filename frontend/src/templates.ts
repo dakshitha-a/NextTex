@@ -1,3 +1,5 @@
+import api from "./api";
+
 /** The templates a new project can start from, and the guides to the
  *  venues NextTex cannot ship, as `GET /api/templates` answers them.
  *
@@ -87,4 +89,46 @@ export function createLabel(template: TemplateInfo | undefined): string {
   if (!missing.length) return "Create project";
   if (missing.length === 1) return `Install ${missing[0]} and create`;
   return `Install ${missing.length} packages and create`;
+}
+
+
+/** Load a template into a project and install what this TeX lacks for it,
+ *  in one manager run.  Every way in goes through here: the New project
+ *  sheet, the empty page's button and the agent column's action, which
+ *  until 29 October 2026 loaded the template alone, so on a fresh TinyTeX
+ *  the article's first build stopped on parskip and the Build drawer
+ *  offered the packages one at a time.  Answers the sentence to show when
+ *  something did not happen, or null; the template is kept either way. */
+export async function loadTemplateWithNeeds(
+  id: string,
+  name = "basic",
+  onInstalling: (packages: string[] | null) => void = () => undefined,
+): Promise<string | null> {
+  let missing: string[];
+  try {
+    missing = (await api.loadTemplate(id, name)).missing ?? [];
+  } catch (problem: any) {
+    return `The template did not load: ${problem.message}`;
+  }
+  return installNeeds(id, missing, onInstalling);
+}
+
+/** Install a template's missing packages in one run; the sentence to show
+ *  when they did not install, or null. */
+export async function installNeeds(
+  id: string,
+  missing: string[],
+  onInstalling: (packages: string[] | null) => void = () => undefined,
+): Promise<string | null> {
+  if (!missing.length) return null;
+  const named = missing.join(", ");
+  onInstalling(missing);
+  try {
+    const result = await api.texInstallAll(id, missing);
+    return result.ok ? null : `${named} did not install: ${result.err}`;
+  } catch (problem: any) {
+    return `${named} did not install: ${problem.message}`;
+  } finally {
+    onInstalling(null);
+  }
 }

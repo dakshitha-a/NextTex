@@ -98,3 +98,48 @@ def test_anything_but_a_package_name_is_refused_before_the_manager_sees_it(
 def test_both_routes_need_a_project_this_server_knows(client, tlmgr):
     assert client.get("/api/projects/nope/tex/package", params={"file": "x.sty"}).status_code == 404
     assert client.post("/api/projects/nope/tex/install", json={"package": "x"}).status_code == 404
+
+
+@pytest.mark.skipif(sys.platform == "win32", reason="the stand-in is a script")
+def test_a_templates_list_is_one_install(client, opened, tlmgr):
+    response = client.post(
+        f"/api/projects/{opened['id']}/tex/install",
+        json={"packages": ["parskip-pkg", "microtype-pkg"]},
+    )
+    assert response.json() == {"ok": True, "err": ""}
+    assert calls(tlmgr) == [["install", "parskip-pkg", "microtype-pkg"]]
+
+
+def test_a_list_with_anything_but_package_names_is_refused(client, opened, tlmgr):
+    response = client.post(f"/api/projects/{opened['id']}/tex/install",
+                           json={"packages": ["parskip", "-x"]})
+    assert response.status_code == 400
+    response = client.post(f"/api/projects/{opened['id']}/tex/install",
+                           json={"packages": ["p"] * (texpkg.MAX_AT_ONCE + 1)})
+    assert response.status_code == 400
+    assert calls(tlmgr) == []
+
+
+@pytest.mark.skipif(sys.platform == "win32", reason="the stand-in is a script")
+def test_the_stand_in_refuses_until_tlmgr_has_updated_itself(client, opened, tlmgr):
+    """What the browser tier's fake answers, so a spec can drive the
+    drawer's button through the retry."""
+    response = client.post(f"/api/projects/{opened['id']}/tex/install",
+                           json={"package": "selfupdate-pkg"})
+    assert response.json() == {"ok": True, "err": ""}
+    assert calls(tlmgr) == [
+        ["install", "selfupdate-pkg"], ["update", "--self"], ["install", "selfupdate-pkg"],
+    ]
+
+
+def test_loading_a_template_says_what_this_tex_lacks_for_it(client, opened, monkeypatch):
+    monkeypatch.setattr(venues, "_present", lambda names: {n for n in names if n != "parskip.sty"})
+    venues.forget()
+    from server import main as server_main
+    # The route is for a document with nothing in it yet.
+    server_main.SESSIONS[opened["id"]].paths.main.write_text(
+        "\\documentclass{article}\n\\begin{document}\n\\end{document}\n", encoding="utf-8")
+    answer = client.post(f"/api/projects/{opened['id']}/template", json={"name": "basic"})
+    venues.forget()
+    assert answer.status_code == 200, answer.text
+    assert answer.json()["missing"] == ["parskip"]

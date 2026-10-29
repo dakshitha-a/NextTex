@@ -3723,8 +3723,13 @@ async def tex_installing():
 
 
 @app.post("/api/projects/{project_id}/tex/install")
-async def tex_install(project_id: str, package: str = Body(..., embed=True)):
-    """Install the package the drawer's row named, then build again.
+async def tex_install(
+    project_id: str,
+    package: str = Body("", embed=True),
+    packages: list[str] = Body(default_factory=list, embed=True),
+):
+    """Install the package the drawer's row named, or a template's
+    `packages` in one run, then build again.
 
     The row asks the writer first and says what this reaches: tlmgr
     downloads from a CTAN mirror and unpacks what it downloads.  Nothing
@@ -3733,9 +3738,13 @@ async def tex_install(project_id: str, package: str = Body(..., embed=True)):
     writer is looking at is the one that failed for want of the file.
     """
     session = session_for(project_id)
-    if not texpkg.PACKAGE.match(package or ""):
-        raise HTTPException(400, f"{package!r} is not a package name")
-    result = await texpkg.install(package)
+    names = packages or [package]
+    if len(names) > texpkg.MAX_AT_ONCE:
+        raise HTTPException(400, f"at most {texpkg.MAX_AT_ONCE} packages at a time")
+    for name in names:
+        if not texpkg.PACKAGE.match(name or ""):
+            raise HTTPException(400, f"{name!r} is not a package name")
+    result = await texpkg.install(names)
     if result["ok"]:
         # A template that needed this package no longer does.
         venues.forget()
@@ -6191,7 +6200,13 @@ async def load_template(project_id: str, name: str = Body("basic", embed=True)):
     session.note_edit(main, read_text(main), None)
     session.schedule_compile()
     await session.events.publish({"type": "files_changed", "paths": written})
-    return {"ok": True, "written": written, "document": session.project.relative(main)}
+    # What this TeX lacks for it, so a template loaded into an existing
+    # project can install them the way the New project sheet does; the
+    # empty page's button and the agent column's action did not, and on a
+    # fresh TinyTeX the article's first build there stopped on parskip.
+    missing = await asyncio.to_thread(venues.missing, venues.get(name))
+    return {"ok": True, "written": written, "document": session.project.relative(main),
+            "missing": missing or []}
 
 
 def _project_settings(session) -> dict:

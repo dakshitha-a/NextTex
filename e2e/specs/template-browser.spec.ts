@@ -4,7 +4,7 @@ import { readFileSync } from "node:fs";
 import { join } from "node:path";
 import type { Page } from "@playwright/test";
 import { test, expect } from "../fixtures";
-import { ROOT, startServer } from "../server";
+import { ROOT, seedProject, startServer } from "../server";
 
 /** The New project sheet's Start from, and the browser Change opens.
  *
@@ -146,6 +146,47 @@ base("a venue whose class this TeX lacks installs it, then opens on its document
     })).json();
     const acm = listed.templates.find((t: { name: string }) => t.name === "acm");
     baseExpect(acm.missing).toEqual([]);
+  } finally {
+    await app.stop();
+  }
+});
+
+base("the empty page's template installs what this TeX lacks for it", async ({ page }, info) => {
+  // It loaded the template alone, so on a fresh TinyTeX the article's
+  // first build stopped on parskip and the Build drawer offered the
+  // packages one at a time.
+  const log = join(info.outputPath(), "tlmgr.jsonl");
+  const app = await startServer({
+    NEXTTEX_TLMGR: join(ROOT, "tests", "fake_tlmgr.py"),
+    NEXTTEX_FAKE_TLMGR_LOG: log,
+    NEXTTEX_KPSEWHICH: join(ROOT, "tests", "fake_kpsewhich.py"),
+    NEXTTEX_FAKE_KPSEWHICH_LACKS: "parskip.sty=parskip,microtype.sty=microtype",
+  });
+  try {
+    const project = await seedProject(app, `empty-${Date.now()}`);
+    await fetch(`${app.base}/api/projects/${project.id}/file`, {
+      method: "PUT",
+      headers: { "content-type": "application/json", "x-nexttex-token": app.token },
+      body: JSON.stringify({
+        path: "main.tex",
+        text: "\\documentclass{article}\n\\begin{document}\n\\end{document}\n",
+        compile: false, create: true,
+      }),
+    });
+    await page.goto(`${app.base}/?token=${app.token}`);
+    await page.getByText("Projects", { exact: false }).first().waitFor();
+    await page.getByText(project.root.split("/").pop()!, { exact: false }).first().click();
+    await page.getByRole("button", { name: "Load a basic document" }).click({ timeout: 45_000 });
+    await baseExpect(page.locator(".cm-content")).toContainText("\\documentclass", {
+      timeout: 30_000,
+    });
+    await baseExpect.poll(() => {
+      try {
+        return readFileSync(log, "utf-8").trim().split("\n").map((line) => JSON.parse(line));
+      } catch {
+        return [];
+      }
+    }, { timeout: 30_000 }).toEqual([["install", "parskip", "microtype"]]);
   } finally {
     await app.stop();
   }

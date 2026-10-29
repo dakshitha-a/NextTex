@@ -28,7 +28,7 @@ import { tabStopFor } from "../tree";
 import {
   SORT_STORAGE, sortKeyFrom, viewCounts, visibleProjects, type ProjectView, type SortKey,
 } from "../project-filter";
-import { createLabel, type GuideInfo, type TemplateInfo } from "../templates";
+import { createLabel, installNeeds, type GuideInfo, type TemplateInfo } from "../templates";
 import { APPEARANCE_CHANGED, readStored, writeStored } from "../appearance";
 import { breakpoints } from "../layout";
 import { viewportWidth } from "../viewport";
@@ -481,21 +481,15 @@ export default function Projects({
         // build of the venue's document and the project opens on its
         // page.  A package that will not install is said, and the
         // project still opens: the Build drawer offers the same install.
-        for (const pkg of chosen?.missing ?? []) {
-          setInstalling(pkg);
-          try {
-            const result = await api.texInstall(project.id, pkg);
-            if (!result.ok) {
-              set({ error: `The project was made, but ${pkg} did not install: ${result.err}` });
-              break;
-            }
-          } catch (problem: any) {
-            set({ error: `The project was made, but ${pkg} did not install: ${problem.message}` });
-            break;
-          } finally {
-            setInstalling(null);
-          }
-        }
+        const problem = await installNeeds(
+          project.id, chosen?.missing ?? [],
+          // A button's label: a template's seventeen names do not fit one.
+          (packages) => setInstalling(
+            !packages ? null
+              : packages.length > 2 ? `${packages.length} packages` : packages.join(" and "),
+          ),
+        );
+        if (problem) set({ error: `The project was made, but ${problem}` });
       }
       setPath("");
       setNewName("");

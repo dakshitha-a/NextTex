@@ -24,8 +24,8 @@ def installed() -> set[str]:
     done = set()
     for line in Path(log).read_text(encoding="utf-8").splitlines():
         argv = json.loads(line)
-        if argv[:1] == ["install"] and len(argv) == 2:
-            done.add(argv[1])
+        if argv[:1] == ["install"] and len(argv) >= 2:
+            done.update(argv[1:])
     return done
 
 

@@ -45,6 +45,8 @@ MISSING_FILE = re.compile(
 #: minutes rather than seconds.
 SEARCH_TIMEOUT = 30.0
 INSTALL_TIMEOUT = 300.0
+#: The most packages one install takes; a template names fewer than twenty.
+MAX_AT_ONCE = 40
 
 #: Where a package's files live in a TeX distribution.  The search answers
 #: with every file whose path contains the name, and `tex/latex/` and
@@ -116,13 +118,16 @@ def manager_here() -> tuple[str, str]:
     return "", ""
 
 
-def install_argv(kind: str, path: str, package: str) -> list[str]:
-    """The command that installs one package with this kind of manager."""
+def install_argv(kind: str, path: str, package: str | list[str]) -> list[str]:
+    """The command that installs one package, or several in one run, with
+    this kind of manager.  Each takes a list: tlmgr and `miktex packages
+    install` as arguments, the older `mpm` as one `--install` apiece."""
+    names = [package] if isinstance(package, str) else list(package)
     if kind == "miktex":
-        return [path, "packages", "install", package]
+        return [path, "packages", "install", *names]
     if kind == "mpm":
-        return [path, f"--install={package}"]
-    return [path, "install", package]
+        return [path, *(f"--install={name}" for name in names)]
+    return [path, "install", *names]
 
 
 async def _run(argv: list[str], timeout: float) -> tuple[int | None, str]:
@@ -210,8 +215,13 @@ async def package_for_file(file: str) -> dict:
     return {"file": file, "package": package, "manager": kind}
 
 
-async def install(package: str) -> dict:
-    """Install one package with the manager this TeX has.
+async def install(package: str | list[str]) -> dict:
+    """Install one package, or a template's list of them in one run, with
+    the manager this TeX has.
+
+    A list is one call: the New project sheet installed a template's
+    packages one tlmgr run apiece, each with its own full build after it,
+    and the OUP template's seventeen were seventeen of each.
 
     `{"ok": bool, "err": str}`, with the manager's own words on failure:
     a TinyTeX behind its mirror fails with "remote repository is newer
@@ -224,23 +234,32 @@ async def install(package: str) -> dict:
     install again.  The search needs no such step, since tlmgr asks it
     only of `install` and `update`.
     """
-    if not PACKAGE.match(package):
-        return {"ok": False, "err": f"{package!r} is not a package name."}
+    names = [package] if isinstance(package, str) else list(package)
+    if not names or len(names) > MAX_AT_ONCE:
+        return {"ok": False, "err": f"Between one and {MAX_AT_ONCE} packages at a time."}
+    for name in names:
+        if not PACKAGE.match(name):
+            return {"ok": False, "err": f"{name!r} is not a package name."}
     kind, path = manager_here()
     if not kind:
         return {"ok": False, "err": "No TeX package manager was found on this computer."}
-    argv = install_argv(kind, path, package)
+    argv = install_argv(kind, path, names)
+    # Each package's own allowance, since one run now carries them all.
+    timeout = INSTALL_TIMEOUT * len(names)
     global CURRENT
     async with _INSTALLING:
-        CURRENT = package
+        CURRENT = ", ".join(names)
         try:
-            code, output = await _run(argv, INSTALL_TIMEOUT)
+            code, output = await _run(argv, timeout)
             if code != 0 and kind == "tlmgr" and needs_self_update(output):
                 code, output = await _run([path, *SELF_UPDATE], INSTALL_TIMEOUT)
                 if code == 0:
-                    code, output = await _run(argv, INSTALL_TIMEOUT)
+                    code, output = await _run(argv, timeout)
         except asyncio.TimeoutError:
-            return {"ok": False, "err": "The install was still running after five minutes."}
+            if len(names) == 1:
+                return {"ok": False, "err": "The install was still running after five minutes."}
+            return {"ok": False, "err": (f"The install of {len(names)} packages was still "
+                                         f"running after {5 * len(names)} minutes.")}
         except OSError as error:
             return {"ok": False, "err": str(error)}
         finally:

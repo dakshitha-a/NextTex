@@ -348,3 +348,32 @@ def test_the_advice_names_both_distributions_managers():
     fix = rows[0]["explain"]["fix"]
     assert "tlmgr install" in fix and "miktex packages install" in fix
     assert "For TinyTeX that is" not in fix
+
+
+@pytest.mark.parametrize("kind,argv", [
+    ("tlmgr", ["/t/tlmgr", "install", "parskip", "microtype"]),
+    ("miktex", ["/t/tlmgr", "packages", "install", "parskip", "microtype"]),
+    ("mpm", ["/t/tlmgr", "--install=parskip", "--install=microtype"]),
+])
+def test_a_list_is_one_command_in_each_managers_words(kind, argv):
+    assert texpkg.install_argv(kind, "/t/tlmgr", ["parskip", "microtype"]) == argv
+
+
+def test_a_templates_list_is_one_run_and_one_self_update(monkeypatch):
+    """The OUP template's seventeen packages were seventeen tlmgr runs, and
+    each could have asked for its own self-update."""
+    seen = _tlmgr_behind_its_repository(monkeypatch)
+    assert asyncio.run(texpkg.install(["parskip", "microtype", "siunitx"])) == {
+        "ok": True, "err": ""}
+    assert seen == [
+        ["/fake/tlmgr", "install", "parskip", "microtype", "siunitx"],
+        ["/fake/tlmgr", "update", "--self"],
+        ["/fake/tlmgr", "install", "parskip", "microtype", "siunitx"],
+    ]
+
+
+def test_a_list_with_one_bad_name_installs_nothing(monkeypatch):
+    seen = _tlmgr_behind_its_repository(monkeypatch)
+    result = asyncio.run(texpkg.install(["parskip", "--location=evil"]))
+    assert result["ok"] is False and seen == []
+    assert asyncio.run(texpkg.install([]))["ok"] is False

@@ -1,3 +1,4 @@
+import { loadTemplateWithNeeds } from "./templates";
 import { Button, IconButton } from "./ui/Button";
 import { shellTheme } from "./ui/FloatingCard";
 import { useCallback, useEffect, useRef, useMemo, useState, lazy, Suspense, type ReactNode } from "react";
@@ -3497,12 +3498,9 @@ export default function App() {
             onLoadTemplate={async () => {
               const id = get().projectId;
               if (!id) return;
-              try {
-                await api.loadTemplate(id);
-                refreshTree();
-              } catch (error: any) {
-                set({ error: error.message });
-              }
+              const problem = await loadTemplateWithNeeds(id, "basic", () => refreshTree());
+              refreshTree();
+              if (problem) set({ error: problem });
             }}
           />
           </div>
@@ -3647,12 +3645,9 @@ export default function App() {
             if (kind === "template") {
               const id = get().projectId;
               if (!id) return;
-              try {
-                await api.loadTemplate(id);
-                refreshTree();
-              } catch (error: any) {
-                set({ error: error.message });
-              }
+              const problem = await loadTemplateWithNeeds(id, "basic", () => refreshTree());
+              refreshTree();
+              if (problem) set({ error: problem });
               return;
             }
             // What Claude reads is a view of the column; the picker opens
