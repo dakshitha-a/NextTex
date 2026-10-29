@@ -53,7 +53,7 @@ from .childenv import without_secrets
 from .deps import uncommented
 from .atomic import write_atomically
 from .proctree import descendants, end_tree
-from .latexlog import ParsedLog, parse as parse_log
+from .latexlog import Diagnostic, ParsedLog, parse as parse_log
 
 #: The stand-in written beside a document when only part of it is being
 #: built.  Named after the document rather than the project: a project can
@@ -1059,6 +1059,10 @@ class CompileScheduler:
         # held the loop for as long as it took after every single build.
         log = await asyncio.to_thread(self._read_log)
         if log is not None:
+            if full_pass:
+                missing = self._biber_missing(log, env)
+                if missing:
+                    log.diagnostics.insert(0, Diagnostic("error", missing, file=self.paths.main))
             self._note_unresolved(log, full_pass)
 
         # A PDF from a previous good build is better than none: the preview
@@ -1178,6 +1182,33 @@ class CompileScheduler:
         if "I found no \\citation commands" in blg:
             return f"{bbl.name} was built from an incomplete {self.paths.jobname}.aux"
         return ""
+
+    def _biber_missing(self, log: ParsedLog, env: dict) -> str:
+        """Why a biblatex document's full pass has no bibliography, or "".
+
+        latexmk runs biber when the engine leaves a `.bcf`, and with no
+        biber beside it, it goes on without one and exits 0.  A 222-page
+        thesis built that way came back "ok" with no errors and every
+        citation a question mark, seen on 25 October 2026 on a PATH whose
+        latexmk had no biber.  The engine's own word is only a warning.
+        """
+        job = self.paths.build_dir / self.paths.jobname
+        if not job.with_name(job.name + ".bcf").exists():
+            return ""
+        if not (log.undefined_citations or log.bibliography_stale):
+            return ""
+        bbl = job.with_name(job.name + ".bbl")
+        try:
+            empty = bbl.stat().st_size == 0
+        except OSError:
+            empty = True
+        if not empty:
+            return ""
+        if shutil.which("biber", path=env.get("PATH")) is None:
+            return ("biber did not run, so the bibliography is empty: this document "
+                    "uses biblatex, and there is no biber on the PATH NextTex builds with")
+        return (f"biber ran but wrote no bibliography; {job.name}.blg in the build "
+                "folder says why")
 
     def _snapshot(self, main_source: str) -> dict[Path, bytes]:
         """Those files' bytes, held in memory: tens of kilobytes on a

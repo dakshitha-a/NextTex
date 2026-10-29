@@ -317,11 +317,6 @@ OpenAI provider against OpenAI itself.
       `create_subprocess_exec`. `tests/fake_tlmgr.py` has no package that
       answers that way, so no browser spec has seen the drawer's button
       through the retry.
-- [ ] **A full pass that never ran biber is reported as clean.** With a
-      latexmk on the PATH that has no biber beside it, a 222-page thesis
-      built in one pass with no `.bbl` and came back "ok" with no errors,
-      seen while reproducing the 25 October fault. `_damaged` does not look
-      for it; the live install's PATH has TinyTeX, so nobody has hit it yet.
 - [ ] **History calls an agent's version "Claude" whatever the agent.**
       A version records that the agent made it, not which provider, so with
       ChatGPT or a local model the History drawer still says Claude. The
