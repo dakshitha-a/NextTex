@@ -2,6 +2,7 @@ import { Component, type ReactNode } from "react";
 import { Button } from "./ui/Button";
 import { worthReloading } from "./boundary-cause";
 import { record } from "./errors";
+import api from "./api";
 import { get } from "./store";
 
 /** What is on screen when part of the interface cannot be loaded.
@@ -21,12 +22,12 @@ import { get } from "./store";
  *
  *  So: reload once, automatically, because after an update that is the
  *  whole fix and asking the writer to do it by hand is asking them to guess.
- *  Only once, recorded per tab, so that a fault which is *not* a stale
- *  chunk cannot put the tab in a reload loop -- the second failure is shown
- *  and explained instead.
+ *  Only once per version of the server, recorded per tab, so that a fault
+ *  which is *not* a stale chunk cannot put the tab in a reload loop -- the
+ *  second failure against the same commit is shown and explained instead.
  */
 
-const RETRIED = "nexttex.reloadedAfterChunkError";
+export const RETRIED = "nexttex.reloadedAfterChunkError";
 
 /** Whether this looks like a chunk that is no longer on the server.
  *
@@ -64,16 +65,28 @@ export default class Boundary extends Component<Props, State> {
     // was read as a deployment that had moved and the tab reloaded itself
     // onto the browser's error page, taking the editor with it.
     if (!worthReloading(error, get().connection)) return;
-    let already = false;
-    try {
-      already = window.sessionStorage.getItem(RETRIED) === "yes";
-      window.sessionStorage.setItem(RETRIED, "yes");
-    } catch {
-      // A private window with storage switched off: show the message
-      // rather than risking a reload we cannot remember having done.
-      already = true;
-    }
-    if (!already) window.location.reload();
+    // Once per version of the server, not once per tab.  The marker holds
+    // the commit the tab reloaded onto, so a second update while the same
+    // tab stays open reloads it again, as the first did; a chunk that
+    // fails against the commit it already reloaded onto is a real fault,
+    // and the screen says so instead of reloading in a loop.  Until 29
+    // October 2026 the marker was "yes" for the life of the tab.
+    void api.instance().then(
+      (instance) => instance.head || "",
+      () => "",
+    ).then((head) => {
+      let already = false;
+      try {
+        const marker = window.sessionStorage.getItem(RETRIED);
+        already = marker !== null && (head === "" || marker === head);
+        window.sessionStorage.setItem(RETRIED, head || "unknown");
+      } catch {
+        // A private window with storage switched off: show the message
+        // rather than risking a reload we cannot remember having done.
+        already = true;
+      }
+      if (!already) window.location.reload();
+    });
   }
 
   render() {

@@ -88,3 +88,41 @@ test("it reloads itself once before giving up", async ({ browser }) => {
   await expect(page.locator("canvas").first()).toBeVisible({ timeout: 45_000 });
   await expect(page.getByTestId("interface-failed")).toHaveCount(0);
 });
+
+test("a second update in the same tab reloads it again", async ({ browser }) => {
+  // The marker said "yes" for the life of the tab, so the tab that had
+  // reloaded after one update showed the failure screen after the next.
+  const context = await browser.newContext({ viewport: { width: 1400, height: 900 } });
+  const page = await context.newPage();
+  let loads = 0;
+  page.on("load", () => (loads += 1));
+  await page.goto(`${app.base}/?token=${app.token}`);
+  // As though an earlier update had reloaded this tab onto another commit.
+  await page.evaluate(() =>
+    sessionStorage.setItem("nexttex.reloadedAfterChunkError", "0000000"));
+  await page.route("**/assets/Pdf-*.js", (route) =>
+    loads <= 1 ? route.abort() : route.continue(),
+  );
+  await page.getByText(project.root.split("/").pop()!, { exact: false })
+    .first().click();
+  await expect.poll(() => loads, { timeout: 30_000 }).toBeGreaterThan(1);
+  await expect(page.locator("canvas").first()).toBeVisible({ timeout: 45_000 });
+  await expect(page.getByTestId("interface-failed")).toHaveCount(0);
+  await context.close();
+});
+
+test("a chunk that fails again on the same commit shows the screen", async ({ browser }) => {
+  const context = await browser.newContext({ viewport: { width: 1400, height: 900 } });
+  const page = await context.newPage();
+  let loads = 0;
+  page.on("load", () => (loads += 1));
+  await page.route("**/assets/Pdf-*.js", (route) => route.abort());
+  await page.goto(`${app.base}/?token=${app.token}`);
+  await page.getByText(project.root.split("/").pop()!, { exact: false })
+    .first().click();
+  await expect(page.getByTestId("interface-failed")).toBeVisible({ timeout: 45_000 });
+  // One reload, then the screen: never a loop.
+  await page.waitForTimeout(2_000);
+  expect(loads).toBe(2);
+  await context.close();
+});

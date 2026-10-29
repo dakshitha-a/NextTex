@@ -4679,7 +4679,11 @@ draw the "no preview" screen over a page that had already loaded.
 Two records that are one story. A pane is a dynamic import, so when a deploy
 replaces the built assets under an open tab, the next pane it opens asks for a
 chunk that is no longer there. Reloading onto the new build is the only cure
-and the boundary does it, once. What decided when was a pattern over the error
+and the boundary does it, once for each version of the server: the tab
+remembers the commit it reloaded onto, so a second update while it stays
+open reloads it again, and a chunk that fails against that same commit is a
+real fault and gets the screen. Until 29 October 2026 the tab remembered only
+that it had reloaded, and the second update showed the screen. What decided when was a pattern over the error
 message, and the pattern included a bare `Failed to fetch`, which is what a
 browser says for **any** request it could not make.
 
