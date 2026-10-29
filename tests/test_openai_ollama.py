@@ -132,7 +132,9 @@ def test_an_attached_word_file_is_read_through_its_text(tmp_path):
         "What is the reviewer's code word? Read the attached notes and answer with the word alone.",
         attachments.sentence(given),
     ))
-    said = " ".join(event.get("text", "") for event in seen if event["type"] == "text")
+    # Streamed pieces, joined as they arrived: a space between them split
+    # the word itself ("hel iotrope") and failed a correct answer.
+    said = "".join(event.get("text", "") for event in seen if event["type"] == "text")
     assert "heliotrope" in said.lower()
 
 
