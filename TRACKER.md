@@ -378,6 +378,11 @@ OpenAI provider against OpenAI itself.
 
 ### Flaky, with the trace read
 
+- [ ] **Show this in the source once missed on the first attempt.**
+      `e2e/specs/pdf-menu.spec.ts`, "Show this in the source jumps as a
+      double-click on the same spot does", failed its first attempt and
+      passed on retry in the full run of 29 October 2026, before 4.47.2.
+      The trace was not kept; read it the next time it fails.
 - [ ] **The page check on CI uses the runner's full Chrome.** It failed
       once on 26 October 2026 with "had not read it back". Installing
       Playwright's headless shell in the `python` workflow, in 4.47.0, made

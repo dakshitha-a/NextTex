@@ -12,14 +12,20 @@ import type { Page } from "@playwright/test";
 
 /** Answer the real instance until `update` is called, then the same with
  *  another commit. */
-async function updateAfterLoad(page: Page): Promise<() => void> {
+async function updateAfterLoad(page: Page): Promise<() => Promise<void>> {
   let updated = false;
+  let answered = 0;
   await page.route("**/api/instance", async (route) => {
     const response = await route.fetch();
     const body = await response.json();
     await route.fulfill({ response, json: updated ? { ...body, head: "f".repeat(40) } : body });
+    answered += 1;
   });
-  return () => {
+  // Only once the page has its first answer, the commit it belongs to;
+  // switching sooner made that first answer the new commit, and the spec
+  // passed only on a retry.
+  return async () => {
+    await expect.poll(() => answered, { timeout: 10_000 }).toBeGreaterThan(0);
     updated = true;
   };
 }
@@ -30,7 +36,7 @@ test("a tab in view says NextTex was updated and offers Reload", async ({ page, 
   await page.getByText(project.root.split("/").pop()!, { exact: false }).first().click();
   await page.locator(".cm-editor").waitFor({ timeout: 20_000 });
   await expect(page.getByTestId("status-outdated")).toHaveCount(0);
-  update();
+  await update();
   await page.evaluate(() => document.dispatchEvent(new Event("visibilitychange")));
   const notice = page.getByTestId("status-outdated");
   await expect(notice).toContainText("NextTex was updated", { timeout: 10_000 });
@@ -43,7 +49,7 @@ test("a tab out of view reloads itself", async ({ page, app }) => {
   page.on("load", () => (loads += 1));
   await page.goto(`${app.base}/?token=${app.token}`);
   await page.getByText("Projects", { exact: false }).first().waitFor();
-  update();
+  await update();
   await page.evaluate(() => {
     Object.defineProperty(document, "hidden", { configurable: true, get: () => true });
     document.dispatchEvent(new Event("visibilitychange"));
