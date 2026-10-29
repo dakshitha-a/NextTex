@@ -172,6 +172,16 @@ def _relative_to(root: Path, path: str | None) -> str | None:
         return Path(path).resolve().relative_to(root).as_posix()
     except (ValueError, OSError):
         return Path(path).name
+#: What braces inside do not count: a comment to the end of its line, an
+#: argument of `\verb`, and the body of an environment that sets its text
+#: as written.
+UNCOUNTED = re.compile(
+    r"(?<!\\)%[^\n]*"
+    r"|\\verb\*?([^\sa-zA-Z*])[^\n]*?\1"
+    r"|\\begin\{(verbatim\*?|lstlisting|minted|comment|Verbatim)\}.*?\\end\{\2\}",
+    re.DOTALL,
+)
+BRACE = re.compile(r"(?<!\\)[{}]")
 BEGIN = re.compile(r"\\begin\s*\{([^}]+)\}")
 END = re.compile(r"\\end\s*\{([^}]+)\}")
 
@@ -179,10 +189,10 @@ END = re.compile(r"\\end\s*\{([^}]+)\}")
 def mid_construct(text: str) -> bool:
     """Does this file look like somebody is halfway through typing something?
 
-    An odd number of dollar signs, or a \\begin without its \\end, means the
-    next build will report errors the writer already knows about and is in
-    the middle of fixing.  Waiting a little longer is kinder than telling
-    them.
+    An odd number of dollar signs, a brace without its partner, or a
+    \\begin without its \\end, means the next build will report errors
+    the writer already knows about and is in the middle of fixing.
+    Waiting a little longer is kinder than telling them.
     """
     # Only the body: a package's braces in the preamble are not the
     # writer's unfinished work, and \end{document} has no \begin to match.
@@ -190,10 +200,41 @@ def mid_construct(text: str) -> bool:
     body = body.rsplit("\\end{document}", 1)[0]
     if len(MATH_DELIMITER.findall(body)) % 2:
         return True
+    # A brace half deleted, or half typed: the build would stop on "File
+    # ended while scanning use of \revised" for a file nobody had finished
+    # (the thesis, October 2026).  `\\{` is a line break then a group, but
+    # it is rare enough in prose that an extra wait now and then is the
+    # whole cost.
+    braces = BRACE.findall(UNCOUNTED.sub("", body))
+    if braces.count("{") != braces.count("}"):
+        return True
     opened, closed = BEGIN.findall(body), END.findall(body)
     if len(opened) != len(closed):
         return True
     return sorted(opened) != sorted(closed)
+
+
+#: The errors a build reports when a file changed under it while it ran:
+#: TeX read half an edit, and the next build, which the edit has already
+#: scheduled, reads the whole of it.
+TRANSIENT_ERRORS = ("File ended while scanning", "Runaway argument",
+                    "Missing } inserted", "Extra }", "Paragraph ended before")
+
+
+def mark_transient(payload: dict) -> None:
+    """Mark the errors of a build whose sources changed while it ran that
+    are the kind half an edit produces, and say where to start from the
+    rest.  The Build drawer sets them apart and the agent is not told."""
+    marked = 0
+    for item in payload.get("diagnostics", []):
+        if item.get("severity") == "error" and any(
+                text in item.get("message", "") for text in TRANSIENT_ERRORS):
+            item["transient"] = True
+            marked += 1
+    if marked:
+        payload["transientErrors"] = marked
+        payload["summary"] = summarise(
+            [item for item in payload["diagnostics"] if not item.get("transient")])
 
 
 #: What a subscriber's queue receives instead of an event when the server
@@ -652,7 +693,11 @@ class ProjectSession:
         """
         out: list[dict] = []
         for name in self._visible_first(self.documents):
-            out.extend(self.documents[name].diagnostics)
+            # Not an error the build met in a file that has since changed
+            # under it: the thesis's agent went looking for an unclosed
+            # brace the writer had already put back.
+            out.extend(item for item in self.documents[name].diagnostics
+                       if not item.get("transient"))
         return out
 
     def _visible_first(self, names) -> list[str]:
@@ -1421,6 +1466,8 @@ class ProjectSession:
                 focus=focus, force_full=force_full or clean, clean=clean,
             )
         payload = await self.client_payload(result, state.path)
+        if result.outcome is Outcome.ERRORS and state.edited_at > started:
+            mark_transient(payload)
         state.last_payload = payload
         if result.outcome is not Outcome.CANCELLED:
             errors = len(result.log.errors) if result.log else 0

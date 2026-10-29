@@ -55,3 +55,23 @@ def test_temporary_files_are_not_announced_as_changes():
     watcher = source[source.index("async def _watch_projects"):source.index("def _restart_watch")]
     assert '".tmp." in path.name' in watcher
     assert re.search(r'"\.nexttex-tmp", "\.part", "\.swp"', watcher)
+
+
+def test_a_brace_without_its_partner_holds_the_build():
+    """The thesis's writer was shown "File ended while scanning use of
+    \\revised" from a build that ran while a brace was half deleted."""
+    assert mid_construct(SETTLED.replace("rate is", "rate \\revised{is")) is True
+
+
+def test_braces_in_comments_verbatim_and_escapes_are_not_counted():
+    held = SETTLED.replace(
+        "The gap",
+        "A set \\{x\\} % an open { in a comment\n"
+        "\\verb|{| and \\begin{verbatim}\n{{\n\\end{verbatim}\nThe gap",
+    )
+    assert mid_construct(held) is False
+
+
+def test_a_chapter_without_a_document_of_its_own_is_counted_whole():
+    assert mid_construct("\\section{One}\nSee \\emph{this.\n") is True
+    assert mid_construct("\\section{One}\nSee \\emph{this}.\n") is False
