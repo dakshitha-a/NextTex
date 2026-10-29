@@ -270,6 +270,12 @@ OpenAI provider against OpenAI itself.
 
 ### Known gaps, with a cost somebody will eventually pay
 
+- [ ] **A name edited by hand reaches the list late.** A rename through
+      NextTex writes `nexttex.toml` and the registry together, but an edit
+      of the name in the file itself reaches the open window at once and
+      the projects screen only when the project is next opened, since the
+      registry is not rewritten from `reload_config`. Doing it there would
+      need the session to reach the registry, which it does not today.
 - [ ] **The record a fresh session reads is long for a small model.**
       When a continued conversation's memory is gone, the agent is pointed
       at `conversation.md`, up to 400,000 characters. Claude reads that

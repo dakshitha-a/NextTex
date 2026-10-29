@@ -115,23 +115,24 @@ test("a row says when it was opened, and its actions are there without a hover",
   await actions.getByRole("button", { name: "More" }).click();
   const menu = page.getByTestId("row-menu");
   await expect(menu.getByRole("menuitem")).toHaveText([
-    "Download as a zip", "Download the PDF", "Duplicate", "Archive", "Move to the trash",
+    "Rename", "Download as a zip", "Download the PDF", "Duplicate", "Archive", "Move to the trash",
   ]);
-  // The trash is last, after a rule, in the error ink.
-  await expect(menu.getByRole("separator")).toHaveCount(1);
+  // Rename leads after its own rule; the trash is last, after a rule, in
+  // the error ink.
+  await expect(menu.getByRole("separator")).toHaveCount(2);
   await expect(menu.getByRole("menuitem", { name: "Move to the trash" })).toHaveAttribute("data-danger", "true");
   // While the menu is open the row keeps its actions drawn.
   await page.mouse.move(0, 0);
   await expect(actions).toHaveCSS("opacity", "1");
   await menu.getByRole("menuitem", { name: "Archive" }).click();
   // Archiving asks nothing: it is reversible.  The row leaves the list
-  // and Archived beside the heading is the way to it.
+  // and Archived in the switch at the head of the list is the way to it.
   await expect(page.getByTestId("project-row")).toHaveCount(0);
   await page.getByTestId("view-archived").click();
-  await expect(page.getByRole("heading", { name: "Archived" })).toBeVisible();
+  await expect(page.getByTestId("view-archived")).toHaveAttribute("aria-pressed", "true");
   await page.getByTestId("project-row").first().hover();
   await page.getByTestId("row-restore").click();
-  await page.getByTestId("view-back").click();
+  await page.getByTestId("view-active").click();
   await expect(page.getByTestId("project-row")).toHaveCount(1);
 
   // Pointed at, the actions are drawn and the time gives way to them.
@@ -145,7 +146,7 @@ test("the other ways in are a menu with a line each, and the search finds a row"
   await page.setViewportSize({ width: 1680, height: 1000 });
   await page.goto(`${app.base}/?token=${app.token}`);
   await page.getByText("Projects", { exact: true }).waitFor();
-  await expect(page.getByTestId("project-count")).toHaveText(`${NAMES.length} projects`);
+  await expect(page.getByTestId("view-active")).toHaveText(new RegExp(`^Projects\\s*${NAMES.length}$`));
 
   // One filled button, and the other three ways behind a quiet menu,
   // each saying what it does; choosing one opens the sheet for it.

@@ -2825,6 +2825,44 @@ async def set_project_state(project_id: str, state: str = Body(..., embed=True))
     return {"ok": True, "state": state}
 
 
+PROJECT_NAME_LIMIT = 80
+
+
+@app.post("/api/projects/{project_id}/name")
+async def rename_project(project_id: str, name: str = Body(..., embed=True)):
+    """Rename a project: the name the projects screen and the window show.
+
+    The name is the project's own, the `name` in its `nexttex.toml`, so it
+    travels with the folder; the registry keeps a copy for the list, which
+    is read without opening every project.  The folder keeps its name, so
+    nothing outside NextTex moves.  A missing folder has no file to write
+    the name into and is refused.  Whitespace runs, line breaks included,
+    become one space; an empty name and one past the limit are refused
+    rather than cut, since the field says what it will keep.
+    """
+    root = REGISTRY.path_for(project_id)
+    if root is None:
+        raise HTTPException(404, "unknown project")
+    if not root.is_dir():
+        raise HTTPException(409, "the project's folder is missing")
+    clean = " ".join(name.split())
+    if not clean:
+        raise HTTPException(400, "a project needs a name")
+    if len(clean) > PROJECT_NAME_LIMIT:
+        raise HTTPException(400, f"a project's name is at most {PROJECT_NAME_LIMIT} characters")
+    session = SESSIONS.get(project_id)
+    config = session.project.config if session else await asyncio.to_thread(ProjectConfig.load, root)
+    config.name = clean
+    try:
+        await asyncio.to_thread(config.save, root)
+    except OSError as error:
+        raise HTTPException(500, f"could not save the project's name: {error}")
+    REGISTRY.rename(root, clean)
+    if session:
+        await session.events.publish({"type": "project_changed", **_project_settings(session)})
+    return {"ok": True, "name": clean}
+
+
 @app.post("/api/projects/{project_id}/relocate")
 async def relocate_project(project_id: str, path: str = Body(..., embed=True)):
     """Say where a project's folder went.

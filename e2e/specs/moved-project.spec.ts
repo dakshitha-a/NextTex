@@ -72,6 +72,33 @@ test("a folder that moved can be pointed at its new home", async ({
   await expect(page.locator(".cm-editor")).toBeVisible({ timeout: 30_000 });
 });
 
+test("Browse beside the path picks the folder it moved to, and Use this folder moves it", async ({
+  app,
+  project,
+  page,
+}) => {
+  const moved = join(project.root, "..", `${project.root.split("/").pop()}-browsed`);
+  renameSync(project.root, moved);
+
+  await page.goto(`${app.base}/?token=${app.token}`);
+  await expect(page.getByText("This folder is no longer there.")).toBeVisible({ timeout: 20_000 });
+  await page.getByTestId("find-project").click();
+  await page.getByTestId("relocate-browse").click();
+  const picker = page.getByTestId("folder-picker");
+  await expect(picker.getByRole("heading", { name: "Which folder holds it?" })).toBeVisible();
+  await picker.getByTestId("picker-path").fill(moved);
+  await picker.getByTestId("picker-path").press("Enter");
+  await expect(picker.getByTestId("picker-path")).toHaveValue(moved);
+  await picker.getByTestId("pick-folder").click();
+  // Choosing fills the field and moves nothing yet.
+  await expect(picker).toHaveCount(0);
+  await expect(page.getByTestId("relocate-path")).toHaveValue(moved);
+  await expect(page.getByText("This folder is no longer there.")).toBeVisible();
+  await page.getByTestId("confirm-relocate").click();
+  await expect(page.getByText("This folder is no longer there.")).toHaveCount(0, { timeout: 15_000 });
+  await expect(page.getByText(moved, { exact: false })).toBeVisible();
+});
+
 test("pointing it somewhere that is not there says so, on the row", async ({
   app,
   project,

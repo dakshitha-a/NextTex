@@ -938,6 +938,21 @@ class Registry:
                 return True
         return False
 
+    def rename(self, root: Path | str, name: str) -> bool:
+        """Give an entry the name the projects screen shows.  The folder
+        is not touched; the name the project carries is its
+        `nexttex.toml`, which the caller writes.  Answers whether an
+        entry was there to rename."""
+        target = Path(root).expanduser().resolve()
+        entries = self._read()
+        for entry in entries:
+            if Path(entry.path) == target:
+                if entry.name != name:
+                    entry.name = name
+                    self._write(entries)
+                return True
+        return False
+
     def remove(self, root: Path | str) -> None:
         target = Path(root).expanduser().resolve()
         self._write([e for e in self._read() if Path(e.path) != target])

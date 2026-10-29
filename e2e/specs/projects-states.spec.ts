@@ -19,7 +19,7 @@ async function land(app: { base: string; token: string }, page: import("@playwri
   await page.getByRole("heading", { name: "Projects" }).waitFor();
 }
 
-test("Archive and Trash move a row to its view, Restore brings it back, and the heading always offers both views", async ({
+test("Archive and Trash move a row to its view, Restore brings it back, and the switch always offers all three lists", async ({
   app,
   page,
 }) => {
@@ -28,14 +28,16 @@ test("Archive and Trash move a row to its view, Restore brings it back, and the 
   await seedProject(app, "scratch");
   await land(app, page);
   await expect(page.getByTestId("project-row")).toHaveCount(3);
-  // The way to either view is beside the heading even while both are
-  // empty, and nothing sits under the list.
-  await expect(page.getByTestId("view-archived")).toHaveText("Archived");
-  await expect(page.getByTestId("view-trash")).toHaveText("Trash");
+  // The three lists are one switch at the head of the list, each with
+  // its count, even while two are empty, and nothing sits under the list.
+  await expect(page.getByTestId("view-active")).toHaveText(/^Projects\s*3$/);
+  await expect(page.getByTestId("view-active")).toHaveAttribute("aria-pressed", "true");
+  await expect(page.getByTestId("view-archived")).toHaveText(/^Archived\s*0$/);
+  await expect(page.getByTestId("view-trash")).toHaveText(/^Trash\s*0$/);
   await expect(page.getByTestId("projects-under")).toHaveCount(0);
   await page.getByTestId("view-archived").click();
   await expect(page.getByTestId("view-empty")).toContainText("Nothing is archived.");
-  await page.getByTestId("view-back").click();
+  await page.getByTestId("view-active").click();
 
   const rowNamed = (name: string) =>
     page.getByTestId("project-row").filter({ hasText: name });
@@ -47,16 +49,19 @@ test("Archive and Trash move a row to its view, Restore brings it back, and the 
   await rowNamed("scratch").getByTestId("row-more").click();
   await page.getByTestId("row-trash").click();
   await expect(page.getByTestId("project-row")).toHaveCount(1);
-  await expect(page.getByTestId("project-count")).toHaveText("1 project");
+  await expect(page.getByTestId("view-active")).toHaveText(/^Projects\s*1$/);
+  await expect(page.getByTestId("view-archived")).toHaveText(/^Archived\s*1$/);
+  await expect(page.getByTestId("view-trash")).toHaveText(/^Trash\s*1$/);
   await expect(page.getByTestId("projects-under")).toHaveCount(0);
 
-  // The Archived view: the heading, the way back, the same rows with
-  // the state after the path, and Open, Restore and Trash on hover.
+  // The Archived view: the heading stays Projects and the switch says
+  // which list it is; the same rows with the state after the path, and
+  // Open, Restore and Trash on hover.
   await page.getByTestId("view-archived").click();
-  await expect(page.getByRole("heading", { name: "Archived" })).toBeVisible();
+  await expect(page.getByRole("heading", { name: "Projects" })).toBeVisible();
+  await expect(page.getByTestId("view-archived")).toHaveAttribute("aria-pressed", "true");
   await expect(page.getByTestId("new-project")).toHaveCount(0);
   await expect(page.getByTestId("ways-open")).toHaveCount(0);
-  await expect(page.getByTestId("project-count")).toHaveText("1 archived");
   const archived = page.getByTestId("project-row").first();
   await expect(archived).toContainText("aims");
   // At rest the tail says the state and the day; pointed at, the tail is
@@ -74,10 +79,8 @@ test("Archive and Trash move a row to its view, Restore brings it back, and the 
   await page.getByTestId("project-filter").fill("");
 
   // The Trash view: Restore and Delete, and Empty the trash at the foot.
-  await page.getByTestId("view-back").click();
   await page.getByTestId("view-trash").click();
-  await expect(page.getByRole("heading", { name: "Trash" })).toBeVisible();
-  await expect(page.getByTestId("project-count")).toHaveText("1 in the trash");
+  await expect(page.getByTestId("view-trash")).toHaveAttribute("aria-pressed", "true");
   const trashed = page.getByTestId("project-row").first();
   await expect(trashed.getByTestId("row-opened")).toHaveText("in the trash since today");
   await trashed.hover();
@@ -89,7 +92,7 @@ test("Archive and Trash move a row to its view, Restore brings it back, and the 
   await expect(trashed).not.toHaveAttribute("role", "button");
   await trashed.getByTestId("row-restore").click();
   await expect(page.getByTestId("view-empty")).toContainText("The trash is empty.");
-  await page.getByTestId("view-back").click();
+  await page.getByTestId("view-active").click();
   await expect(page.getByTestId("project-row")).toHaveCount(2);
   await expect(page.getByTestId("view-archived")).toBeVisible();
 });
@@ -128,7 +131,7 @@ test("Delete in the trash forgets the entry after asking, and Empty the trash fo
   await expect(page.getByTestId("projects-under")).toContainText("Delete this project from NextTex?");
   await page.getByTestId("confirm-empty-trash").click();
   await expect(page.getByTestId("view-empty")).toContainText("The trash is empty.");
-  await page.getByTestId("view-back").click();
+  await page.getByTestId("view-active").click();
   await expect(page.getByTestId("project-row")).toHaveCount(1);
   await expect(page.getByTestId("project-row")).toContainText("kept");
   await expect(page.getByTestId("view-trash")).toBeVisible();
@@ -173,7 +176,7 @@ test("a right-click on a row offers what that row's buttons do, in every view", 
   await rowNamed("aims").click({ button: "right", position: { x: 24, y: 12 } });
   await expect(menu).toBeVisible();
   await expect(menu.getByRole("menuitem")).toHaveText([
-    "Download as a zip", "Download the PDF", "Duplicate", "Archive", "Move to the trash",
+    "Rename", "Download as a zip", "Download the PDF", "Duplicate", "Archive", "Move to the trash",
   ]);
   await menu.getByRole("menuitem", { name: "Archive" }).click();
   await expect(page.getByTestId("project-row")).toHaveCount(1);
@@ -181,12 +184,11 @@ test("a right-click on a row offers what that row's buttons do, in every view", 
   // Archived: Open, Restore, and the trash.
   await page.getByTestId("view-archived").click();
   await rowNamed("aims").click({ button: "right", position: { x: 24, y: 12 } });
-  await expect(menu.getByRole("menuitem")).toHaveText(["Open", "Restore", "Move to the trash"]);
+  await expect(menu.getByRole("menuitem")).toHaveText(["Rename", "Open", "Restore", "Move to the trash"]);
   await menu.getByRole("menuitem", { name: "Move to the trash" }).click();
   await expect(page.getByTestId("view-empty")).toContainText("Nothing is archived.");
 
   // Trashed: Restore, and Delete, which asks on the row as its button does.
-  await page.getByTestId("view-back").click();
   await page.getByTestId("view-trash").click();
   await rowNamed("aims").click({ button: "right", position: { x: 24, y: 12 } });
   await expect(menu.getByRole("menuitem")).toHaveText(["Restore", "Delete…"]);

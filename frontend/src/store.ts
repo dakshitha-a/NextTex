@@ -1426,6 +1426,10 @@ function receive(event: any) {
       handlers.onRootLost?.();
       break;
     case "project_changed":
+      // A rename, from this window, another one or the projects screen,
+      // rides on the same event, so the name at the top and the page's
+      // title follow it.
+      if (typeof event.name === "string" && event.name) set({ projectName: event.name });
       // A settings change invalidates the preview, and the three switches
       // ride on the same event so that nothing has to re-read the whole
       // project to learn one boolean. A word limit changes nothing the

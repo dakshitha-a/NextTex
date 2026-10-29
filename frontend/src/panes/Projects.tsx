@@ -235,6 +235,12 @@ export default function Projects({
   // server does; "Delete" in the trash is what "Remove" was, the entry
   // forgotten and the files left where they are.
   const [view, setView] = useState<ProjectView>("active");
+  // The row whose name is a field, and the name as typed so far.  The
+  // name is the project's own, in its nexttex.toml; the folder keeps its
+  // name whatever this one becomes.
+  const [naming, setNaming] = useState<{ id: string; text: string } | null>(null);
+  // Whether the folder picker is open over a moved folder's Find it.
+  const [seeking, setSeeking] = useState(false);
   const [emptying, setEmptying] = useState(false);
   const counts = viewCounts(projects);
   // The project whose share sheet is open, from its row.  The routes open
@@ -534,6 +540,23 @@ export default function Projects({
     }
   };
 
+  const saveName = async () => {
+    if (!naming) return;
+    const { id, text } = naming;
+    setNaming(null);
+    const project = projects.find((entry) => entry.id === id);
+    const clean = text.split(/\s+/).filter(Boolean).join(" ");
+    // An empty name is not kept, and an unchanged one is not written.
+    if (!project || !clean || clean === project.name) return;
+    setListError(null);
+    try {
+      await api.renameProject(id, clean);
+      await refresh();
+    } catch (problem: any) {
+      setListError(problem.message);
+    }
+  };
+
   const relocate = async (project: ProjectSummary) => {
     const where = movedTo.trim();
     if (!where) return;
@@ -707,43 +730,10 @@ export default function Projects({
             one nobody has learned by the time they need it. */}
         {loaded ? (
           <div className="nx-projects-head" data-view={view}>
-            <h2 className="t-display text-ink">
-              {view === "active" ? "Projects" : view === "archived" ? "Archived" : "Trash"}
-            </h2>
-            {/* The way between the three views, beside the heading in
-                every one of them.  Archived and Trash are always here,
-                empty or not: a way in that appears only once something
-                has been put away is one nobody has learned by then, and a
-                line under the list is out of sight on a long one. */}
-            {view !== "active" ? (
-              <Pressable
-                type="button"
-                className="nx-projects-link"
-                data-testid="view-back"
-                onClick={() => setView("active")}
-              >
-                Back to projects
-              </Pressable>
-            ) : (
-              <>
-                <Pressable
-                  type="button"
-                  className="nx-projects-link"
-                  data-testid="view-archived"
-                  onClick={() => setView("archived")}
-                >
-                  Archived
-                </Pressable>
-                <Pressable
-                  type="button"
-                  className="nx-projects-link"
-                  data-testid="view-trash"
-                  onClick={() => setView("trashed")}
-                >
-                  Trash
-                </Pressable>
-              </>
-            )}
+            {/* Projects in every view: the switch under it says which
+                list is showing, so the screen never seems to become
+                another one. */}
+            <h2 className="t-display text-ink">Projects</h2>
             <span className="flex-1" />
             <Field
               ref={filterBox}
@@ -843,8 +833,31 @@ export default function Projects({
         ) : null}
         {/* The one thing on the screen that scrolls. */}
         <div className="nx-projects-list" data-testid="project-list">
-          {loaded && counts[view] ? (
+          {/* The way between the three lists, at the head of the list in
+              every view and whatever the counts: a way in that appears
+              only once something has been put away is one nobody has
+              learned by then.  Each carries its count, so the line no
+              longer ends in one. */}
+          {loaded ? (
             <div className="nx-projects-line">
+              <Segmented
+                label="Which projects"
+                testid="project-views"
+                value={view}
+                options={(["active", "archived", "trashed"] as const).map((key) => ({
+                  value: key,
+                  testid: key === "active" ? "view-active" : key === "archived" ? "view-archived" : "view-trash",
+                  label: (
+                    <>
+                      {key === "active" ? "Projects" : key === "archived" ? "Archived" : "Trash"}
+                      <span className="nx-segment-count t-micro">{counts[key]}</span>
+                    </>
+                  ),
+                }))}
+                onChange={(key) => setView(key)}
+              />
+              <span className="flex-1" />
+              {counts[view] ? (
               <Segmented
                 size="sm"
                 label="Sort projects"
@@ -856,14 +869,7 @@ export default function Projects({
                 ]}
                 onChange={(key) => chooseSort(sortKeyFrom(key))}
               />
-              <span className="flex-1" />
-              <span className="t-meta tnum text-ink-3" data-testid="project-count">
-                {view === "active"
-                  ? `${counts.active} ${counts.active === 1 ? "project" : "projects"}`
-                  : view === "archived"
-                  ? `${counts.archived} archived`
-                  : `${counts.trashed} in the trash`}
-              </span>
+              ) : null}
             </div>
           ) : null}
           {lost ? (
@@ -887,14 +893,7 @@ export default function Projects({
             <p className="t-meta mb-2 text-error" data-testid="list-error">{listError}</p>
           ) : null}
           {loaded && view !== "active" && !counts[view] ? (
-            <Empty
-              data-testid="view-empty"
-              action={
-                <Button variant="quiet" onClick={() => setView("active")}>
-                  Back to projects
-                </Button>
-              }
-            >
+            <Empty data-testid="view-empty">
               {view === "archived" ? "Nothing is archived." : "The trash is empty."}
             </Empty>
           ) : null}
@@ -971,12 +970,32 @@ export default function Projects({
               }}
             >
               <div className="nx-project-name">
-                <span
-                  data-testid="project-name"
-                  className={`min-w-0 truncate ${project.missing ? "text-ink-3" : "text-ink"}`}
-                >
-                  {project.name}
-                </span>
+                {naming?.id === project.id ? (
+                  <Field
+                    autoFocus
+                    frameClassName="nx-project-name-field"
+                    aria-label="The project's name"
+                    data-testid="project-rename"
+                    value={naming.text}
+                    maxLength={80}
+                    onFocus={(event) => event.currentTarget.select()}
+                    onChange={(event) => setNaming({ id: project.id, text: event.target.value })}
+                    onBlur={() => void saveName()}
+                    onClick={(event) => event.stopPropagation()}
+                    onKeyDown={(event) => {
+                      event.stopPropagation();
+                      if (event.key === "Enter") (event.target as HTMLInputElement).blur();
+                      if (event.key === "Escape") setNaming(null);
+                    }}
+                  />
+                ) : (
+                  <span
+                    data-testid="project-name"
+                    className={`min-w-0 truncate ${project.missing ? "text-ink-3" : "text-ink"}`}
+                  >
+                    {project.name}
+                  </span>
+                )}
                 {/* Only a shared project wears a mark: a mark on every
                     row is a mark on none. */}
                 {rowMarks({ ...project, open: watched.includes(project.id) && project.id !== current }).map((mark) => (
@@ -1002,6 +1021,7 @@ export default function Projects({
                           setRowError(null);
                           setMovedTo("");
                           setRejoining(null);
+                          setSeeking(false);
                           setRelocating(project.path);
                         }}
                       >
@@ -1062,11 +1082,27 @@ export default function Projects({
                       value={movedTo}
                       placeholder="Where is it now? e.g. ~/Papers/thesis"
                       className="nx-field-mono"
+                      data-testid="relocate-path"
                       onChange={(event) => setMovedTo(event.target.value)}
                       onKeyDown={(event) => {
                         if (event.key === "Enter") relocate(project);
                         if (event.key === "Escape") setRelocating(null);
                       }}
+                      trailing={
+                        // Browse fills the field and moves nothing: Use
+                        // this folder still does that, so a mis-click in
+                        // the picker changes nothing on its own.
+                        <Button
+                          variant="quiet"
+                          size="inline"
+                          aria-haspopup="dialog"
+                          aria-expanded={seeking}
+                          data-testid="relocate-browse"
+                          onClick={() => setSeeking((open) => !open)}
+                        >
+                          Browse…
+                        </Button>
+                      }
                     />
                     <Button
                       variant="ghost"
@@ -1081,6 +1117,20 @@ export default function Projects({
                     </Button>
                   </div>
                   {rowError ? <p className="t-meta mt-1 text-error">{rowError}</p> : null}
+                  {seeking ? (
+                    <Suspense fallback={null}>
+                      <FolderPicker
+                        mode="add"
+                        name=""
+                        typed={movedTo || project.path}
+                        onPick={(path) => {
+                          setMovedTo(path);
+                          setSeeking(false);
+                        }}
+                        onClose={() => setSeeking(false)}
+                      />
+                    </Suspense>
+                  ) : null}
                 </div>
               ) : null}
               {forgetting === project.path ? (
@@ -1499,6 +1549,19 @@ export default function Projects({
             width={220}
             onClose={() => setMore(null)}
           >
+            {/* Rename leads, on the two lists whose rows are kept; a
+                missing folder has no nexttex.toml to write it into. */}
+            {view !== "trashed" && !project.missing ? (
+              <>
+                <MenuItem
+                  data-testid="row-rename"
+                  onClick={act(() => setNaming({ id: project.id, text: project.name }))}
+                >
+                  Rename
+                </MenuItem>
+                <MenuDivider />
+              </>
+            ) : null}
             {view === "active" ? (
               <>
               {!project.missing ? (

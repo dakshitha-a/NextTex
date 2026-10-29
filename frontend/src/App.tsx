@@ -168,7 +168,9 @@ const PapersPanel = lazy(() => import("./panes/PapersPanel"));
 const SubmitPanel = lazy(() => import("./panes/SubmitPanel"));
 const GitPanel = lazy(() => import("./panes/GitPanel"));
 import { READABLE_TEXT_BYTES, isScript, isTeX, isText, isViewable } from "./panes/file-kinds";
-import { Pressable } from "./ui/controls";
+import { Field, Pressable } from "./ui/controls";
+import { Menu, MenuItem } from "./ui/Menu";
+import { atPointer, claimsRightClick, type Wanted } from "./place-menu";
 
 const DEFAULTS: Widths = { rail: 240, editor: 0.5, chat: 380 };
 
@@ -803,6 +805,28 @@ export default function App() {
   }, []);
 
   const openProjectRef = useRef<((id: string) => Promise<void>) | null>(null);
+
+  /** The name row's right-click menu, where it opens, and the name as
+   *  typed while it is a field.  A plain click on the name still goes
+   *  back to the list; renaming is the menu's. */
+  const titleBar = useRef<HTMLDivElement | null>(null);
+  const [titleMenu, setTitleMenu] = useState<Wanted | null>(null);
+  const [titleName, setTitleName] = useState<string | null>(null);
+  const saveTitle = async () => {
+    const typed = titleName;
+    setTitleName(null);
+    const clean = (typed ?? "").split(/\s+/).filter(Boolean).join(" ");
+    const id = projectId;
+    const was = projectName;
+    // An empty name is not kept, and an unchanged one is not written.
+    if (!id || !clean || clean === was) return;
+    try {
+      const answer = await api.renameProject(id, clean);
+      set({ projectName: answer.name });
+    } catch (problem: any) {
+      set({ error: `The project was not renamed: ${problem.message}` });
+    }
+  };
 
   /** Go back to the list, and stop reopening this project on a reload. */
   const leaveProject = useCallback(() => {
@@ -2877,7 +2901,39 @@ export default function App() {
           overflow: moving(drawerFold) && !drawerOver ? "hidden" : undefined,
         }}
       >
-        <div className="nx-name-row nx-band flex h-9 w-full shrink-0 items-center" data-testid="title-bar">
+        <div
+          ref={titleBar}
+          className="nx-name-row nx-band flex h-9 w-full shrink-0 items-center"
+          data-testid="title-bar"
+          onContextMenu={(event) => {
+            if (titleName !== null || !claimsRightClick(event)) return;
+            event.preventDefault();
+            setTitleMenu(atPointer(event, titleBar.current, 200));
+          }}
+        >
+          {titleName !== null ? (
+            <>
+              <span className="flex w-11 shrink-0 justify-center"><Logo size={18} /></span>
+              <Field
+                autoFocus
+                frameClassName="nx-name-field"
+                aria-label="The project's name"
+                data-testid="title-rename"
+                value={titleName}
+                maxLength={80}
+                onFocus={(event) => event.currentTarget.select()}
+                onChange={(event) => setTitleName(event.target.value)}
+                onBlur={() => void saveTitle()}
+                onKeyDown={(event) => {
+                  if (event.key === "Enter") (event.target as HTMLInputElement).blur();
+                  if (event.key === "Escape") {
+                    event.stopPropagation();
+                    setTitleName(null);
+                  }
+                }}
+              />
+            </>
+          ) : (
           <Pressable
             className="flex h-full min-w-0 flex-1 items-center pr-2 transition-colors duration-[var(--dur-quick)] hover:text-hint"
             data-testid="switch-project"
@@ -2897,6 +2953,36 @@ export default function App() {
               </>
             ) : null}
           </Pressable>
+          )}
+          {titleMenu ? (
+            <Menu
+              open
+              wanted={titleMenu}
+              anchor={titleBar}
+              label="Project"
+              testid="title-menu"
+              width={200}
+              onClose={() => setTitleMenu(null)}
+            >
+              <MenuItem
+                data-testid="title-menu-rename"
+                onClick={() => {
+                  setTitleMenu(null);
+                  setTitleName(projectName);
+                }}
+              >
+                Rename project
+              </MenuItem>
+              <MenuItem
+                onClick={() => {
+                  setTitleMenu(null);
+                  leaveProject();
+                }}
+              >
+                Switch project
+              </MenuItem>
+            </Menu>
+          ) : null}
         </div>
         <div className="flex min-h-0 flex-1">
       {/* The activity bar: one button per drawer, the one showing marked by

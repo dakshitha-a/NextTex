@@ -11291,6 +11291,9 @@ on the direction page first, as they asked, and approved it as drawn.
 put away, opens the empty Archived view from one, and finds no line under
 the list once a project has been archived and another trashed.
 
+Since 4.46.0 the two links are one switch at the head of the list; see the
+section on a project's name, its moved folder, and the three lists.
+
 ## 86. The preview fades to the new page, in its own ground
 
 The writer said on 28 September 2026 that the preview flashes after each
@@ -12822,3 +12825,51 @@ The mechanics are in `docs/architecture.md` under A past conversation can
 be continued. `e2e/specs/past-continue.spec.ts` continues, renames and
 deletes a conversation and reads the Session view's names. It adds no
 token.
+
+## 129. A project's name, its moved folder, and the three lists
+
+The writer asked on 28 October 2026 for four things on the projects screen
+and in the window: to rename a project from its row's three-dot menu, to
+rename it from inside by right-clicking its name, to type a moved folder's
+new path or browse for it, and a better look and place for Archived and
+Trash. They saw mockups first, on a page deleted once they had chosen, and
+picked a switch over icon buttons beside the search and a line under the
+list. The drawings are on the direction page under A project's name, its
+moved folder, and the three lists.
+
+Rename is the first item in a row's More menu, before a rule and the
+downloads, on active and archived rows. A trashed row and a row whose
+folder is missing leave it out, since a menu leaves out what cannot act.
+It turns the row's name into the kit's field in place, in the name's own
+size and weight, with the name selected. Enter or leaving the field keeps
+it, Escape puts the old one back, and an empty name is not kept. The name
+is the project's own, in its `nexttex.toml`, so it travels with the
+folder; the folder keeps its name, and nothing outside NextTex moves.
+
+Inside a project, a right-click on the name row opens a menu at the
+pointer with Rename project and Switch project. Rename project turns the
+name into the same field in the row's height. A plain click on the name
+still goes back to the projects screen. The page's title and every other
+window on the project follow the new name.
+
+Find it on a missing folder's row opens its path field as before, now with
+Browse… as the field's trailing action, as the New project sheet's Where
+field has. Browse opens the folder picker asking which folder holds it.
+Choosing fills the field and moves nothing; Use this folder still does
+that, so a mis-click in the picker changes nothing on its own.
+
+The two links beside the heading are gone. At the head of the list, where
+the sort sat alone, a `Segmented` switch reads Projects, Archived and
+Trash, each with its count in the micro role and the third ink. It is
+drawn whatever the counts, so the way in is there before it is needed. The
+heading says Projects in every view, the sort moves to the line's other
+end and is drawn while the view has rows, and the count that ended the
+line is gone, since the switch carries it. Back to projects is gone too,
+beside the heading and under an empty view's sentence; the switch's first
+segment is the way back.
+
+`e2e/specs/project-rename.spec.ts` renames from a row and from the name
+row, `e2e/specs/moved-project.spec.ts` browses to a moved folder, and
+`e2e/specs/projects-states.spec.ts` reads the switch's counts and moves
+between the three lists with it. It adds one class, `nx-segment-count`,
+to the style guide.

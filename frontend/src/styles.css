@@ -691,6 +691,10 @@ button { font: inherit; color: inherit; }
    of a second so a pointer crossing the row does not set it off, and the
    name comes back quickly when the pointer goes. */
 .nx-name-well { overflow: hidden; white-space: nowrap; }
+/* The name while it is renamed from the row's right-click menu: the kit's
+   field in the row's height, starting where the name's gutter does. */
+.nx-name-field { flex: 1; min-width: 0; height: 28px; margin: 0 8px 0 8px; }
+.nx-name-field .nx-field-input { font-size: 15px; font-weight: 600; }
 .nx-name { display: inline-block; transition: transform 300ms var(--ease); }
 .nx-name-well[data-overflow] {
   mask-image: linear-gradient(to right, transparent, #000 32px, #000 calc(100% - 32px), transparent);
@@ -1361,6 +1365,10 @@ input, textarea { font: inherit; color: inherit; background: transparent; }
 .nx-project-card:hover, .nx-project-card:focus-within { background: var(--surface-3); }
 .nx-project-card:focus-visible { outline: 2px solid var(--hint); outline-offset: 2px; }
 .nx-project-name { grid-area: name; display: flex; align-items: baseline; gap: 8px; min-width: 0; font-size: 17px; line-height: 24px; font-weight: 600; letter-spacing: -0.005em; }
+/* A row's name while it is renamed: the kit's field in the name's own
+   size and weight, so the row keeps its height. */
+.nx-project-name-field { flex: 1; min-width: 0; height: 32px; }
+.nx-project-name-field .nx-field-input { font-size: 17px; font-weight: 600; letter-spacing: -0.005em; }
 .nx-project-mark { display: inline-flex; align-items: center; gap: 4px; font-size: 12px; font-weight: 400; color: var(--ink-3); white-space: nowrap; }
 .nx-project-where { grid-area: where; color: var(--ink-3); font-size: 13px; line-height: 18px; min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
 .nx-project-tail { grid-area: tail; justify-self: end; }
@@ -1371,7 +1379,6 @@ input, textarea { font: inherit; color: inherit; background: transparent; }
 .nx-projects-under { padding: 6px 14px 12px; color: var(--ink-3); font-size: 13px; line-height: 18px; }
 .nx-projects-link { color: var(--ink-2); font-size: 13px; line-height: 18px; border-radius: var(--nx-radius-control); }
 .nx-projects-link:hover, .nx-projects-link:focus-visible { color: var(--ink); }
-.nx-projects-head .nx-projects-link { margin-left: -6px; align-self: end; padding-bottom: 3px; }
 .nx-projects-head .nx-projects-link + .nx-projects-link { margin-left: 0; }
 /* The stamp after the path in the Archived and Trash views: the tail
    says it at rest, and it reappears here while the pointer takes the
@@ -2160,6 +2167,9 @@ button.nx-reads-x[data-always]:hover { color: var(--pen); }
   transition: background-color var(--dur-quick) var(--ease), color var(--dur-quick) var(--ease);
 }
 .nx-segment:hover:not([aria-pressed="true"]) { color: var(--ink); }
+/* A count after a segment's label, as the projects screen's three lists
+   carry: the micro role in the third ink. */
+.nx-segment-count { margin-left: 6px; color: var(--ink-3); }
 .nx-segment[aria-pressed="true"] { background: var(--surface); color: var(--ink); font-weight: 500; }
 /* On a drawer's ground the tray is the first surface and the chosen
    segment the wash, or the tray would vanish into the second surface. */

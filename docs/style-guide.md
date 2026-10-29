@@ -182,7 +182,7 @@ kit's `Button` carries those looks as its variants.
 | `Switch` | `controls.tsx` | on or off, and nothing between | a checkbox styled by hand |
 | `Stepper` | `controls.tsx` | a number taken from a short ladder, a size or a percentage: minus, the value, plus, an end of the ladder disabling its button | a field for a number with arrows |
 | `Meter` | `controls.tsx` | how much of something is used, a 4 px bar in the third ink on the third surface that takes the warn ink past its point, with an optional tick where something happens; `lg` is the 6 px bar a view gives it | a progress bar, a coloured percentage |
-| `Segmented` | `controls.tsx` | two to six exclusive choices, `md` in a sheet and `sm` in a strip; `className="nx-segmented-wrap"` when they may not fit the width, as the six templates do not on a phone | a row of toggle buttons |
+| `Segmented` | `controls.tsx` | two to six exclusive choices, `md` in a sheet and `sm` in a strip; `className="nx-segmented-wrap"` when they may not fit the width, as the six templates do not on a phone; a count after a label is a `nx-segment-count t-micro` span, in the third ink, as the projects screen's three lists carry | a row of toggle buttons |
 | `Heading` | `controls.tsx` | a real `h1`/`h2`/`h3`; `display` for a sheet's or a screen's title | a styled span |
 | `TextArea` | `controls.tsx` | a text box of several lines, taking its look from its place's class | a raw `<textarea>` |
 | `Pressable` | `controls.tsx` | something pressed whose look is its content, taken from its place's class: a row, a tab, a hit in a list, a word in a sentence that acts; `type="button"` unless told otherwise | a raw `<button>` |

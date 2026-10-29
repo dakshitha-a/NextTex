@@ -22,9 +22,9 @@ test("Back names the project it returns to, and a project can be duplicated", as
   const row = tab.getByTestId("project-row").filter({ hasText: name }).first();
   await row.hover();
   await row.getByTestId("row-more").click();
-  // The order drawn: the downloads, Duplicate, a rule, Archive, the trash.
+  // The order drawn: Rename, a rule, the downloads, Duplicate, a rule, Archive, the trash.
   const items = await tab.getByTestId("row-menu").getByRole("menuitem").allTextContents();
-  expect(items).toEqual(["Download as a zip", "Download the PDF", "Duplicate", "Archive", "Move to the trash"]);
+  expect(items).toEqual(["Rename", "Download as a zip", "Download the PDF", "Duplicate", "Archive", "Move to the trash"]);
   await tab.getByTestId("row-duplicate").click();
   await tab.locator(".cm-editor").waitFor({ timeout: 30_000 });
   await tab.getByTestId("switch-project").click();

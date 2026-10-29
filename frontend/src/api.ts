@@ -1146,6 +1146,10 @@ const api = {
   // document says nothing about the next.
   /** Say where a project's folder went.  The project keeps its place in
    *  the list, but not its id: a project is identified by where it is. */
+  /** The name the projects screen and the window show, kept in the
+   *  project's nexttex.toml; the folder keeps its own. */
+  renameProject: (id: string, name: string) =>
+    request<{ ok: boolean; name: string }>(`/projects/${id}/name`, json({ name })),
   relocateProject: (id: string, path: string) =>
     request<ProjectSummary & { id: string }>(
       `/projects/${id}/relocate`,

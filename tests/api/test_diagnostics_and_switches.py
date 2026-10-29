@@ -129,6 +129,8 @@ def test_the_three_switches_round_trip(client, project_dir, opened):
     )
     assert response.status_code == 200, response.text
     assert response.json() == {
+        # The project's name rides along, so a rename reaches the window.
+        "name": opened["name"],
         # Every previewed document, and the one in front.  A project that
         # has not asked for a second one still reports the one it has.
         "previews": ["main.tex"],

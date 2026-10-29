@@ -1141,6 +1141,7 @@ class ProjectSession:
         """
         config = self.project.config
         return {
+            "name": config.name,
             "previews": list(self.documents),
             "visible": self.visible,
             "autocompile": config.autocompile,
