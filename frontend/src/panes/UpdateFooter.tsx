@@ -2,6 +2,7 @@ import { useEffect, useRef, useState } from "react";
 import api, { type Instance, type UpdateReport } from "../api";
 import { readStored, writeStored } from "../appearance";
 import { standingOf } from "./update-standing";
+import { useStore } from "../store";
 import { Button } from "../ui/Button";
 import { Heading } from "../ui/controls";
 import { Sheet } from "../ui/Sheet";
@@ -62,6 +63,7 @@ export default function UpdateFooter({
   onState: (state: UpdateState) => void;
 }) {
   const [phase, setPhase] = useState<Phase>({ kind: "opening" });
+  const outdated = useStore((state) => state.outdated);
   const [log, setLog] = useState<string[]>([]);
   const [step, setStep] = useState("");
   const [showLog, setShowLog] = useState(false);
@@ -152,8 +154,10 @@ export default function UpdateFooter({
     if (phase.kind === "report" && phase.report.checked) {
       knownWaiting.current = state === "waiting";
     }
-    onState(state);
-  }, [phase, self, onState]);
+    // A tab from before an update wants the same look as an install that
+    // was updated and not restarted: the sheet says why, first.
+    onState(outdated && state !== "busy" ? "attention" : state);
+  }, [phase, self, onState, outdated]);
 
   /** Follow an update that is already running, from any tab. */
   const watch = () => {
@@ -288,6 +292,17 @@ export default function UpdateFooter({
   return (
     <Sheet open onClose={onClose} label="Updates" testid="update-sheet" width={520}>
       <Heading level={2} display>Updates</Heading>
+      {outdated ? (
+        // The tab, not the install: the server moved to a new commit
+        // while this page stayed open; see `server-version.ts`.
+        <div className="mt-2" data-testid="update-tab-outdated">
+          <Line>
+            <span className="t-micro shrink-0 text-warn">This tab is from before the update.</span>
+            <span className="flex-1" />
+            <Button size="inline" onClick={() => window.location.reload()}>Reload</Button>
+          </Line>
+        </div>
+      ) : null}
       <div className="mt-2 nx-arrive">{render()}</div>
       <div className="nx-sheet-foot">
         <Button variant="quiet" onClick={onClose}>Done</Button>

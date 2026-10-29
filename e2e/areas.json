@@ -39,8 +39,8 @@
     },
     {
       "name": "settings and the front door",
-      "sources": ["frontend/src/panes/Settings*.tsx", "frontend/src/panes/AccessCard.tsx", "frontend/src/panes/PasswordNudge.tsx", "frontend/src/appearance.ts", "frontend/src/signin.ts", "frontend/src/panes/ReportSheet.tsx", "frontend/src/panes/UpdateFooter.tsx", "frontend/src/panes/update-standing.ts", "frontend/src/panes/tutorial/**", "frontend/src/panes/CommandPalette.tsx", "frontend/src/palette-*.ts", "nexttex/auth.py", "nexttex/config.py", "nexttex/updates.py", "nexttex/report.py"],
-      "specs": ["settings", "settings-heading", "appearance", "password", "sign-in", "report", "update", "tutorial", "palette", "engine", "first-run"]
+      "sources": ["frontend/src/panes/Settings*.tsx", "frontend/src/panes/AccessCard.tsx", "frontend/src/panes/PasswordNudge.tsx", "frontend/src/appearance.ts", "frontend/src/signin.ts", "frontend/src/panes/ReportSheet.tsx", "frontend/src/panes/UpdateFooter.tsx", "frontend/src/server-version.ts", "frontend/src/panes/update-standing.ts", "frontend/src/panes/tutorial/**", "frontend/src/panes/CommandPalette.tsx", "frontend/src/palette-*.ts", "nexttex/auth.py", "nexttex/config.py", "nexttex/updates.py", "nexttex/report.py"],
+      "specs": ["settings", "settings-heading", "appearance", "password", "sign-in", "report", "update", "server-version", "tutorial", "palette", "engine", "first-run"]
     },
     {
       "name": "the kit and the stylesheet",

@@ -437,6 +437,8 @@ export type State = {
   collaborators: Collaborator[];
   /** Whether this browser is joined to the shared documents. */
   connection: "live" | "connecting" | "offline";
+  /** The server was updated under this tab; see `server-version.ts`. */
+  outdated: boolean;
   /** This install's peer id, so a version can tell whose it is. Empty until
    *  a project has been shared, which is when it starts mattering. */
   peerId: string;
@@ -536,6 +538,7 @@ const state: State = {
   symbolRequest: null,
   collaborators: [],
   connection: "connecting",
+  outdated: false,
   peerId: "",
   historyFailed: false,
   historyChanged: null,
@@ -961,6 +964,7 @@ export type EventHandlers = {
    *  caused by the writer's own typing. `settling` is the full pass the
    *  server runs after a fast one whose page flow had not settled. */
   onCompileStart?: (document: string, settling: boolean, held: number) => void;
+  onStreamOpen?: () => void;
   onPreviewsChanged?: (previews: string[]) => void;
   /** `text` is the file as the agent left it and `column` where on
    *  `line` it changed, so the flash after the build can be placed on a
@@ -987,6 +991,8 @@ export function connect(projectId: string) {
     // so this no longer has to carry it. The agent's does not: `reconcile`
     // asks a route.
     if (state.thinking) void reconcile();
+    // A reconnection is what a server restart looks like from here.
+    handlers.onStreamOpen?.();
   };
   source.onmessage = (event) => {
     let payload: any;

@@ -1,4 +1,5 @@
 import { loadTemplateWithNeeds } from "./templates";
+import { checkServerVersion, watchServerVersion } from "./server-version";
 import { Button, IconButton } from "./ui/Button";
 import { shellTheme } from "./ui/FloatingCard";
 import { useCallback, useEffect, useRef, useMemo, useState, lazy, Suspense, type ReactNode } from "react";
@@ -408,6 +409,16 @@ export default function App() {
   useEffect(() => {
     if (peekFold === "open" || peekFold === "closed") peekStill.current = false;
   }, [peekFold]);
+  // Whether the server was updated under this tab: asked on load, when the
+  // tab comes back into view, and when the event stream reconnects.
+  useEffect(() => {
+    handlers.onStreamOpen = () => void checkServerVersion();
+    const stop = watchServerVersion();
+    return () => {
+      stop();
+      handlers.onStreamOpen = undefined;
+    };
+  }, []);
   const typingInPeek = () => {
     const active = document.activeElement as HTMLElement | null;
     return !!active && !!peekEl.current?.contains(active) &&

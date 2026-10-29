@@ -12897,3 +12897,15 @@ while this was building" and "The next build reads the whole edit." in
 count leaves them out, and a build whose only errors were these reads as
 behind the source rather than failed. A half-typed brace also holds the
 build as a lone `$` does.
+
+A tab open across an update says so. A laptop tab ran the interface it
+had loaded for nine hours against a server on a newer commit, and broke
+only at the first chunk the new build no longer had. The page keeps the
+commit its first `/api/instance` answer named, `server-version.ts`, and
+asks again when it comes into view or goes out of it and when its event
+stream reconnects. A tab nobody is looking at reloads itself. One in view
+shows "NextTex was updated" in the warn ink at the right end of the
+status strip with a quiet inline Reload, the last thing on the strip to
+go: under 300 px the words leave and become Reload's title. On the
+projects screen the update button takes its attention state and the
+Updates sheet opens on "This tab is from before the update." with Reload.
