@@ -6,6 +6,8 @@ R-096. `GET /api/templates` lists the directories under
 parameter never carried anything. Every new project was an article.
 """
 
+import pytest
+
 from server import main as server_main
 
 
@@ -87,6 +89,27 @@ def test_the_application_template_is_two_documents_and_the_resume_leads(client, 
     assert pulled.status_code == 200, pulled.text
     documents = client.get(f"/api/projects/{project['id']}/documents").json()
     assert documents["previews"] == ["resume.tex", "cover-letter.tex"]
+
+
+
+@pytest.mark.parametrize("missing, builds", [(["acmart"], 0), ([], 1)])
+def test_a_template_that_needs_packages_leaves_the_build_to_the_install(
+    client, opened, monkeypatch, missing, builds,
+):
+    """On the laptop on 29 October 2026 an acm project's first build ran
+    before its packages went in and showed "acmart.cls not found". A
+    template that names packages to install is built by the install."""
+    from nexttex import venues
+
+    session = server_main.SESSIONS[opened["id"]]
+    session.paths.main.write_text("", encoding="utf-8")
+    scheduled = []
+    monkeypatch.setattr(session, "schedule_compile", lambda *a, **k: scheduled.append(1))
+    monkeypatch.setattr(venues, "missing", lambda template: list(missing))
+    answer = client.post(f"/api/projects/{opened['id']}/template", json={"name": "acm"})
+    assert answer.status_code == 200, answer.text
+    assert answer.json()["missing"] == missing
+    assert len(scheduled) == builds
 
 
 def test_a_template_nobody_has_is_a_404(client, opened):

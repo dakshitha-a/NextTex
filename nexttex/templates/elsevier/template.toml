@@ -13,6 +13,15 @@ licence = "LPPL 1.3"
 [needs]
 elsarticle = "elsarticle.cls"
 grfext = "grfext.sty"
+# What a MiKTeX with only its basic set lacks beyond these, from the
+# owner's laptop on 29 October 2026: natbib under elsarticle, and the
+# support packages grfext and the class load.
+natbib = "natbib.sty"
+infwarerr = "infwarerr.sty"
+kvdefinekeys = "kvdefinekeys.sty"
+ltxcmds = "ltxcmds.sty"
+kvsetkeys = "kvsetkeys.sty"
+kvoptions = "kvoptions.sty"
 
 [checked]
 elsarticle = "3.5"

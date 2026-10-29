@@ -3736,7 +3736,8 @@ async def tex_install(
     downloads from a CTAN mirror and unpacks what it downloads.  Nothing
     about the project goes with the request.  A successful install is
     followed by a full build of every document, since the build the
-    writer is looking at is the one that failed for want of the file.
+    writer is looking at is the one that failed for want of the file;
+    a template's list is followed by one even when it failed.
     """
     session = session_for(project_id)
     names = packages or [package]
@@ -3749,6 +3750,9 @@ async def tex_install(
     if result["ok"]:
         # A template that needed this package no longer does.
         venues.forget()
+    if result["ok"] or packages:
+        # A template's list builds either way: the template route left its
+        # first build to this, so the drawer can say what is still missing.
         for state in list(session.documents.values()):
             spawn(
                 session.compile(force_full=True, document=state.path, cause="install"),
@@ -6213,13 +6217,17 @@ async def load_template(project_id: str, name: str = Body("basic", embed=True)):
         # The file the template wrote is the project's first document.
         await session.register_preview(session.project.relative(main))
     session.note_edit(main, read_text(main), None)
-    session.schedule_compile()
-    await session.events.publish({"type": "files_changed", "paths": written})
     # What this TeX lacks for it, so a template loaded into an existing
     # project can install them the way the New project sheet does; the
     # empty page's button and the agent column's action did not, and on a
     # fresh TinyTeX the article's first build there stopped on parskip.
     missing = await asyncio.to_thread(venues.missing, venues.get(name))
+    # A build now would only say the class is missing, as the laptop's
+    # acm project did for a few seconds on 29 October 2026; the install
+    # the answer starts builds when it ends, whether or not it worked.
+    if not missing:
+        session.schedule_compile()
+    await session.events.publish({"type": "files_changed", "paths": written})
     return {"ok": True, "written": written, "document": session.project.relative(main),
             "missing": missing or []}
 

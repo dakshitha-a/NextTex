@@ -24,6 +24,7 @@ import asyncio
 import os
 import re
 import shutil
+import subprocess
 from pathlib import Path
 
 from . import tools
@@ -118,6 +119,44 @@ def manager_here() -> tuple[str, str]:
     return "", ""
 
 
+#: Files whose MiKTeX package is not named after them, which the stem
+#: guess in `package_for_file` would get wrong: on the owner's laptop on
+#: 29 October 2026 amsart.cls offered "amsart", which MiKTeX does not know.
+MIKTEX_PACKAGE = {
+    "amsart.cls": "amscls", "amsbook.cls": "amscls", "amsproc.cls": "amscls",
+    "amsthm.sty": "amscls", "pifont.sty": "psnfss",
+}
+LIST_TIMEOUT = 10
+
+
+def miktex_packages(path: str) -> tuple[set[str], set[str]] | None:
+    """MiKTeX's packages: the ones it has, and every one it knows, from
+    its own list, or `None` when the list does not answer.
+
+    Asked of the package manager, not kpsewhich: MiKTeX's kpsewhich,
+    asked for a file a package it lacks would provide, opens its
+    "Package Installation" dialog on the desktop and waits there. On the
+    owner's laptop on 29 October 2026 the template check of all 53 files
+    never returned, so no template said what it needed. The list answers
+    in under a second.
+    """
+    try:
+        done = subprocess.run(
+            [path, "packages", "list", "--template={id} {isInstalled}"],
+            capture_output=True, text=True, timeout=LIST_TIMEOUT,
+        )
+    except (subprocess.SubprocessError, OSError):
+        return None
+    have, known = set(), set()
+    for line in done.stdout.splitlines():
+        parts = line.split()
+        if len(parts) == 2:
+            known.add(parts[0])
+            if parts[1] == "true":
+                have.add(parts[0])
+    return (have, known) if known else None
+
+
 #: How MiKTeX says a package is there already, which ends its install.
 ALREADY = re.compile(r"([A-Za-z0-9][A-Za-z0-9._+-]*): package is already installed")
 
@@ -207,8 +246,14 @@ async def package_for_file(file: str) -> dict:
     if kind in ("miktex", "mpm"):
         # MiKTeX names nearly every package after its main file, and has
         # no search from a file to its package that answers offline, so
-        # the stem is what the writer would type.
-        package = Path(file).stem
+        # the stem is what the writer would type, unless it is one of the
+        # known exceptions. A stem MiKTeX's own list does not know gets
+        # no button, rather than one that fails with "unknown package".
+        package = MIKTEX_PACKAGE.get(file, Path(file).stem)
+        if kind == "miktex":
+            listed = await asyncio.to_thread(miktex_packages, path)
+            if listed is not None and package not in listed[1]:
+                package = ""
     else:
         try:
             code, output = await _run(

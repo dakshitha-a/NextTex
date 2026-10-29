@@ -212,34 +212,6 @@ def _present(names: list[str]) -> set[str] | None:
     return {Path(line.strip()).name for line in done.stdout.splitlines() if line.strip()}
 
 
-def _miktex_packages(path: str) -> tuple[set[str], set[str]] | None:
-    """MiKTeX's packages: the ones it has, and every one it knows, from
-    its own list, or `None` when the list does not answer.
-
-    Asked of the package manager, not kpsewhich: MiKTeX's kpsewhich,
-    asked for a file a package it lacks would provide, opens its
-    "Package Installation" dialog on the desktop and waits there. On the
-    owner's laptop on 29 October 2026 the check of all 53 files never
-    returned, so no template said what it needed. The list answers in
-    under a second.
-    """
-    try:
-        done = subprocess.run(
-            [path, "packages", "list", "--template={id} {isInstalled}"],
-            capture_output=True, text=True, timeout=TIMEOUT,
-        )
-    except (subprocess.SubprocessError, OSError):
-        return None
-    have, known = set(), set()
-    for line in done.stdout.splitlines():
-        parts = line.split()
-        if len(parts) == 2:
-            known.add(parts[0])
-            if parts[1] == "true":
-                have.add(parts[0])
-    return (have, known) if known else None
-
-
 def missing(template: Template) -> list[str] | None:
     """The packages this template needs that the TeX lacks, in the order
     the manifest names them; `[]` when it has them all, and `None` when
@@ -255,7 +227,7 @@ def missing(template: Template) -> list[str] | None:
     kind, path = texpkg.manager_here()
     if not _asked:
         if kind == "miktex":
-            _miktex = _miktex_packages(path)
+            _miktex = texpkg.miktex_packages(path)
         if _miktex is None:
             wanted = sorted({f for t in templates() for f in t.needs.values()})
             _found = _present(wanted) if kind not in ("miktex", "mpm") else None

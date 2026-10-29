@@ -143,3 +143,25 @@ def test_loading_a_template_says_what_this_tex_lacks_for_it(client, opened, monk
     venues.forget()
     assert answer.status_code == 200, answer.text
     assert answer.json()["missing"] == ["parskip"]
+
+
+@pytest.mark.skipif(sys.platform == "win32", reason="the stand-in is a script")
+def test_a_templates_list_that_failed_still_builds(client, opened, tlmgr, monkeypatch):
+    """The template route leaves a template's first build to the install,
+    so the install builds even when it failed, and the drawer then says
+    what is missing. A single package that failed does not: the build on
+    screen is already the one that names it."""
+    from server import main
+
+    session = main.session_for(opened["id"])
+    built = []
+
+    async def compile(**kwargs):
+        built.append(kwargs.get("cause"))
+
+    monkeypatch.setattr(session, "compile", compile)
+    body = client.post(f"/api/projects/{opened['id']}/tex/install",
+                       json={"packages": ["stale-pkg"]}).json()
+    assert body["ok"] is False
+    client.post(f"/api/projects/{opened['id']}/tex/install", json={"package": "stale-pkg"})
+    assert built == ["install"] * len(session.documents)

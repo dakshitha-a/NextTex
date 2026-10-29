@@ -425,3 +425,30 @@ def test_another_miktex_failure_is_reported_as_it_was(monkeypatch):
     monkeypatch.setattr(texpkg, "manager_here", lambda: ("miktex", "/m/miktex"))
     result = asyncio.run(texpkg.install(["nosuch", "cmap"]))
     assert result["ok"] is False and "unknown package" in result["err"]
+
+
+def _miktex_lists(monkeypatch, listing: str):
+    import subprocess
+
+    class Done:
+        returncode = 0
+        stdout = listing
+
+    monkeypatch.setattr(texpkg, "manager_here", lambda: ("miktex", "/m/miktex"))
+    monkeypatch.setattr(texpkg, "_KNOWN", {})
+    monkeypatch.setattr(subprocess, "run", lambda *a, **k: Done())
+
+
+def test_miktex_is_given_amscls_for_amsart(monkeypatch):
+    """The laptop on 29 October 2026: amsart.cls offered "amsart", and
+    MiKTeX answered "The requested package is unknown"."""
+    _miktex_lists(monkeypatch, "amscls false\nxstring false\n")
+    assert asyncio.run(texpkg.package_for_file("amsart.cls"))["package"] == "amscls"
+    _miktex_lists(monkeypatch, "psnfss false\n")
+    assert asyncio.run(texpkg.package_for_file("pifont.sty"))["package"] == "psnfss"
+
+
+def test_a_stem_miktex_does_not_list_gets_no_button(monkeypatch):
+    _miktex_lists(monkeypatch, "amscls false\nxstring false\n")
+    assert asyncio.run(texpkg.package_for_file("pgfplots-nosuch.sty"))["package"] == ""
+    assert asyncio.run(texpkg.package_for_file("xstring.sty"))["package"] == "xstring"

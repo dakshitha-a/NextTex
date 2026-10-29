@@ -91,10 +91,8 @@ def test_missing_reads_kpsewhich_output_as_the_files_it_found(monkeypatch, tmp_p
     assert venues._present(["acmart.cls", "comment.sty", "environ.sty"]) == {"acmart.cls", "comment.sty"}
     venues.forget()
     acm = venues.get("acm")
-    assert venues.missing(acm) == [
-        "xstring", "microtype", "totpages", "everyshi", "environ", "hyperxmp",
-        "ncctools", "cmap", "caption", "fancyhdr", "preprint",
-    ]
+    assert venues.missing(acm) == [p for p in acm.needs if p not in ("acmart", "comment")]
+    assert venues.missing(acm)[:3] == ["xstring", "microtype", "totpages"]
     venues.forget()
 
 
