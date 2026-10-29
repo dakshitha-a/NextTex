@@ -317,13 +317,6 @@ OpenAI provider against OpenAI itself.
       one-component grey or an RGB codestream is drawn. Found making the
       fixture for `e2e/specs/pdf-decoders.spec.ts`; upstream's to fix,
       and worth a look when pdfjs-dist moves.
-- [ ] **Completion still reads a file a symlink brings in from outside
-      the project.** `symbols.scan` names walked files lexically, so the
-      labels and citations of a linked draft are offered, while the
-      editor refuses to open that file and search now passes over it.
-      Left because which of the two is right is the writer's call: a
-      paper that links in another repository's sections may want their
-      labels; found on 18 October 2026 fixing the 500 those links caused.
 
 - [ ] **The typeset page has no way back after following a link.** A
       click on a citation moves the view to the bibliography, and the
@@ -429,6 +422,12 @@ OpenAI provider against OpenAI itself.
 
 ### Deliberately not done, and worth revisiting only if something changes
 
+- [ ] **A file linked in from outside is read by completion and refused by
+      the editor.** Decided on 29 October 2026: TeX reads the link when it
+      builds, so its labels resolve on the page and completion offers them;
+      opening, search and replace stay off it, since writing through the
+      link would write outside the project. Revisit if a writer wants to
+      edit such a file in place.
 - [ ] **A paper's PDF is never matched by its title.** A citation finds
       its PDF by a link, a name or a DOI (`nexttex/paperpdfs.py`), so a
       download named "Smith - 2020 - A title.pdf" with no DOI on its

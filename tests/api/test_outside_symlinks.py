@@ -20,7 +20,8 @@ def linked(project_dir, tmp_path):
     outside = tmp_path / "elsewhere"
     outside.mkdir()
     draft = outside / "draft.tex"
-    draft.write_text("\\section{Borrowed}\nZEBRAWORD lives outside.\n", encoding="utf-8")
+    draft.write_text("\\section{Borrowed}\\label{sec:borrowed}\nZEBRAWORD lives outside.\n",
+                     encoding="utf-8")
     (project_dir / "refs").mkdir()
     (project_dir / "refs" / "draft.tex").symlink_to(draft)
     (project_dir / "refs" / "notes.md").symlink_to(outside / "missing.md")
@@ -40,3 +41,14 @@ def test_a_replace_never_writes_outside(client, linked, opened):
                            json={"q": "ZEBRAWORD", "with": "changed"})
     assert response.status_code == 200, response.text
     assert "ZEBRAWORD" in linked.read_text(encoding="utf-8")
+
+
+def test_completion_offers_a_linked_files_labels(client, linked, opened):
+    """Decided on 29 October 2026: TeX reads a linked file when it builds,
+    so `\\ref{sec:borrowed}` resolves on the page, and completion offers the
+    label it will resolve to. The editor and search still pass over the
+    file, since writing through the link would write outside the project."""
+    response = client.get(f"/api/projects/{opened['id']}/symbols")
+    assert response.status_code == 200, response.text
+    labels = [label["name"] for label in response.json()["labels"]]
+    assert "sec:borrowed" in labels
