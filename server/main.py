@@ -3741,7 +3741,7 @@ async def tex_install(project_id: str, package: str = Body(..., embed=True)):
         venues.forget()
         for state in list(session.documents.values()):
             spawn(
-                session.compile(force_full=True, document=state.path),
+                session.compile(force_full=True, document=state.path, cause="install"),
                 "the first build after a package was installed",
             )
     return result
@@ -3810,7 +3810,8 @@ async def restore_trash(project_id: str, entry_id: str):
             state = await session.register_preview(relative)
         except (ValueError, OSError):
             continue
-        spawn(session.compile(document=state.path), "the first build of a restored document")
+        spawn(session.compile(document=state.path, cause="restore"),
+              "the first build of a restored document")
     return {"ok": True, **result}
 
 
@@ -5798,8 +5799,20 @@ async def _project_pdf(session: ProjectSession, document: DocumentState) -> Path
     if fresh:
         return paths.pdf
 
+    asked = time.time()
+    if document.path in session.documents:
+        document.newest_cause, document.newest_asked = "download", asked
     async with session.queue.slot(priority=False):
+        started = time.time()
         result = await scheduler.build(force_full=True)
+    # This build does not pass through `session.compile`, so it logs itself;
+    # it supersedes a preview build of the same document like any other.
+    diag.event("build", project=project.root.name, document=document.path,
+               outcome=result.outcome.value, ms=round((time.time() - started) * 1000),
+               waited_ms=round((started - asked) * 1000), scope=result.scope,
+               engine_pass=result.engine_pass, engine=result.engine,
+               settling=False, errors=len(result.log.errors) if result.log else 0,
+               recovered=result.recovered, cause="download")
     if not paths.pdf.is_file():
         message = "compilation produced no PDF"
         # `result.diagnostics` does not exist.  `CompileResult` carries the
@@ -6211,7 +6224,7 @@ async def allow_shell_escape(project_id: str, allow: bool = Body(..., embed=True
     if allow and session.project.config.shell_escape:
         for state in list(session.documents.values()):
             spawn(
-                session.compile(force_full=True, document=state.path),
+                session.compile(force_full=True, document=state.path, cause="settings"),
                 "the first build with shell escape",
             )
     return settings
@@ -6291,22 +6304,31 @@ async def set_project_settings(
 # Compiling and the PDF
 
 
+#: What a browser may say asked for a build.
+BUILD_CAUSES = {"open", "rebuild", "page"}
+
+
 @app.post("/api/projects/{project_id}/compile")
 async def compile_now(
     project_id: str,
     full: bool = Body(False, embed=True),
     document: str = Body("", embed=True),
     clean: bool = Body(False, embed=True),
+    cause: str = Body("rebuild", embed=True),
 ):
     """Build one document now.
 
     An empty `document` means the main one, which is what every caller
     written before a project could have several sends.  `clean` removes
     the document's build files first; Rebuild everything sends it.
+    `cause` is what asked, for the diagnostics log: `open` from opening a
+    project, `rebuild` from the button, `page` from a typeset page window.
     """
+    if cause not in BUILD_CAUSES:
+        raise HTTPException(400, f"{cause!r} is not a build cause")
     session = session_for(project_id)
     result = await session.compile(
-        force_full=full, document=document or None, clean=clean,
+        force_full=full, document=document or None, clean=clean, cause=cause,
     )
     state = session.document_for(document)
     # The payload the build already made and published, unless a newer
@@ -6352,7 +6374,8 @@ async def add_preview(project_id: str, path: str = Body(..., embed=True)):
         # one PDF, and renaming is the writer's call rather than ours.
         raise HTTPException(409, str(error))
     if state.path not in before:
-        spawn(session.compile(document=state.path), "the first build of a new preview")
+        spawn(session.compile(document=state.path, cause="preview"),
+              "the first build of a new preview")
     return {**session.documents_payload(), "document": state.path}
 
 

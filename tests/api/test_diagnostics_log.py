@@ -118,3 +118,69 @@ def test_every_gauge_reads_with_a_project_open(client, opened):
     found = {name: read() for name, read in diag.gauges.items()}
     assert found["sessions"] == 1
     assert all(isinstance(value, int) for value in found.values()), found
+
+
+def test_a_superseded_build_is_recorded_with_what_replaced_it(client, opened, log):
+    """A cancelled build used to leave no line, so a review could not see
+    36 s of a 78 s wait.  It is logged now, with its own cause and the
+    cause of the build that took its place."""
+    import asyncio
+
+    from nexttex.compile import CompileResult, Outcome
+
+    session = server_main.SESSIONS[opened["id"]]
+    state = session.documents["main.tex"]
+    calls = []
+
+    async def fake_build(focus=None, force_full=False, clean=False):
+        calls.append(force_full)
+        if len(calls) == 1:
+            # An edit's build arrives while this one runs, and replaces it.
+            asyncio.get_running_loop().create_task(
+                session.compile(document="main.tex", follow=False, cause="edit"))
+            await asyncio.sleep(0.05)
+            return CompileResult(outcome=Outcome.CANCELLED, log=None, pdf=None,
+                                 duration=0.0, scope="full", engine_pass="full")
+        return CompileResult(outcome=Outcome.OK, log=None, pdf=None, duration=0.5,
+                             scope="full", engine_pass="full")
+
+    async def cancel():
+        return None
+
+    state.compiler.build = fake_build
+    state.compiler.cancel = cancel
+    assert client.post(f"/api/projects/{opened['id']}/compile",
+                       json={"cause": "open"}).status_code == 200
+    wait_idle(client)
+    builds = [row for row in log("build") if not row["settling"]]
+    cancelled = [row for row in builds if row["outcome"] == "cancelled"]
+    assert cancelled and cancelled[0]["cause"] == "open"
+    assert cancelled[0]["superseded_by"] == "edit"
+    assert any(row["outcome"] == "ok" and row["cause"] == "edit" for row in builds)
+
+
+def test_a_build_cause_the_route_does_not_know_is_refused(client, opened):
+    answer = client.post(f"/api/projects/{opened['id']}/compile",
+                         json={"cause": "../etc"})
+    assert answer.status_code == 400
+
+
+def test_a_download_that_builds_is_recorded(client, opened, log):
+    """A PDF download builds through the scheduler, not the session, and
+    so never reached the log either."""
+    from nexttex.compile import CompileResult, Outcome
+
+    state = server_main.SESSIONS[opened["id"]].documents["main.tex"]
+    state.paths.pdf.unlink(missing_ok=True)
+
+    async def fake_build(focus=None, force_full=False, clean=False):
+        state.paths.pdf.parent.mkdir(parents=True, exist_ok=True)
+        state.paths.pdf.write_bytes(b"%PDF-1.5\n%%EOF\n")
+        return CompileResult(outcome=Outcome.OK, log=None, pdf=state.paths.pdf,
+                             duration=0.25, scope="full", engine_pass="full")
+
+    state.compiler.build = fake_build
+    answer = client.get(f"/api/projects/{opened['id']}/download", params={"format": "pdf"})
+    assert answer.status_code == 200
+    rows = [row for row in log("build") if row.get("cause") == "download"]
+    assert rows and rows[0]["outcome"] == "ok" and rows[0]["document"] == "main.tex"

@@ -122,6 +122,11 @@ class DocumentState:
     #: superseded, and the callers waiting for the next one to.
     finished: int = 0
     waiters: list = field(default_factory=list)
+    #: What asked for the newest build of this document, and when: a build
+    #: that is cancelled logs it as what superseded it.  A download's build
+    #: sets it too, since it runs on the same scheduler without a build id.
+    newest_cause: str = ""
+    newest_asked: float = 0.0
 
 
 MATH_DELIMITER = re.compile(r"(?<!\\)\$")
@@ -469,7 +474,7 @@ class ProjectSession:
             revise_memory=self.context.revise_memory,
             editor_state=lambda: self._editor_state,
             diagnostics=lambda: self._diagnostics,
-            compile_now=self.compile,
+            compile_now=lambda **kw: self.compile(cause="agent", **kw),
             documents=lambda: list(self.documents),
             run_script=lambda path: self.scripts.run(
                 self.project.relative(path), by="agent",
@@ -843,7 +848,7 @@ class ProjectSession:
             renamed=renamed, notice="; ".join(notices)
         )
         for new in renamed.values():
-            spawn(self.compile(document=new), "rebuilding a renamed document")
+            spawn(self.compile(document=new, cause="rename"), "rebuilding a renamed document")
 
     def note_moved(self, was: str, now: str) -> None:
         """A file moved by something other than the rename route: a peer.
@@ -1336,6 +1341,7 @@ class ProjectSession:
     async def compile(
         self, force_full: bool = False, document: str | None = None,
         settling: bool = False, follow: bool = True, clean: bool = False,
+        cause: str = "request",
     ) -> CompileResult:
         """Build one document, and let it settle.
 
@@ -1386,6 +1392,8 @@ class ProjectSession:
         state.build_id += 1
         build = state.build_id
         state.in_flight = build
+        asked = time.time()
+        state.newest_cause, state.newest_asked = cause, asked
         await self.events.publish(
             {"type": "compile_start", "build": build, "document": state.path,
              "settling": settling}
@@ -1401,7 +1409,6 @@ class ProjectSession:
         # The project's slot first, then the machine's: a project never
         # holds a machine slot while it waits for its own queue.
         visible = state.path == self.visible
-        asked = time.time()
         async with self.queue.slot(priority=visible), MACHINE_BUILDS.slot(priority=visible):
             started = time.time()
             if state.in_flight == build:
@@ -1417,7 +1424,20 @@ class ProjectSession:
                        outcome=result.outcome.value, ms=round(result.duration * 1000),
                        waited_ms=round((started - asked) * 1000), scope=result.scope,
                        engine_pass=result.engine_pass, engine=result.engine,
-                       settling=settling, errors=errors, recovered=result.recovered)
+                       settling=settling, errors=errors, recovered=result.recovered,
+                       cause=cause)
+        else:
+            # Logged too, with how long it ran and what replaced it: the
+            # 27 October review found 36 s of a 78 s wait that no line
+            # accounted for, because a superseded build left none.
+            replaced = state.newest_cause if state.newest_asked > asked else ""
+            diag.event("build", project=self.project.root.name, document=state.path,
+                       outcome=result.outcome.value,
+                       ms=round((time.time() - started) * 1000),
+                       waited_ms=round((started - asked) * 1000), scope=result.scope,
+                       engine_pass=result.engine_pass, engine=result.engine,
+                       settling=settling, errors=0, recovered="",
+                       cause=cause, superseded_by=replaced)
         # A superseded build carries no log.  Keeping its empty diagnostics
         # would clear the editor's error marks every time the user typed
         # during a compile, which is exactly when they are looking at them.
@@ -1448,6 +1468,7 @@ class ProjectSession:
             spawn(
                 self.compile(
                     force_full=True, document=state.path, settling=True, follow=False,
+                    cause="settling",
                 ),
                 "the settling build",
             )
@@ -1640,7 +1661,7 @@ class ProjectSession:
         # bytes.  A newer build now supersedes this one the ordinary way.
         if state.debounce is asyncio.current_task():
             state.debounce = None
-        await self.compile(document=name, follow=False)
+        await self.compile(document=name, follow=False, cause="edit")
 
     def note_edit(
         self,

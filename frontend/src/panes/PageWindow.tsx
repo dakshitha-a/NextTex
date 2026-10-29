@@ -63,7 +63,7 @@ export default function PageWindow({ request }: { request: PageWindowRequest }) 
         setState("open");
         // A page that has never been built in this session is built now,
         // so the window does not open on the absence of one.
-        api.compile(request.projectId, false, showing).catch(() => undefined);
+        api.compile(request.projectId, false, showing, "page").catch(() => undefined);
       } catch (error: any) {
         if (!stopped) setState(error?.message || "That project could not be opened.");
       }

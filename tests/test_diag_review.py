@@ -33,7 +33,10 @@ def test_the_review_summarises_a_log(tmp_path):
         for minute in range(40):
             diag.event("sample", rss_mb=200 + minute, fds=30, threads=8, worst_lag_ms=5)
         diag.event("build", project="thesis", document="main.tex", outcome="ok", ms=3200,
-                   waited_ms=10, engine_pass="fast", settling=False, errors=0)
+                   waited_ms=10, engine_pass="fast", settling=False, errors=0, cause="edit")
+        diag.event("build", project="thesis", document="main.tex", outcome="cancelled",
+                   ms=36000, waited_ms=0, engine_pass="full", settling=False, errors=0,
+                   cause="open", superseded_by="edit")
         diag.event("turn", project="thesis", agent="ClaudeAgent", ended="success",
                    ms=42000, first_ms=3000, tools=4, errors=0)
         diag.event("client", error_kind="rejection", message="boom in /projects/abc/tree")
@@ -52,6 +55,9 @@ def test_the_review_summarises_a_log(tmp_path):
     out = subprocess.run([sys.executable, str(SCRIPT), "--state", str(tmp_path), "--no-journal"],
                          capture_output=True, text=True, check=True).stdout
     assert "started 9.9.9 at abc1234" in out
+    assert "36.0 s of work thrown away" in out
+    assert "1x  a build for open replaced by one for edit" in out
+    assert "What asked for them: {'edit': 1}" in out
     assert "stopped 1x: restarting for an update" in out
     assert "2x  exception (event loop): KeyError: 'x'" in out
     assert "at session.py:12 spawn" in out

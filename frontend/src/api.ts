@@ -901,9 +901,14 @@ const api = {
   /** `full` is Rebuild everything, which starts from a clean build
    *  directory: an `.aux` a cancelled pass cut short survives a full
    *  pass, and only removing it gets the writer past it. */
-  compile: (id: string, full = false, document = "") =>
+  /** `cause` is what asked, for the server's diagnostics log; opening a
+   *  project says `open`, a page window `page`, the button `rebuild`. */
+  compile: (
+    id: string, full = false, document = "",
+    cause: "open" | "rebuild" | "page" = "rebuild",
+  ) =>
     request<CompileResult>(
-      `/projects/${id}/compile`, json({ full, document, clean: full }),
+      `/projects/${id}/compile`, json({ full, document, clean: full, cause }),
     ),
   /** Which documents are previewed, which could be, and who reads what. */
   documents: (id: string) =>

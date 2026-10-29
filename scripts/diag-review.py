@@ -220,7 +220,8 @@ def resources(rows: list[dict]) -> None:
 
 def work(rows: list[dict]) -> None:
     section("Builds and agent turns")
-    builds = [r for r in rows if r["kind"] == "build"]
+    every = [r for r in rows if r["kind"] == "build"]
+    builds = [r for r in every if r["outcome"] != "cancelled"]
     if builds:
         by = defaultdict(list)
         for row in builds:
@@ -235,6 +236,21 @@ def work(rows: list[dict]) -> None:
                   f"{percentile(waits, .95):>8.0f}ms {dict(outcomes)}")
     else:
         print("No builds.")
+    causes = Counter(r["cause"] for r in builds if r.get("cause"))
+    if causes:
+        print(f"\nWhat asked for them: {dict(causes.most_common())}")
+    cancelled = [r for r in every if r["outcome"] == "cancelled"]
+    if cancelled:
+        lost = defaultdict(int)
+        replaced = Counter()
+        for row in cancelled:
+            lost[row.get("project")] += row.get("ms", 0)
+            replaced[(row.get("cause") or "?", row.get("superseded_by") or "?")] += 1
+        print(f"\n{len(cancelled)} builds cancelled before they finished:")
+        for project, ms in sorted(lost.items(), key=lambda kv: -kv[1]):
+            print(f"  {str(project)[:28]:<28} {ms / 1000:>7.1f} s of work thrown away")
+        for (was, by), count in replaced.most_common(8):
+            print(f"  {count:>4}x  a build for {was} replaced by one for {by}")
     turns = [r for r in rows if r["kind"] == "turn"]
     if turns:
         ms = [r["ms"] for r in turns]

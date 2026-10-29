@@ -974,7 +974,7 @@ export default function App() {
     // preview opening on a stale page from the last session is the thing
     // the tab strip most obviously must not do.
     for (const name of previewed) {
-      api.compile(id, false, name).catch(() => undefined);
+      api.compile(id, false, name, "open").catch(() => undefined);
     }
   }, []);
   openProjectRef.current = openProject;
