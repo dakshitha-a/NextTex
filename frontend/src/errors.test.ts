@@ -2,6 +2,8 @@ import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import {
   FRAME_CAUSES,
   frameCause,
+  noteHandled,
+  withEvent,
   install,
   LONG_TASK_MS,
   noteCall,
@@ -135,6 +137,18 @@ describe("sending what was recorded to the server's log", () => {
     vi.advanceTimersByTime(SEND_AFTER_MS);
     send(true);
     expect(sent).toHaveLength(0);
+  });
+
+  it("names the event a slow stream handler was handling", () => {
+    noteHandled("files_changed", 1000, 3400);
+    // A quick event after it does not take its place.
+    noteHandled("compile_start", 1200, 2);
+    const cause = "EventSource.onmessage > (anonymous) in index-aa.js";
+    expect(withEvent(cause, 900, 4500)).toBe(`${cause} handling files_changed`);
+    // A frame that did not contain it, or was not the stream's, is unchanged.
+    expect(withEvent(cause, 5000, 6000)).toBe(cause);
+    expect(withEvent("TimerHandler:setTimeout > draw in Pdf-bb.js", 900, 4500))
+      .toBe("TimerHandler:setTimeout > draw in Pdf-bb.js");
   });
 
   it("names what held a long frame, and sums each cause", () => {

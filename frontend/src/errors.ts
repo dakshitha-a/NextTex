@@ -111,6 +111,28 @@ export function frameCause(scripts: readonly FrameScript[], layoutMs: number): s
   return `${what} > ${longest.sourceFunctionName || "(anonymous)"} in ${file}`.slice(0, 300);
 }
 
+/** The slowest project event handled lately, by when it began.  A long
+ *  frame's script is named only by its invoker and its function, and the
+ *  stream's handler is one anonymous function for some sixty kinds of
+ *  event, so a 3.5 s freeze on 27 October 2026 read "EventSource.onmessage
+ *  > (anonymous)" and nothing more.  The store says which kind it was. */
+let slowEvent: { type: string; at: number; ms: number } | null = null;
+
+export function noteHandled(type: string, at: number, ms: number): void {
+  if (ms < LONG_TASK_MS / 4) return;
+  if (!slowEvent || slowEvent.at < at - 10_000 || ms > slowEvent.ms) {
+    slowEvent = { type: String(type).slice(0, 60), at, ms };
+  }
+}
+
+/** `cause` with the event kind added when the frame was the stream's and a
+ *  slow event began inside it. */
+export function withEvent(cause: string, start: number, end: number): string {
+  if (!cause.startsWith("EventSource.onmessage") || !slowEvent) return cause;
+  if (slowEvent.at < start || slowEvent.at > end) return cause;
+  return `${cause} handling ${slowEvent.type}`.slice(0, 300);
+}
+
 export function noteFrame(ms: number, cause: string): void {
   if (ms < LONG_TASK_MS) return;
   const key = frames.has(cause) || frames.size < FRAME_CAUSES ? cause : "other";
@@ -227,7 +249,8 @@ export function install(target: EventTarget = window, transport: Sender = post):
         };
         const end = frame.startTime + frame.duration;
         const layout = frame.styleAndLayoutStart ? end - frame.styleAndLayoutStart : 0;
-        noteFrame(frame.duration, frameCause(frame.scripts ?? [], layout));
+        noteFrame(frame.duration,
+          withEvent(frameCause(frame.scripts ?? [], layout), frame.startTime, end));
       }
     });
     frameObserver.observe({ type: "long-animation-frame", buffered: true });

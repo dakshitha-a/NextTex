@@ -10,6 +10,7 @@ import { afterReconcile } from "./agent-state";
 import { agentChangedScript, resultFrom } from "./script-run";
 import { renamePaths } from "./tabs";
 import { learnKinds } from "./panes/file-kinds";
+import { noteHandled } from "./errors";
 import api, {
   clientId,
   type AgentSession,
@@ -994,7 +995,9 @@ export function connect(projectId: string) {
     } catch {
       return;
     }
+    const began = performance.now();
     receive(payload);
+    noteHandled(payload?.type, began, performance.now() - began);
   };
 }
 
