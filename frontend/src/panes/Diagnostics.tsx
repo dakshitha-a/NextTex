@@ -240,19 +240,168 @@ export default function Diagnostics({
   );
   // The state line, worded as the strip words it, so the drawer and the
   // strip never disagree about the same build.
-  const [errors, warnings] = useMemo(() => {
+  const [errors, warnings, transient] = useMemo(() => {
     let bad = 0;
     let iffy = 0;
+    let half = 0;
     for (const item of compile) {
-      if (item.severity === "error") bad += 1;
+      if (item.transient) half += 1;
+      else if (item.severity === "error") bad += 1;
       else if (item.severity === "warning") iffy += 1;
     }
-    return [bad, iffy + (result?.omittedWarnings ?? 0)];
+    return [bad, iffy + (result?.omittedWarnings ?? 0), half];
   }, [compile, result]);
   const status = statusFor({
-    compiling, slow: compiling, stale, result, errors, warnings, autocompile,
+    compiling, slow: compiling, stale, result, errors, warnings, transient, autocompile,
   });
   const showDuration = Boolean(result) && !compiling && !status.label.startsWith("Built");
+
+  /** One row of the list; `half` for an error from half an edit, which
+   *  keeps the row's shape with a `--line` stripe and the second ink. */
+  const renderRow = (item: (typeof rows)[number], half = false) => {
+          const bar = half ? "bg-line" : item.severity === "error" ? "bg-error" : "bg-warn";
+          const key = rowKey(item);
+          const open = expanded === key;
+          const lit = open || selected === key;
+          return (
+            // The row is a grid: the severity bar, the line in the mono,
+            // the message, and at the right the file (only when it is not
+            // the one in front) at rest or Fix and Copy under the pointer.
+            // A plain div holding siblings rather than a role="button" with
+            // buttons inside it, which is axe's `nested-interactive`: the
+            // row's own job, opening the diagnostic and jumping to it,
+            // belongs to a real button over the line and the message.
+            <div
+              key={key}
+              data-selected={selected === key ? "true" : undefined}
+              className={`group grid grid-cols-[3px_28px_1fr_auto] items-start gap-x-2 py-1.25 pl-1.5 pr-2 text-small leading-4.25 text-ink-2 hover:bg-wash ${
+                lit ? "bg-wash" : ""
+              }`}
+            >
+              <span className={`h-full min-h-4.25 w-0.75 rounded-xs ${bar}`} />
+              <Pressable
+                className="col-span-2 grid min-w-0 cursor-pointer grid-cols-[28px_1fr] gap-x-2 text-left"
+                aria-expanded={open}
+                onClick={() => {
+                  setSelected(key);
+                  setExpanded(open ? null : key);
+                  if (item.file && item.line) onJump(item.file, item.line);
+                }}
+              >
+                <span className="t-code-sm text-right text-ink-3 tnum">{item.line ?? ""}</span>
+                <span className={`min-w-0 ${half ? "text-ink-2" : "text-ink"}`}>
+                  {item.message}
+                  {item.file && item.file !== activePath ? (
+                    <span className="t-code-sm ml-2 text-ink-3">{item.file.split("/").pop()}</span>
+                  ) : null}
+                </span>
+              </Pressable>
+              {/* Fix and Copy under the pointer, and always on a finger,
+                  which has no pointer to reveal with. */}
+              <span className="flex items-center gap-0.5 hoverable:opacity-0 hoverable:group-hover:opacity-100 hoverable:focus-within:opacity-100">
+                {onFix && !half ? (
+                <Pressable
+                  className="px-1.5 text-small text-ink-2 hover:text-ink"
+                  data-testid="diagnostic-fix"
+                  onClick={(event) => {
+                    event.stopPropagation();
+                    onFix(
+                      `Fix: ${item.message}` +
+                        (item.file ? ` (${item.file}:${item.line ?? 0})` : ""),
+                    );
+                  }}
+                >
+                  Fix
+                </Pressable>
+                ) : null}
+                {/* The one thing a writer does with an error message that
+                    NextTex cannot do for them: take it somewhere else, to
+                    a search or to a colleague. It was selectable text
+                    inside a button, which means selecting it opened the
+                    row and jumped the editor. */}
+                <Pressable
+                  className="px-1.5 text-small text-ink-2 hover:text-ink"
+                  data-testid="diagnostic-copy"
+                  onClick={(event) => {
+                    event.stopPropagation();
+                    const where = item.file
+                      ? `${item.file}:${item.line ?? 0}: `
+                      : "";
+                    void navigator.clipboard
+                      ?.writeText(`${where}${item.message ?? ""}`)
+                      .catch(() => undefined);
+                  }}
+                >
+                  Copy
+                </Pressable>
+              </span>
+              {/* A .bib row's own repair, on a line of its own under the
+                  message and there at rest: it is what the row is for, and
+                  a verb in the right-hand column would hold that column
+                  open at its width and squeeze every message beside it. */}
+              {item.fix && item.file ? (
+                <div className="col-span-2 col-start-3 -ml-1.5">
+                  <Button
+                    size="inline"
+                    data-testid="diagnostic-repair"
+                    disabled={repairing === key}
+                    onClick={(event) => {
+                      event.stopPropagation();
+                      void repair(key, item.file!, item.fix!);
+                    }}
+                  >
+                    {item.fix.verb}
+                  </Button>
+                </div>
+              ) : null}
+              {/* A consistency row's other form, as a way there: the
+                  place in the code face, a quiet button on the repair's
+                  line. */}
+              {item.other ? (
+                <div className="col-span-2 col-start-3 -ml-1.5">
+                  <Button
+                    size="inline"
+                    className="nx-place"
+                    data-testid="diagnostic-other"
+                    title="Go to the other form"
+                    onClick={(event) => {
+                      event.stopPropagation();
+                      onJump(item.other!.file, item.other!.line);
+                    }}
+                  >
+                    {item.other.file}:{item.other.line}
+                  </Button>
+                </div>
+              ) : null}
+              {open ? (
+                <div className="col-span-2 col-start-3 mt-0.5 text-small leading-4.25 text-ink-2">
+                  {item.explain ? (
+                    <>
+                      <p className="font-medium text-ink">{item.explain.title}</p>
+                      <p>{item.explain.detail}</p>
+                      <p className="mt-1">
+                        <span className="font-medium text-ink">What to do: </span>
+                        {item.explain.fix}
+                      </p>
+                      {item.missingFile ? (
+                        <InstallPackage file={item.missingFile} />
+                      ) : null}
+                    </>
+                  ) : null}
+                  {item.context ? (
+                    <pre className="t-code-sm mt-1 max-h-13.5 overflow-auto rounded-control bg-surface px-2 py-1 text-ink-2">
+                      {item.context}
+                    </pre>
+                  ) : null}
+                </div>
+              ) : null}
+            </div>
+          );
+  };
+
+  // Errors from half an edit at the foot, apart from the rest; see renderRow.
+  const steady = rows.filter((row) => !row.transient);
+  const halfEdit = rows.filter((row) => row.transient);
 
   /** The document whose raw log the quiet line at the foot shows: the
    *  chosen one, else the one the rows are about, else the first preview. */
@@ -387,146 +536,14 @@ export default function Diagnostics({
         </div>
       ) : null}
       <div className="min-h-0 flex-1 overflow-auto">
-        {rows.map((item) => {
-          const bar = item.severity === "error" ? "bg-error" : "bg-warn";
-          const key = rowKey(item);
-          const open = expanded === key;
-          const lit = open || selected === key;
-          return (
-            // The row is a grid: the severity bar, the line in the mono,
-            // the message, and at the right the file (only when it is not
-            // the one in front) at rest or Fix and Copy under the pointer.
-            // A plain div holding siblings rather than a role="button" with
-            // buttons inside it, which is axe's `nested-interactive`: the
-            // row's own job, opening the diagnostic and jumping to it,
-            // belongs to a real button over the line and the message.
-            <div
-              key={key}
-              data-selected={selected === key ? "true" : undefined}
-              className={`group grid grid-cols-[3px_28px_1fr_auto] items-start gap-x-2 py-1.25 pl-1.5 pr-2 text-small leading-4.25 text-ink-2 hover:bg-wash ${
-                lit ? "bg-wash" : ""
-              }`}
-            >
-              <span className={`h-full min-h-4.25 w-0.75 rounded-xs ${bar}`} />
-              <Pressable
-                className="col-span-2 grid min-w-0 cursor-pointer grid-cols-[28px_1fr] gap-x-2 text-left"
-                aria-expanded={open}
-                onClick={() => {
-                  setSelected(key);
-                  setExpanded(open ? null : key);
-                  if (item.file && item.line) onJump(item.file, item.line);
-                }}
-              >
-                <span className="t-code-sm text-right text-ink-3 tnum">{item.line ?? ""}</span>
-                <span className="min-w-0 text-ink">
-                  {item.message}
-                  {item.file && item.file !== activePath ? (
-                    <span className="t-code-sm ml-2 text-ink-3">{item.file.split("/").pop()}</span>
-                  ) : null}
-                </span>
-              </Pressable>
-              {/* Fix and Copy under the pointer, and always on a finger,
-                  which has no pointer to reveal with. */}
-              <span className="flex items-center gap-0.5 hoverable:opacity-0 hoverable:group-hover:opacity-100 hoverable:focus-within:opacity-100">
-                {onFix ? (
-                <Pressable
-                  className="px-1.5 text-small text-ink-2 hover:text-ink"
-                  data-testid="diagnostic-fix"
-                  onClick={(event) => {
-                    event.stopPropagation();
-                    onFix(
-                      `Fix: ${item.message}` +
-                        (item.file ? ` (${item.file}:${item.line ?? 0})` : ""),
-                    );
-                  }}
-                >
-                  Fix
-                </Pressable>
-                ) : null}
-                {/* The one thing a writer does with an error message that
-                    NextTex cannot do for them: take it somewhere else, to
-                    a search or to a colleague. It was selectable text
-                    inside a button, which means selecting it opened the
-                    row and jumped the editor. */}
-                <Pressable
-                  className="px-1.5 text-small text-ink-2 hover:text-ink"
-                  data-testid="diagnostic-copy"
-                  onClick={(event) => {
-                    event.stopPropagation();
-                    const where = item.file
-                      ? `${item.file}:${item.line ?? 0}: `
-                      : "";
-                    void navigator.clipboard
-                      ?.writeText(`${where}${item.message ?? ""}`)
-                      .catch(() => undefined);
-                  }}
-                >
-                  Copy
-                </Pressable>
-              </span>
-              {/* A .bib row's own repair, on a line of its own under the
-                  message and there at rest: it is what the row is for, and
-                  a verb in the right-hand column would hold that column
-                  open at its width and squeeze every message beside it. */}
-              {item.fix && item.file ? (
-                <div className="col-span-2 col-start-3 -ml-1.5">
-                  <Button
-                    size="inline"
-                    data-testid="diagnostic-repair"
-                    disabled={repairing === key}
-                    onClick={(event) => {
-                      event.stopPropagation();
-                      void repair(key, item.file!, item.fix!);
-                    }}
-                  >
-                    {item.fix.verb}
-                  </Button>
-                </div>
-              ) : null}
-              {/* A consistency row's other form, as a way there: the
-                  place in the code face, a quiet button on the repair's
-                  line. */}
-              {item.other ? (
-                <div className="col-span-2 col-start-3 -ml-1.5">
-                  <Button
-                    size="inline"
-                    className="nx-place"
-                    data-testid="diagnostic-other"
-                    title="Go to the other form"
-                    onClick={(event) => {
-                      event.stopPropagation();
-                      onJump(item.other!.file, item.other!.line);
-                    }}
-                  >
-                    {item.other.file}:{item.other.line}
-                  </Button>
-                </div>
-              ) : null}
-              {open ? (
-                <div className="col-span-2 col-start-3 mt-0.5 text-small leading-4.25 text-ink-2">
-                  {item.explain ? (
-                    <>
-                      <p className="font-medium text-ink">{item.explain.title}</p>
-                      <p>{item.explain.detail}</p>
-                      <p className="mt-1">
-                        <span className="font-medium text-ink">What to do: </span>
-                        {item.explain.fix}
-                      </p>
-                      {item.missingFile ? (
-                        <InstallPackage file={item.missingFile} />
-                      ) : null}
-                    </>
-                  ) : null}
-                  {item.context ? (
-                    <pre className="t-code-sm mt-1 max-h-13.5 overflow-auto rounded-control bg-surface px-2 py-1 text-ink-2">
-                      {item.context}
-                    </pre>
-                  ) : null}
-                </div>
-              ) : null}
-            </div>
-          );
-        })}
+        {steady.map((item) => renderRow(item))}
+        {halfEdit.length ? (
+          <div data-testid="build-transient" className="mt-3">
+            <p className="t-meta px-2 text-ink-3">The file changed while this was building</p>
+            <p className="t-meta px-2 text-ink-3">The next build reads the whole edit.</p>
+            {halfEdit.map((item) => renderRow(item, true))}
+          </div>
+        ) : null}
       </div>
       {result?.omittedWarnings ? (
         <p className="nx-note" data-testid="build-omitted">

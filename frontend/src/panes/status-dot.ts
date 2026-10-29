@@ -39,6 +39,9 @@ export type StatusInput = {
   result: { durationMs: number; outcome?: Outcome; engine?: string } | null;
   errors: number;
   warnings: number;
+  /** Errors from a build whose file changed while it ran, which `errors`
+   *  leaves out: TeX read half an edit, and the next build reads it whole. */
+  transient?: number;
   /** Only used to say how to get a build when none is coming by itself. */
   autocompile: boolean;
 };
@@ -124,6 +127,18 @@ export function statusFor(input: StatusInput): StatusDot {
       label: restingLabel(input),
       clickable: true,
       hint: "The preview is from the last build that worked",
+    };
+  }
+
+  if (outcome === "errors" && input.transient) {
+    // Every error was half an edit's.  "Build failed" would be the same
+    // false alarm the drawer sets apart; the edit's own build is coming.
+    return {
+      state: "stale",
+      dot: "bg-warn",
+      label: restingLabel(input),
+      clickable: true,
+      hint: "The file changed while this was building",
     };
   }
 

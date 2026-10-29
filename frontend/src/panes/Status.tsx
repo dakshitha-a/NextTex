@@ -4,6 +4,7 @@ import { referencesPending, statusFor } from "./status-dot";
 import { labelFor } from "../words";
 import { type WordScope } from "../api";
 import { Announce, Pressable } from "../ui/controls";
+import { Button } from "../ui/Button";
 
 /** A spinner shown at 0ms on a one-second task is what tells the user the
  *  task is slow.  The dot only starts breathing once a build crosses this;
@@ -35,6 +36,7 @@ export default function Status({
   const diagnostics = useStore((s) => s.diagnostics);
   const cursor = useStore((s) => s.cursor);
   const spellingNote = useStore((s) => s.spellingNote);
+  const outdated = useStore((s) => s.outdated);
   const autocompile = useStore((s) => s.settings.autocompile);
   // A project asking for shell escape that this machine has not answered.
   // The question is drawn in the Build drawer, and the strip says so.
@@ -64,15 +66,17 @@ export default function Status({
 
   // Counted once per build rather than twice per render. The strip
   // re-renders on the cursor moving, which is every keystroke.
-  const [errors, warnings] = useMemo(() => {
+  const [errors, warnings, transient] = useMemo(() => {
     let bad = 0;
     let iffy = 0;
+    let half = 0;
     for (const item of diagnostics) {
-      if (item.severity === "error") bad += 1;
+      if (item.transient) half += 1;
+      else if (item.severity === "error") bad += 1;
       else if (item.severity === "warning") iffy += 1;
     }
     // The server sends at most a few hundred rows and counts the rest.
-    return [bad, iffy + (result?.omittedWarnings ?? 0)];
+    return [bad, iffy + (result?.omittedWarnings ?? 0), half];
   }, [diagnostics, result]);
 
   // `state` says the same thing as the dot's colour, in a form a test can
@@ -80,7 +84,7 @@ export default function Status({
   // right shade of nothing; asserting on the label would break the moment
   // the wording changes.
   const found = statusFor({
-    compiling, slow, stale, result, errors, warnings, autocompile,
+    compiling, slow, stale, result, errors, warnings, transient, autocompile,
   });
   const { state, dot, label } = found;
   const hint = askShell && !found.clickable ? "This project asks for shell escape" : found.hint;
@@ -228,6 +232,21 @@ export default function Status({
             punctuation between clauses. */}
         {words === null ? "\u2013 words" : labelFor(wordScope, words)}
       </Pressable>
+      {/* The server was updated while this tab was open. The last thing
+          on the strip to go: under 300 px the words leave and become
+          Reload's title, and Reload stays. */}
+      {outdated ? (
+        <span className="flex shrink-0 items-center gap-2" data-testid="status-outdated">
+          <span className="t-micro hidden text-warn @[300px]:inline">NextTex was updated</span>
+          <Button
+            size="inline"
+            title="NextTex was updated while this tab was open"
+            onClick={() => window.location.reload()}
+          >
+            Reload
+          </Button>
+        </span>
+      ) : null}
     </div>
   );
 }

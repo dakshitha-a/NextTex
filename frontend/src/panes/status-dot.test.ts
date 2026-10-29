@@ -86,6 +86,16 @@ describe("the status dot", () => {
     expect(dot.dot).toBe("bg-error");
   });
 
+  test("a build whose only errors were half an edit is not a failed build", () => {
+    // The file changed while it ran; the edit's own build is coming.
+    const dot = at({ result: { durationMs: 900, outcome: "errors" }, errors: 0, transient: 2 });
+    expect(dot.state).toBe("stale");
+    expect(dot.hint).toBe("The file changed while this was building");
+    // A real error beside them still reads as one.
+    expect(at({ result: { durationMs: 900, outcome: "errors" }, errors: 1, transient: 2 }).state)
+      .toBe("errors");
+  });
+
   test("a timed-out or failed build says so instead of showing a duration", () => {
     expect(at({ result: { durationMs: 60000, outcome: "timeout" } }).state)
       .toBe("timeout");

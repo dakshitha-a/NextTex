@@ -74,3 +74,52 @@ test("an error in one chapter survives a build of another", async ({ app, projec
   await expect(page.getByTestId("status")).toHaveAttribute("data-state", "errors");
   events.stop();
 });
+
+test("errors from a build the file changed under are set apart, and not counted", async ({
+  app, project, page,
+}) => {
+  // The thesis's writer pasted "File ended while scanning use of \revised"
+  // from a build that ran while a brace was half deleted.  Compile as you
+  // type is off, so the build after the edit waits for the writer and the
+  // drawer can be read.
+  test.setTimeout(120_000);
+  const root = project.root;
+  const headers = { "content-type": "application/json", "x-nexttex-token": app.token };
+  await fetch(`${app.base}/api/projects/${project.id}/settings`, {
+    method: "POST", headers, body: JSON.stringify({ autocompile: false }),
+  });
+  // TeX reads its input as it goes, so the half edit is in a part read
+  // first, and the slow loop comes after it: the fix lands while the
+  // engine is in the loop, having already met the open brace.
+  writeFileSync(join(root, "main.tex"), [
+    "\\documentclass{article}",
+    "\\newcommand{\\revised}[1]{#1}",
+    "\\begin{document}",
+    "\\input{part}",
+    "\\newcount\\slowN \\loop\\advance\\slowN by 1 \\ifnum\\slowN<12000000 \\repeat",
+    "\\end{document}",
+    "",
+  ].join("\n"));
+  writeFileSync(join(root, "part.tex"), "The rate \\revised{is\n");
+  await page.goto(`${app.base}/?token=${app.token}`);
+  await page.getByText("Projects", { exact: false }).first().waitFor();
+  await openProject(page, root);
+  await expect(page.getByTestId("status")).not.toHaveAttribute("data-state", "compiling", {
+    timeout: 60_000,
+  });
+  const built = fetch(`${app.base}/api/projects/${project.id}/compile`, {
+    method: "POST", headers, body: JSON.stringify({ full: false }),
+  });
+  await page.waitForTimeout(1500);
+  writeFileSync(join(root, "part.tex"), "The rate \\revised{is} fast.\n");
+  const payload = await (await built).json();
+  expect(payload.transientErrors, JSON.stringify(payload.diagnostics)).toBeGreaterThan(0);
+
+  const strip = page.getByTestId("status");
+  await expect(strip).toHaveAttribute("data-state", "stale", { timeout: 20_000 });
+  await strip.click();
+  const group = page.getByTestId("build-transient");
+  await expect(group).toContainText("The file changed while this was building");
+  await expect(group).toContainText("File ended while scanning");
+  await expect(group.getByTestId("diagnostic-fix")).toHaveCount(0);
+});

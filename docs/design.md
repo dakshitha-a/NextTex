@@ -12877,3 +12877,23 @@ row, `e2e/specs/moved-project.spec.ts` browses to a moved folder, and
 `e2e/specs/projects-states.spec.ts` reads the switch's counts and moves
 between the three lists with it. It adds one class, `nx-segment-count`,
 to the style guide.
+
+## 130. Late October: small changes the log and the backlog asked for
+
+Five changes a writer can see, from the review of the diagnostics log for
+26 to 28 October 2026 and the backlog items left without a decision. The
+writer said "test and decide", so each was decided from the style guide
+and drawn on the direction page under Late October before it was built.
+
+A build whose file changed while it ran keeps the errors half an edit
+produces apart. The thesis's writer pasted "File ended while scanning use
+of \revised" from a build that read a brace half deleted. Such errors, a
+scan that ran off the end, a runaway argument, a missing or extra brace,
+come back marked transient when the file changed after the build began.
+The Build drawer puts them at the foot of its list under "The file changed
+while this was building" and "The next build reads the whole edit." in
+`t-meta` and the third ink, each row in the diagnostic's shape with a
+`--line` stripe, its message in the second ink and no Fix. The strip's
+count leaves them out, and a build whose only errors were these reads as
+behind the source rather than failed. A half-typed brace also holds the
+build as a lone `$` does.
