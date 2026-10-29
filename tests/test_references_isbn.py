@@ -158,3 +158,13 @@ def test_marking_by_hand_adds_one_line_and_refuses_an_entry_with_an_identifier()
     assert references.checked_by_hand(marked, "g16") == marked
     assert references.checked_by_hand(text, "a") is None
     assert references.checked_by_hand(text, "nobody") is None
+
+
+def test_the_scripts_share_one_copy_of_each_other():
+    """`bib_from_doi` imports `verify_bib` by its plain name. With a second
+    copy behind it, the fixture above stubbed one HTTP client and the ISBN
+    lookup reached Open Library through the other; it timed out in a full
+    run on 29 October 2026."""
+    fetch = references._load("bib_from_doi")
+    checker = references._load("verify_bib")
+    assert fetch.isbn_record.__globals__ is checker.__dict__

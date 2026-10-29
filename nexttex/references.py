@@ -34,11 +34,22 @@ def _load(name: str):
     key = f"nexttex._vendor_{name}"
     if key in sys.modules:
         return sys.modules[key]
-    spec = importlib.util.spec_from_file_location(key, _VENDOR / f"{name}.py")
+    path = _VENDOR / f"{name}.py"
+    # The scripts import each other by their plain names, as
+    # `bib_from_doi` does `from verify_bib import isbn_record`. One module
+    # object under both names, so that what one sees of another, its HTTP
+    # client among them, is what this module hands out: with two copies the
+    # ISBN tests stubbed one and reached Open Library through the other.
+    plain = sys.modules.get(name)
+    if plain is not None and Path(getattr(plain, "__file__", "") or "").resolve() == path.resolve():
+        sys.modules[key] = plain
+        return plain
+    spec = importlib.util.spec_from_file_location(key, path)
     if spec is None or spec.loader is None:
         raise ImportError(f"cannot load {name}")
     module = importlib.util.module_from_spec(spec)
     sys.modules[key] = module
+    sys.modules.setdefault(name, module)
     spec.loader.exec_module(module)
     return module
 
