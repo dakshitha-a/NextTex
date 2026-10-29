@@ -28,3 +28,33 @@ def test_adding_a_new_folder_is_active(tmp_path):
     registry.add(folder)
     [entry] = registry._read()
     assert entry.state == "active"
+
+
+def test_two_writers_at_once_both_finish(tmp_path):
+    """The open route's touch and a rename once shared one temporary file
+    name, so the second's replace found it gone and the open answered 500
+    (the full check of 29 October 2026)."""
+    import threading
+
+    from nexttex.project import Registry
+
+    registry = Registry(tmp_path / "projects.json")
+    root = tmp_path / "paper"
+    root.mkdir()
+    registry.add(root)
+    failures = []
+
+    def write(name):
+        try:
+            for n in range(50):
+                registry.rename(root, f"{name} {n}")
+        except Exception as error:  # noqa: BLE001
+            failures.append(error)
+
+    threads = [threading.Thread(target=write, args=(f"t{i}",)) for i in range(4)]
+    for thread in threads:
+        thread.start()
+    for thread in threads:
+        thread.join()
+    assert failures == []
+    assert not list(tmp_path.glob("*.tmp"))

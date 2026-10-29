@@ -19,6 +19,7 @@ import json
 import os
 import re
 import time
+import uuid
 from dataclasses import dataclass, field, asdict
 from pathlib import Path, PurePosixPath, PureWindowsPath
 
@@ -818,11 +819,17 @@ class Registry:
     def _write(self, entries: list[RegistryEntry]) -> None:
         # Written via a temporary file so an interrupted write cannot leave
         # the registry truncated and lose every project the user added.
-        temp = self.path.with_suffix(".json.tmp")
-        temp.write_text(
-            json.dumps([asdict(e) for e in entries], indent=2), encoding="utf-8"
-        )
-        temp.replace(self.path)
+        # A name of its own per write: two writers sharing one temporary
+        # name, the open route's touch and a rename, had the second's
+        # replace find the file already moved, and the open answered 500.
+        temp = self.path.with_name(f"{self.path.name}.{os.getpid()}.{uuid.uuid4().hex[:8]}.tmp")
+        try:
+            temp.write_text(
+                json.dumps([asdict(e) for e in entries], indent=2), encoding="utf-8"
+            )
+            temp.replace(self.path)
+        finally:
+            temp.unlink(missing_ok=True)
 
     def list(self) -> list[dict]:
         entries = self._read()

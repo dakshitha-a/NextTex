@@ -1187,8 +1187,10 @@ class ProjectSession:
         # rename route writes beside the file; a name edited in the file by
         # hand reached the open window at once and the list only when the
         # project was next opened.
+        # On the loop, as every other write of the registry is, so two of
+        # them never overlap.
         if self.on_renamed is not None and self.project.config.name:
-            await asyncio.to_thread(self.on_renamed, self.project.config.name)
+            self.on_renamed(self.project.config.name)
         await self.events.publish({"type": "project_changed", **self.settings_payload()})
 
     def settings_payload(self) -> dict:
