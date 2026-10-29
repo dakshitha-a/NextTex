@@ -149,8 +149,12 @@ def look(html: str, katex_dir: Path | None, browser: str | None = None) -> Look:
     found = Look(errors=_errors(log), picture=picture, themeless=not _THEMED.search(html))
     found.blanks = _blanks(dom)
     if not dom.strip() and not found.errors:
+        # Named, since which browser it was is the first question: a full
+        # Chrome driven headless can sit on `--dump-dom` until it is killed,
+        # as Ubuntu's google-chrome did on CI on 26 October 2026, where the
+        # headless shell answers in under a second.
         found.unchecked = (f"The browser opened the page but had not read it back after "
-                           f"{TIMEOUT} seconds.")
+                           f"{TIMEOUT} seconds ({Path(browser).name}).")
     return found
 
 

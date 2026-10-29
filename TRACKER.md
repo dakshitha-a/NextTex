@@ -274,13 +274,6 @@ OpenAI provider against OpenAI itself.
       conversations' Delete removes NextTex's record only, and says so.
       Removing the CLI's own file under the home folder too would need
       the CLI's folder naming, which is its business, not ours.
-- [ ] **The page check's broken-page test flaked once on CI.**
-      `test_a_broken_page_comes_back_to_the_agent_with_its_error_and_a_picture`
-      failed on the Linux runner on 26 October 2026 with "had not read it
-      back after 20 seconds", and passed on a rerun with nothing changed.
-      Which browser `find_browser` picked there was not looked at; the full
-      Chromium hanging on `--dump-dom`, as it does on the owner's machine,
-      would explain it.
 - [ ] **An update repairs nothing an install step fixed.** `scripts/update.sh`
       does not run the TeX extras step again, so a missing synctex stays
       missing after an update that fixed the step, and it does not rewrite

@@ -79,3 +79,16 @@ def test_a_page_with_no_dark_colours_is_told_how_to_follow_the_theme():
     found = page_check.look("<!doctype html><html><body><p>light only</p></body></html>", None)
     assert found.themeless and not found.clean
     assert ':root[data-theme="dark"]' in page_check.report(found)
+
+
+def test_a_browser_that_never_reads_the_page_back_is_named(monkeypatch, tmp_path):
+    """On 26 October 2026 a CI run said only that "the browser" had not
+    read the page back; which browser it was is the first question."""
+    import sys
+
+    silent = tmp_path / "google-chrome"
+    silent.write_text(f"#!{sys.executable}\nimport time\ntime.sleep(30)\n", encoding="utf-8")
+    silent.chmod(0o755)
+    monkeypatch.setattr(page_check, "TIMEOUT", 1)
+    found = page_check.look(page("<p>x</p>"), None, browser=str(silent))
+    assert found.unchecked.endswith("after 1 seconds (google-chrome).")
