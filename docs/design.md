@@ -12927,8 +12927,11 @@ citation moved the view to the bibliography and the reader scrolled back
 by hand. Each followed link now remembers where it left from, twenty
 jumps deep, and the preview's foot shows a quiet inline "Back to page 3"
 with an arrow, after the Scroll and Page pair and before the pager,
-present only while a jump is on record and dropping with that pair under
-340 px. Alt+Left does the same from the page, and only while a jump is
+present only while a jump is on record and dropping under 390 px. While
+it shows, the foot's other controls drop about 140 px sooner, the room it
+takes, and every drop point was measured again: the old ones, 566, 440
+and 372, were a few pixels short and clipped the strip at 400, 470 and
+600, where they are now 610, 480 and 410. Alt+Left does the same from the page, and only while a jump is
 on record, never from a field or the editor, where it is the caret's or
 the browser's. The arrow is a new glyph in `icons.tsx`, since a chevron
 there would read as Previous page.

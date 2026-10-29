@@ -163,3 +163,28 @@ test("after following a link the page has a way back, a step at a time", async (
   await page.keyboard.press("Alt+ArrowLeft");
   await expect(back).toHaveCount(0);
 });
+
+test("the preview's foot drops what it cannot hold, with Back and without", async ({ app, project, page }) => {
+  // Its drop points were measured once and had drifted a few pixels short,
+  // so it clipped at 400, 470 and 600; Back, after a jump, needs about 140
+  // more. Every width from 300 to 760 is measured in both states.
+  await setUp(app, project, page);
+  const foot = page.getByTestId("preview-footer");
+  const over = async () => {
+    const found: string[] = [];
+    for (let width = 300; width <= 760; width += 10) {
+      const spill = await foot.evaluate((el, w) => {
+        (el as HTMLElement).style.width = `${w}px`;
+        (el as HTMLElement).style.flex = "none";
+        return new Promise<number>((done) =>
+          requestAnimationFrame(() => done(el.scrollWidth - el.clientWidth)));
+      }, width);
+      if (spill > 0) found.push(`${width}: ${spill}px`);
+    }
+    return found;
+  };
+  expect(await over()).toEqual([]);
+  await follow(page, "section.2");
+  await expect(page.getByTestId("pdf-back")).toHaveCount(1);
+  expect(await over()).toEqual([]);
+});
