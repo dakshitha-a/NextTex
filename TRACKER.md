@@ -301,12 +301,6 @@ OpenAI provider against OpenAI itself.
       fixture for `e2e/specs/pdf-decoders.spec.ts`; upstream's to fix,
       and worth a look when pdfjs-dist moves.
 
-- [ ] **The typeset page has no way back after following a link.** A
-      click on a citation moves the view to the bibliography, and the
-      reader scrolls back by hand. Left because a viewer's history, a
-      back key and where it lives on screen, is a feature of its own;
-      found on 17 October 2026 building the page's links.
-
 ### Measured and left, worth revisiting with a measurement
 
 - [ ] **The log parser stays Python.** Asked on 24 October 2026 what a

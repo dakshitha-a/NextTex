@@ -141,3 +141,25 @@ test("a double-click on a link follows it and does not also jump the editor", as
   await page.waitForTimeout(500);
   expect(requests).toEqual([]);
 });
+
+test("after following a link the page has a way back, a step at a time", async ({ app, project, page }) => {
+  await setUp(app, project, page);
+  const back = page.getByTestId("pdf-back");
+  await expect(back).toHaveCount(0);
+  const top = () => page.evaluate(() =>
+    ((document.querySelector(".nx-page") as HTMLElement).closest(".overflow-auto") as HTMLElement).scrollTop);
+  // `follow` starts each jump from the top of page 1.
+  await follow(page, "section.2");
+  await expect(back).toHaveText("Back to page 1");
+  await follow(page, "cite.knuth");
+  await expect(back).toHaveText("Back to page 1");
+  expect(await top()).toBeGreaterThan(100);
+  await back.click();
+  await expect.poll(top).toBeLessThan(5);
+  // One jump is still on record; the second step goes by the key, from
+  // the page rather than from a field.
+  await expect(back).toHaveText("Back to page 1");
+  await page.locator(".nx-page").first().click({ position: { x: 3, y: 3 } });
+  await page.keyboard.press("Alt+ArrowLeft");
+  await expect(back).toHaveCount(0);
+});

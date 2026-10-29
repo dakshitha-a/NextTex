@@ -9,7 +9,7 @@ import { download, stemOf } from "../chrome";
 import { get, useStore } from "../store";
 import { Button, IconButton } from "../ui/Button";
 import { Field, Input, Pressable, Segmented } from "../ui/controls";
-import { CheckIcon, ChevronDownIcon, ChevronLeftIcon, ChevronRightIcon, ChevronUpIcon, CloseIcon, SearchIcon } from "../ui/icons";
+import { ArrowLeftIcon, CheckIcon, ChevronDownIcon, ChevronLeftIcon, ChevronRightIcon, ChevronUpIcon, CloseIcon, SearchIcon } from "../ui/icons";
 import { Menu, MenuDivider, MenuItem } from "../ui/Menu";
 import { atPointer, claimsRightClick, under, type Wanted } from "../place-menu";
 import {
@@ -419,6 +419,9 @@ function DarkPageFilter() {
     </svg>
   );
 }
+
+/** How many jumps back the page remembers. */
+const BACK_STEPS = 20;
 
 export default function Pdf({
   onNavigate,
@@ -1781,10 +1784,24 @@ export default function Pdf({
    *  carries a hundred of them. The view puts the anchor near the top, as
    *  a link on a web page does, and the line it names is flashed the way a
    *  forward search flashes its line, so the eye knows where it landed. */
+  /** Where each followed link left from, newest last: the way back.  A
+   *  click on a citation moved the view to the bibliography, and until 29
+   *  October 2026 the reader scrolled back by hand. */
+  const backStack = useRef<{ page: number; top: number }[]>([]);
+  const [backTo, setBackTo] = useState<number | null>(null);
+  const goBack = useCallback(() => {
+    const place = backStack.current.pop();
+    setBackTo(backStack.current.at(-1)?.page ?? null);
+    if (!place) return;
+    if (modeRef.current === "page") setCurrent(place.page);
+    else scroller.current?.scrollTo({ top: place.top });
+  }, []);
+
   const followLink = useCallback(async (anchor: HTMLElement) => {
     linkFollowed.current = Date.now();
     const document = doc.current;
     const root = scroller.current;
+    const left = { page: currentRef.current, top: root?.scrollTop ?? 0 };
     const from = anchor.closest(".nx-page");
     const on = pages.current.find((view) => view.container === from);
     const link = on?.linkList[Number(anchor.dataset.link)];
@@ -1812,11 +1829,35 @@ export default function Pdf({
         root.scrollTo({ top: Math.max(view.container.offsetTop + top * zoom - 16, 0) });
       }
       if (mark) flash(view, mark, zoom);
+      backStack.current = [...backStack.current, left].slice(-BACK_STEPS);
+      setBackTo(left.page);
     } catch {
       // A destination the document does not have goes nowhere, as it would
       // in any reader.
     }
   }, [renderPage]);
+
+  // Another document is another set of places.
+  useEffect(() => {
+    backStack.current = [];
+    setBackTo(null);
+  }, [showing]);
+
+  // Alt+Left, the reader's own Back, claimed only while a jump is on
+  // record and never from a field or the editor, where it moves the caret
+  // a word on a Mac and is the browser's Back elsewhere.
+  useEffect(() => {
+    if (backTo === null) return;
+    const onKey = (event: KeyboardEvent) => {
+      if (!event.altKey || event.key !== "ArrowLeft" || event.shiftKey || event.metaKey || event.ctrlKey) return;
+      const at = event.target as HTMLElement | null;
+      if (at?.closest?.("input, textarea, select, [contenteditable='true'], .cm-editor")) return;
+      event.preventDefault();
+      goBack();
+    };
+    window.addEventListener("keydown", onKey);
+    return () => window.removeEventListener("keydown", onKey);
+  }, [backTo, goBack]);
 
   /** A page the agent asked for before the document had that many. */
   const wantedPage = useRef<number | null>(null);
@@ -2467,6 +2508,21 @@ export default function Pdf({
             onChange={setMode}
           />
         </span>
+        {/* Present only after a jump, and gone once used; it drops with the
+            layout pair, and Alt+Left still works there. */}
+        {backTo !== null ? (
+          <span className="hidden shrink-0 @[340px]:inline-flex">
+            <Button
+              size="inline"
+              data-testid="pdf-back"
+              title={`Back to page ${backTo} (Alt+Left)`}
+              onClick={goBack}
+            >
+              <ArrowLeftIcon size={12} />
+              Back to page {backTo}
+            </Button>
+          </span>
+        ) : null}
         {/* Both modes. The steppers were gated on page mode, so a reader
             in the scrolling one had no way to reach page 74 of a thesis
             except by dragging, and the readout was never an input in

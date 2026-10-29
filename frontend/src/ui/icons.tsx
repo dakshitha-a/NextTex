@@ -58,6 +58,8 @@ export const ShareIcon = icon(<><circle cx="12" cy="3.5" r="1.5" /><circle cx="4
 export const DownloadIcon = icon(<path d="M8 2v8M5 7l3 3 3-3M3 13h10" />);
 export const SettingsIcon = icon(<><path d="M3 5h10M3 11h10" /><circle cx="6" cy="5" r="1.6" /><circle cx="10" cy="11" r="1.6" /></>);
 export const ChevronLeftIcon = icon(<path d="M10 3L5 8l5 5" />);
+/** Back to where a jump began; a chevron there would read as Previous page. */
+export const ArrowLeftIcon = icon(<path d="M13 8H3M7 4L3 8l4 4" />);
 export const ChevronRightIcon = icon(<path d="M6 3l5 5-5 5" />);
 export const ChevronDownIcon = icon(<path d="M3 6l5 5 5-5" />);
 export const ChevronUpIcon = icon(<path d="M3 10l5-5 5 5" />);

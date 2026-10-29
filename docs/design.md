@@ -12921,3 +12921,14 @@ the path, and under it, at rest, a quiet inline Stop tracking, the shape
 a diagnostic row's one direct action has. Stop tracking takes the file
 out of the repository, keeps it on disk, and puts `.nexttex-preview*`
 in the project's `.gitignore` in place of the older single name.
+
+The typeset page has a way back after following a link. A click on a
+citation moved the view to the bibliography and the reader scrolled back
+by hand. Each followed link now remembers where it left from, twenty
+jumps deep, and the preview's foot shows a quiet inline "Back to page 3"
+with an arrow, after the Scroll and Page pair and before the pager,
+present only while a jump is on record and dropping with that pair under
+340 px. Alt+Left does the same from the page, and only while a jump is
+on record, never from a field or the editor, where it is the caret's or
+the browser's. The arrow is a new glyph in `icons.tsx`, since a chevron
+there would read as Previous page.
