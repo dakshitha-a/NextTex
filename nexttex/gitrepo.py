@@ -340,7 +340,7 @@ def initialise(root: Path, ignore: str = "") -> None:
     """Make a repository, with a first commit, if there is not one already."""
     contents = (
         ignore
-        or "build/\n.nexttex/\n*.aux\n*.log\n*.out\n*.synctex.gz\n*.bbl\n*.bcf\n"
+        or "build/\n.nexttex/\n.nexttex-preview*\n*.aux\n*.log\n*.out\n*.synctex.gz\n*.bbl\n*.bcf\n"
     )
     gitignore = root / ".gitignore"
     if (root / ".git").exists():
@@ -365,6 +365,34 @@ def initialise(root: Path, ignore: str = "") -> None:
         gitignore.write_text(contents, encoding="utf-8")
     _run(root, "add", "-A")
     _run(root, *_who(root), "commit", "-m", "Start this writing project")
+
+
+#: What keeps NextTex's preview stand-ins out of git: one per document,
+#: `.nexttex-preview-<document>.tex`, where an older NextTex wrote one file
+#: and an ignore line naming it alone.
+PREVIEW_IGNORE = ".nexttex-preview*"
+LEGACY_PREVIEW_IGNORE = ".nexttex-preview.tex"
+
+
+def stop_tracking(root: Path, relative: str) -> None:
+    """Take one of NextTex's own files out of the repository, keeping it on
+    disk, and make sure the ignore file keeps it and its kind out.
+
+    The thesis tracked `.nexttex-preview-main.tex`, so its git panel always
+    showed it changed, and its `.gitignore` named only the older single
+    file.  The caller has checked the path is one of NextTex's own."""
+    _run(root, "rm", "--cached", "--quiet", "--", relative)
+    gitignore = root / ".gitignore"
+    try:
+        existing = gitignore.read_text(encoding="utf-8")
+    except OSError:
+        existing = ""
+    lines = existing.splitlines()
+    if PREVIEW_IGNORE in (line.strip() for line in lines):
+        return
+    kept = [line for line in lines if line.strip() != LEGACY_PREVIEW_IGNORE]
+    kept.append(PREVIEW_IGNORE)
+    gitignore.write_text("\n".join(kept) + "\n", encoding="utf-8")
 
 
 def _who(root: Path) -> list[str]:

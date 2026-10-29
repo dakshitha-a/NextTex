@@ -6016,9 +6016,23 @@ async def git_action(
     project_id: str,
     action: str,
     message: str = Body("", embed=True),
+    path: str = Body("", embed=True),
 ):
     session = session_for(project_id)
     root = session.project.root
+    if action == "untrack":
+        # Only NextTex's own files: Stop tracking is offered for the
+        # preview stand-in a project committed by mistake, and a route that
+        # untracked any path would be `git rm --cached` for anything.
+        target = _safe(session, path)
+        if not is_ours(target.name):
+            raise HTTPException(400, f"{path} is not one of NextTex's own files")
+        try:
+            await asyncio.to_thread(
+                gitrepo.stop_tracking, root, session.project.relative(target))
+        except gitrepo.GitError as error:
+            raise HTTPException(400, str(error))
+        return {"ok": True}
     # Every one of these is a synchronous `subprocess.run` with a two minute
     # timeout, and `push` and `pull` reach the network.  Called inline they
     # stopped the whole server for as long as they took: every autosave,

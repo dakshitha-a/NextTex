@@ -12909,3 +12909,15 @@ status strip with a quiet inline Reload, the last thing on the strip to
 go: under 300 px the words leave and become Reload's title. On the
 projects screen the update button takes its attention state and the
 Updates sheet opens on "This tab is from before the update." with Reload.
+
+History names the agent that made a version, ChatGPT as well as Claude,
+in the same place and ink; a version from before the field was Claude's.
+
+A preview file the project tracks says what it is. The thesis committed
+`.nexttex-preview-main.tex`, so the git panel showed it changed after
+every build. Its row in the changed files carries a `t-meta` note in the
+third ink, "NextTex's own preview file, tracked by mistake", aligned with
+the path, and under it, at rest, a quiet inline Stop tracking, the shape
+a diagnostic row's one direct action has. Stop tracking takes the file
+out of the repository, keeps it on disk, and puts `.nexttex-preview*`
+in the project's `.gitignore` in place of the older single name.

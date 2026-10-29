@@ -1553,6 +1553,9 @@ const api = {
     ),
   gitChangesPdf: (id: string, sha: string, document = "") =>
     request<{ name: string; url: string }>(`/projects/${id}/git/changes/${sha}`, json({ document })),
+  /** Take one of NextTex's own files out of git and keep it ignored. */
+  gitUntrack: (id: string, path: string) =>
+    request<{ ok: boolean }>(`/projects/${id}/git/untrack`, json({ path })),
   gitAction: (id: string, action: string, message = "") =>
     request<{ ok: boolean; output?: string }>(
       `/projects/${id}/git/${action}`,

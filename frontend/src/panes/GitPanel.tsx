@@ -412,6 +412,11 @@ function ChangeRow({
 }) {
   const [showing, setShowing] = useState(false);
   const [patch, setPatch] = useState<string | null>(null);
+  const [untracking, setUntracking] = useState(false);
+  // Not once it is on its way out: Stop tracking leaves it staged as
+  // deleted, which the next commit records.
+  const preview = (change.path.split("/").pop() ?? "").startsWith(".nexttex-preview")
+    && !change.state.startsWith("D");
   useEffect(() => {
     if (!showing || !projectId) return;
     let cancelled = false;
@@ -444,6 +449,36 @@ function ChangeRow({
           <span className="truncate text-ink-2">{change.path}</span>
         </Pressable>
       </div>
+      {preview ? (
+        // NextTex's own stand-in, committed by mistake: it shows as changed
+        // after every build until it leaves the repository. The note in the
+        // Row note's shape, and its one action on a line of its own, as a
+        // diagnostic row's repair is.
+        <div className="pl-13.5 pr-2 pb-1" data-testid="git-preview-tracked">
+          <p className="t-meta text-ink-3">NextTex's own preview file, tracked by mistake</p>
+          <div className="-ml-1.5">
+            <Button
+              size="inline"
+              data-testid="git-untrack"
+              disabled={untracking}
+              onClick={async () => {
+                if (!projectId) return;
+                setUntracking(true);
+                try {
+                  await api.gitUntrack(projectId, change.path);
+                  await refreshGit(projectId);
+                } catch (problem: any) {
+                  set({ error: `${change.path} is still tracked: ${problem.message}` });
+                } finally {
+                  setUntracking(false);
+                }
+              }}
+            >
+              Stop tracking
+            </Button>
+          </div>
+        </div>
+      ) : null}
       {showing ? (
         patch === null ? (
           <p className="nx-note">Reading</p>

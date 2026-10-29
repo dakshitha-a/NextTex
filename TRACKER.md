@@ -294,11 +294,6 @@ OpenAI provider against OpenAI itself.
       through `_query._send_control_request`. An SDK that renames it turns
       both features off quietly; a public method should replace it when
       one exists.
-- [ ] **A project can track NextTex's own preview file in git.** The
-      thesis tracks `.nexttex-preview-main.tex`, so its git panel always
-      shows it modified; its `.gitignore` names `.nexttex-preview.tex`, an
-      older name. Untracking it is the writer's `git rm --cached`; NextTex
-      could say so in the git panel.
 - [ ] **A JPEG 2000 image of grey with an alpha channel is not
       drawn.** pdf.js 6.3.289 fails it with "Cannot read properties of
       undefined (reading 'length')" where poppler draws it; a

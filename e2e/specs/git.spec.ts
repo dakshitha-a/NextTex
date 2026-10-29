@@ -311,3 +311,31 @@ test("a detached head names the commit it is at", async ({ tab, project }) => {
   await expect(where).toHaveText(`detached at ${short}`, { timeout: 20_000 });
   await expect(tab.getByTestId("drawer")).not.toContainText("HEAD (no branch)");
 });
+
+test("a preview file the project tracks by mistake says so, and leaves on one press", async ({
+  tab, project,
+}) => {
+  // The thesis committed `.nexttex-preview-main.tex`, so its git panel
+  // showed it changed after every build.
+  const root = project.root;
+  const git = (...args: string[]) => execFileSync("git", args, { cwd: root });
+  git("init", "-b", "main");
+  git("config", "user.email", "test@example.invalid");
+  git("config", "user.name", "A Test");
+  writeFileSync(join(root, ".nexttex-preview-main.tex"), "stand-in\n");
+  git("add", "-A");
+  git("add", "-f", ".nexttex-preview-main.tex");
+  git("commit", "-m", "first");
+  writeFileSync(join(root, ".nexttex-preview-main.tex"), "stand-in, rewritten by a build\n");
+
+  await gitDrawer(tab);
+  const row = tab.locator('[data-testid="git-change"][data-path=".nexttex-preview-main.tex"]');
+  await pastTheOffer(tab, row);
+  await expect(row.getByTestId("git-preview-tracked"))
+    .toContainText("NextTex's own preview file, tracked by mistake", { timeout: 20_000 });
+  await row.getByTestId("git-untrack").click();
+  await expect(row.getByTestId("git-preview-tracked")).toHaveCount(0, { timeout: 20_000 });
+  const tracked = execFileSync("git", ["ls-files"], { cwd: root }).toString();
+  expect(tracked).not.toContain(".nexttex-preview-main.tex");
+  expect(existsSync(join(root, ".nexttex-preview-main.tex"))).toBe(true);
+});
