@@ -6357,10 +6357,15 @@ async def compile_now(
     if cause not in BUILD_CAUSES:
         raise HTTPException(400, f"{cause!r} is not a build cause")
     session = session_for(project_id)
-    result = await session.compile(
-        force_full=full, document=document or None, clean=clean, cause=cause,
-    )
-    state = session.document_for(document)
+    try:
+        result = await session.compile(
+            force_full=full, document=document or None, clean=clean, cause=cause,
+        )
+        state = session.document_for(document)
+    except LookupError as error:
+        # An empty main.tex is a project with no document yet. This was a
+        # 500, which every open of such a project sent.
+        raise HTTPException(404, str(error))
     # The payload the build already made and published, unless a newer
     # build has replaced it, in which case this one's is made again, off
     # the loop.

@@ -191,3 +191,30 @@ base("the empty page's template installs what this TeX lacks for it", async ({ p
     await app.stop();
   }
 });
+
+base("a project whose main file is empty opens, and the page says why it is blank", async ({ page }) => {
+  // The compile route answered such a project 500, and the page was left on
+  // "NextTex is not answering" over a chunk it could not load.
+  const app = await startServer({});
+  try {
+    const project = await seedProject(app, `bare-${Date.now()}`);
+    await fetch(`${app.base}/api/projects/${project.id}/file`, {
+      method: "PUT",
+      headers: { "content-type": "application/json", "x-nexttex-token": app.token },
+      body: JSON.stringify({ path: "main.tex", text: "", compile: false, create: true }),
+    });
+    await page.goto(`${app.base}/?token=${app.token}`);
+    await page.getByText("Projects", { exact: false }).first().waitFor();
+    await page.getByText(project.root.split("/").pop()!, { exact: false }).first().click();
+    await baseExpect(page.locator(".cm-editor")).toBeVisible({ timeout: 30_000 });
+    await baseExpect(page.getByTestId("interface-failed")).toHaveCount(0);
+    // An empty file is not a document pdflatex can finish, so the page says
+    // the build stopped and the Build drawer says why, or, with nothing on
+    // the strip, offers to start one.
+    await baseExpect(page.getByText(
+      /The build stopped before a page was made|No document to preview/,
+    )).toBeVisible({ timeout: 30_000 });
+  } finally {
+    await app.stop();
+  }
+});

@@ -123,3 +123,11 @@ def test_an_open_during_a_build_joins_it_rather_than_replacing_it(client, opened
     # One build, cancelled by nobody after it started.
     assert [call for call in calls if call != "cancel"] == [False]
     assert calls[-1] is False
+
+
+def test_a_project_with_no_document_yet_is_a_404_not_a_500(client, project, project_dir):
+    (project_dir / "main.tex").write_text("", encoding="utf-8")
+    assert client.post(f"/api/projects/{project['id']}/open").status_code == 200
+    answer = client.post(f"/api/projects/{project['id']}/compile", json={"cause": "open"})
+    assert answer.status_code == 404
+    assert "no document" in answer.json()["detail"]
