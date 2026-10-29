@@ -57,3 +57,20 @@ def test_a_project_whose_folder_is_missing_is_not_renamed(client, opened, projec
         assert not (project_dir / "nexttex.toml").exists()
     finally:
         shutil.move(str(away), project_dir)
+
+
+def test_a_name_edited_in_the_file_by_hand_reaches_the_list(client, opened, project_dir):
+    """The open window learned it at once through `reload_config`; the
+    projects screen, which reads the registry, only once the project was
+    opened again."""
+    from server import main as server_main
+
+    # As the rename route writes it, then changed in an editor.
+    client.post(f"/api/projects/{opened['id']}/name", json={"name": "Before"})
+    config = project_dir / "nexttex.toml"
+    text = config.read_text(encoding="utf-8")
+    assert 'name = "Before"' in text
+    config.write_text(text.replace('name = "Before"', 'name = "Edited by hand"'), encoding="utf-8")
+    client.portal.call(server_main.SESSIONS[opened["id"]].reload_config)
+    listed = {p["id"]: p["name"] for p in client.get("/api/projects").json()["projects"]}
+    assert listed[opened["id"]] == "Edited by hand"

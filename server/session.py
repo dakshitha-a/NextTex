@@ -388,6 +388,9 @@ class ProjectSession:
         #: What the server does when the folder is gone: closes this
         #: session and restarts the watcher.  Assigned by whoever opened it.
         self.on_root_lost: Callable[[], Awaitable[None]] | None = None
+        #: Told the name `nexttex.toml` now gives the project, each time the
+        #: file is read again; `server/main.py` keeps the registry's copy.
+        self.on_renamed: Callable[[str], object] | None = None
         self.context = ProjectContext(project.state_dir)
         self.transcript = Transcript(project.state_dir / "transcript.jsonl")
         self.history = History(project.state_dir / "history")
@@ -1180,6 +1183,12 @@ class ProjectSession:
         self.project.config = await asyncio.to_thread(
             ProjectConfig.load, self.project.root
         )
+        # The projects screen reads its names from the registry, which the
+        # rename route writes beside the file; a name edited in the file by
+        # hand reached the open window at once and the list only when the
+        # project was next opened.
+        if self.on_renamed is not None and self.project.config.name:
+            await asyncio.to_thread(self.on_renamed, self.project.config.name)
         await self.events.publish({"type": "project_changed", **self.settings_payload()})
 
     def settings_payload(self) -> dict:

@@ -2407,6 +2407,7 @@ def _open_session(project: Project, quiet: bool = False) -> ProjectSession:
             _restart_watch()
 
     session.on_root_lost = lost
+    session.on_renamed = lambda name: REGISTRY.rename(project.root, name)
     # A project that has been shared picks its peers back up when it opens.
     # Nothing is contacted for a project that has not been.
     if session.peers.share.shared:
