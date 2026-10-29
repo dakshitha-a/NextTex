@@ -2486,17 +2486,18 @@ export default function Pdf({
           the one plain action at the right. */}
       <div
         data-testid="preview-footer"
-        className="nx-foot @container t-meta flex h-7 shrink-0 items-center gap-4 overflow-hidden whitespace-nowrap bg-surround px-3 text-ink-2"
+        className="nx-foot @container t-meta flex h-7 shrink-0 items-center gap-3 overflow-hidden whitespace-nowrap bg-surround px-3 text-ink-2"
       >
         {/* What the strip drops as the pane narrows, in the order it drops
             them, each at the width the row measures with it: the fit pair
-            first (610), then Download (480), then View (410), then this
+            first (566), then Download (440), then View (372), then this
             layout pair (340), leaving the pager and the zoom, which a page
             always needs. While Back is showing, after a followed link, each
             of those drops about 140 px sooner, the width Back takes, and
-            Back itself goes under 390. Measured on 29 October 2026, when
-            the old points, 566, 440 and 372, turned out a few pixels short
-            and the strip clipped at 400, 470 and 600. View is kept past Download because the Download
+            Back itself goes under 390. Measured on 29 October 2026 at every
+            width from 300 to 760: with 16 px between controls the points
+            were a few pixels short and the strip clipped at 400, 470 and
+            600, so the gap is 12, which keeps Download in a default window. View is kept past Download because the Download
             drawer saves the PDF too, and nothing else turns the page.  A
             28 px strip cannot wrap, so a control it cannot hold is dropped
             rather than clipped. */}
@@ -2588,7 +2589,7 @@ export default function Pdf({
             +
           </Pressable>
         </span>
-        <span className={`hidden shrink-0 ${backTo !== null ? "@[706px]:inline-flex" : "@[610px]:inline-flex"}`}>
+        <span className={`hidden shrink-0 ${backTo !== null ? "@[706px]:inline-flex" : "@[566px]:inline-flex"}`}>
           <Segmented
             size="sm"
             label="How the page fits the pane"
@@ -2608,7 +2609,7 @@ export default function Pdf({
         <Pressable
           ref={viewButton}
           type="button"
-          className={`hidden shrink-0 items-center gap-1 whitespace-nowrap hover:text-ink ${backTo !== null ? "@[512px]:flex" : "@[410px]:flex"} ${viewMenu ? "text-ink" : ""}`}
+          className={`hidden shrink-0 items-center gap-1 whitespace-nowrap hover:text-ink ${backTo !== null ? "@[512px]:flex" : "@[372px]:flex"} ${viewMenu ? "text-ink" : ""}`}
           aria-haspopup="menu"
           aria-expanded={viewMenu !== null}
           data-testid="pdf-view"
@@ -2693,7 +2694,7 @@ export default function Pdf({
         {projectId && pageCount ? (
           <Pressable
             type="button"
-            className={`hidden shrink-0 whitespace-nowrap hover:text-ink ${backTo !== null ? "@[580px]:block" : "@[480px]:block"}`}
+            className={`hidden shrink-0 whitespace-nowrap hover:text-ink ${backTo !== null ? "@[580px]:block" : "@[440px]:block"}`}
             onClick={savePdf}
             data-testid="save-pdf"
             title="Save this PDF as it stands, without rebuilding it"
