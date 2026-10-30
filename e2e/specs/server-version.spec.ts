@@ -16,9 +16,16 @@ async function updateAfterLoad(page: Page): Promise<() => Promise<void>> {
   let updated = false;
   let answered = 0;
   await page.route("**/api/instance", async (route) => {
-    const response = await route.fetch();
-    const body = await response.json();
-    await route.fulfill({ response, json: updated ? { ...body, head: "f".repeat(40) } : body });
+    // The tab that reloads itself does so with a request of its own in
+    // flight, and the response to it is disposed before it can be read:
+    // that request belongs to a page that is gone, so it is let go.
+    try {
+      const response = await route.fetch();
+      const body = await response.json();
+      await route.fulfill({ response, json: updated ? { ...body, head: "f".repeat(40) } : body });
+    } catch {
+      return;
+    }
     answered += 1;
   });
   // Only once the page has its first answer, the commit it belongs to;
