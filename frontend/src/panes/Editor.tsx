@@ -35,6 +35,7 @@ import { documentOf } from "./cite-match";
 import { EDITABLE_TEXT_BYTES, isCode, isMarkdown, isTeX } from "./file-kinds";
 import { pasteExtension } from "./paste";
 import { reconciled } from "./parked";
+import { keepEditorPlace, recallEditorPlace } from "./left-off";
 
 import { contextOf, outline as sectionsOf, sameOutline, type OutlineContext } from "../outline";
 import { sectionAtTop, trailTo } from "../section-at-top";
@@ -688,6 +689,49 @@ export default function Editor({
       }
     };
 
+    // Where the writer is in the file in front, kept so that opening the
+    // project again puts the caret and the page back there. A moment after
+    // they stop moving, since a scroll fires many times a frame, and at
+    // once when the file is put away or the page is left. Not while a
+    // version is being read: that is not where they are working.
+    let placeTimer = 0;
+    const keepPlace = () => {
+      window.clearTimeout(placeTimer);
+      placeTimer = 0;
+      const editor = view.current;
+      const path = current.current;
+      const project = projectForBuffers.current;
+      if (!editor || !path || !project || viewing.current) return;
+      // A pane with no height reads its top as line one, which would
+      // write over the real place every time the pane is hidden.
+      if (!editor.scrollDOM.clientHeight) return;
+      const { doc, selection } = editor.state;
+      const head = selection.main.head;
+      const line = doc.lineAt(head);
+      const top = doc.lineAt(editor.lineBlockAtHeight(editor.scrollDOM.scrollTop).from).number;
+      keepEditorPlace(project, path, { line: line.number, column: head - line.from + 1, top });
+    };
+    const notePlace = () => {
+      window.clearTimeout(placeTimer);
+      placeTimer = window.setTimeout(keepPlace, 400);
+    };
+
+    /** Back where the writer left `path`: the line that was at the top of
+     *  the pane, and the caret when the file is new to this session. A
+     *  file already open this session has its own caret in its state. */
+    const putBack = (path: string, caret: boolean) => {
+      const editor = view.current;
+      const place = recallEditorPlace(projectForBuffers.current ?? "", path);
+      if (!editor || !place) return;
+      const { doc } = editor.state;
+      const top = doc.line(Math.min(place.top, doc.lines)).from;
+      const line = doc.line(Math.min(place.line, doc.lines));
+      editor.dispatch({
+        ...(caret ? { selection: { anchor: line.from + Math.min(place.column - 1, line.length) } } : {}),
+        effects: EditorView.scrollIntoView(top, { y: "start" }),
+      });
+    };
+
     const onCursor = (
       line: number,
       column: number,
@@ -697,6 +741,7 @@ export default function Editor({
       const cursor = get().cursor;
       if (cursor.line !== line || cursor.column !== column) {
         set({ cursor: { line, column } });
+        notePlace();
       }
       // Beside the cursor, because they change together and the word
       // count needs both: the outline says where every section starts and
@@ -875,6 +920,8 @@ export default function Editor({
       setTopLine((was) => (was === line ? was : line));
     });
     scroller.addEventListener("scroll", noteTop, { passive: true });
+    scroller.addEventListener("scroll", notePlace, { passive: true });
+    window.addEventListener("pagehide", keepPlace);
 
     /** Go and look at a line.
      *
@@ -1077,6 +1124,7 @@ export default function Editor({
       const projectId = get().projectId;
       if (!projectId || !view.current) return;
       if (projectForBuffers.current !== projectId) {
+        keepPlace();
         for (const [, held] of buffers.current) held.release();
         buffers.current.clear();
         current.current = null;
@@ -1111,6 +1159,7 @@ export default function Editor({
         return;
       }
       let buffer = buffers.current.get(path);
+      const fresh = !buffer;
       if (!buffer) {
         // Shut for the length of the swap. Everything below this point is
         // awaited, and until `setState` runs the view still holds the file
@@ -1208,6 +1257,7 @@ export default function Editor({
         buffer.state = reconciled(buffer.state, buffer.shared.toString());
       }
       if (current.current && view.current) {
+        keepPlace();
         const outgoing = buffers.current.get(current.current);
         if (outgoing) outgoing.state = view.current.state;
       }
@@ -1217,6 +1267,7 @@ export default function Editor({
       afterSwap();
       refreshOutline();
       if (line !== undefined) jump(line, undefined, word);
+      else putBack(path, fresh);
       api.setFocus(projectId, path).catch(() => undefined);
       lintFile(projectId, path);
     };
@@ -1379,6 +1430,9 @@ export default function Editor({
       scroller.removeEventListener("scroll", followRow);
       scroller.removeEventListener("scroll", noteTop);
       noteTop.cancel();
+      keepPlace();
+      scroller.removeEventListener("scroll", notePlace);
+      window.removeEventListener("pagehide", keepPlace);
       resized.disconnect();
       view.current?.destroy();
       view.current = null;

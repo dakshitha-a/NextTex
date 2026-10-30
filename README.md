@@ -108,7 +108,8 @@ steps](docs/install.md#uninstalling)
 ### The page follows your typing
 
 Stop for a moment and the page redraws, about two seconds later. Only the
-chapter you are in is rebuilt, so a forty-file thesis keeps up.
+chapter you are in is rebuilt, so a forty-file thesis keeps up. Open the
+project again tomorrow and the source and the page are where you left them.
 
 [How the build works →](docs/guide.md#the-page-follows-your-typing)
 

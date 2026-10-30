@@ -12935,3 +12935,13 @@ which keeps the points where they were and Download in a default window. Alt+Lef
 on record, never from a field or the editor, where it is the caret's or
 the browser's. The arrow is a new glyph in `icons.tsx`, since a chevron
 there would read as Previous page.
+
+A project opens where it was left. The editor shows the line that was at
+the top of the pane and puts the caret back where it was, in each file,
+and the typeset page opens at the page the writer was reading, in each
+preview tab. Both are kept in the browser per project, and a reload, a
+return from the projects screen and the next day all find them. A file
+or a preview opened for the first time starts at the top. A double-click
+on the page, a jump from a diagnostic or a search still goes where it
+was asked to go. Switching to another preview tab now opens that
+document at its own place rather than at the scroll of the one before.

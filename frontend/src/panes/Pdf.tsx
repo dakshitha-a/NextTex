@@ -4,6 +4,7 @@ import * as pdfjs from "pdfjs-dist";
 import { textAtPoint } from "./pdf-click";
 import { addEndOfContent, guardSelection } from "./pdf-select";
 import { pdfSource } from "./pdf-worker";
+import { keepPagePlace, recallPagePlace } from "./left-off";
 import api from "../api";
 import { download, stemOf } from "../chrome";
 import { get, useStore } from "../store";
@@ -593,6 +594,43 @@ export default function Pdf({
   const currentRef = useRef(current);
   currentRef.current = current;
 
+  // ---- where the reader left off, kept between visits -------------------
+  /** Which document the pages on screen are: the project and the preview
+   *  tab, or the figure. A rebuild keeps it; anything else is another
+   *  document, which opens where it was last left rather than where the
+   *  one before it was. */
+  const laidFor = useRef("");
+  /** The place a document new to the pane opens at, until a layout of
+   *  that same document has put it there. */
+  const arriving = useRef<{ document: pdfjs.PDFDocumentProxy; place: Place } | null>(null);
+  const placeTimer = useRef(0);
+  const keepPlace = useCallback(() => {
+    window.clearTimeout(placeTimer.current);
+    placeTimer.current = 0;
+    const root = scroller.current;
+    // A figure is not the typeset view, and a pane with no height, one
+    // still being laid out or one mid-pinch has no place worth keeping.
+    if (source || !projectId || !root?.clientHeight || !pages.current.length) return;
+    if (arriving.current || zooming.current || laidFor.current !== `${projectId}\n${showing}`) return;
+    keepPagePlace(projectId, showing, anchor());
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [projectId, showing, source]);
+  const keepPlaceRef = useRef(keepPlace);
+  keepPlaceRef.current = keepPlace;
+  /** A moment after the reader stops: a scroll fires many times a frame. */
+  const notePlace = useCallback(() => {
+    window.clearTimeout(placeTimer.current);
+    placeTimer.current = window.setTimeout(() => keepPlaceRef.current(), 400);
+  }, []);
+  useEffect(() => {
+    const leave = () => keepPlaceRef.current();
+    window.addEventListener("pagehide", leave);
+    return () => {
+      window.removeEventListener("pagehide", leave);
+      leave();
+    };
+  }, []);
+
   // ---- where the reader is, in a form that survives a rebuild -----------
   const anchor = useCallback(() => {
     const root = scroller.current;
@@ -1036,6 +1074,7 @@ export default function Pdf({
     // has just written it, which is a second layout per frame -- but
     // refusing outright leaves a page revealed by zooming out blank until
     // the gesture ends.  So it is rationed rather than refused.
+    notePlace();
     if (zooming.current) {
       const now = performance.now();
       if (now - lastZoomDraw.current < ZOOM_DRAW_INTERVAL) return;
@@ -1048,7 +1087,7 @@ export default function Pdf({
       raf.current = 0;
       drawVisible();
     });
-  }, [drawVisible]);
+  }, [drawVisible, notePlace]);
 
   // The width the pages were last fitted to, and the width a page gets from
   // a pane that wide: two pages side by side share it, less the gap.
@@ -1107,13 +1146,16 @@ export default function Pdf({
       // A new build of the document: the place the reader is at, found by
       // its text, since the build may have moved it to another page or
       // made a document of another shape.
-      const held = keep && previous && previous !== document ? await holdPlace(previous, document) : null;
+      const opening = arriving.current?.document === document ? arriving.current.place : null;
+      const held = !opening && keep && previous && previous !== document
+        ? await holdPlace(previous, document)
+        : null;
       if (superseded()) return;
       // Otherwise where the reader is, read after the awaits rather than
       // before them. A pinch that went on through them had scrolled by the
       // time they returned, and putting back the place from before pulled
       // the page out from under the fingers.
-      const position: Place = held ?? (keep ? anchor() : { index: 0, fraction: 0 });
+      const position: Place = opening ?? held ?? (keep ? anchor() : { index: 0, fraction: 0 });
       const views: PageView[] = [];
       for (let index = 0; index < count; index += 1) {
         const page = sheets[index];
@@ -1194,6 +1236,7 @@ export default function Pdf({
       }
       applyMode(modeRef.current);
       restore(position);
+      if (opening) arriving.current = null;
       const root = scroller.current;
       if (ghost && root) {
         ghost.style.top = `${root.scrollTop}px`;
@@ -1301,7 +1344,15 @@ export default function Pdf({
         const previous = doc.current;
         doc.current = loaded;
         setAbsence("");
+        const identity = source ? `figure\n${source}` : `${projectId}\n${showing}`;
+        if (identity !== laidFor.current) {
+          arriving.current = {
+            document: loaded,
+            place: (!source && recallPagePlace(projectId, showing)) || { index: 0, fraction: 0 },
+          };
+        }
         await layoutRef.current(loaded, previous !== null, previous);
+        if (!cancelled) laidFor.current = identity;
         void previous?.loadingTask.destroy();
       } catch {
         // Never got an answer at all, which is not the same as being told
@@ -1368,7 +1419,8 @@ export default function Pdf({
     applyMode("page");
     renderPage(current - 1);
     if (scroller.current) scroller.current.scrollTop = 0;
-  }, [current, applyMode, renderPage]);
+    notePlace();
+  }, [current, applyMode, renderPage, notePlace]);
 
   // A pane that changes width has to re-fit, or the page stops filling it.
   // While the width is moving, as it does through a pane's slide, the pages
