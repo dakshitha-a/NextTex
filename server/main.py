@@ -7276,9 +7276,16 @@ async def save_page_state(project_id: str, name: str, request: Request, key: str
     known = pages.key(name) if pages else None
     if known is None or not key or not auth.same_secret(key, known):
         raise HTTPException(403, "not this page's key")
-    raw = await request.body()
-    if len(raw) > 2 * MAX_STATE_BYTES:
+    # Read no further than a page may keep: this route is past the body
+    # gate in `authenticate`, and a body with no length still arrives.
+    length = request.headers.get("content-length", "")
+    if length.isdigit() and int(length) > 2 * MAX_STATE_BYTES:
         raise HTTPException(413, "that is more than a page keeps")
+    raw = b""
+    async for chunk in request.stream():
+        raw += chunk
+        if len(raw) > 2 * MAX_STATE_BYTES:
+            raise HTTPException(413, "that is more than a page keeps")
     try:
         posted = json.loads(raw.decode("utf-8"))
         changes = posted.get("set") or {} if isinstance(posted, dict) else None

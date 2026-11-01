@@ -135,6 +135,8 @@ def test_only_the_pages_own_key_opens_its_storage(client, opened):
     big = '{"set":{"x":"' + "y" * (300 * 1024) + '"}}'
     assert client.post(f"{route}?key={key}", content=big, headers=away).status_code == 400
     assert client.post(f"{route}?key={key}", content=big * 3, headers=away).status_code == 413
+    # A body sent without its length is read no further than the cap.
+    assert client.post(f"{route}?key={key}", content=iter([big.encode()] * 3), headers=away).status_code == 413
     assert pages_of(opened).state("a") == {}
     # Reading the storage route, or any other route, from the sandbox is
     # still refused: only the post is let past the cross-site check.
