@@ -289,6 +289,12 @@ OpenAI provider against OpenAI itself.
 
 ### Known gaps, with a cost somebody will eventually pay
 
+- [ ] **The agent cannot see what a reader did on a page.** A page's
+      `localStorage` is kept with the page since 1 November 2026, but
+      `read_page` gives back the page as written, not its storage, so an
+      agent asked what is left on a tracker cannot read the ticks. Left
+      because the first ask was for the ticks to survive; a `state` in
+      `read_page`'s answer is a small addition once a writer asks for it.
 - [ ] **Delete leaves Claude Code's copy of the session.** Past
       conversations' Delete removes NextTex's record only, and says so.
       Removing the CLI's own file under the home folder too would need

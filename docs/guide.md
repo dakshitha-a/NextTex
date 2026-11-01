@@ -784,7 +784,10 @@ follows that reader's own system. The agent can read a
 page back and change one part of it without writing it all again.
 
 Pages stay on your machine, behind your install's sign-in, in a sandbox
-that cannot reach NextTex or the network.
+that cannot reach NextTex or the network. The one thing a page can do is
+keep what you do on it: a box you tick on a tracker, a note you type, is
+there when you open the page again, from any browser, and for anyone
+else who opens it.
 
 ### It cannot invent a citation
 

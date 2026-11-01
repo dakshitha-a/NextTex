@@ -64,6 +64,60 @@ def test_the_policy_lets_a_page_load_katex_from_this_server_and_nothing_else_of_
     # the interface; only the frame ancestors may be this server.
     assert sent.count("'self'") == 1 and "frame-ancestors 'self'" in sent
     assert "allow-same-origin" not in sent
+    # Nothing to connect to unless the page's storage route is named, and
+    # then that route by its path alone: the key rides in the request.
+    assert "connect-src 'none';" in sent
+    reaching = policy("http://127.0.0.1:8450/", "http://127.0.0.1:8450/api/projects/p/pages/t/state?key=k")
+    assert "connect-src http://127.0.0.1:8450/api/projects/p/pages/t/state;" in reaching
+    assert "key=k" not in reaching
+
+
+def test_a_page_keeps_its_storage_beside_it(tmp_path):
+    """`localStorage` throws in a page's sandbox, so the ticks on a tracker
+    were gone on every reload; what a page stores is kept here, by patch,
+    survives a republish and goes with a delete."""
+    from nexttex.pages import MAX_STATE_BYTES, Pages
+
+    pages = Pages(tmp_path)
+    assert pages.state("tracker") == {} and pages.key("tracker") is None
+    pages.save("tracker", "<p>one</p>")
+    assert pages.merge_state("tracker", {"done": "1", "note": "<b>"}) == {"done": "1", "note": "<b>"}
+    # A patch: the other reader's key stays, a None removes, clear empties first.
+    assert pages.merge_state("tracker", {"note": None, "later": "x"}) == {"done": "1", "later": "x"}
+    assert pages.merge_state("tracker", {"fresh": "y"}, clear=True) == {"fresh": "y"}
+    assert pages.state("tracker") == {"fresh": "y"}
+    pages.save("tracker", "<p>two</p>")
+    assert pages.state("tracker") == {"fresh": "y"}
+    key = pages.key("tracker")
+    assert key and len(key) >= 32 and pages.key("tracker") == key
+    with pytest.raises(ValueError):
+        pages.merge_state("tracker", {"big": "x" * (MAX_STATE_BYTES + 1)})
+    assert pages.state("tracker") == {"fresh": "y"}
+    with pytest.raises(ValueError):
+        pages.merge_state("../tracker", {"a": "b"})
+    assert pages.delete("tracker")
+    assert pages.state("tracker") == {} and not (tmp_path / "pages" / ".state" / "tracker.json").exists()
+    assert pages.key("tracker") is None
+
+
+def test_a_served_page_gets_its_storage_first_in_its_head():
+    from nexttex.pages import stored
+
+    page = stored(b'<!doctype html><html><head><script>var x=localStorage.getItem("a")</script></head>',
+                  {"a": "</script><b>"}, "http://h/api/projects/p/pages/t/state?key=k")
+    head = page.index(b"<head>") + len(b"<head>")
+    assert page[head:head + 8] == b"<script>"
+    assert b"__STATE__" not in page and b"__URL__" not in page
+    # The value cannot close the script, and the page's own script comes after.
+    assert b"</script><b>" not in page and b"\\u003c/script>\\u003cb>" in page
+    assert page.index(b'localStorage.getItem("a")') > page.index(b'url="http://h/api/projects/p/pages/t/state?key=k"')
+    # No head: after the html tag, after the doctype, or first of all.
+    assert stored(b"<!doctype html><html><body>", {}, None).startswith(b"<!doctype html><html><script>")
+    assert stored(b"<!doctype html><p>", {}, None).startswith(b"<!doctype html><script>")
+    assert stored(b"<p>", {}, None).startswith(b"<script>")
+    assert b"url=null" in stored(b"<p>", {}, None)
+    # On one line, so a script error's line number is the page's own.
+    assert stored(b"<p>\n<script>x(</script>", {"k": "v"}, "http://h/s").count(b"\n") == 1
 
 
 def test_a_page_is_told_the_theme_of_the_nextex_that_opened_it():

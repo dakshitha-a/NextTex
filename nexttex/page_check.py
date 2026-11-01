@@ -161,7 +161,11 @@ def look(html: str, katex_dir: Path | None, browser: str | None = None) -> Look:
 def _serve(page: bytes, katex_dir: Path | None) -> ThreadingHTTPServer:
     """A loopback server for one page and the KaTeX it may load, under the
     policy the writer's tab gets, on a port of its own."""
-    from .pages import policy
+    from .pages import policy, stored
+
+    # The storage the writer's tab will have, empty and posting nowhere,
+    # so a page that reads it as it loads is seen as it will be seen.
+    page = stored(page, {}, None)
 
     class Handler(BaseHTTPRequestHandler):
         def log_message(self, *args):  # the check's own noise is nobody's

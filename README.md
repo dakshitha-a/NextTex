@@ -490,7 +490,9 @@ never written.
 1. **The agent:** what you send it goes to Anthropic or OpenAI. When the
    OpenAI provider points at a local server, it goes nowhere. A page it
    publishes is opened in a sandbox that may load fonts from
-   `fonts.googleapis.com` and `fonts.gstatic.com` and nothing else.
+   `fonts.googleapis.com` and `fonts.gstatic.com` and nothing else; what
+   you tick or type on the page goes only to your own install, which
+   keeps it with the page.
 2. **References:** Crossref, OpenAlex, Semantic Scholar, arXiv and `doi.org`.
    A book's ISBN, or its title and first author when a book entry has no
    ISBN, goes to `openlibrary.org`, and to `www.googleapis.com` when Open

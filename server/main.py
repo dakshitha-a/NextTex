@@ -48,7 +48,7 @@ from nexttex import (
     plots, rename, report, submit, synctex, texpkg,
 )
 from nexttex.version import VERSION
-from nexttex.pages import Pages, policy as page_policy, themed
+from nexttex.pages import MAX_STATE_BYTES, Pages, policy as page_policy, stored as page_stored, themed
 from server.collab import identity as collab_identity
 from server.collab import transport as collab_transport
 from server.collab import endpoint as collab_endpoint
@@ -689,6 +689,10 @@ app = FastAPI(title="NextTex", lifespan=lifespan, docs_url=None, redoc_url=None)
 OPEN_PATHS = ("/assets/", "/favicon", "/api/login")
 #: KaTeX for published pages; readable from any origin, see `authenticate`.
 KATEX_PATH = "/assets/katex/"
+#: Where a published page posts its storage, from the sandbox that makes
+#: its every request cross-site and cookieless; the route checks the
+#: page's own key instead, see `authenticate` and `save_page_state`.
+PAGE_STATE_PATH = re.compile(r"^/api/projects/[A-Za-z0-9_-]+/pages/[a-z0-9-]+/state$")
 
 
 def _client_address(request: Request) -> str:
@@ -989,6 +993,11 @@ async def authenticate(request: Request, call_next):
     # source. It is the bundle's own static copy, served to anyone signed
     # in or not, so reading it from elsewhere gives nothing away.
     if request.method in SAFE_METHODS and request.url.path.startswith(KATEX_PATH):
+        return await call_next(request)
+    # A page's storage comes back the same way, a POST from an origin of
+    # `null` with no cookie, and the route takes the page's own key in
+    # the cookie's place; nothing else of this server is open to it.
+    if request.method == "POST" and PAGE_STATE_PATH.match(request.url.path):
         return await call_next(request)
     if not _same_origin_request(request):
         return JSONResponse(
@@ -7231,20 +7240,54 @@ async def serve_page(project_id: str, name: str, request: Request, theme: str = 
     among them, is not found. `theme` is the theme of the NextTex that
     opened it, written onto the page's root for its styles to follow."""
     session = session_for(project_id)
-    body = Pages(session.project.state_dir).read(name)
+    pages = Pages(session.project.state_dir)
+    body = pages.read(name)
     if body is None:
         raise HTTPException(404, "no such page")
-    body = themed(body, theme)
+    # The page's storage rides in with it, and the address it posts its
+    # changes to carries the page's key, since its sandbox has no cookie
+    # to send; the policy names that address and no other.
+    state_url = f"{str(request.base_url).rstrip('/')}/api/projects/{project_id}/pages/{name}/state"
+    body = page_stored(themed(body, theme), pages.state(name), f"{state_url}?key={pages.key(name)}")
     return Response(
         content=body,
         media_type="text/html; charset=utf-8",
         headers={
-            "Content-Security-Policy": page_policy(str(request.base_url)),
+            "Content-Security-Policy": page_policy(str(request.base_url), state_url),
             "X-Content-Type-Options": "nosniff",
             "Referrer-Policy": "no-referrer",
             "Cache-Control": "no-store",
         },
     )
+
+
+@app.post("/api/projects/{project_id}/pages/{name}/state")
+async def save_page_state(project_id: str, name: str, request: Request, key: str = ""):
+    """What a page's `localStorage` changed, posted by the storage NextTex
+    put at the top of it: `{"set": {key: value or null}, "clear": bool}`
+    as text, since a plain POST needs no preflight. The page's sandbox
+    sends no cookie, so `key` is the page's own, and it opens this one
+    page's storage and nothing else; `authenticate` lets the request
+    past the cross-site check for that reason, and this is where it is
+    checked. The answer is readable from the page's `null` origin."""
+    session = SESSIONS.get(project_id)
+    project = session.project if session else REGISTRY.find(project_id)
+    pages = Pages(project.state_dir) if project else None
+    known = pages.key(name) if pages else None
+    if known is None or not key or not auth.same_secret(key, known):
+        raise HTTPException(403, "not this page's key")
+    raw = await request.body()
+    if len(raw) > 2 * MAX_STATE_BYTES:
+        raise HTTPException(413, "that is more than a page keeps")
+    try:
+        posted = json.loads(raw.decode("utf-8"))
+        changes = posted.get("set") or {} if isinstance(posted, dict) else None
+        if not isinstance(changes, dict):
+            raise ValueError("not a patch")
+        kept = pages.merge_state(name, changes, bool(posted.get("clear")))
+    except (ValueError, UnicodeDecodeError) as error:
+        raise HTTPException(400, str(error) or "not a patch")
+    return JSONResponse({"keys": len(kept)}, headers={"Access-Control-Allow-Origin": "*"})
 
 
 @app.delete("/api/projects/{project_id}/pages/{name}")

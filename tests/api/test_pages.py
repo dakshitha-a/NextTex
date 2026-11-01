@@ -22,9 +22,9 @@ def test_a_published_page_is_listed_served_sandboxed_and_deleted(client, opened)
     assert "182 fs" in page.text
     assert page.headers["content-type"].startswith("text/html")
     policy = page.headers["content-security-policy"]
-    # An origin of its own, and nothing fetched.
+    # An origin of its own, and nothing reached but the page's own storage.
     assert "sandbox allow-scripts" in policy and "allow-same-origin" not in policy
-    assert "connect-src 'none'" in policy
+    assert f"connect-src http://testserver/api/projects/{opened['id']}/pages/three-fits/state;" in policy
 
     assert client.delete(f"/api/projects/{opened['id']}/pages/three-fits").status_code == 200
     assert client.get(f"/api/projects/{opened['id']}/pages/three-fits").status_code == 404
@@ -81,3 +81,74 @@ def test_open_carries_the_installs_theme_onto_the_page(client, opened):
     dark = client.get(f"/api/projects/{opened['id']}/pages/p?theme=dark").text
     assert '<html data-theme="dark">' in dark
     assert "data-theme" not in client.get(f"/api/projects/{opened['id']}/pages/p").text
+
+
+def test_a_page_posts_its_storage_with_its_key_and_reads_it_back_on_the_next_load(client, opened):
+    """`localStorage` throws in the sandbox, so the tracker the writer kept
+    lost its ticks on every reload. The served page carries its storage
+    and the address, key included, it posts changes to; the post is
+    cross-site and cookieless, as the sandbox makes it, and the key is
+    what opens the storage. A patch, so another reader's key stays."""
+    pages_of(opened).save("tracker", "<!doctype html><html><head><title>T</title></head><body></body></html>")
+    first = client.get(f"/api/projects/{opened['id']}/pages/tracker").text
+    assert "var data={}," in first
+    key = pages_of(opened).key("tracker")
+    route = f"/api/projects/{opened['id']}/pages/tracker/state"
+    assert f'url="http://testserver{route}?key={key}"' in first
+
+    away = {"sec-fetch-site": "cross-site", "origin": "null", "content-type": "text/plain"}
+    client.cookies.clear()
+    posted = client.post(f"{route}?key={key}", content='{"set":{"done":"1","note":"<b>"},"clear":false}', headers=away)
+    assert posted.status_code == 200, posted.text
+    assert posted.headers["access-control-allow-origin"] == "*"
+    assert client.post(f"{route}?key={key}", content='{"set":{"note":null,"other":"2"}}', headers=away).json() == {"keys": 2}
+    assert pages_of(opened).state("tracker") == {"done": "1", "other": "2"}
+
+    client.cookies.set(server_main.COOKIE, server_main.SETTINGS.token)
+    again = client.get(f"/api/projects/{opened['id']}/pages/tracker").text
+    assert 'var data={"done": "1", "other": "2"},' in again
+    # Still there after the agent changes the page, gone with the page.
+    pages_of(opened).save("tracker", "<!doctype html><p>v2</p>")
+    assert 'var data={"done": "1", "other": "2"},' in client.get(f"/api/projects/{opened['id']}/pages/tracker").text
+    client.delete(f"/api/projects/{opened['id']}/pages/tracker")
+    assert pages_of(opened).state("tracker") == {}
+
+
+def test_only_the_pages_own_key_opens_its_storage(client, opened):
+    """The cookie, the instance token and another page's key open nothing
+    here, and a bad patch or an oversized one writes nothing."""
+    pages_of(opened).save("a", "<p>a</p>")
+    pages_of(opened).save("b", "<p>b</p>")
+    route = f"/api/projects/{opened['id']}/pages/a/state"
+    away = {"sec-fetch-site": "cross-site", "origin": "null", "content-type": "text/plain"}
+    body = '{"set":{"x":"1"}}'
+    # The signed-in client's cookie is not a key.
+    assert client.post(route, content=body, headers=away).status_code == 403
+    assert client.post(f"{route}?key={server_main.SETTINGS.token}", content=body, headers=away).status_code == 403
+    assert client.post(f"{route}?key={pages_of(opened).key('b')}", content=body, headers=away).status_code == 403
+    assert client.post(f"/api/projects/{opened['id']}/pages/none/state?key=x", content=body, headers=away).status_code == 403
+    assert pages_of(opened).state("a") == {}
+    key = pages_of(opened).key("a")
+    assert client.post(f"{route}?key={key}", content="not json", headers=away).status_code == 400
+    assert client.post(f"{route}?key={key}", content='{"set":[1]}', headers=away).status_code == 400
+    assert client.post(f"{route}?key={key}", content='[1]', headers=away).status_code == 400
+    big = '{"set":{"x":"' + "y" * (300 * 1024) + '"}}'
+    assert client.post(f"{route}?key={key}", content=big, headers=away).status_code == 400
+    assert client.post(f"{route}?key={key}", content=big * 3, headers=away).status_code == 413
+    assert pages_of(opened).state("a") == {}
+    # Reading the storage route, or any other route, from the sandbox is
+    # still refused: only the post is let past the cross-site check.
+    assert client.get(f"{route}?key={key}", headers=away).status_code == 403
+    assert client.post(f"/api/projects/{opened['id']}/pages/a/state/../../../open", headers=away).status_code in (403, 404, 405)
+
+
+def test_a_storage_name_cannot_leave_the_pages_folder(client, opened):
+    state = server_main.SESSIONS[opened["id"]].project.state_dir
+    (state / "secret.json").write_text('{"s": "1"}')
+    away = {"sec-fetch-site": "cross-site", "origin": "null", "content-type": "text/plain"}
+    for name in ("..%2Fsecret", "%2E%2E%2Fsecret", "../secret", "secret.json", "Three-Fits", ".."):
+        posted = client.post(f"/api/projects/{opened['id']}/pages/{name}/state?key=x",
+                             content='{"set":{"s":"2"}}', headers=away)
+        assert posted.status_code in (403, 404, 405), name
+    assert (state / "secret.json").read_text() == '{"s": "1"}'
+    assert not (state / "pages" / ".state").exists() or not list((state / "pages" / ".state").glob("*"))
