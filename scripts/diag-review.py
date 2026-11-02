@@ -166,6 +166,10 @@ def routes(rows: list[dict]) -> None:
             print(f"  {count:>4}x  {key}, worst {worst} ms")
 
 
+#: Of a stall's stack, the innermost frames printed.
+HELD_SHOWN = 10
+
+
 def lag(rows: list[dict]) -> None:
     section("Event-loop stalls")
     stalls = [r for r in rows if r["kind"] == "lag"]
@@ -185,6 +189,13 @@ def lag(rows: list[dict]) -> None:
         busy = f", host load {load[0]:.0f}" if load else ""
         print(f"  {row['at'][:19]}  {row['ms']} ms{busy}  "
               f"{', '.join(row.get('inflight', [])) or 'nothing in flight'}")
+        # What the loop thread was running during the hold, innermost
+        # last, from the watchdog in nexttex/diag.py.
+        held = row.get("held_by") or []
+        if held:
+            print("      the loop was running, innermost last:")
+            for frame in held[-HELD_SHOWN:]:
+                print(f"        {frame}")
 
 
 def resources(rows: list[dict]) -> None:

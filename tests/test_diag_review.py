@@ -26,6 +26,9 @@ def test_the_review_summarises_a_log(tmp_path):
         diag.flush_routes()
         diag.event("lag", ms=900, inflight=["GET /api/projects/{project_id}/search 880ms"],
                    load=[151.2, 120.0, 80.0])
+        diag.event("lag", ms=55582, inflight=[], load=[2.4, 3.2, 4.7],
+                   held_by=["/x/server/run.py:40 main",
+                            "/x/server/collab/store.py:1497 ingest"])
         diag.event("exception", where="event loop", error="KeyError: 'x'",
                    trace='File "/x/server/session.py", line 12, in spawn\nKeyError')
         diag.event("exception", where="event loop", error="KeyError: 'x'",
@@ -67,7 +70,9 @@ def test_the_review_summarises_a_log(tmp_path):
     assert "HTTP 502: POST /api/projects/{project_id}/rename" in out
     assert "/pdf" not in out.split("## Routes")[0]
     assert "GET /api/projects/{project_id}/tree" in out
-    assert "worst 900 ms" in out
+    assert "worst 55582 ms" in out
+    assert "the loop was running, innermost last:" in out
+    assert "/x/server/collab/store.py:1497 ingest" in out
     assert "900 ms, host load 151" in out
     assert "of 0.7 h" in out and "memory moved +60.0 MB an hour" in out
     assert "thesis" in out and "3200ms" in out

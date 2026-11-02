@@ -14,7 +14,8 @@ What it holds, by `kind`:
 - `log`: every warning and worse any logger raised, with its traceback.
 - `exception`: what nothing caught, on the loop, a thread, or the process.
 - `lag`: a second in which the event loop was held for more than a quarter
-  of one, with the requests that were in flight.
+  of one, with the requests that were in flight, and for a hold of more
+  than `HELD_NOTE` seconds the loop thread's stack as it was during it.
 - `sample`: each minute, memory, file descriptors, threads, child
   processes, CPU and load, and whatever gauges the app registered.
 - `routes`: each five minutes, per route template, the count, the failures
@@ -56,6 +57,12 @@ BACKUPS = 4
 #: is worth a line.
 LAG_EVERY = 1.0
 LAG_NOTE = 0.25
+#: A hold longer than this has the loop thread's stack taken while it
+#: lasts, by a thread of its own, looking this often; at most this many of
+#: the innermost frames are kept.
+HELD_NOTE = 2.0
+HELD_CHECK = 0.25
+HELD_FRAMES = 25
 SAMPLE_EVERY = 60.0
 ROUTES_EVERY = 300.0
 
@@ -402,6 +409,55 @@ def _on_loop_exception(loop: asyncio.AbstractEventLoop, context: dict) -> None:
         loop.default_exception_handler(context)
 
 
+def _stack_of(thread_id: int) -> list[str]:
+    """A thread's stack as it is now, innermost last, one line a frame."""
+    frame = sys._current_frames().get(thread_id)
+    if frame is None:
+        return []
+    frames = traceback.extract_stack(frame)[-HELD_FRAMES:]
+    return [f"{entry.filename}:{entry.lineno} {entry.name}" for entry in frames]
+
+
+class _Watchdog(threading.Thread):
+    """Takes the loop thread's stack while the loop is held.
+
+    The sampler is a task on the loop, so it learns of a stall only once
+    the stall is over, and by then whatever held the loop has returned.
+    The stall of 29 October 2026 lasted 55 s with nothing in flight and
+    the process at 88% CPU, and the log could say neither what ran nor
+    where.  This thread reads `due`, when the sampler expects to wake, and
+    once the loop is `HELD_NOTE` seconds past it takes the stack once; the
+    sampler's `lag` line carries it.
+    """
+
+    def __init__(self, loop_thread: int) -> None:
+        super().__init__(name="nexttex-loop-watchdog", daemon=True)
+        self.loop_thread = loop_thread
+        self.due: float | None = None
+        self.held: list[str] | None = None
+        self.taken_for: float | None = None
+        self.done = threading.Event()
+
+    def run(self) -> None:
+        while not self.done.wait(HELD_CHECK):
+            due = self.due
+            if due is None or self.taken_for == due:
+                continue
+            if time.monotonic() - due > HELD_NOTE:
+                try:
+                    self.held = _stack_of(self.loop_thread)
+                except Exception:
+                    self.held = None
+                self.taken_for = due
+
+    def take(self, due: float) -> list[str] | None:
+        """The stack taken while the loop was held past `due`, once."""
+        if self.taken_for != due or not self.held:
+            return None
+        held, self.held = self.held, None
+        return held
+
+
 async def watch() -> None:
     """The sampler: loop lag every second, resources every minute, the
     route summary every five. Runs for the life of the server."""
@@ -411,19 +467,28 @@ async def watch() -> None:
     cpu = _cpu_now()
     last_sample = last_routes = time.monotonic()
     worst = 0.0
+    watchdog = _Watchdog(threading.get_ident())
+    watchdog.start()
     try:
         while True:
             asked = time.monotonic()
+            due = asked + LAG_EVERY
+            watchdog.due = due
             await asyncio.sleep(LAG_EVERY)
             now = time.monotonic()
+            watchdog.due = None
             lag = now - asked - LAG_EVERY
             worst = max(worst, lag)
             if lag > LAG_NOTE:
                 # The host's load beside it: a stall with nothing in flight
                 # on a machine running a hundred other things is the
                 # machine's, which the first review could only infer.
+                fields: dict[str, Any] = {}
+                held = watchdog.take(due)
+                if held:
+                    fields["held_by"] = held
                 event("lag", ms=round(lag * 1000), inflight=_in_flight(now),
-                      load=_load())
+                      load=_load(), **fields)
             if now - last_sample >= SAMPLE_EVERY:
                 event("sample", worst_lag_ms=round(worst * 1000), **resources(cpu))
                 cpu, last_sample, worst = _cpu_now(), now, 0.0
@@ -431,5 +496,7 @@ async def watch() -> None:
                 flush_routes()
                 last_routes = now
     finally:
+        watchdog.done.set()
+        watchdog.join(timeout=1.0)
         flush_routes()
         loop.set_exception_handler(_hooks.pop("loop", None))

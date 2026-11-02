@@ -217,3 +217,54 @@ def test_the_journal_keeps_its_warnings_once_the_log_is_running(tmp_path):
     assert "heard twice" in (tmp_path / diag.FILE).read_text()
     source = (root / "server" / "run.py").read_text()
     assert source.index("    _log_warnings_to_stderr()") < source.index("    _keep_a_diagnostics_log(")
+
+
+def test_a_long_stall_says_what_held_the_loop(log, monkeypatch):
+    """The 55 s stall of 29 October 2026 had nothing in flight and the
+    process at 88% CPU, and the log could not say what ran: the sampler is
+    a task on the loop, so it hears of a stall only once it is over.  A
+    watchdog thread takes the loop thread's stack while it is held."""
+    monkeypatch.setattr(diag, "LAG_EVERY", 0.05)
+    monkeypatch.setattr(diag, "LAG_NOTE", 0.1)
+    monkeypatch.setattr(diag, "HELD_NOTE", 0.2)
+    monkeypatch.setattr(diag, "HELD_CHECK", 0.02)
+
+    def a_synchronous_walk_of_everything():
+        time.sleep(0.6)
+
+    async def run():
+        watcher = asyncio.create_task(diag.watch())
+        await asyncio.sleep(0.15)
+        a_synchronous_walk_of_everything()
+        await asyncio.sleep(0.15)
+        watcher.cancel()
+        with pytest.raises(asyncio.CancelledError):
+            await watcher
+
+    asyncio.run(run())
+    held = [row for row in log("lag") if row.get("held_by")]
+    assert held, "no lag line carried the loop's stack"
+    stack = held[0]["held_by"]
+    assert any("a_synchronous_walk_of_everything" in frame for frame in stack)
+    assert len(stack) <= diag.HELD_FRAMES
+    assert not any(thread.name == "nexttex-loop-watchdog" for thread in threading.enumerate())
+
+
+def test_a_short_stall_takes_no_stack(log, monkeypatch):
+    monkeypatch.setattr(diag, "LAG_EVERY", 0.05)
+    monkeypatch.setattr(diag, "LAG_NOTE", 0.1)
+    monkeypatch.setattr(diag, "HELD_NOTE", 1.0)
+    monkeypatch.setattr(diag, "HELD_CHECK", 0.02)
+
+    async def run():
+        watcher = asyncio.create_task(diag.watch())
+        await asyncio.sleep(0.1)
+        time.sleep(0.3)
+        await asyncio.sleep(0.1)
+        watcher.cancel()
+        with pytest.raises(asyncio.CancelledError):
+            await watcher
+
+    asyncio.run(run())
+    lags = log("lag")
+    assert lags and not any(row.get("held_by") for row in lags)
