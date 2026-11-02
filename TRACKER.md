@@ -75,6 +75,17 @@ past conversation with remote control on and prompted it from
 claude.ai: both turns showed their text, but claude.ai named the
 session only by its project, since that archive predated named
 conversations. It is now named from its first question.
+Reviewed again on 1 November, for 18 October to 1 November: no crash,
+no server error, memory flat. From 30 October every thesis edit was a
+9 s full pass, 757 s of them cancelled: a file holding an `\input` took
+a full pass on every edit, which also kept chapter builds from starting.
+On 29 October a calculation writing scratch files in the interface
+paper's folder rebuilt all five documents on each write for two hours
+and piled up tree requests of up to 21 s. All three are fixed in 4.50.2.
+A 55 s stall that day had nothing in flight and no stack, so a long stall
+now records the loop's stack. One React "maximum update depth" error came
+from a tab receiving that storm, with no component in its stack; with the
+storm gone there is nothing further to act on.
 
 Before it, on 12 October 2026, at 4.33.0, the run on the page
 losing the writing in a reflowing thesis closed, at the writer's request.
