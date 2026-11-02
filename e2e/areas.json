@@ -9,8 +9,8 @@
     },
     {
       "name": "the frame and the panes",
-      "sources": ["frontend/src/App.tsx", "frontend/src/layout.ts", "frontend/src/motion.ts", "frontend/src/folds.ts", "frontend/src/header-gesture.ts", "frontend/src/panes/Collapsed.tsx", "frontend/src/panes/PaneHeader.tsx", "frontend/src/panes/Status.tsx", "frontend/src/viewport.ts", "frontend/src/remember.ts"],
-      "specs": ["layout", "chat-layout", "motion", "peek", "agent-peek", "no-agent", "fix-opens-claude", "remembered-layout", "feet", "folds", "navigation", "tab-strips", "touch", "reload", "clipping", "parked-tab", "reopened-tab", "two-tabs", "limits", "project-rename"]
+      "sources": ["frontend/src/App.tsx", "frontend/src/layout.ts", "frontend/src/motion.ts", "frontend/src/folds.ts", "frontend/src/header-gesture.ts", "frontend/src/panes/Collapsed.tsx", "frontend/src/panes/PaneHeader.tsx", "frontend/src/panes/Status.tsx", "frontend/src/viewport.ts", "frontend/src/remember.ts", "frontend/src/single-flight.ts"],
+      "specs": ["layout", "chat-layout", "motion", "peek", "agent-peek", "no-agent", "fix-opens-claude", "remembered-layout", "feet", "folds", "navigation", "tab-strips", "touch", "reload", "clipping", "parked-tab", "reopened-tab", "two-tabs", "limits", "project-rename", "tree-burst"]
     },
     {
       "name": "the projects screen",

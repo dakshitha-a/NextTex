@@ -173,6 +173,7 @@ import { READABLE_TEXT_BYTES, isScript, isTeX, isText, isViewable } from "./pane
 import { Field, Pressable } from "./ui/controls";
 import { Menu, MenuItem } from "./ui/Menu";
 import { atPointer, claimsRightClick, type Wanted } from "./place-menu";
+import { singleFlight } from "./single-flight";
 
 const DEFAULTS: Widths = { rail: 240, editor: 0.5, chat: 380 };
 
@@ -1358,11 +1359,14 @@ export default function App() {
     });
   }, [tabs, activePath, view]);
 
-  const refreshTree = useCallback(async () => {
+  // One walk at a time, one more queued: a burst of watcher ticks asked
+  // for the tree once per tick with no limit, see `single-flight.ts`.
+  const refreshTree = useMemo(() => singleFlight(async () => {
     const id = get().projectId;
     if (!id) return;
-    set({ tree: await api.tree(id) });
-  }, []);
+    const tree = await api.tree(id);
+    if (get().projectId === id) set({ tree });
+  }), []);
 
   /** Copy the file in front, beside itself, and show where it landed. */
   const duplicateFile = useCallback(async (path: string) => {
