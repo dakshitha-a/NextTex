@@ -126,6 +126,20 @@ PREAMBLE_CHANGE = re.compile(
 )
 
 
+def structure_fingerprint(text: str) -> tuple[str, ...]:
+    """Every line that loads, defines or pulls in something, as written.
+
+    What the commands say, not whether one is there: an edit that changes
+    what a file `\\input`s or how it defines a macro needs a full pass, and
+    prose typed beside such a line does not.  This compared the first
+    `re.Match` on each side with `!=`, and two matches are never equal, so
+    any file holding one of these commands took a full pass on every edit.
+    """
+    return tuple(
+        line.strip() for line in text.splitlines() if PREAMBLE_CHANGE.search(line)
+    )
+
+
 def reference_fingerprint(text: str) -> tuple[frozenset[str], frozenset[str]]:
     """The citation keys and label names a file defines or refers to."""
     cites: set[str] = set()
@@ -755,7 +769,7 @@ class CompileScheduler:
             # No baseline to compare against; assume the worst once.
             self._require_full()
             return
-        if PREAMBLE_CHANGE.search(text) != PREAMBLE_CHANGE.search(previous):
+        if structure_fingerprint(text) != structure_fingerprint(previous):
             self._require_full()
             return
         if reference_fingerprint(text) != reference_fingerprint(previous):

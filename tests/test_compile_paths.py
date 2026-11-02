@@ -381,3 +381,53 @@ def test_the_engine_asking_for_bibtex_earns_a_full_pass(tmp_path, monkeypatch):
     asyncio.run(scheduler.build())
     asyncio.run(scheduler.build())
     assert scheduler._needs_full is True
+
+
+# A chapter that pulls in a table and defines a macro of its own, as the
+# thesis's chapter 7 does.  `note_edit` compared two `re.Match` objects with
+# `!=`, which is true for any two matches, so every edit to a file like this
+# asked for a full pass: from 30 October 2026 each keystroke in chapter 7
+# was a 9 s full build, and 757 s of them were cancelled by the next one.
+STRUCTURED = r"""\section{NexusQC}
+\newcommand{\nqc}{\textsc{NexusQC}}
+Prose about \nqc{} and its design.
+\input{tables/timings}
+"""
+
+
+def test_prose_in_a_file_that_inputs_another_stays_on_the_fast_path(tmp_path):
+    build = scheduler(tmp_path)
+    build._needs_full = False
+    edited = STRUCTURED.replace("its design.", "its design, which is modular.")
+    build.note_edit(tmp_path / "ch.tex", edited, STRUCTURED)
+    assert build._needs_full is False
+
+
+def test_changing_what_a_file_inputs_forces_a_full_build(tmp_path):
+    build = scheduler(tmp_path)
+    build._needs_full = False
+    edited = STRUCTURED.replace("tables/timings", "tables/memory")
+    build.note_edit(tmp_path / "ch.tex", edited, STRUCTURED)
+    assert build._needs_full is True
+
+
+def test_redefining_a_macro_forces_a_full_build(tmp_path):
+    build = scheduler(tmp_path)
+    build._needs_full = False
+    edited = STRUCTURED.replace(r"\textsc{NexusQC}", r"\textsf{NexusQC}")
+    build.note_edit(tmp_path / "ch.tex", edited, STRUCTURED)
+    assert build._needs_full is True
+
+
+def test_adding_an_input_forces_a_full_build(tmp_path):
+    build = scheduler(tmp_path)
+    build._needs_full = False
+    build.note_edit(tmp_path / "ch.tex", CHAPTER + "\\input{extra}\n", CHAPTER)
+    assert build._needs_full is True
+
+
+def test_editing_the_main_file_still_forces_a_full_build(tmp_path):
+    build = scheduler(tmp_path)
+    build._needs_full = False
+    build.note_edit(tmp_path / "main.tex", "x" + STRUCTURED, STRUCTURED)
+    assert build._needs_full is True
