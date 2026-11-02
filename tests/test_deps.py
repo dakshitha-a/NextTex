@@ -127,12 +127,49 @@ class TestOwners:
         write(tmp_path, "notes.md", "# Notes\n")
         assert graph.owners("notes.md", docs) == []
 
-    def test_an_unknown_asset_goes_to_every_document(self, tmp_path):
+    def test_an_asset_goes_to_the_documents_that_mention_it(self, tmp_path):
         # Under-attributing an asset leaves a preview that silently stops
-        # updating, which is worse than a background build nobody waits on.
+        # updating.  The walk does not follow \\usepackage, so the sources
+        # are read for the name instead, the stem standing for the file
+        # where TeX supplies the suffix itself.
         graph, docs = self.build(tmp_path)
+        write(tmp_path, "chapters/one.tex", "\\usepackage{house}\nA chapter.\n")
         write(tmp_path, "house.sty", "")
-        assert graph.owners("house.sty", docs) == ["main.tex", "esi.tex"]
+        graph.note_changed("chapters/one.tex")
+        assert graph.owners("house.sty", docs) == ["main.tex"]
+
+    def test_a_listing_or_a_table_the_walk_cannot_see_is_found_by_name(self, tmp_path):
+        graph, docs = self.build(tmp_path)
+        write(tmp_path, "shared.tex", "\\inputminted{python}{code/fit.py}\n"
+              "\\addplot table {data/run1.csv};\n")
+        write(tmp_path, "code/fit.py", "print(1)\n")
+        write(tmp_path, "data/run1.csv", "1,2\n")
+        graph.note_changed("shared.tex")
+        assert graph.owners("code/fit.py", docs) == ["esi.tex"]
+        assert graph.owners("data/run1.csv", docs) == ["esi.tex"]
+
+    def test_a_figure_named_without_its_suffix_is_found_by_its_stem(self, tmp_path):
+        # Behind \\graphicspath, where `resolve` cannot follow it.
+        graph, docs = self.build(tmp_path)
+        write(tmp_path, "chapters/one.tex", "\\includegraphics{pes_landscape}\n")
+        write(tmp_path, "figures/pes_landscape.pdf", "")
+        graph.note_changed("chapters/one.tex")
+        assert graph.owners("figures/pes_landscape.pdf", docs) == ["main.tex"]
+
+    def test_a_file_no_document_mentions_goes_to_none(self, tmp_path):
+        # A calculation running inside the project folder rewrote dozens of
+        # scratch files a second on 29 October 2026, and each one rebuilt
+        # all five of the project's documents for over two hours.
+        graph, docs = self.build(tmp_path)
+        for name in ("calcs/TEMP/molcas.RasOrb", "calcs/TEMP/pid", "calcs/run.log"):
+            write(tmp_path, name, "0.1 0.2\n")
+            assert graph.owners(name, docs) == []
+
+    def test_a_suffix_tex_does_not_supply_needs_the_whole_name(self, tmp_path):
+        # "one" is a word in a chapter's path; one.log is not what it means.
+        graph, docs = self.build(tmp_path)
+        write(tmp_path, "one.log", "")
+        assert graph.owners("one.log", docs) == []
 
 
 class TestCacheAndDiscovery:

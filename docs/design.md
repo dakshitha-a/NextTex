@@ -2817,8 +2817,14 @@ pointed at it.
 `\bibliography` and `\includegraphics`. Its two fallbacks are asymmetric on
 purpose: an unrecognised `.tex` goes to the first document only, because the
 usual unknown is a file just created and not yet included anywhere; an
-unrecognised asset goes to every document, because under-attributing one
-leaves a preview that silently stops updating.
+unrecognised asset goes to every document whose sources name it, by its
+whole file name or by its stem where TeX supplies the suffix, because
+under-attributing one leaves a preview that silently stops updating and the
+name is what a `\usepackage`, a `\graphicspath` figure, an `\inputminted`
+listing or a pgfplots table has to write down. A file no source names
+rebuilds nothing: until 1 November 2026 it rebuilt every document, and a
+calculation writing scratch files inside a project folder kept all five of
+its documents building for two hours.
 
 **Builds queue rather than run together**, one at a time across the project,
 with the visible tab first. Each scheduler already serialises itself, but two

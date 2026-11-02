@@ -367,17 +367,27 @@ def test_an_edit_rebuilds_only_the_documents_that_read_it(client, project_dir, o
     assert session._dirty == {"main.tex"}
 
 
-def test_an_asset_nobody_claims_rebuilds_everything(client, project_dir, opened):
+def test_an_asset_the_walk_cannot_place_rebuilds_every_document_naming_it(
+    client, project_dir, opened
+):
     # A style file or an image: under-attributing it leaves a preview that
-    # silently stops updating, which is the worst way this can fail.
+    # silently stops updating, which is the worst way this can fail.  The
+    # walk does not follow \\usepackage, so the sources are read for the
+    # name; a file none of them names rebuilds nothing.
     project_id = opened["id"]
-    add(client, project_dir, "esi.tex", STANDALONE)
+    using = "\\usepackage{house}\n"
+    add(client, project_dir, "esi.tex", STANDALONE.replace("\\begin", using + "\\begin"))
+    main = project_dir / "main.tex"
+    main.write_text(using + main.read_text(encoding="utf-8"), encoding="utf-8")
     client.post(f"/api/projects/{project_id}/previews", json={"path": "esi.tex"})
     session = server_main.SESSIONS[project_id]
     session.deps.invalidate()
     session._dirty.clear()
     session.note_edit(project_dir / "house.sty", "% styles\n")
     assert session._dirty == {"main.tex", "esi.tex"}
+    session._dirty.clear()
+    session.note_edit(project_dir / "unused.sty", "% styles\n")
+    assert session._dirty == set()
 
 
 # -- the strip follows the files it names ------------------------------------

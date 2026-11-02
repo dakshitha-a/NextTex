@@ -106,6 +106,32 @@ SUFFIXES = {
 }
 
 
+#: Suffixes TeX supplies itself, so a source names the file by its stem:
+#: `\\includegraphics{plot}`, `\\usepackage{house}`, `\\bibliographystyle{ours}`.
+#: Any other file is mentioned only by its whole name.
+IMPLIED_SUFFIXES = frozenset({
+    ".pdf", ".png", ".jpg", ".jpeg", ".eps", ".ps", ".svg", ".mps", ".jbig2", ".jb2",
+    ".bib", ".sty", ".cls", ".bst", ".bbx", ".cbx", ".lbx", ".dbx", ".def", ".cfg",
+    ".clo", ".fd", ".otf", ".ttf", ".pgf", ".tikz",
+})
+
+#: A run of the characters a file name or path is written with.
+NAME_TOKEN = re.compile(r"[A-Za-z0-9_.\-/]+")
+
+
+def names_in(text: str) -> frozenset[str]:
+    """Every name a text could be using for a file: each path-like token,
+    its last component, and that component without its suffix."""
+    found: set[str] = set()
+    for token in NAME_TOKEN.findall(text):
+        base = token.rsplit("/", 1)[-1]
+        found.add(base)
+        stem, dot, _suffix = base.rpartition(".")
+        if dot and stem:
+            found.add(stem)
+    return frozenset(found)
+
+
 def is_standalone(text: str) -> bool:
     """Could this text be compiled on its own?
 
@@ -198,6 +224,9 @@ class DependencyGraph:
         # stamp: the candidates list read every unread `.tex` again on each
         # structural change.
         self._alone: dict[str, tuple[tuple[int, int], bool]] = {}
+        # The names each source uses, under the same stamp, for a file the
+        # walk cannot place: see `owners`.
+        self._names: dict[str, tuple[tuple[int, int], frozenset[str]]] = {}
         self._walked: dict[tuple[str, ...], dict[str, set[str]]] = {}
         self._parented: dict[str, list[str]] | None = None
 
@@ -206,6 +235,7 @@ class DependencyGraph:
     def note_changed(self, relative: str) -> None:
         self._edges.pop(relative, None)
         self._refs.pop(relative, None)
+        self._names.pop(relative, None)
         self._walked.clear()
         self._parented = None
 
@@ -289,15 +319,20 @@ class DependencyGraph:
           usual unknown is a file the writer has just created and not yet
           `\\input` anywhere, and attributing it to every document would turn
           one build into several for the commonest case there is.
-        * Anything else unrecognised -- a `.bib`, a class or style file, an
-          image -- goes to **every** document. Under-attributing an asset
-          produces a preview that silently stops updating, which is the worst
-          way this feature can fail; over-attributing costs a background
-          build nobody is waiting on.
-        * Except a Markdown file, which goes to **none** unless a document
-          reads it. It is a note beside the paper, and LaTeX reads one only
-          through a package that `\\input`s it, which the walk sees. Sent
-          to every document, each pause while typing notes rebuilt the paper.
+        * Anything else unrecognised -- a class or style file, a figure
+          behind `\\graphicspath`, a listing read by `\\inputminted`, a
+          pgfplots table -- goes to every document whose sources **mention
+          its name**: the whole file name, or its stem where TeX supplies
+          the suffix itself (`IMPLIED_SUFFIXES`). The walk follows only
+          `\\input` and its kin, and under-attributing an asset produces a
+          preview that silently stops updating, which is the worst way this
+          feature can fail; the name is what every other way of reading a
+          file has to write down.
+        * A file no source mentions goes to **none**. It used to go to
+          every document, and a calculation writing scratch files inside the
+          project folder on 29 October 2026 queued a full build of all five
+          documents on each of its writes for over two hours. A Markdown
+          note was the first case of this rule, given its own before.
         """
         reach = self._walk(documents)
         matched = [name for name in documents if relative in reach[name]]
@@ -305,9 +340,38 @@ class DependencyGraph:
             return matched
         if relative.endswith((".tex", ".ltx")):
             return list(documents[:1])
-        if relative.lower().endswith((".md", ".markdown")):
-            return []
-        return list(documents)
+        base = relative.rsplit("/", 1)[-1]
+        stem, dot, suffix = base.rpartition(".")
+        wanted = {base}
+        if dot and stem and f".{suffix.lower()}" in IMPLIED_SUFFIXES:
+            wanted.add(stem)
+        return [
+            name for name in documents
+            if any(
+                wanted & self._names_for(source)
+                for source in reach[name]
+                if source.endswith((".tex", ".ltx"))
+            )
+        ]
+
+    def _names_for(self, relative: str) -> frozenset[str]:
+        """The names one source uses, cached against its size and time."""
+        path = self.root / relative
+        try:
+            stat = path.stat()
+            stamp = (stat.st_mtime_ns, stat.st_size)
+        except OSError:
+            return frozenset()
+        cached = self._names.get(relative)
+        if cached and cached[0] == stamp:
+            return cached[1]
+        try:
+            text = path.read_text(encoding="utf-8", errors="replace")
+        except OSError:
+            return frozenset()
+        found = names_in(text)
+        self._names[relative] = (stamp, found)
+        return found
 
     def reverse(self, documents: Sequence[str]) -> dict[str, list[str]]:
         """Every known file mapped to the documents that read it.

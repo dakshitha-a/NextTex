@@ -252,3 +252,43 @@ def test_a_markdown_note_that_no_document_reads_schedules_nothing(client, opened
     (project_dir / "main.tex").write_text("\\section{Pulled}\n", encoding="utf-8")
     fold(client, project_id, "main.tex")
     assert pending(client, project_id) == {"main.tex": True}
+
+
+def test_scratch_files_a_calculation_writes_schedule_nothing(client, opened, project_dir):
+    """A quantum chemistry job running inside the project folder rewrote
+    dozens of scratch files a second on 29 October 2026, and every tick
+    queued a full build of every document for over two hours, since a file
+    the walk could not place went to all of them."""
+    project_id = opened["id"]
+    rested(client, project_id)
+    scratch = project_dir / "calcs" / "TEMP"
+    scratch.mkdir(parents=True)
+    names = []
+    for name in ("molcas.RasOrb", "pid", "xmldump"):
+        (scratch / name).write_text("0.1 0.2 0.3\n", encoding="utf-8")
+        names.append(f"calcs/TEMP/{name}")
+
+    fold(client, project_id, *names)
+
+    assert pending(client, project_id) == {"main.tex": False}
+
+
+def test_a_data_file_the_document_names_still_rebuilds_it(client, opened, project_dir):
+    """The other side of the rule: a table pgfplots reads is named in the
+    source, though the dependency walk does not follow it."""
+    project_id = opened["id"]
+    main = project_dir / "main.tex"
+    main.write_text(
+        main.read_text(encoding="utf-8").replace(
+            "\\end{document}", "\\pgfplotstableread{data/run1.csv}\\run\n\\end{document}"
+        ),
+        encoding="utf-8",
+    )
+    fold(client, project_id, "main.tex")
+    rested(client, project_id)
+    (project_dir / "data").mkdir()
+    (project_dir / "data" / "run1.csv").write_text("1,2\n", encoding="utf-8")
+
+    fold(client, project_id, "data/run1.csv")
+
+    assert pending(client, project_id) == {"main.tex": True}
