@@ -325,6 +325,41 @@ def test_compiling_names_the_document_and_counts_what_the_build_said(tmp_path):
     assert "main.tex, esi.tex" in refused
 
 
+def test_compiling_a_document_off_the_strip_puts_it_there_first(tmp_path):
+    """A root the writer had closed was refused although the prompt calls
+    every root a document; the session's `adopt_document` now puts it on
+    the strip, and a part builds the document that reads it."""
+    from nexttex.compile import CompileResult, Outcome
+    from nexttex.latexlog import ParsedLog
+
+    strip = ["main.tex"]
+    built: list[str | None] = []
+
+    async def compile_now(document=None):
+        built.append(document)
+        return CompileResult(Outcome.OK, ParsedLog(pages=1), None, 0.5, "full", "full")
+
+    async def adopt(name):
+        if name == "loose.tex":
+            raise LookupError("nothing reads loose.tex")
+        root = "thesis.tex" if name == "parts/one.tex" else name
+        strip.append(root)
+        return root
+
+    made = agent(tmp_path, [], compile_now=compile_now,
+                 documents=lambda: list(strip), adopt_document=adopt)
+    text = asyncio.run(made._dispatch("compile_document", {"document": "resume.tex"}))
+    assert built == ["resume.tex"] and strip == ["main.tex", "resume.tex"]
+    assert text.startswith("resume.tex: 1 pages")
+    text = asyncio.run(made._dispatch("compile_document", {"document": "parts/one.tex"}))
+    assert built[-1] == "thesis.tex" and text.startswith("thesis.tex:")
+    refused = asyncio.run(made._dispatch("compile_document", {"document": "loose.tex"}))
+    assert len(built) == 2
+    assert refused == ("loose.tex is not a document this project builds "
+                       "(nothing reads loose.tex). The documents are: "
+                       "main.tex, resume.tex, thesis.tex.")
+
+
 def test_the_preview_can_be_turned_to_a_page(tmp_path):
     asked: list[tuple[str, int]] = []
     made = agent(tmp_path, [], show_page=lambda d, p: asked.append((d, p)) or (d or "main.tex"),

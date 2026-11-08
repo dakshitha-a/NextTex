@@ -12,6 +12,8 @@ file being written to the document that reads it.
 
 import json
 
+import pytest
+
 import server.main as server_main
 
 
@@ -608,3 +610,37 @@ def test_a_document_deleted_outside_the_app_leaves_at_the_next_scan(
     body = client.get(f"/api/projects/{project_id}/documents").json()
     assert body["previews"] == ["main.tex"]
     assert remembered(project_dir) == ["main.tex"]
+
+
+def test_the_agent_can_build_a_root_the_writer_closed(client, project_dir, opened):
+    """The agent's `compile` refused every root not on the strip, so a
+    resume the writer had closed could not be built after a restart,
+    though the prompt calls every root a document. Naming it puts it on
+    the strip and in `previews.json`, and the page on screen stays."""
+    project_id = opened["id"]
+    (project_dir / "parts").mkdir(exist_ok=True)
+    add(client, project_dir, "esi.tex", STANDALONE)
+    add(client, project_dir, "thesis.tex",
+        "\\documentclass{article}\n\\begin{document}\n\\input{parts/one}\n\\end{document}\n")
+    add(client, project_dir, "parts/one.tex", "One.\n")
+    add(client, project_dir, "loose.tex", "No preamble here.\n")
+    session = server_main.SESSIONS[project_id]
+    session.deps.invalidate()
+    assert session.agent.adopt_document == session.adopt_document
+
+    assert client.portal.call(session.adopt_document, "esi.tex") == "esi.tex"
+    assert client.portal.call(session.adopt_document, "./esi.tex") == "esi.tex"
+    # A part builds the document that reads it, under that document's name.
+    assert client.portal.call(session.adopt_document, "parts/one.tex") == "thesis.tex"
+    assert list(session.documents) == ["main.tex", "esi.tex", "thesis.tex"]
+    assert session.visible == "main.tex"
+    saved = json.loads((project_dir / ".nexttex" / "previews.json").read_text())
+    assert saved == ["main.tex", "esi.tex", "thesis.tex"]
+
+    with pytest.raises(LookupError, match="documentclass"):
+        client.portal.call(session.adopt_document, "loose.tex")
+    with pytest.raises(LookupError, match="there is no"):
+        client.portal.call(session.adopt_document, "nosuch.tex")
+    with pytest.raises(PermissionError):
+        client.portal.call(session.adopt_document, "../outside.tex")
+    assert list(session.documents) == ["main.tex", "esi.tex", "thesis.tex"]

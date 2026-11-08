@@ -60,7 +60,7 @@ from .conversation import (
     clean_name,
     title_from,
 )
-from .explain import compile_report
+from .explain import compile_report, document_to_build
 from .pages import Pages
 from .writing import PROSE
 
@@ -577,6 +577,7 @@ class ProjectAgent:
         diagnostics: Callable[[], list[dict]] | None = None,
         compile_now: Callable[[], Any] | None = None,
         documents: Callable[[], list[str]] | None = None,
+        adopt_document: Callable[[str], Awaitable[str]] | None = None,
         run_script: Callable[[Path], Awaitable[dict]] | None = None,
         apply_edit: Callable[[Path, str], Any] | None = None,
         on_edit: Callable[[Path, str | None, str | None], Any] | None = None,
@@ -625,11 +626,17 @@ class ProjectAgent:
         self.editor_state = editor_state or (lambda: {})
         self.diagnostics = diagnostics or (lambda: [])
         self.compile_now = compile_now
-        #: The root .tex files the project builds, by project-relative
-        #: path.  A name the compile tool is given has to be one of them,
-        #: because the session builds the document on screen for any name
-        #: it does not know, and the tool would then report the wrong one.
+        #: The root .tex files on the preview strip, by project-relative
+        #: path.  A name the compile tool is given has to be one of them by
+        #: the time it builds, because the session builds the document on
+        #: screen for any name it does not know, and the tool would then
+        #: report the wrong one.
         self.documents = documents or (lambda: [])
+        #: Puts a root the strip does not hold on it, so `compile` can
+        #: build any document in the project, as the prompt promises.
+        #: None in a test that builds an agent alone, which then refuses
+        #: every name the strip does not hold.
+        self.adopt_document = adopt_document
         # Runs a script the way the source pane does, announced on the
         # event stream and remembered, so a figure the agent drew is in the
         # script pane too.  Bare `plots.run` when nothing is wired, which
@@ -1809,7 +1816,9 @@ class ProjectAgent:
             "errors, warnings, undefined citations and references, overfull "
             "boxes. `document` names a root .tex file relative to the "
             "project, for a project with several; left out, it is the one on "
-            "screen. Use this to check your own work before saying you are "
+            "screen. A document the preview strip does not show is added to "
+            "it, and a file another document reads builds that document. "
+            "Use this to check your own work before saying you are "
             "done, and read the counts, not only the errors: a build with no "
             "errors and three undefined citations is not finished. `clean` "
             "true removes the document's .aux, .bbl and other build files "
@@ -2392,21 +2401,21 @@ class ProjectAgent:
     async def compile_tool(self, args: dict) -> dict:
         """Build one document and say what the log said.
 
-        A name the project does not build is refused with the list rather
-        than passed on: the session builds the document on screen for any
-        name it does not know, and the report would then carry the wrong
-        name over the right counts.
+        A root the strip does not hold joins it first, and a part builds
+        the document that reads it, through `document_to_build`. A name
+        that is no document is refused with the list rather than passed
+        on: the session builds the document on screen for any name it does
+        not know, and the report would then carry the wrong name over the
+        right counts.
         """
         if self.compile_now is None:
             return {"content": [{"type": "text", "text": "Compiling is unavailable."}],
                     "is_error": True}
-        named = str(args.get("document") or "").strip()
-        if named and named not in self.documents():
-            known = ", ".join(self.documents()) or "none yet"
-            return self._text(
-                f"{named} is not a document this project builds. "
-                f"The documents are: {known}."
-            )
+        named, refusal = await document_to_build(
+            str(args.get("document") or "").strip(), self.documents, self.adopt_document,
+        )
+        if refusal:
+            return self._text(refusal)
         kwargs = {"document": named} if named else {}
         if args.get("clean"):
             kwargs["clean"] = True

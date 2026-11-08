@@ -49,7 +49,7 @@ import asyncio
 import json
 import time
 from pathlib import Path
-from typing import Any, AsyncIterator, Callable, Iterator
+from typing import Any, AsyncIterator, Awaitable, Callable, Iterator
 
 import requests
 
@@ -57,7 +57,7 @@ from . import comment_tools
 from . import permission_gate as gate
 from .atomic import read_text
 from .conversation import FROM_RECORD
-from .explain import compile_report
+from .explain import compile_report, document_to_build
 from .references import appended, entry_for
 from .lines import first_changed_line
 from .providers import OPENAI_DEFAULT_MODEL
@@ -383,7 +383,9 @@ TOOLS: list[dict] = [
                 "errors, warnings, undefined citations and references, "
                 "overfull boxes. A project can hold several documents; name "
                 "one with `document` (a root .tex path relative to the "
-                "project), or leave it out for the one on screen. `clean` "
+                "project), or leave it out for the one on screen. A document "
+                "the preview strip does not show is added to it, and a file "
+                "another document reads builds that document. `clean` "
                 "true removes the document's .aux, .bbl and other build files "
                 "first; use it when a build complains about a file under the "
                 "build directory or the bibliography stays empty."
@@ -550,6 +552,7 @@ class OpenAIAgent:
         diagnostics: Callable[[], list[dict]] | None = None,
         compile_now: Callable[[], Any] | None = None,
         documents: Callable[[], list[str]] | None = None,
+        adopt_document: Callable[[str], Awaitable[str]] | None = None,
         apply_edit: Callable[[Path, str], Any] | None = None,
         on_edit: Callable[[Path, str | None, str | None], Any] | None = None,
         reveal: Callable[[str, int], Any] | None = None,
@@ -578,6 +581,11 @@ class OpenAIAgent:
         self.diagnostics = diagnostics or (lambda: [])
         self.compile_now = compile_now
         self.documents = documents or (lambda: [])
+        #: Puts a root the strip does not hold on it, so `compile` can
+        #: build any document in the project, as the prompt promises.
+        #: None in a test that builds an agent alone, which then refuses
+        #: every name the strip does not hold.
+        self.adopt_document = adopt_document
         self.apply_edit = apply_edit
         self.on_edit = on_edit
         self.reveal = reveal
@@ -1222,11 +1230,11 @@ class OpenAIAgent:
         if name == "compile_document":
             if self.compile_now is None:
                 return "Typesetting is not available."
-            named = str(args.get("document") or "").strip()
-            if named and named not in self.documents():
-                known = ", ".join(self.documents()) or "none yet"
-                return (f"{named} is not a document this project builds. "
-                        f"The documents are: {known}.")
+            named, refusal = await document_to_build(
+                str(args.get("document") or "").strip(), self.documents, self.adopt_document,
+            )
+            if refusal:
+                return refusal
             kwargs = {"document": named} if named else {}
             if args.get("clean"):
                 kwargs["clean"] = True

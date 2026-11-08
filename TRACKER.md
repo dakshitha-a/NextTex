@@ -314,6 +314,18 @@ OpenAI provider against OpenAI itself.
 
 ### Known gaps, with a cost somebody will eventually pay
 
+- [ ] **A stale `previews` in `nexttex.toml` is ignored without a
+      word.** Once `.nexttex/previews.json` exists the toml's list is never
+      read, by design, so an entry naming a folder since renamed says
+      nothing. Reported by the resume project's agent on 8 November 2026
+      with the agent fix; left because the key is legacy and seeds a new
+      install only, so a warning would speak to almost nobody.
+- [ ] **`goto` on a root off the strip shows the file but not its
+      document.** The resume project's agent reported on 8 November 2026
+      that `goto` opened such a file in the editor and the document did
+      not join the strip, though the editor's follow should have put it
+      there. Not yet traced; left because `compile` now puts the root on
+      the strip itself, which is what the report needed.
 - [ ] **The agent cannot see what a reader did on a page.** A page's
       `localStorage` is kept with the page since 1 November 2026, but
       `read_page` gives back the page as written, not its storage, so an

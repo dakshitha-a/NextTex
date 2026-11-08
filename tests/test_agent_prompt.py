@@ -173,6 +173,40 @@ def test_the_compile_tool_reports_the_counts_and_refuses_an_unknown_document(tmp
     ]
 
 
+def test_the_compile_tool_puts_a_closed_root_on_the_strip_and_builds_it(tmp_path):
+    """After a restart the strip held only main.tex, and `compile` refused
+    the resume beside it that it had built four days before. The tool asks
+    the session to adopt a name it does not hold and builds what comes
+    back; a path that leaves the project is still refused."""
+    import asyncio
+
+    from nexttex.compile import CompileResult, Outcome
+    from nexttex.latexlog import ParsedLog
+
+    strip = ["main.tex"]
+    built: list[str | None] = []
+
+    async def compile_now(document=None):
+        built.append(document)
+        return CompileResult(Outcome.OK, ParsedLog(pages=2), None, 0.3, "full", "full")
+
+    async def adopt(name):
+        if name.startswith(".."):
+            raise PermissionError(f"path escapes the project: {name}")
+        strip.append(name)
+        return name
+
+    subject = ProjectAgent(tmp_path, tmp_path / ".nexttex", compile_now=compile_now,
+                           documents=lambda: list(strip), adopt_document=adopt)
+    named = "35-xai/xai-resume.tex"
+    answer = asyncio.run(subject.compile_tool({"document": named}))
+    assert built == [named] and strip == ["main.tex", named]
+    assert answer["content"][0]["text"].startswith(f"{named}: 2 pages")
+    refused = asyncio.run(subject.compile_tool({"document": "../elsewhere.tex"}))
+    assert built == [named]
+    assert "path escapes the project" in refused["content"][0]["text"]
+
+
 async def _sync(value):
     return value
 

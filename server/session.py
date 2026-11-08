@@ -523,6 +523,7 @@ class ProjectSession:
             diagnostics=lambda: self._diagnostics,
             compile_now=lambda **kw: self.compile(cause="agent", **kw),
             documents=lambda: list(self.documents),
+            adopt_document=self.adopt_document,
             run_script=lambda path: self.scripts.run(
                 self.project.relative(path), by="agent",
             ),
@@ -758,6 +759,35 @@ class ProjectSession:
         state = await self.register_preview(root)
         self.visible = root
         return state
+
+    async def adopt_document(self, relative: str) -> str:
+        """The document the agent named, put on the strip if it was not.
+
+        The agent's `compile` could build only what the strip held, so a
+        root the writer had closed was out of its reach although the system
+        prompt calls every root a document. This is `follow` without the
+        last step: the document joins the strip and `previews.json`, and the
+        page on screen stays where the writer left it. A part resolves to
+        the document that reads it, so the build and its report carry that
+        document's name. Raises `PermissionError` for a path that leaves
+        the project, `LookupError` for a missing file or a fragment nothing
+        reads, and `ValueError` for a jobname another document already has.
+        """
+        target = self.project.resolve(relative)
+        name = target.relative_to(self.project.root.resolve()).as_posix()
+        if name in self.documents:
+            return name
+        if not target.is_file():
+            raise LookupError(f"there is no {name} in the project")
+        root = self.deps.root_of(name, prefer=self._visible_first(self.documents))
+        if root is None:
+            raise LookupError(
+                f"nothing reads {name} and it has no \\documentclass and "
+                "\\begin{document} of its own, so it does not build"
+            )
+        if root not in self.documents:
+            await self.register_preview(root)
+        return root
 
     async def unregister_preview(self, relative: str) -> None:
         name = self.project.resolve(relative).relative_to(self.project.root.resolve()).as_posix()

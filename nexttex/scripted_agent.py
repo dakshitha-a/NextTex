@@ -27,7 +27,7 @@ import json
 import os
 import time
 from pathlib import Path
-from typing import Any, AsyncIterator, Callable
+from typing import Any, AsyncIterator, Awaitable, Callable
 
 from .conversation import clean_name, title_from
 from .lines import first_changed_line
@@ -77,6 +77,7 @@ class ScriptedAgent:
         diagnostics: Callable[[], list[dict]] | None = None,
         compile_now: Callable[[], Any] | None = None,
         documents: Callable[[], list[str]] | None = None,
+        adopt_document: Callable[[str], Awaitable[str]] | None = None,
         run_script: Callable[[Path], Any] | None = None,
         apply_edit: Callable[[Path, str], Any] | None = None,
         on_edit: Callable[[Path, str | None, str | None], Any] | None = None,
@@ -99,6 +100,7 @@ class ScriptedAgent:
         self._conversation_allow: set[str] = set()
         self.compile_now = compile_now
         self.documents = documents or (lambda: [])
+        self.adopt_document = adopt_document
         self.diagnostics = diagnostics or (lambda: [])
         self.apply_edit = apply_edit
         self.on_edit = on_edit

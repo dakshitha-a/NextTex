@@ -25,7 +25,7 @@ Two design rules the table obeys:
 from __future__ import annotations
 
 import re
-from typing import Iterable
+from typing import Awaitable, Callable, Iterable
 
 # (pattern, title, what it means, what to do about it).
 #
@@ -357,6 +357,35 @@ def summarise(diagnostics: list[dict]) -> dict | None:
             "fix this one and rebuild before reading the rest."
         ) if rest else "",
     }
+
+
+async def document_to_build(
+    named: str,
+    documents: Callable[[], list[str]],
+    adopt: Callable[[str], Awaitable[str]] | None,
+) -> tuple[str, str]:
+    """The document the agent's `compile` builds, or why it builds none.
+
+    Returns `(name, refusal)`, and exactly one of them says something
+    when a name was given. A name already on the strip is its own answer.
+    Any other is handed to `adopt`, which puts a root on the strip, or
+    the root that reads a part, and says which; until it existed the tool
+    refused every root the writer had closed, though the prompt calls
+    every root a document. Without `adopt` the name is refused as before,
+    because the session builds the document on screen for a name it does
+    not know and the report would carry the wrong name.
+    """
+    if not named or named in documents():
+        return named, ""
+    reason = ""
+    if adopt is not None:
+        try:
+            return await adopt(named), ""
+        except (LookupError, ValueError, PermissionError) as error:
+            reason = f" ({error})"
+    known = ", ".join(documents()) or "none yet"
+    return "", (f"{named} is not a document this project builds{reason}. "
+                f"The documents are: {known}.")
 
 
 def compile_report(document: str, payload: dict) -> str:
