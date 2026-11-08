@@ -153,32 +153,52 @@ FRONTEND = Path(__file__).resolve().parent.parent / "frontend" / "dist"
 # Lifecycle
 
 
+#: How many listeners are inside the lifespan. `server/run.py` serves one
+#: app on loopback and on the tailnet address, as two uvicorn servers, and
+#: each runs the app's lifespan; until 8 November 2026 everything below ran
+#: once per listener, so an install with a tailnet address had two file
+#: watchers reporting every outside edit twice, two reapers and two rejoins.
+#: The first entry starts the work and the last exit stops it.
+_LISTENERS = 0
+_BACKGROUND: list[asyncio.Task] = []
+
+
 @asynccontextmanager
 async def lifespan(app: FastAPI):
+    global _LISTENERS
+    _LISTENERS += 1
+    if _LISTENERS == 1:
+        await _start_background()
+    try:
+        yield
+    finally:
+        _LISTENERS -= 1
+        if _LISTENERS == 0:
+            await _stop_background()
+
+
+async def _start_background() -> None:
     tex = ensure_tex_on_path()
     print(f"  LaTeX      {tex or 'NOT FOUND, so compiling will fail'}")
     for item in missing_tools():
         print(f"  missing    {item}")
-    watcher = asyncio.create_task(_watch_projects())
-    reaper = asyncio.create_task(_reap_idle())
+    _BACKGROUND.append(asyncio.create_task(_watch_projects()))
+    _BACKGROUND.append(asyncio.create_task(_reap_idle()))
     if SETTINGS.host:
         await _serve_host(True)
-    rejoin = asyncio.create_task(_rejoin_shared_projects())
-    warm = asyncio.create_task(_warm_the_agent())
-    settled = asyncio.create_task(_settle_an_update())
-    try:
-        yield
-    finally:
-        watcher.cancel()
-        reaper.cancel()
-        rejoin.cancel()
-        warm.cancel()
-        settled.cancel()
-        for pending in list(PENDING_JOINS.values()):
-            PENDING_JOINS.pop(pending.token, None)
-            await pending.release(keep=False)
-        for session in list(SESSIONS.values()):
-            await session.close()
+    _BACKGROUND.append(asyncio.create_task(_rejoin_shared_projects()))
+    _BACKGROUND.append(asyncio.create_task(_warm_the_agent()))
+    _BACKGROUND.append(asyncio.create_task(_settle_an_update()))
+
+
+async def _stop_background() -> None:
+    while _BACKGROUND:
+        _BACKGROUND.pop().cancel()
+    for pending in list(PENDING_JOINS.values()):
+        PENDING_JOINS.pop(pending.token, None)
+        await pending.release(keep=False)
+    for session in list(SESSIONS.values()):
+        await session.close()
 
 
 async def _settle_an_update() -> None:

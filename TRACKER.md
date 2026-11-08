@@ -86,6 +86,20 @@ A 55 s stall that day had nothing in flight and no stack, so a long stall
 now records the loop's stack. One React "maximum update depth" error came
 from a tab receiving that storm, with no component in its stack; with the
 storm gone there is nothing further to act on.
+Reviewed again on 8 November, for 1 to 8 November: no server error,
+no build error, no failed agent turn, 8 s of cancelled builds against
+757 s the week before. Memory rose from 134 to 315 MB as projects were
+opened and then held flat; the lag spikes, at most 952 ms, came with
+host load averages of 50 to 317. The journal printed the `LaTeX` line
+twice under one pid: with a tailnet address the lifespan ran once per
+listener, so two file watchers reported every outside edit twice and the
+reaper and rejoin ran twice. It now runs once (4.50.3); the watcher-driven
+counts in the reviews before it may be doubled. The server was gone from
+18:42 to 22:40 on 3 November: the host rebooted, and the unit was not
+enabled for boot until 22:41 that night, though every installer since
+September enables it, so this host was a one-off. The next start said
+only "stopped without saying why"; off Windows it does not yet look for
+a reboot after the last heartbeat, which is a small thing worth doing.
 
 Before it, on 12 October 2026, at 4.33.0, the run on the page
 losing the writing in a reflowing thesis closed, at the writer's request.
