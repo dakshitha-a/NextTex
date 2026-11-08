@@ -63,9 +63,11 @@ waited 78 s behind builds that replaced each other; opens now reuse the
 PDF and join a running build (4.47.0, live since 29 October and seen
 answering in 15 ms). Builds are logged with their cause, cancelled and
 download builds too; a tab left open across an update now notices; the
-ResizeObserver line is counted. Memory still rises 6 to 9 MB an hour
-under real use, and a probe found edits, builds and reads flat, so what
-is left is under Measured and left below.
+ResizeObserver line is counted. Memory then rose 6 to 9 MB an hour
+under real use, and a probe found edits, builds and reads flat. By 8
+November it had settled: since 29 October the longest life, 108 hours,
+grew 1.6 MB an hour, one of 43 hours grew nothing, and one of 55 hours
+3.6, so the item was closed.
 On 29 October the writer sent a message from claude.ai into the thesis
 session with remote control on. The label read "Sent over remote
 control", as expected, but the line was empty: the CLI writes a bridged
@@ -370,17 +372,6 @@ OpenAI provider against OpenAI itself.
 
 ### Measured and left, worth revisiting with a measurement
 
-- [ ] **The live server's memory rises 6 to 9 MB an hour.** Seen in every
-      server life in the diagnostics log of 26 to 28 October 2026, about
-      100 MB to 325 MB over 27 hours, masked by the daily update restart.
-      Probed on 29 October in one process with a project open: 600 rounds of
-      edits, builds and every read route left resident memory flat at about
-      340 MB (within 2 MB), and an idle open project grew nothing in three
-      minutes. The probe's one Python finding, the consistency check keeping
-      256 whole texts, is fixed. What the probe did not exercise is the
-      likely source: agent turns, the browser's event streams and editing
-      sockets, and the PDF routes under a real tab. The next measurement is
-      the `sample` lines' gauges beside `rss_mb` across a day of use.
 - [ ] **The log parser stays Python.** Asked on 24 October 2026 what a
       Rust rewrite would buy: the build is TeX's time, and the parser,
       the one hot Python loop, now reads a real 0.14 MB thesis log in
@@ -432,18 +423,6 @@ OpenAI provider against OpenAI itself.
       pages from the first and correcting lazily would cost a wrong
       layout for documents that mix page sizes, so it was left; the
       chat's length was never measured.
-
-### Flaky, with the trace read
-
-- [ ] **The page check on CI uses the runner's full Chrome.** It failed
-      once on 26 October 2026 with "had not read it back". Installing
-      Playwright's headless shell in the `python` workflow, in 4.47.0, made
-      every page check on the runner time out instead, probably because
-      Ubuntu 24.04 restricts the unprivileged user namespaces Chrome's
-      sandbox needs (`kernel.apparmor_restrict_unprivileged_userns`). The
-      step was taken out again. Allowing the namespaces on the runner
-      before the suite is the next thing to try; the unchecked sentence now
-      names the browser, so the next failure says which one it was.
 
 ### Never run against the real thing
 
