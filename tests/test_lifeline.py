@@ -35,7 +35,7 @@ def test_one_that_did_not_is_reported_with_when_it_was_last_alive(tmp_path):
     (tmp_path / lifeline.FILE).write_text(json.dumps({
         "pid": 424242, "started": 1_790_000_000, "alive": 1_790_003_600,
     }))
-    said = lifeline.previous(tmp_path)
+    said = lifeline.previous(tmp_path, windows=lambda since, until: None)
     assert said is not None
     assert "pid 424242" in said
     assert "stopped without saying why" in said
@@ -160,3 +160,42 @@ def test_the_query_asks_the_system_log_from_the_last_heartbeat():
     def broken(argv):
         raise OSError("no wevtutil")
     assert lifeline.windows_ended(0, 1, run=broken) is None
+
+
+def test_a_host_that_went_down_is_named_not_mistaken_for_a_crash(tmp_path):
+    """On 3 November 2026 the Linux host crashed and booted again at
+    20:31, and the next start said only "stopped without saying why",
+    which read as NextTex's own fault. A boot after the last heartbeat
+    now names the machine."""
+    alive = _at("2026-11-03T23:42:40")
+    booted = alive + 6500
+    said = lifeline.machine_restarted(alive, booted + 7600, booted=lambda: booted)
+    stamp = time.strftime("%H:%M:%S", time.localtime(booted))
+    assert said == f"the machine went down; it started again at {stamp}"
+
+    (tmp_path / lifeline.FILE).write_text(json.dumps({"pid": 7, "started": alive - 60, "alive": alive}))
+    line = lifeline.previous(tmp_path, windows=lambda since, until: said)
+    assert "ended when the machine went down" in line and "without saying why" not in line
+
+
+def test_a_boot_before_the_last_heartbeat_explains_nothing():
+    alive = _at("2026-11-03T23:42:40")
+    assert lifeline.machine_restarted(alive, alive + 600, booted=lambda: alive - 3600) is None
+    assert lifeline.machine_restarted(alive, alive + 600, booted=lambda: None) is None
+
+
+def test_the_boot_time_is_read_from_the_system(monkeypatch):
+    monkeypatch.setattr(lifeline.sys, "platform", "linux")
+    stat = "cpu  1 2 3\nbtime 1762219865\nprocesses 9\n"
+    assert lifeline.booted_at(read=lambda: stat) == 1762219865.0
+    assert lifeline.booted_at(read=lambda: "no such line") is None
+    def unreadable():
+        raise OSError("no /proc")
+    assert lifeline.booted_at(read=unreadable) is None
+
+    monkeypatch.setattr(lifeline.sys, "platform", "darwin")
+    sysctl = "{ sec = 1762219865, usec = 412000 } Mon Nov  3 20:31:05 2026\n"
+    assert lifeline.booted_at(run=lambda argv: sysctl) == 1762219865.0
+
+    monkeypatch.setattr(lifeline.sys, "platform", "win32")
+    assert lifeline.booted_at() is None

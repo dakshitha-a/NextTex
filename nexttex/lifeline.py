@@ -10,6 +10,12 @@ it gets to see. At the next start a heartbeat with no `stopped` means the
 previous server ended without seeing it, and when it was last alive
 places that to within a minute. Nothing here depends on Windows; it is
 there that it is needed.
+
+A machine that went down takes its server with it without a word, and
+that read exactly like the silent exit. So the next start asks the
+machine what happened in between: Windows its System log, Linux and
+macOS when they last booted, and a boot after the last heartbeat names
+the machine rather than leaving NextTex under suspicion.
 """
 
 from __future__ import annotations
@@ -39,11 +45,12 @@ def previous(state: Path, windows=None) -> str | None:
     """What the last server left, said in a line, or None when it said
     goodbye or there was none.
 
-    `windows(since, until)` names what Windows did in between, a restart
-    or a shutdown, when the server could not hear it: a server with no
-    console and no window is ended at shutdown without a word, so a
-    restart the writer chose read exactly like the silent exit this file
-    exists to catch. On Windows it is `windows_ended`; elsewhere nothing.
+    `windows(since, until)` names what the machine did in between, a
+    restart or a shutdown, when the server could not hear it: a server
+    with no console and no window is ended at shutdown without a word, so
+    a restart, chosen or a crash of the host, read exactly like the silent
+    exit this file exists to catch. On Windows it is `windows_ended`;
+    elsewhere `machine_restarted`.
     """
     try:
         data = json.loads((state / FILE).read_text(encoding="utf-8"))
@@ -58,7 +65,8 @@ def previous(state: Path, windows=None) -> str | None:
         return None
     if not alive:
         return None
-    ask = windows if windows is not None else (windows_ended if sys.platform == "win32" else None)
+    ask = windows if windows is not None else (
+        windows_ended if sys.platform == "win32" else machine_restarted)
     said = ask(alive, time.time()) if ask else None
     how = f"ended when {said}" if said else "stopped without saying why"
     return (
@@ -124,6 +132,33 @@ def windows_ended(since: float, until: float, run=None) -> str | None:
     except Exception:
         return None
     return windows_said(output, since, until)
+
+
+def booted_at(read=None, run=None) -> float | None:
+    """When this machine last started, as a timestamp, or None where that
+    cannot be found: `btime` in Linux's `/proc/stat`, `kern.boottime` from
+    macOS's `sysctl`."""
+    try:
+        if sys.platform.startswith("linux"):
+            text = (read or (lambda: Path("/proc/stat").read_text()))()
+            found = re.search(r"^btime\s+(\d+)", text, re.M)
+        elif sys.platform == "darwin":
+            text = (run or _run)(["sysctl", "-n", "kern.boottime"])
+            found = re.search(r"sec\s*=\s*(\d+)", text)
+        else:
+            return None
+    except Exception:
+        return None
+    return float(found.group(1)) if found else None
+
+
+def machine_restarted(since: float, until: float, booted=None) -> str | None:
+    """A boot between `since` and `until`, said as the rest of a sentence:
+    "the machine went down; it started again at 20:31:05", or None."""
+    at = (booted or booted_at)()
+    if at is None or not since < at <= until:
+        return None
+    return f"the machine went down; it started again at {time.strftime('%H:%M:%S', time.localtime(at))}"
 
 
 def _run(argv: list[str]) -> str:
