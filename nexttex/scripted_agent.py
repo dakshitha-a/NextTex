@@ -548,6 +548,15 @@ class ScriptedAgent:
             if self.show_page is not None:
                 self.show_page(document, page)
 
+        elif kind == "goto":
+            # Through the session's reveal, as the real tool goes, so the
+            # editor and the strip that follows it are both exercised.
+            path = str(step.get("path", ""))
+            line = int(step.get("line", 1))
+            await self._tool("mcp__nexttex__goto", {"path": path, "line": line}, 12, True)
+            if self.reveal is not None:
+                self.reveal(path, line)
+
         elif kind == "list_comments":
             # Through the session's own reading, as the real tool goes.
             path = str(step.get("path", ""))

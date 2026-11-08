@@ -394,3 +394,36 @@ test("a fetch that lands mid-build keeps the page already on screen", async ({
   await expect(tab.locator("canvas").first()).toBeVisible();
   await expect(tab.getByText("The preview could not be fetched")).toHaveCount(0);
 });
+
+test("a document the agent goes to joins the strip, as one the writer opens does", async ({
+  app, project, page,
+}) => {
+  // Reported by an agent on 8 November 2026: `goto` on a root that was
+  // not on the strip opened the file in the editor, and the document
+  // never joined the strip. In that project the writer had followed the
+  // document onto the strip, closed its tab, which took it off again,
+  // and reloaded the page before the agent went there.
+  mkdirSync(join(project.root, "letters"), { recursive: true });
+  writeFileSync(join(project.root, "letters", "cover.tex"), STANDALONE);
+  await page.goto(`${app.base}/?token=${app.token}`);
+  await page.getByText("Projects", { exact: false }).first().waitFor();
+  await openProject(page, project.root);
+  await expect(page.locator(".cm-editor")).toBeVisible({ timeout: 30_000 });
+
+  await page.locator('[role="tree"] [data-path="letters"]').click();
+  await page.locator('[role="tree"] [data-path="letters/cover.tex"]').click();
+  await expect(page.getByTestId("preview-tab-letters/cover.tex")).toBeVisible({ timeout: 15_000 });
+  await page.getByTestId("source-strip").getByRole("button", { name: "Close cover.tex" }).click();
+  await expect(page.getByTestId("preview-tab-letters/cover.tex")).toHaveCount(0, { timeout: 15_000 });
+  await page.reload();
+  await expect(page.locator(".cm-editor")).toBeVisible({ timeout: 30_000 });
+
+  const composer = page.locator("textarea");
+  await composer.click();
+  await composer.fill("#script:goto\nShow me the cover letter.");
+  await page.getByRole("button", { name: "Send" }).click();
+
+  await expect(page.getByText(/opens like this/)).toBeVisible({ timeout: 20_000 });
+  await expect(page.getByTestId("preview-tab-letters/cover.tex"))
+    .toHaveAttribute("aria-current", "true", { timeout: 20_000 });
+});

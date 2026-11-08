@@ -323,9 +323,20 @@ OpenAI provider against OpenAI itself.
 - [ ] **`goto` on a root off the strip shows the file but not its
       document.** The resume project's agent reported on 8 November 2026
       that `goto` opened such a file in the editor and the document did
-      not join the strip, though the editor's follow should have put it
-      there. Not yet traced; left because `compile` now puts the root on
-      the strip itself, which is what the report needed.
+      not join the strip. Traced the same day without finding the cause.
+      A browser was on the project and the writer was typing at the
+      call, 11:46:16, yet no browser asked for the strip to change; two
+      browser reproductions, a plain root and the writer's sequence of
+      following a root in a subfolder, closing its tab and reloading,
+      both put the root on the strip. The hypothesis left is a browser
+      strip that still listed the root while the server's did not: the
+      server answered "documents are: main.tex" at 11:45:54 and the
+      browser sent nine removals in the same five minutes, and with the
+      root on its own strip `followDecision` shows it without asking. A
+      spec that makes the two strips differ before `goto` would decide
+      it. `goto` now says when no editor window has the project open,
+      a gap found on the way, and `compile` adopting the root, in
+      4.50.4, removed the symptom the report needed.
 - [ ] **The agent cannot see what a reader did on a page.** A page's
       `localStorage` is kept with the page since 1 November 2026, but
       `read_page` gives back the page as written, not its storage, so an

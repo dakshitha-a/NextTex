@@ -1,0 +1,4 @@
+[
+  {"kind": "text", "text": "The cover letter opens like this.", "pieces": 2},
+  {"kind": "goto", "path": "letters/cover.tex", "line": 3}
+]

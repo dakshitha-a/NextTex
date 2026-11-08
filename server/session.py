@@ -2217,12 +2217,21 @@ class ProjectSession:
                 return thread.get("quote") or ""
         return ""
 
-    def reveal_in_editor(self, path: str, line: int) -> None:
-        """Ask the open editor to show a line."""
+    def reveal_in_editor(self, path: str, line: int) -> bool:
+        """Ask the open editor to show a line, and say whether there was
+        one to ask.
+
+        With no browser holding this project's event stream the event
+        reaches nobody, and `goto` used to answer "Showing ... in the
+        editor" all the same; an agent took that as seen, and as the
+        strip having followed, when nothing had happened."""
+        if not self.events.watchers:
+            return False
         spawn(
             self.events.publish({"type": "reveal", "path": path, "line": line}),
             "revealing a line in the editor",
         )
+        return True
 
     def mark_written(self, path: Path) -> None:
         try:

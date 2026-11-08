@@ -1952,10 +1952,7 @@ class ProjectAgent:
             # /etc/passwd should not be the thing that finds that out.
             if not self._inside_project(path):
                 return self._text(f"{path} is outside this project.")
-            if self.reveal:
-                self.reveal(path, line)
-                return self._text(f"Showing {path}:{line} in the editor.")
-            return self._text("The editor is not connected.")
+            return self.goto_tool(path, line)
 
         @tool(
             "show_page",
@@ -2376,6 +2373,21 @@ class ProjectAgent:
         except LookupError as error:
             return self._text(str(error))
         return self._text(comment_tools.replied(quote))
+
+    def goto_tool(self, path: str, line: int) -> dict:
+        """Ask the writer's editor to show a line, and say what happened.
+
+        A reveal that reached no browser says so, rather than claiming the
+        file is on screen: the agent then knows the writer saw nothing, and
+        that no editor followed the file onto the preview strip."""
+        if not self.reveal:
+            return self._text("The editor is not connected.")
+        if self.reveal(path, line) is False:
+            return self._text(
+                f"No editor window has this project open, so {path}:{line} "
+                "was not shown to anyone."
+            )
+        return self._text(f"Showing {path}:{line} in the editor.")
 
     def show_page_tool(self, args: dict) -> dict:
         """Move the preview to a page, the way `goto` moves the editor."""
