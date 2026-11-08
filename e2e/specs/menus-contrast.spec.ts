@@ -162,6 +162,11 @@ const SURFACES: Surface[] = [
     open: async (tab) => {
       const canvas = tab.locator(".nx-page canvas:visible").first();
       await canvas.waitFor({ timeout: 45_000 });
+      // The first page drawn is not always on screen: the pane follows
+      // the caret, and a sweep that had scrolled it right-clicked at
+      // y = -469, above the window, where nothing opens. Twice in thirty
+      // runs on 8 November 2026, with the trace read.
+      await canvas.scrollIntoViewIfNeeded();
       const box = (await canvas.boundingBox())!;
       await tab.mouse.click(box.x + box.width / 2, box.y + box.height * 0.35, { button: "right" });
       return tab.getByTestId("pdf-context-menu");

@@ -435,11 +435,6 @@ OpenAI provider against OpenAI itself.
 
 ### Flaky, with the trace read
 
-- [ ] **Show this in the source once missed on the first attempt.**
-      `e2e/specs/pdf-menu.spec.ts`, "Show this in the source jumps as a
-      double-click on the same spot does", failed its first attempt and
-      passed on retry in the full run of 29 October 2026, before 4.47.2.
-      The trace was not kept; read it the next time it fails.
 - [ ] **The page check on CI uses the runner's full Chrome.** It failed
       once on 26 October 2026 with "had not read it back". Installing
       Playwright's headless shell in the `python` workflow, in 4.47.0, made
@@ -449,16 +444,6 @@ OpenAI provider against OpenAI itself.
       step was taken out again. Allowing the namespaces on the runner
       before the suite is the next thing to try; the unchecked sentence now
       names the browser, so the next failure says which one it was.
-- [ ] **The menu sweep once missed the typeset page's menu.** In the full
-      browser run of 27 October 2026, before 4.44.0 was pushed, both
-      themes of `e2e/specs/menus-contrast.spec.ts` failed their first
-      attempt with "the typeset page's menu: could not be opened" and
-      passed on retry. The same release reworked that menu, adding Open
-      this reference. Twenty-eight runs since, alone and beside the other
-      preview specs, all passed, and the trace of the failing attempt was
-      overwritten before it was read. The likely cause is the one
-      1c2b422 fixed in the clipping sweep, a right-click on a page a
-      newer build replaces; read the trace the next time it fails.
 
 ### Never run against the real thing
 

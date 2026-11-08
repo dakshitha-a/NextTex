@@ -14,6 +14,9 @@ async function firstPage(tab: Page) {
   const canvas = tab.locator(".nx-page canvas:visible").first();
   await expect(canvas).toBeVisible({ timeout: 45_000 });
   await expect.poll(async () => (await canvas.boundingBox())?.width ?? 0, { timeout: 15_000 }).toBeGreaterThan(0);
+  // A page scrolled out of the pane has a box above or below the window,
+  // and a click there lands on nothing (see menus-contrast.spec.ts).
+  await canvas.scrollIntoViewIfNeeded();
   return (await canvas.boundingBox())!;
 }
 

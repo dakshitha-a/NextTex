@@ -133,6 +133,9 @@ const OPENED: {
     open: async (tab) => {
       const canvas = tab.locator(".nx-page canvas:visible").first();
       if (!(await canvas.count())) return false;
+      // On screen first: a page scrolled out of the pane has a box
+      // outside the window (see menus-contrast.spec.ts).
+      await canvas.scrollIntoViewIfNeeded();
       const box = await canvas.boundingBox();
       if (!box) return false;
       await tab.mouse.click(box.x + box.width / 2, box.y + box.height * 0.35, { button: "right" });
