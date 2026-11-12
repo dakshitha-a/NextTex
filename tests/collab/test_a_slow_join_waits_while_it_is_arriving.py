@@ -87,3 +87,40 @@ async def test_a_peer_link_records_when_it_last_heard(tmp_path):
     assert bob.store.heard > 0.0
     await bob.close()
     await alice.close()
+
+
+@pytest.mark.asyncio
+async def test_a_join_says_in_the_diagnostics_log_where_its_time_went(tmp_path):
+    """A join on a machine nobody here can watch reports, for every frame
+    kind its links handled, how many, how long in all and the longest."""
+    import json
+    import logging
+
+    from nexttex import diag
+
+    path = diag.install(tmp_path / "state", secrets=[], home="/home/someone")
+    try:
+        store = SlowStore()
+        store.frames_in = {4: [1830, 12.5, 0.4], 8: [2764, 3.0, 0.01]}
+        reason = await server_main._wait_for_the_project(store, seconds=0.2, ceiling=5)
+        for handler in logging.getLogger("nexttex.diag").handlers:
+            handler.flush()
+        [line] = [json.loads(row) for row in path.read_text().splitlines()
+                  if row and json.loads(row)["kind"] == "join"]
+    finally:
+        diag.uninstall()
+    assert reason
+    assert line["arrived"] is False and line["waiting"] == 1 and line["texts"] == 1
+    assert line["frames"] == {"4": [1830, 12.5, 0.4], "8": [2764, 3.0, 0.01]}
+
+
+@pytest.mark.asyncio
+async def test_a_peer_link_tallies_the_frames_it_handled(tmp_path):
+    alice = Peer(tmp_path / "alice", {"main.tex": "The chapter.\n"}).be("a" * 64)
+    alice.store.adopt()
+    bob = Peer(tmp_path / "bob", {}).be("b" * 64)
+    await join_up(alice, bob)
+    count, total, longest = bob.store.frames_in[4]
+    assert count >= 1 and total >= longest >= 0
+    await bob.close()
+    await alice.close()

@@ -2177,10 +2177,22 @@ async def _wait_for_the_project(store, seconds: float = 30.0,
             and not str(store.body(file_id) or "")
         ]
 
+    def noted(reason: str, waiting: int) -> str:
+        # One line in the diagnostics log for every join, so a slow one on
+        # a machine nobody here can watch says where its time went.
+        frames = getattr(store, "frames_in", {}) or {}
+        diag.event(
+            "join", seconds=round(loop.time() - began, 1), arrived=not reason,
+            texts=len(wanted()), answered=len(answered), waiting=waiting,
+            frames={str(kind): [n, round(total, 2), round(longest, 3)]
+                    for kind, (n, total, longest) in sorted(frames.items())},
+        )
+        return reason
+
     while quiet_for() < seconds and loop.time() - began < ceiling:
         listed = wanted()
         if listed and not still_waiting(listed):
-            return ""
+            return noted("", 0)
         await asyncio.sleep(0.1)
 
     listed = wanted()
@@ -2191,10 +2203,11 @@ async def _wait_for_the_project(store, seconds: float = 30.0,
         # file the other end cannot send.
         missing = sorted(str(store.files[f].get("path")) for f in still_waiting(listed))
         named = ", ".join(missing[:5]) + (f" and {len(missing) - 5} more" if len(missing) > 5 else "")
-        return ("Only part of that project arrived in time. Still waiting "
-                f"for {named}. Nothing has been written; try joining again.")
-    return ("Nothing arrived from that peer. They may be offline, or the "
-            "invite may already have been used.")
+        return noted("Only part of that project arrived in time. Still waiting "
+                     f"for {named}. Nothing has been written; try joining again.",
+                     len(missing))
+    return noted("Nothing arrived from that peer. They may be offline, or the "
+                 "invite may already have been used.", 0)
 
 
 @app.delete("/api/projects/{project_id}/collab/member/{peer}")

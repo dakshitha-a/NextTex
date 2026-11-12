@@ -535,11 +535,21 @@ class PeerLink:
                 # tell a slow link that is still delivering from one that
                 # has gone quiet; a ping is a link alive, not progress.
                 busy = frame.kind != wire.PING
+                store = self.network.store
+                loop = asyncio.get_running_loop()
+                began = loop.time()
                 if busy:
-                    self.network.store.heard = asyncio.get_running_loop().time()
+                    store.heard = began
                 await self.handle(frame)
                 if busy:
-                    self.network.store.heard = asyncio.get_running_loop().time()
+                    store.heard = took = loop.time()
+                    # Per kind: how many, how long in all, the longest.
+                    # What a join that ran out of time reports, since a
+                    # Windows laptop's slow join was otherwise invisible.
+                    tally = store.frames_in.setdefault(frame.kind, [0, 0.0, 0.0])
+                    tally[0] += 1
+                    tally[1] += took - began
+                    tally[2] = max(tally[2], took - began)
         except Exception:
             pass
         finally:

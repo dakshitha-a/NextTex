@@ -362,6 +362,9 @@ class CollabStore:
         #: handled here, 0 before any. `_wait_for_the_project` waits for as
         #: long as this keeps moving.
         self.heard: float = 0.0
+        #: Frame kind -> [count, seconds handling them, longest], for the
+        #: diagnostics line a join writes when its wait ends.
+        self.frames_in: dict[int, list] = {}
 
         # The three guards against a write loop.  See the module docstring.
         self._projecting: set[str] = set()
