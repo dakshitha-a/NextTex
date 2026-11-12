@@ -328,6 +328,29 @@ OpenAI provider against OpenAI itself.
       manifest, or sending what it points at, is a decision about what a
       link in a shared project means, and records already shared would
       need a migration either way.
+- [ ] **A join that gave up leaves a stall behind it.** After joins
+      of three projects from the Windows laptop were abandoned on 12
+      November 2026, a join of the dissertation failed with nothing
+      answered, the resume's figures paused for four minutes, and the
+      dissertation's figures stopped arriving after two restarts of the
+      laptop. A restart of the laptop and a join on its own then
+      worked. The sharer still listed the laptop as connected to a share
+      whose join had been discarded. Not reproduced here; the next step
+      is two installs on this host, one join abandoned mid-stream, then a
+      second join of another share between the same two.
+- [ ] **Joining again into the folder of a join never accepted opens a
+      part of the project.** A second invite into a folder whose
+      `.nexttex/collab/share.json` an unaccepted join had left answered
+      `opened` in under a second, not an offer, and the folder held ten
+      of the fifty files with the link not connected. Found between two
+      installs on this host on 12 November 2026.
+- [ ] **A join sends a sync step and a history ask for every record,
+      deleted files included.** The NexusQC paper's manifest holds 2764
+      records for 51 files, so a joiner works through about 4600 frames
+      before the first answer for a live file. The wait now runs while
+      frames arrive, but sending live documents first, or not asking a
+      fresh joiner for history it cannot hold, would make the join itself
+      quicker.
 - [ ] **A text file that is not UTF-8 is shared as an empty file.** Same
       cause and same symptom as the link above: `read_text` returns
       nothing for it. One Latin-1 build log in the resume project showed

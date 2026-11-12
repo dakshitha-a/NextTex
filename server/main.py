@@ -2115,7 +2115,12 @@ async def discard_join(token: str = Body(..., embed=True)):
     return {"ok": True}
 
 
-async def _wait_for_the_project(store, seconds: float = 30.0) -> str:
+#: The most a join waits for the project while it is still arriving.
+JOIN_CEILING = 600.0
+
+
+async def _wait_for_the_project(store, seconds: float = 30.0,
+                                ceiling: float = JOIN_CEILING) -> str:
     """Wait until the other peer has sent us a project, or say why not.
 
     A join is the one moment a person is watching a progress indicator, so
@@ -2137,9 +2142,22 @@ async def _wait_for_the_project(store, seconds: float = 30.0) -> str:
     is not UTF-8. Waiting for those to fill waited the whole deadline on
     every attempt, so a sync answer for the document counts as its
     arrival, since after it the document holds what the sharer's does.
+
+    The deadline is `seconds` of quiet, not `seconds` in all. A paper
+    whose manifest holds thousands of records, most of them deleted
+    files, sends a sync step and a history ask for each before the
+    answers that fill its text. A Windows laptop never got through them
+    in thirty seconds, so every join of two such papers was abandoned
+    before a single text document had been answered, while a copy of
+    the same join on Linux finished in two. So the wait
+    runs while frames keep being handled, as `CollabStore.heard` records,
+    up to `ceiling` in all.
     """
     loop = asyncio.get_running_loop()
-    deadline = loop.time() + seconds
+    began = loop.time()
+
+    def quiet_for() -> float:
+        return loop.time() - max(began, float(getattr(store, "heard", 0.0) or 0.0))
 
     def wanted() -> list[str]:
         return [
@@ -2159,7 +2177,7 @@ async def _wait_for_the_project(store, seconds: float = 30.0) -> str:
             and not str(store.body(file_id) or "")
         ]
 
-    while loop.time() < deadline:
+    while quiet_for() < seconds and loop.time() - began < ceiling:
         listed = wanted()
         if listed and not still_waiting(listed):
             return ""

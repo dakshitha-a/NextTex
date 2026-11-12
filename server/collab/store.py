@@ -358,6 +358,10 @@ class CollabStore:
         #: that answer the document holds whatever the peer holds, so an
         #: empty one is empty there too; see `_wait_for_the_project`.
         self.answered: set[str] = set()
+        #: Event-loop time a peer's frame other than a ping was last
+        #: handled here, 0 before any. `_wait_for_the_project` waits for as
+        #: long as this keeps moving.
+        self.heard: float = 0.0
 
         # The three guards against a write loop.  See the module docstring.
         self._projecting: set[str] = set()

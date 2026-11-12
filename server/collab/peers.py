@@ -531,7 +531,15 @@ class PeerLink:
                     # A peer speaking nonsense is a peer to stop talking to,
                     # not a reason to take the project down.
                     break
+                # Noted before and after, so a wait for the project can
+                # tell a slow link that is still delivering from one that
+                # has gone quiet; a ping is a link alive, not progress.
+                busy = frame.kind != wire.PING
+                if busy:
+                    self.network.store.heard = asyncio.get_running_loop().time()
                 await self.handle(frame)
+                if busy:
+                    self.network.store.heard = asyncio.get_running_loop().time()
         except Exception:
             pass
         finally:
