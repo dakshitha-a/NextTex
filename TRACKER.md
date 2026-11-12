@@ -317,6 +317,22 @@ OpenAI provider against OpenAI itself.
 
 ### Known gaps, with a cost somebody will eventually pay
 
+- [ ] **A link out of the project is shared as an empty file.** The
+      tree lists a symlink whose target is outside the project, `adopt`
+      records it as text, and `Project.resolve` then refuses to read it,
+      so a joiner gets an empty file of that name. Found on 12 November
+      2026 when the NexusQC paper's fifteen `refs/` links into another
+      repository stalled every join of it; the join no longer stalls, and
+      an edit from the joiner is refused at the sharer rather than written
+      through the link. Left because leaving such a link out of the
+      manifest, or sending what it points at, is a decision about what a
+      link in a shared project means, and records already shared would
+      need a migration either way.
+- [ ] **A text file that is not UTF-8 is shared as an empty file.** Same
+      cause and same symptom as the link above: `read_text` returns
+      nothing for it. One Latin-1 build log in the resume project showed
+      it. Left for the same decision, since adopting such a file as a blob
+      would carry its bytes but take its editor away.
 - [ ] **A stale `previews` in `nexttex.toml` is ignored without a
       word.** Once `.nexttex/previews.json` exists the toml's list is never
       read, by design, so an entry naming a folder since renamed says

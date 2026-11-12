@@ -2129,6 +2129,14 @@ async def _wait_for_the_project(store, seconds: float = 30.0) -> str:
     the wait ended, half a second was slept for luck, and whatever had not
     landed by then was written to disk as an empty file. This waits for the
     bodies, and only stops early when every text document has one.
+
+    Or has been answered for. A recorded size is not a promise of text:
+    it is written once, at adoption, and the sharer may hold a document
+    that is empty because the file has since been emptied, because it is
+    a link that leads out of the project and is never read, or because it
+    is not UTF-8. Waiting for those to fill waited the whole deadline on
+    every attempt, so a sync answer for the document counts as its
+    arrival, since after it the document holds what the sharer's does.
     """
     loop = asyncio.get_running_loop()
     deadline = loop.time() + seconds
@@ -2139,25 +2147,34 @@ async def _wait_for_the_project(store, seconds: float = 30.0) -> str:
             if record.get("kind") == "text" and not record.get("trashed")
         ]
 
+    answered = getattr(store, "answered", set())
+
+    def still_waiting(listed: list[str]) -> list[str]:
+        # A record with a size of zero really is empty, and waiting for
+        # it to have contents would wait for ever.
+        return [
+            file_id for file_id in listed
+            if int(store.files[file_id].get("size") or 0) > 0
+            and f"text/{file_id}" not in answered
+            and not str(store.body(file_id) or "")
+        ]
+
     while loop.time() < deadline:
         listed = wanted()
-        if listed:
-            # A record with a size of zero really is empty, and waiting for
-            # it to have contents would wait for ever.
-            waiting = [
-                file_id for file_id in listed
-                if int(store.files[file_id].get("size") or 0) > 0
-                and not str(store.body(file_id) or "")
-            ]
-            if not waiting:
-                return ""
+        if listed and not still_waiting(listed):
+            return ""
         await asyncio.sleep(0.1)
 
-    if wanted():
+    listed = wanted()
+    if listed:
         # Something arrived and not all of it. Better to say so than to
-        # write the half that came as though it were the project.
-        return ("Only part of that project arrived before the connection "
-                "went quiet. Nothing has been written; try joining again.")
+        # write the half that came as though it were the project, and to
+        # name what is missing, which is what tells a slow link from a
+        # file the other end cannot send.
+        missing = sorted(str(store.files[f].get("path")) for f in still_waiting(listed))
+        named = ", ".join(missing[:5]) + (f" and {len(missing) - 5} more" if len(missing) > 5 else "")
+        return ("Only part of that project arrived in time. Still waiting "
+                f"for {named}. Nothing has been written; try joining again.")
     return ("Nothing arrived from that peer. They may be offline, or the "
             "invite may already have been used.")
 

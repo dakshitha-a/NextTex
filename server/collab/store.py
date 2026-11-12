@@ -354,6 +354,10 @@ class CollabStore:
         self._by_path: dict[str, str] | None = None
         #: path -> every live id naming it, rebuilt with `_by_path`.
         self._holders: dict[str, list[str]] = {}
+        #: Documents a peer has answered our opening sync step for. After
+        #: that answer the document holds whatever the peer holds, so an
+        #: empty one is empty there too; see `_wait_for_the_project`.
+        self.answered: set[str] = set()
 
         # The three guards against a write loop.  See the module docstring.
         self._projecting: set[str] = set()

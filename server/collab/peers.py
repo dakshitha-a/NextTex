@@ -580,6 +580,8 @@ class PeerLink:
                 self.network.after_reconnect(self, doc_id, doc, base, before, frame.payload[2:])
             elif step == 0 and text_doc:
                 self.network.note_their_state(self, doc_id, doc, frame.payload[2:])
+            if step == 1 and text_doc:
+                store.answered.add(doc_id)
             if reply is not None:
                 await self.send(wire.sync_step(doc_id, reply))
             if doc_id == "manifest":
