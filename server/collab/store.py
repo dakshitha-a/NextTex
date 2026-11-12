@@ -352,6 +352,8 @@ class CollabStore:
         # path -> file_id, built on demand and thrown away whenever the
         # manifest moves.  See `file_id_for`.
         self._by_path: dict[str, str] | None = None
+        #: path -> every live id naming it, rebuilt with `_by_path`.
+        self._holders: dict[str, list[str]] = {}
 
         # The three guards against a write loop.  See the module docstring.
         self._projecting: set[str] = set()
@@ -547,13 +549,27 @@ class CollabStore:
         Never call this from inside an observer: rebuilding reads the
         document, and an observer runs inside the transaction that fired it.
         """
-        if self._by_path is None:
-            self._by_path = paths = {}
-            for file_id, record in self.files.items():
-                if not record.get("trashed"):
-                    # First wins, which is what the scan this replaces did.
-                    paths.setdefault(record.get("path"), file_id)
+        self._index_paths()
         return self._by_path.get(relative)
+
+    def _index_paths(self) -> None:
+        """Build `_by_path`, and with it every live id each path has.
+
+        One scan for both, and both thrown away together, since every
+        place that drops the index drops `_by_path`, which is the flag.
+        """
+        if self._by_path is not None:
+            return
+        paths: dict[str, str] = {}
+        holders: dict[str, list[str]] = {}
+        for file_id, record in self.files.items():
+            if not record.get("trashed"):
+                path = record.get("path")
+                # First wins, which is what the scan this replaces did.
+                paths.setdefault(path, file_id)
+                holders.setdefault(path, []).append(file_id)
+        self._holders = holders
+        self._by_path = paths
 
     def path_for(self, file_id: str) -> str | None:
         record = self.files.get(file_id)
@@ -1677,11 +1693,17 @@ class CollabStore:
         new files of one name met, and seeding the second from the first's
         file merged the two chapters into one (Q-009).  `_part_clashes`
         gives the second a name of its own at the next flush.
+
+        Read from the path index, not a scan of the manifest. It is asked
+        once for every document opened, and a send opens every text record
+        the manifest names, trashed ones included, so the scan was
+        quadratic across the FFI boundary: a paper with 188 files and three
+        thousand records behind them spent 50 seconds here on a loaded
+        machine, every join of it gave up at 30, and the laptop was told
+        the connection had gone quiet.
         """
-        return any(
-            other != file_id and record.get("path") == path and not record.get("trashed")
-            for other, record in self.files.items()
-        )
+        self._index_paths()
+        return any(other != file_id for other in self._holders.get(path, ()))
 
     def _same_content(self, one: str, two: str) -> bool:
         a, b = self.files[one], self.files[two]
