@@ -122,3 +122,30 @@ async def test_a_file_the_sender_no_longer_has_is_answered_with_a_miss_and_asked
 
     await alice.close()
     await bob.close()
+
+
+@pytest.mark.asyncio
+async def test_a_figure_recorded_while_it_was_being_written_still_arrives(tmp_path):
+    """A record's size is written once, at adoption. A figure adopted while
+    the script drawing it had only just created the file was recorded at
+    0 bytes, and `want_files` skipped every record with no size, so the
+    laptop joined the methylamine paper without seven of its PDFs and
+    never asked for them."""
+    alice = Peer(tmp_path / "alice").be("a" * 64)
+    bob = Peer(tmp_path / "bob", {}).be("b" * 64)
+    (alice.project.root / "figures").mkdir()
+    (alice.project.root / "figures" / "seam.pdf").write_bytes(b"")
+    alice.store.adopt()
+    file_id = alice.store.file_id_for("figures/seam.pdf")
+    assert int(alice.store.files[file_id].get("size") or 0) == 0
+    figure = b"%PDF-1.5 the figure, drawn at last\n" * 50
+    (alice.project.root / "figures" / "seam.pdf").write_bytes(figure)
+
+    await join_up(alice, bob)
+
+    assert await until(
+        lambda: (bob.project.root / "figures" / "seam.pdf").exists(), 8.0
+    ), "a figure recorded at 0 bytes was never asked for"
+    assert (bob.project.root / "figures" / "seam.pdf").read_bytes() == figure
+    await alice.close()
+    await bob.close()

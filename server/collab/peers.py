@@ -489,8 +489,14 @@ class PeerLink:
         for file_id, record in list(store.files.items()):
             if record.get("kind") != "blob" or record.get("trashed"):
                 continue
+            # A recorded size of 0 is asked for all the same. The size is
+            # written once, at adoption, and a figure adopted while its
+            # script had only created the file was recorded empty; skipping
+            # those left seven PDFs of a joined paper never asked for. The
+            # sender checks the real size against the frame and answers a
+            # miss for anything it cannot send.
             size = int(record.get("size") or 0)
-            if not 0 < size <= wire.MAX_FRAME:
+            if size > wire.MAX_FRAME:
                 continue
             relative = str(record.get("path") or "")
             try:
