@@ -242,9 +242,12 @@ def uninstall() -> None:
 
 
 def _load() -> list[float]:
+    # Windows has no `os.getloadavg` at all, and the AttributeError that
+    # left uncaught ended `watch` at the first stall it went to record:
+    # the laptop's log had no lag or sample line after its first minute.
     try:
         return [round(x, 2) for x in os.getloadavg()]
-    except OSError:
+    except (OSError, AttributeError):
         return []
 
 

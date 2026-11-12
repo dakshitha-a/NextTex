@@ -268,3 +268,29 @@ def test_a_short_stall_takes_no_stack(log, monkeypatch):
     asyncio.run(run())
     lags = log("lag")
     assert lags and not any(row.get("held_by") for row in lags)
+
+
+def test_a_stall_on_a_machine_with_no_load_average_keeps_the_sampler_running(log, monkeypatch):
+    """Windows has no `os.getloadavg`. Asking for it at the first stall
+    raised AttributeError out of `watch`, and the laptop's log said nothing
+    about its loop from its first minute on."""
+    monkeypatch.delattr(diag.os, "getloadavg", raising=False)
+    monkeypatch.setattr(diag, "LAG_EVERY", 0.05)
+    monkeypatch.setattr(diag, "LAG_NOTE", 0.1)
+
+    async def run():
+        watcher = asyncio.create_task(diag.watch())
+        await asyncio.sleep(0.1)
+        time.sleep(0.3)
+        await asyncio.sleep(0.2)
+        assert not watcher.done(), "the sampler died at the stall"
+        time.sleep(0.3)
+        await asyncio.sleep(0.2)
+        watcher.cancel()
+        with pytest.raises(asyncio.CancelledError):
+            await watcher
+
+    asyncio.run(run())
+    lags = log("lag")
+    assert len(lags) >= 2, lags
+    assert lags[0]["load"] == []
