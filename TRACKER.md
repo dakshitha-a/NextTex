@@ -328,7 +328,7 @@ OpenAI provider against OpenAI itself.
       manifest, or sending what it points at, is a decision about what a
       link in a shared project means, and records already shared would
       need a migration either way.
-- [ ] **A join of a large paper from the Windows laptop never finishes:
+- [x] **A join of a large paper from the Windows laptop never finishes:
       the link to the sharer breaks every few seconds.** With both
       installs on 4.50.10, every link of the NexusQC paper's share
       between dak-n4 and the laptop ended after 0.5 to 6 s with
@@ -348,8 +348,20 @@ OpenAI provider against OpenAI itself.
       all 6,000 arrive on 4.50.11, which gathers a stream's writes into
       one and reads ahead of the link. A new reader with an old sender
       and an old reader with a new sender both pass, so one updated end
-      is enough. Open until the laptop joins the NexusQC paper and
-      NX-TeraChem.
+      is enough for text. Done on 12 November 2026: with the laptop on
+      4.50.11 the NexusQC paper joined in 38 s and NX-TeraChem's 82 texts
+      in 88 s, against dak-n4 on 4.50.10. NX-TeraChem's 106 figures still
+      broke the link until dak-n4 was on 4.50.11 too, since a joiner whose
+      loop stalls for seconds cannot read ahead of an old sender's small
+      frames; then all arrived within three minutes, and every file of
+      both papers matches the sharer.
+- [ ] **`test_a_broken_page_comes_back_to_the_agent_with_its_error_and_a_picture`
+      fails now and then on CI.** Twice on 12 November 2026, on 4.50.7
+      and on 4.50.11, the page check answered "had not read it back after
+      20 seconds" instead of the page's SyntaxError, and a re-run passed
+      both times. The browser on the runner is slower than 20 s to read a
+      page back at times; the test should give it longer, or the check
+      should be given a fake browser in this test.
 - [ ] **A join that gave up leaves a stall behind it.** After joins
       of three projects from the Windows laptop were abandoned on 12
       November 2026, a join of the dissertation failed with nothing
