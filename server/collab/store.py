@@ -1960,6 +1960,7 @@ class CollabStore:
             source.rename(target)
         except OSError:
             return
+        self._prune_emptied(source.parent)
         session = self.session
         if session is not None:
             # Without this the past stays filed under the old name, and the
@@ -1973,6 +1974,27 @@ class CollabStore:
             if noted is not None:
                 noted(was, now_called)
         self._named[file_id] = now_called
+
+    def _prune_emptied(self, folder: Path) -> None:
+        """Remove the folders a followed move or deletion left empty.
+
+        A peer's folder rename or deletion arrives as one record at a
+        time, and following each moved a file and left its folder, so the
+        Windows laptop's thesis kept four empty chapter folders in its
+        tree on 13 November 2026, and a throwaway share kept the old name
+        of a renamed one. Upward from the file's own folder, stopping at
+        the first that still holds anything and never at or above the
+        project root; `rmdir` refuses a folder that is not empty, which
+        is the whole test.
+        """
+        root = self.project.root.resolve()
+        current = folder
+        while current != root and root in current.parents:
+            try:
+                current.rmdir()
+            except OSError:
+                return
+            current = current.parent
 
     def _came_back(self, relative: str) -> None:
         """A file is on this path again, so it was not deleted after all.
@@ -2125,6 +2147,7 @@ class CollabStore:
         except Exception:
             log.warning("could not follow a deletion into the trash: %s", was)
             return False
+        self._prune_emptied(target.parent)
         # Say so.  A file a peer deleted left this disk without a word:
         # the trash panel did not refresh and the tree learned of it only
         # from the watcher, if at all.  Through a hook, as `note_moved`

@@ -91,6 +91,8 @@ async def test_a_deletion_followed_into_the_trash_adopts_nothing_back(tmp_path):
         assert live(bob, path) == [], f"bob re-adopted {path}"
         assert live(alice, path) == [], f"{path} came back to alice"
         assert not (alice.project.root / path).exists(), f"{path} is back on alice's disk"
+    assert not (bob.project.root / "chapters" / "old").exists(), "bob kept the empty folder"
+    assert (bob.project.root / "main.tex").exists()
 
     await alice.close()
     await bob.close()

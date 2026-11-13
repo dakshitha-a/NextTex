@@ -347,9 +347,12 @@ OpenAI provider against OpenAI itself.
       13 November 2026 held the loop for about 43 s. Left because moving
       it out of `settle_paths` reopens the re-adoption of followed paths,
       whose guard, `_following`, lives only for that call.
-- [ ] **A folder a peer deleted leaves empty folders behind.** The
-      follower trashes each file and leaves the directories, so the
-      laptop's thesis kept four empty chapter folders in its tree.
+- [x] **A folder a peer deleted leaves empty folders behind.** The
+      follower trashed or moved each file and left the directories, so
+      the laptop's thesis kept four empty chapter folders in its tree.
+      `_prune_emptied` removes the folders a followed move or deletion
+      leaves empty; asserted in `tests/collab/test_a_deleted_folder_stays_deleted.py`
+      and `tests/collab/test_a_rename_right_after_opening_is_followed.py`.
 - [ ] **Two updates can run at once on Windows.** A manual
       `scripts/update.ps1` and the scheduled one ran together on the
       laptop on 13 November 2026, ran it short of memory, and left the

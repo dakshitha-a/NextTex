@@ -43,6 +43,10 @@ def test_the_first_rename_after_opening_moves_the_files(tmp_path):
     assert (root / "chapters" / "new" / "figures" / "plot.pdf").is_file()
     assert not (root / "chapters" / "old" / "old.tex").exists()
     assert not (root / "chapters" / "old" / "figures" / "plot.pdf").exists()
+    # And the folders it left empty go with it, rather than staying in
+    # the tree as an empty chapter.
+    assert not (root / "chapters" / "old").exists()
+    assert (root / "chapters").is_dir()
     store.adopt()
     live = [r.get("path") for r in store.files.values() if not r.get("trashed")]
     assert not [p for p in live if p.startswith("chapters/old/")], live
