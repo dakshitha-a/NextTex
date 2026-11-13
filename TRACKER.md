@@ -368,11 +368,39 @@ OpenAI provider against OpenAI itself.
       installs on this host on 12 November 2026.
 - [ ] **A join sends a sync step and a history ask for every record,
       deleted files included.** The NexusQC paper's manifest holds 2764
-      records for 51 files, so a joiner works through about 4600 frames
-      before the first answer for a live file. The wait now runs while
-      frames arrive, but sending live documents first, or not asking a
-      fresh joiner for history it cannot hold, would make the join itself
-      quicker.
+      records for 51 files, and NX-TeraChem's 3057 for 188, so a joiner
+      works through thousands of frames before the first answer for a
+      live file. A joiner never had a deleted file, so it needs the
+      record's name and nothing else: no sync step, no history ask. The
+      first of the three cleanup steps below, and the cheapest; the
+      wait now runs while frames arrive, but this would make the join
+      itself as quick as a small project's.
+- [ ] **A shared record keeps every deleted file for ever.** On 12
+      November 2026 the NexusQC paper held 2713 deleted records and
+      NX-TeraChem 2869, none of them on disk: a copy of a code repository
+      under `refs/repo/` and `refs/writeup/`, `cas_paper/build` and `out`,
+      calculation bundles under `revision_calcs/expanse_bundle/`, and a
+      virtual environment, `.venv-fig/`, adopted before 7c96b5c hid an
+      environment under any name. A deleted record is a tombstone: it is
+      what tells a member who was away that the file is gone, so dropping
+      it blindly lets that member's old copy bring the file back. Two
+      passes, after the join fix above:
+      - **Records the current rules would never adopt** go without
+        coordination: anything under `IGNORED_DIRS`, a `pyvenv.cfg`
+        folder or `IGNORED_FILES`, since no member should hold them and a
+        member that does would not adopt them again. Done when opening a
+        project drops them from its manifest, with a test on a manifest
+        that lists a `.venv-fig/` file.
+      - **Other deleted records expire** once every member has agreed a
+        state that has the file deleted, through the `Agreed` index each
+        pair already keeps, and a grace period has passed, a few weeks.
+        Done when a record is dropped only after both, with a test for a
+        member who comes back after the grace period and does not
+        resurrect the file.
+      Raised by Dakshitha on 12 November 2026, who also asked for a way to
+      keep scratch out to begin with: a per-project ignore list, so a
+      cloned repository or a calculations folder is never shared, with
+      defaults for build output.
 - [ ] **A text file that is not UTF-8 is shared as an empty file.** Same
       cause and same symptom as the link above: `read_text` returns
       nothing for it. One Latin-1 build log in the resume project showed
