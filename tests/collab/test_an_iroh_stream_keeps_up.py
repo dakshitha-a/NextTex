@@ -136,3 +136,32 @@ async def test_a_failed_write_says_why_and_stops_the_next_send():
     with pytest.raises(ConnectionError):
         await stream.send(b"again")
     await stream.close()
+
+
+@pytest.mark.asyncio
+async def test_a_task_handed_a_stream_is_held_until_it_ends():
+    """asyncio holds a task only weakly. The task that hands an accepted
+    stream to its project waits on the peer's first frame, and one that
+    nothing held could be collected in that wait, taking the stream and
+    its connection with it."""
+    import gc
+    import weakref
+
+    from server.collab.transport import Handing
+
+    held = Handing()
+    gate = asyncio.Event()
+
+    async def waits():
+        await gate.wait()
+
+    task = asyncio.get_running_loop().create_task(waits())
+    held.add(task)
+    watch = weakref.ref(task)
+    del task
+    gc.collect()
+    assert watch() is not None and watch() in held
+    gate.set()
+    for _ in range(3):
+        await asyncio.sleep(0)
+    assert not held

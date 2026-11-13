@@ -34,6 +34,8 @@ import asyncio
 import struct
 from typing import AsyncIterator
 
+from .transport import Handing
+
 ALPN = b"nexttex/sync/1"
 
 # A message is length-prefixed because a QUIC stream is a stream: it
@@ -236,6 +238,11 @@ class IrohTransport:
         self._secret = secret
         self._endpoint = None
         self._accepting: asyncio.Task | None = None
+        #: The task handing each accepted stream to its project, held until
+        #: it ends. asyncio keeps only a weak reference to a task, so one
+        #: nothing else held could be collected while it waited on a peer's
+        #: first frame, and the stream and its connection with it.
+        self._handing = Handing()
         self.peer_id = ""
 
     async def start(self, on_stream) -> None:
@@ -262,7 +269,7 @@ class IrohTransport:
                 connection = await accepting.connect()
                 bi = await connection.accept_bi()
                 stream = IrohStream(connection, bi, str(connection.remote_id()))
-                asyncio.create_task(on_stream(stream))
+                self._handing.add(asyncio.create_task(on_stream(stream)))
             except asyncio.CancelledError:
                 return
             except Exception:

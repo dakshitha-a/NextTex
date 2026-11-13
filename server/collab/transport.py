@@ -116,6 +116,17 @@ class _Pipe:
         await self._out.put(None)
 
 
+class Handing(set):
+    """Tasks held until they finish, then let go. asyncio keeps only a
+    weak reference to a task, so a task started for an accepted stream and
+    held by nothing else can be collected while it waits, and its stream
+    with it."""
+
+    def add(self, task: asyncio.Task) -> None:
+        super().add(task)
+        task.add_done_callback(self.discard)
+
+
 class LoopbackHub:
     """Where in-process peers find each other.
 
@@ -127,6 +138,7 @@ class LoopbackHub:
     def __init__(self) -> None:
         self.listeners: dict[str, Callable[[PeerStream], Awaitable[None]]] = {}
         self.links: list[tuple[_Pipe, _Pipe]] = []
+        self._handing = Handing()
 
     def clear(self) -> None:
         self.listeners.clear()
@@ -140,7 +152,7 @@ class LoopbackHub:
         caller_end = _Pipe(callee, there, back)
         callee_end = _Pipe(caller, back, there)
         self.links.append((caller_end, callee_end))
-        asyncio.create_task(listener(callee_end))
+        self._handing.add(asyncio.create_task(listener(callee_end)))
         return caller_end
 
     async def sever(self) -> None:
