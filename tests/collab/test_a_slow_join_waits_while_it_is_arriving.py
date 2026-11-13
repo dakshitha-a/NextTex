@@ -124,3 +124,30 @@ async def test_a_peer_link_tallies_the_frames_it_handled(tmp_path):
     assert count >= 1 and total >= longest >= 0
     await bob.close()
     await alice.close()
+
+
+@pytest.mark.asyncio
+async def test_a_link_says_why_it_ended(tmp_path):
+    import json
+    import logging
+
+    from nexttex import diag
+
+    path = diag.install(tmp_path / "state", secrets=[], home="/home/someone")
+    try:
+        alice = Peer(tmp_path / "alice", {"main.tex": "The chapter.\n"}).be("a" * 64)
+        alice.store.adopt()
+        bob = Peer(tmp_path / "bob", {}).be("b" * 64)
+        await join_up(alice, bob)
+        await bob.close()
+        await alice.close()
+        # Closing cancels the links' tasks; their `finally` runs next.
+        await asyncio.sleep(0.2)
+        for handler in logging.getLogger("nexttex.diag").handlers:
+            handler.flush()
+        lines = [json.loads(row) for row in path.read_text().splitlines()
+                 if row and json.loads(row)["kind"] == "peer-link"]
+    finally:
+        diag.uninstall()
+    assert lines, "no link wrote why it ended"
+    assert all(line["ended"] and "seconds" in line for line in lines)

@@ -65,6 +65,7 @@ from pathlib import Path
 from pycrdt import Doc, Map, Text, create_sync_message, handle_sync_message, read_message
 from pycrdt._sync import create_sync_step1_message
 
+from nexttex import diag
 from nexttex.atomic import write_atomically
 from nexttex.history import now_ms
 from nexttex.project import shares_home
@@ -111,6 +112,15 @@ INVITE_TTL_SECONDS = 7 * 24 * 60 * 60
 # into it -- a peer that quietly stops receiving looks like a peer that is
 # up to date. Same reasoning as the browser event stream's.
 OUTBOX = 2048
+
+#: How full an outbox may be before agreement traffic, which can wait for
+#: the next round, stops adding to it. An agreement round queued a frame
+#: for every document that moved, all at once: a join of a paper with 2568
+#: document logs queued more than `OUTBOX` in one round, the link was
+#: closed as a peer not keeping up, both ends dialled again and sent the
+#: whole project again, and on the Windows laptop that went round for ten
+#: minutes.
+AGREE_ROOM = OUTBOX // 2
 
 
 # A content address is sixty-four hex characters and nothing else. Checked
@@ -309,6 +319,10 @@ class PeerLink:
         self.colour = ""
         self.address = ""
         self.alive = True
+        #: Why this side let the link go, when it was this side: a newer
+        #: link replaced it, or its outbox overflowed. For the diagnostics
+        #: line `run` writes as the link ends.
+        self.dropped_why = ""
         #: Set when the other end answered this link with a DENIED.  Read
         #: by the dial loop, which backs off from a peer that refuses us
         #: rather than dialling it again two seconds later.
@@ -368,6 +382,7 @@ class PeerLink:
         try:
             self.outbox.put_nowait(frame)
         except asyncio.QueueFull:
+            self.dropped_why = self.dropped_why or "outbox full"
             self.alive = False
             self.network.dropped(self)
 
@@ -519,17 +534,23 @@ class PeerLink:
         # closed stream does.
         messages = aiter(self.stream)
         self._pinger = asyncio.create_task(self._keep_pinging())
+        opened = asyncio.get_running_loop().time()
+        why = "closed"
         try:
             while True:
                 try:
                     raw = await asyncio.wait_for(anext(messages), self.silence_limit)
-                except (StopAsyncIteration, asyncio.TimeoutError):
+                except StopAsyncIteration:
+                    break
+                except asyncio.TimeoutError:
+                    why = "silent"
                     break
                 try:
                     frame = wire.Frame.decode(raw)
                 except ValueError:
                     # A peer speaking nonsense is a peer to stop talking to,
                     # not a reason to take the project down.
+                    why = "nonsense"
                     break
                 # Noted before and after, so a wait for the project can
                 # tell a slow link that is still delivering from one that
@@ -550,9 +571,18 @@ class PeerLink:
                     tally[0] += 1
                     tally[1] += took - began
                     tally[2] = max(tally[2], took - began)
-        except Exception:
-            pass
+        except Exception as error:
+            why = f"{type(error).__name__}: {error}"[:300]
         finally:
+            # Why each link ended, since a join that kept being dialled
+            # again on the Windows laptop showed sixteen welcomes in ten
+            # minutes and nothing said what took the fifteen down.
+            if why == "closed" and self.dropped_why:
+                why = self.dropped_why
+            diag.event(
+                "peer-link", ended=why, peer=self.peer_id[:8], outbound=self.outbound,
+                seconds=round(asyncio.get_running_loop().time() - opened, 1),
+            )
             self.alive = False
             if self._pinger is not None:
                 self._pinger.cancel()
@@ -1484,6 +1514,7 @@ class PeerNetwork:
             if existing.outbound == lower_dials and link.outbound != lower_dials:
                 return False
         if existing is not None and existing is not link:
+            existing.dropped_why = existing.dropped_why or "replaced"
             existing.alive = False
             self._spawn(_quietly_close(existing.stream))
         self.links[link.peer_id] = link
@@ -1536,8 +1567,12 @@ class PeerNetwork:
             if self.agreed.save(link.peer_id, doc_id, doc.get_update()):
                 # Only the side that hears a matching state knows the two
                 # match; ours goes back so theirs can note it as well. Two
-                # at most, since the second finds it noted already.
-                link.enqueue(wire.sync_step(doc_id, create_sync_message(doc)))
+                # at most, since the second finds it noted already. With
+                # the outbox past `AGREE_ROOM` it goes with the next round.
+                if link.outbox.qsize() >= AGREE_ROOM:
+                    link.to_agree.add(doc_id)
+                else:
+                    link.enqueue(wire.sync_step(doc_id, create_sync_message(doc)))
 
     def _begin_agreeing(self) -> None:
         if self._agreeing is None or self._agreeing.done():
@@ -1552,11 +1587,16 @@ class PeerNetwork:
         that moved, so each side can note what the two agree on."""
         while not self._closed:
             await asyncio.sleep(AGREE_EVERY)
+            self.agreed.flush()
             for link in list(self.links.values()):
                 if not (link.alive and link.can_merge and link.to_agree):
                     continue
                 docs, link.to_agree = link.to_agree, set()
                 for doc_id in docs:
+                    if link.outbox.qsize() >= AGREE_ROOM:
+                        # The rest wait for a round with room in it.
+                        link.to_agree.add(doc_id)
+                        continue
                     if doc_id in link.from_base:
                         # Its opening step 1 is still unanswered, and the
                         # answer to this one must not be taken for it.
@@ -1922,6 +1962,7 @@ class PeerNetwork:
         self._closed = True
         # Before the tasks are cancelled: the debounced save is one of them.
         self.marks.save()
+        self.agreed.flush()
         if self._document_changed in self.store.listeners:
             self.store.listeners.remove(self._document_changed)
         if self.hub is not None and self.hub.on_awareness is self._awareness_changed:
