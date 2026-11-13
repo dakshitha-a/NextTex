@@ -77,6 +77,7 @@ import logging
 import re
 import secrets
 import threading
+import time
 from pathlib import Path, PurePosixPath
 from typing import Any, Callable
 
@@ -1366,6 +1367,29 @@ class CollabStore:
                 for file_id in gone:
                     del self.files[file_id]
         return len(gone)
+
+    def expire_deleted(self, members: set[str], now: float | None = None,
+                       grace: float | None = None) -> int:
+        """Drop deleted records every other member has seen go, a grace
+        period after the last of them did; see `forgetting.py`. `members`
+        is every other member whose acknowledgment counts, empty for a
+        project nobody else holds. Returns how many were dropped."""
+        from . import forgetting
+
+        if getattr(self, "forgetting", None) is None:
+            self.forgetting = forgetting.Forgetting(self.root)
+        trashed = {file_id for file_id, record in self.files.items() if record.get("trashed")}
+        drop = self.forgetting.due(
+            trashed, set(members), time.time() if now is None else now,
+            forgetting.GRACE if grace is None else grace,
+        )
+        drop = [file_id for file_id in drop
+                if file_id in self.files and self.files[file_id].get("trashed")]
+        if drop:
+            with self.manifest.transaction():
+                for file_id in drop:
+                    del self.files[file_id]
+        return len(drop)
 
     def key_for(self, relative: str) -> str | None:
         """The key a path's history is filed under: the file's id.

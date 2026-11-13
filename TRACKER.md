@@ -378,7 +378,7 @@ OpenAI provider against OpenAI itself.
       deleted file's text is not synced and not marked offered, so a
       restore offers it then; its history is still asked for, so a joiner
       keeps a deleted file's past.
-- [ ] **A shared record keeps every deleted file for ever.** On 12
+- [x] **A shared record keeps every deleted file for ever.** On 12
       November 2026 the NexusQC paper held 2713 deleted records and
       NX-TeraChem 2869, none of them on disk: a copy of a code repository
       under `refs/repo/` and `refs/writeup/`, `cas_paper/build` and `out`,
@@ -394,15 +394,17 @@ OpenAI provider against OpenAI itself.
         session opens the project, since 4.50.13. Only four records in
         the seven papers qualified, the NexusQC paper's `.venv-fig/`; the
         rest of the deleted records are real folders, for the step below.
-      - **Other deleted records expire** once every member has agreed a
-        state that has the file deleted, through the `Agreed` index each
-        pair already keeps, and a grace period has passed, a few weeks.
-        Done when a record is dropped only after both, with a test for a
-        member who comes back after the grace period and does not
-        resurrect the file.
-      Raised by Dakshitha on 12 November 2026, who also asked for a way to
-      keep scratch out to begin with: a per-project ignore list, so a
-      cloned repository or a calculations folder is never shared, with
+      - [x] **Other deleted records expire** thirty days after every other
+        member's manifest state has covered the deletion, since 4.51.0,
+        through `server/collab/forgetting.py`; Dakshitha chose automatic
+        expiry with a thirty-day grace on 13 November 2026. Tested with a
+        member away while the file went, a member who restored it offline
+        after acknowledging, and a member who never acknowledges, who
+        holds every later tombstone until removed from the share.
+      Raised by Dakshitha on 12 November 2026.
+- [ ] **A per-project ignore list.** Dakshitha asked on 12 November 2026
+      for a way to keep scratch out of a shared project to begin with, so
+      a cloned repository or a calculations folder is never shared, with
       defaults for build output.
 - [ ] **A text file that is not UTF-8 is shared as an empty file.** Same
       cause and same symptom as the link above: `read_text` returns

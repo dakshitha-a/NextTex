@@ -566,6 +566,10 @@ class ProjectSession:
         self.collab = CollabStore(project, self)
         self.collab.adopt()
         self.collab.forget_machinery()
+        if not self.collab.shared:
+            # Nobody else holds it, so nobody has to see a deletion before
+            # its record expires; a shared project's network does this.
+            self.collab.expire_deleted(set())
         # The history is keyed by the manifest's file ids, and the store is
         # what knows them: bound here, once the store exists, and a store
         # still keyed by path slug is migrated on the way.

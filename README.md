@@ -359,6 +359,7 @@ From then on, the two copies stay in step.
 | You want to suggest a change | Leave a comment, or suggest new words. They accept it with one press. |
 | You lose your folder | Nobody else is affected. You rejoin from your co-authors, with no new invite. |
 | Someone wants out | Anyone can leave, and their copy stays theirs. |
+| A file was deleted long ago | Once everyone has seen it go, the shared record forgets it 30 days later, so joins stay quick. Your own copy keeps its history. |
 
 ### The always-on host
 

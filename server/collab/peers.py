@@ -72,6 +72,7 @@ from nexttex.project import shares_home
 
 from . import endpoint, history_sync, identity, paragraphs, transport, wire
 from .iroh_transport import said
+from . import forgetting
 from .agreed import Agreed, state_of
 from .store import ARRIVED_LIMIT, _kept_both, _WELL_FORMED_ID as _WELL_FORMED_ID_RE
 
@@ -647,6 +648,8 @@ class PeerLink:
                 self.network.after_reconnect(self, doc_id, doc, base, before, frame.payload[2:])
             elif step == 0 and text_doc:
                 self.network.note_their_state(self, doc_id, doc, frame.payload[2:])
+            elif step == 0 and doc_id == "manifest":
+                self.network.note_their_manifest(self, frame.payload[2:])
             if step == 1 and text_doc:
                 store.answered.add(doc_id)
             if reply is not None:
@@ -965,6 +968,7 @@ class PeerNetwork:
         self.transport = self._make_transport()
         await self.transport.start(self._accept)
         self._begin_agreeing()
+        self.expire_deleted()
         self.store.listeners.append(self._document_changed)
         if self.hub is not None:
             # Cursors, outward. Without this the collaborator strip and the
@@ -1569,6 +1573,44 @@ class PeerNetwork:
         link.from_base[doc_id] = base
         return create_sync_step1_message(agreed.get_state())
 
+    def note_their_manifest(self, link: PeerLink, message: bytes) -> None:
+        """A member's manifest state vector covers ours: they hold every
+        deletion we have seen, which is what lets a deleted record expire.
+        See `forgetting.py`."""
+        try:
+            theirs = state_of(read_message(message))
+        except Exception:
+            return
+        ours = state_of(self.store.manifest.get_state())
+        if all(theirs.get(client, 0) >= clock for client, clock in ours.items()):
+            self.store_forgetting().acknowledged(link.peer_id, time.time())
+
+    def store_forgetting(self) -> "forgetting.Forgetting":
+        if getattr(self.store, "forgetting", None) is None:
+            self.store.forgetting = forgetting.Forgetting(self.store.root)
+        return self.store.forgetting
+
+    def _offer_manifest_state(self) -> None:
+        """Send each live link our manifest state, so a member's
+        acknowledgment of a deletion comes within `ACK_EVERY` rather than
+        at the next reconnection."""
+        for link in list(self.links.values()):
+            if link.alive and link.outbox.qsize() < AGREE_ROOM:
+                link.enqueue(wire.sync("manifest", create_sync_message(self.store.manifest)))
+
+    def expire_deleted(self) -> int:
+        """Drop the deleted records every other member has acknowledged,
+        a grace period on. A member removed from the share does not count."""
+        members = {
+            peer_id for peer_id in self.share.members
+            if peer_id != self.peer_id and self.share.allows(peer_id)
+        }
+        try:
+            return self.store.expire_deleted(members)
+        except Exception:
+            log.exception("could not expire deleted records")
+            return 0
+
     def note_their_state(self, link: PeerLink, doc_id: str, doc, message: bytes) -> None:
         """A peer's state vector names exactly what we hold: that is a
         state the two of us agree on, and the base for the next merge."""
@@ -1598,9 +1640,15 @@ class PeerNetwork:
     async def _keep_agreeing(self) -> None:
         """Every few seconds, tell each peer our state for the documents
         that moved, so each side can note what the two agree on."""
+        loop = asyncio.get_running_loop()
+        offered_manifest = loop.time()
         while not self._closed:
             await asyncio.sleep(AGREE_EVERY)
             self.agreed.flush()
+            if loop.time() - offered_manifest >= forgetting.ACK_EVERY:
+                offered_manifest = loop.time()
+                self._offer_manifest_state()
+                self.expire_deleted()
             for link in list(self.links.values()):
                 if not (link.alive and link.can_merge and link.to_agree):
                     continue
