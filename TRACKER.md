@@ -328,6 +328,22 @@ OpenAI provider against OpenAI itself.
       manifest, or sending what it points at, is a decision about what a
       link in a shared project means, and records already shared would
       need a migration either way.
+- [ ] **A join of a large paper from the Windows laptop never finishes:
+      the link to the sharer breaks every few seconds.** With both
+      installs on 4.50.10, every link of the NexusQC paper's share
+      between dak-n4 and the laptop ended after 0.5 to 6 s with
+      `read failed: IrohError:` and an empty message, on both ends, and
+      each new link sent the whole project again. Meanwhile the laptop
+      dialled dak-n4 for each of its five idle shares every 3 to 5 s and
+      was turned away at once, so dak-n4 held links for those shares that
+      the laptop's networks did not see as theirs. Two installs on dak-n4
+      never showed it: not with 2,500 files, a joiner already a member,
+      or one sharing five projects, and closing a second iroh connection
+      to a peer does not break the first on iroh 1.1 or 1.2 on Linux.
+      Untested suspects: `IrohTransport._accept_loop` accepts one
+      connection at a time, so a hung `accept_bi` or a stalled event loop,
+      up to 20 s a frame on the laptop, holds every later dial; and the
+      laptop's iroh build on Windows. NX-TeraChem waits on the same fix.
 - [ ] **A join that gave up leaves a stall behind it.** After joins
       of three projects from the Windows laptop were abandoned on 12
       November 2026, a join of the dissertation failed with nothing
