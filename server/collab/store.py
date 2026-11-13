@@ -496,6 +496,7 @@ class CollabStore:
             self._loop = None
 
         self._load_manifest()
+        self._name_what_opened()
         #: The sha256 of what this install last wrote to each file, by id,
         #: kept on disk across restarts.  Nothing else can say whether a
         #: file that disagrees with its document was edited outside or was
@@ -642,6 +643,32 @@ class CollabStore:
         self._subscriptions.append(
             (self.comments, self.comments.observe_deep(self._comments_changed))
         )
+
+    def _name_what_opened(self) -> None:
+        """Take the paths the manifest holds as it opens as `_named`.
+
+        `settle_paths` follows a rename by comparing a record's path with
+        the path it last settled, and that was filled lazily, the first
+        time a flush saw each record after a change. So the first change
+        to every record after a store opened was taken as the baseline
+        rather than followed: in a throwaway share on 13 November 2026 the
+        Windows laptop, just joined, was told a chapter folder had been
+        renamed, moved its records and left its files, adopted the old
+        files again under fresh records, and the old folder came back on
+        both machines. The manifest on disk is what this install last
+        agreed, so its paths are where the files are.
+
+        No fence here: `_rename_locally` and `_trash_locally` resolve both
+        ends through `resolve_for_write` before they touch anything, and
+        resolving every path of a large project at open is what held the
+        laptop's loop in OneDrive. A trashed record is left out; whether
+        a file still on disk under a deleted record's name is the same
+        file is the open question in TRACKER.md.
+        """
+        for file_id, record in self.files.items():
+            path = str(record.get("path") or "")
+            if path and not record.get("trashed"):
+                self._named[file_id] = path
 
     def _manifest_changed(self, event) -> None:
         # Dropped rather than repaired: this runs inside the transaction that

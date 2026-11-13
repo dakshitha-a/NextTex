@@ -94,3 +94,43 @@ async def test_a_deletion_followed_into_the_trash_adopts_nothing_back(tmp_path):
 
     await alice.close()
     await bob.close()
+
+
+@pytest.mark.asyncio
+async def test_a_folder_rename_followed_file_by_file_adopts_nothing_back(tmp_path):
+    """The same walk, reached from a rename. Found on the Windows laptop
+    in a throwaway share on 13 November 2026: a chapter folder renamed on
+    dak-n4 was followed one file at a time, the history's `note_move` for
+    the first file asked for a key, and the walk gave every file not yet
+    moved a fresh record at the old path, so the old folder came back on
+    both machines."""
+    alice = make(tmp_path / "alice", FILES).be("a" * 64)
+    bob = make(tmp_path / "bob", {}).be("b" * 64)
+    await join_up(alice, bob)
+    old = FIGURES + ["chapters/old/old.tex", "chapters/old/si.tex"]
+    assert await until(
+        lambda: all((bob.project.root / p).exists() for p in old), 10.0
+    ), "the join never delivered the chapter"
+    bob.store.flush()
+
+    for path in old:
+        alice.store.rename(path, path.replace("chapters/old/", "chapters/new/"))
+        target = alice.project.root / path.replace("chapters/old/", "chapters/new/")
+        target.parent.mkdir(parents=True, exist_ok=True)
+        (alice.project.root / path).rename(target)
+    alice.store.flush()
+
+    new = [p.replace("chapters/old/", "chapters/new/") for p in old]
+    assert await until(
+        lambda: all((bob.project.root / p).exists() for p in new), 10.0
+    ), "bob did not follow the rename"
+    for _ in range(3):
+        bob.store.flush()
+        alice.store.flush()
+    for path in old:
+        assert live(bob, path) == [], f"bob re-adopted {path}"
+        assert live(alice, path) == [], f"{path} came back to alice"
+        assert not (bob.project.root / path).exists(), f"{path} is still on bob's disk"
+
+    await alice.close()
+    await bob.close()

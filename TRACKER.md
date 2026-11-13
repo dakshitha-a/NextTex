@@ -317,12 +317,19 @@ OpenAI provider against OpenAI itself.
 
 ### Known gaps, with a cost somebody will eventually pay
 
-- [ ] **A deletion that synced while a machine was closed is adopted
-      back on open.** `_named` is empty when a project opens, so a record
-      flagged deleted elsewhere whose file is still on this disk is taken
-      as the baseline and never followed, and `adopt` then gives that
-      file a fresh record that brings it back for everybody. Found while
-      fixing the thesis's returning figures on 13 November 2026; left
+- [x] **The first rename or deletion after a project opens is
+      followed.** `_named` started empty at open, so the first change to
+      each record was taken as the baseline; a throwaway share on 13
+      November 2026 lost a folder rename to it on the Windows laptop. The
+      live records' paths are the baseline now;
+      `tests/collab/test_a_rename_right_after_opening_is_followed.py`.
+- [ ] **A deletion persisted but not followed before a machine closed
+      is adopted back on open.** A record already flagged deleted when
+      the manifest opens is left out of the baseline, so its file, still
+      on this disk, is never followed into the trash, and `adopt` then
+      gives that file a fresh record that brings it back for everybody.
+      Found while fixing the thesis's returning figures on 13 November
+      2026; left
       because telling a stale copy from a new file made under a deleted
       name needs a rule about what a match is, and a wrong match puts a
       writer's new file in the trash.
