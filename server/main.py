@@ -558,7 +558,7 @@ async def _watch_projects() -> None:
                             continue
                         if session.is_own_write(path):
                             continue
-                        touched.setdefault(session.project.id, set()).add(str(rel))
+                        touched.setdefault(session.project.id, set()).add(rel.as_posix())
                 for project_id, paths in touched.items():
                     session = SESSIONS.get(project_id)
                     if not session:
@@ -6329,7 +6329,7 @@ async def load_template(project_id: str, name: str = Body("basic", embed=True)):
         relative = path.relative_to(source)
         # The template's lead document becomes *this* project's first
         # document, whatever it is called.
-        target = main if str(relative) == lead else session.project.root / relative
+        target = main if relative.as_posix() == lead else session.project.root / relative
         if target.exists() and target.stat().st_size > 0 and target != main:
             continue          # never overwrite a file the writer already has
         target.parent.mkdir(parents=True, exist_ok=True)
