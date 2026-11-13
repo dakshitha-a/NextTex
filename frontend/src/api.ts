@@ -54,6 +54,9 @@ export type BuildSummary = Explanation & {
   line: number | null;
   others: number;
   note: string;
+  /** The package file the first error says is missing, "" when none:
+   *  the card carries the Install button its own words promise. */
+  missingFile?: string;
 };
 
 /** The three engines a document may ask for; "" on a setting means the

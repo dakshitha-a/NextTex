@@ -48,14 +48,23 @@ function InstallPackage({ file }: { file: string }) {
     if (!projectId) return;
     api.texPackage(projectId, file)
       .then((answer) => live && setFound(answer))
-      .catch(() => live && setFound({ package: "", manager: "" }));
+      // A failed question shows nothing rather than claim no manager.
+      .catch(() => undefined);
     return () => {
       live = false;
     };
   }, [projectId, file]);
 
   if (!projectId || !found) return null;
-  if (!found.manager) return null;
+  if (!found.manager) {
+    // The explanation above promises a button, so its absence is said.
+    return (
+      <p className="t-meta mt-2 text-ink-3" data-testid="tex-install-unmanaged">
+        No package manager was found beside the TeX your builds use, so
+        install {file} by hand as above.
+      </p>
+    );
+  }
   if (!found.package) {
     return (
       <p className="t-meta mt-2 text-ink-3" data-testid="tex-install-none">
@@ -383,7 +392,10 @@ export default function Diagnostics({
                         <span className="font-medium text-ink">What to do: </span>
                         {item.explain.fix}
                       </p>
-                      {item.missingFile ? (
+                      {/* Not on the row Start here is about: the card
+                          carries that one's button, and two would ask
+                          the mirror twice. */}
+                      {item.missingFile && item.missingFile !== summary?.missingFile ? (
                         <InstallPackage file={item.missingFile} />
                       ) : null}
                     </>
@@ -519,6 +531,9 @@ export default function Diagnostics({
               {summary.fix}
             </p>
           ) : null}
+          {/* The fix says "the Install button here", so here it is,
+              rather than inside a row the writer has to open first. */}
+          {summary.missingFile ? <InstallPackage file={summary.missingFile} /> : null}
           {summary.note ? (
             <p className="t-meta mt-1 text-ink-3">{summary.note}</p>
           ) : null}

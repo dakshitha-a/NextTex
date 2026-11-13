@@ -58,9 +58,13 @@ test("a missing package is installed from its row in two presses, and the build 
     await expect(page.getByTestId("diagnostics").locator("pre").last())
       .toContainText(/^(pdfTeX|XeTeX|This is LuaHBTeX)/, { timeout: 15_000 });
 
-    // The row asked which package provides the file, and says so.
-    const install = page.getByTestId("tex-install");
+    // Start here asked which package provides the file, and carries the
+    // button its "What to do" promises, so no row has to be opened for it
+    // (13 November 2026, the laptop). The row it is about has none of its
+    // own, or there would be two.
+    const install = page.getByTestId("build-summary").getByTestId("tex-install");
     await expect(install).toHaveText("Install nothere-pkg", { timeout: 15_000 });
+    await expect(page.getByTestId("tex-install")).toHaveCount(1);
     await install.click();
     await expect(install).toHaveText("Yes, install nothere-pkg");
     await expect(page.getByTestId("diagnostics")).toContainText("Downloads nothere-pkg from a CTAN mirror");

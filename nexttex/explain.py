@@ -349,6 +349,9 @@ def summarise(diagnostics: list[dict]) -> dict | None:
         "detail": found["detail"] if found else "",
         "fix": found["fix"] if found else "",
         "others": rest,
+        # The card says "the Install button here", so it carries the
+        # button: the file it would install, as the row has it.
+        "missingFile": missing_file(first.get("message", "")),
         # Said plainly, because it is the part people get wrong: the list
         # below the first error is usually its own consequence.
         "note": (

@@ -253,3 +253,17 @@ def test_a_build_that_did_not_finish_says_so():
     assert compile_report("main.tex", {"outcome": "timeout"}) == (
         "main.tex: the build did not finish (timeout)."
     )
+
+
+def test_the_summary_names_the_missing_package_file_its_card_installs():
+    """Its fix says "the Install button here", so the card needs the file
+    the button installs (13 November 2026, the laptop)."""
+    found = summarise([
+        {"severity": "error", "message": "LaTeX Error: File `newtxtext.sty' not found.",
+         "file": "formatting.tex", "line": None},
+        {"severity": "error", "message": "Emergency stop.", "file": "formatting.tex", "line": 37},
+    ])
+    assert found["missingFile"] == "newtxtext.sty"
+    assert summarise([
+        {"severity": "error", "message": "! Missing $ inserted.", "file": "main.tex", "line": 1},
+    ])["missingFile"] == ""

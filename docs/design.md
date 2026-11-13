@@ -7872,6 +7872,14 @@ scrolling block, because a TinyTeX behind its mirror fails with "remote
 repository is newer than local" and that sentence is the whole of the
 fix. A missing `.cls` gets the same row under its own title.
 
+Since 13 November 2026 the button stands in the Start here card when
+the first error is the missing package, under the "What to do" that
+names it, because the card said "the Install button here" while the
+button sat inside a row that had to be opened first; the row Start here
+is about carries none of its own, so there is never a second. When the
+TeX has no package manager the card and the row say so in a quiet line
+instead of promising a button that is not there.
+
 `tests/test_texpkg.py` parses tlmgr's real output, remembers an answer
 per file, refuses anything that is not a package name before the manager
 sees it, and hands back the manager's words on failure;
