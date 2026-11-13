@@ -1527,6 +1527,26 @@ class CollabStore:
             if file_id in self.last_projected:
                 self.last_projected[file_id] = self.last_projected[file_id]
 
+    def live_under(self, folder: str) -> dict[str, str]:
+        """The live records inside a folder, by their path within it."""
+        prefix = f"{folder}/"
+        return {
+            path[len(prefix):]: file_id
+            for file_id, record in self.files.items()
+            if not record.get("trashed")
+            and (path := str(record.get("path") or "")).startswith(prefix)
+        }
+
+    def files_under(self, folder: str) -> set[str]:
+        """The files on disk inside a folder, by their path within it, as
+        the tree sees them: what it ignores is not here either."""
+        prefix = f"{folder}/"
+        return {
+            path[len(prefix):]
+            for path, _kind, _size in self._walk()
+            if path.startswith(prefix)
+        }
+
     # --- disk -> document -------------------------------------------------
 
     def ingest(self, relative: str, after: str | None, *, by: str = "external",

@@ -317,6 +317,27 @@ OpenAI provider against OpenAI itself.
 
 ### Known gaps, with a cost somebody will eventually pay
 
+- [ ] **A deletion that synced while a machine was closed is adopted
+      back on open.** `_named` is empty when a project opens, so a record
+      flagged deleted elsewhere whose file is still on this disk is taken
+      as the baseline and never followed, and `adopt` then gives that
+      file a fresh record that brings it back for everybody. Found while
+      fixing the thesis's returning figures on 13 November 2026; left
+      because telling a stale copy from a new file made under a deleted
+      name needs a rule about what a match is, and a wrong match puts a
+      writer's new file in the trash.
+- [ ] **The laptop's loop stalled 82 s in `want_files`.** On 13 November
+      2026 at 03:13 the laptop's event loop sat in `ntpath.realpath`,
+      called from `want_files` through `resolve_for_write` for every
+      blob record, on a project inside OneDrive. Left because it needs a
+      reproduction on Windows with OneDrive placeholders; the likely fix
+      is resolving off the loop or once per folder.
+- [ ] **Deleting four folders from the tree raised React error #185.**
+      The browser on dak-n4 logged "Maximum update depth exceeded" at
+      03:12:10 on 13 November 2026, three seconds after four chapter
+      folders were deleted through the trash. Left because the stack in
+      the log is minified and nobody has reproduced it yet.
+
 - [ ] **A link out of the project is shared as an empty file.** The
       tree lists a symlink whose target is outside the project, `adopt`
       records it as text, and `Project.resolve` then refuses to read it,

@@ -293,6 +293,62 @@ def _read_empty_over_text(session: ProjectSession, paths: set[str]) -> bool:
     return False
 
 
+def _folders_in_tick(session: ProjectSession, paths: set[str]) -> set[str]:
+    """The files a tick's folders stand for.
+
+    A folder renamed or removed whole is reported as the folder alone,
+    with no word about the files inside it, and `ingest` knows files. So
+    a `git mv` of a chapter left every record inside it naming a path
+    that was gone, and on a shared project the other machine was asked
+    for those files on every reconnect and they were written back (the
+    thesis, 13 November 2026). A folder that went and one that came
+    holding every file it held are a rename, kept as one so each file
+    keeps its id and its past and the others move theirs; that takes
+    exactly one candidate the manifest knows nothing under, or it is
+    not guessed. A folder that only went is its files going, and one
+    that only came is its files the manifest has not heard of arriving.
+    """
+    collab = session.collab
+    went: list[tuple[str, dict[str, str]]] = []
+    came: list[str] = []
+    for relative in paths:
+        try:
+            target = session.project.resolve(relative)
+        except (PermissionError, OSError, ValueError):
+            continue
+        if target.is_dir():
+            came.append(relative)
+        elif not target.exists():
+            inside = collab.live_under(relative)
+            if inside:
+                went.append((relative, inside))
+    if not went and not came:
+        return paths
+    out = set(paths)
+    on_disk = {new: collab.files_under(new) for new in came}
+    claimed: set[str] = set()
+    for old, inside in went:
+        out.discard(old)
+        matches = [
+            new for new in came
+            if new not in claimed and on_disk[new]
+            and set(inside) <= on_disk[new] and not collab.live_under(new)
+        ]
+        if len(matches) != 1:
+            out |= {f"{old}/{rest}" for rest in inside}
+            continue
+        new = matches[0]
+        claimed.add(new)
+        collab.rename(old, new)
+        session.history.note_move(old, new)
+        session.note_moved(old, new)
+    for new in came:
+        out.discard(new)
+        known = collab.live_under(new)
+        out |= {f"{new}/{rest}" for rest in on_disk[new] if rest not in known}
+    return out
+
+
 async def _fold_tick(session: ProjectSession, paths: set[str]) -> None:
     """One watcher tick's changes, into the documents and the history.
 
@@ -342,6 +398,7 @@ async def _fold_tick(session: ProjectSession, paths: set[str]) -> None:
     """
     stamp = f"outside:{now_ms()}"
     collab = session.collab
+    paths = _folders_in_tick(session, paths)
     # An editor that truncates a file and then writes it can be read in
     # between, and folding that empty read would blank the document for
     # everybody. So a file read empty over a document that is not is read
