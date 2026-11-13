@@ -332,18 +332,24 @@ OpenAI provider against OpenAI itself.
       the link to the sharer breaks every few seconds.** With both
       installs on 4.50.10, every link of the NexusQC paper's share
       between dak-n4 and the laptop ended after 0.5 to 6 s with
-      `read failed: IrohError:` and an empty message, on both ends, and
-      each new link sent the whole project again. Meanwhile the laptop
-      dialled dak-n4 for each of its five idle shares every 3 to 5 s and
-      was turned away at once, so dak-n4 held links for those shares that
-      the laptop's networks did not see as theirs. Two installs on dak-n4
-      never showed it: not with 2,500 files, a joiner already a member,
-      or one sharing five projects, and closing a second iroh connection
-      to a peer does not break the first on iroh 1.1 or 1.2 on Linux.
-      Untested suspects: `IrohTransport._accept_loop` accepts one
-      connection at a time, so a hung `accept_bi` or a stalled event loop,
-      up to 20 s a frame on the laptop, holds every later dial; and the
-      laptop's iroh build on Windows. NX-TeraChem waits on the same fix.
+      `read failed: IrohError:` and an empty message, and each new link
+      sent the whole project again. `IrohError` prints as nothing; a
+      throwaway sharer on dak-n4 that logged its `message()` showed the
+      laptop closing each connection with "too many gaps in stream
+      buffer": noq, iroh's QUIC, closes a connection once a stream's
+      receive buffer holds more than 1024 pieces. Reordered packets were
+      the first suspect and not the cause: noq never merges frames that
+      each filled a packet, so every frame received and not yet read is a
+      piece. A join wrote each of its hundreds of thousands of small
+      frames on its own, each left as a packet of its own, and a joiner at
+      90% CPU fell 1024 frames behind within a second. Two processes on
+      dak-n4 show it with no network at all: 180-byte frames to a reader
+      that starts 3 s late die after about 2,400 frames on 4.50.10 and
+      all 6,000 arrive on 4.50.11, which gathers a stream's writes into
+      one and reads ahead of the link. A new reader with an old sender
+      and an old reader with a new sender both pass, so one updated end
+      is enough. Open until the laptop joins the NexusQC paper and
+      NX-TeraChem.
 - [ ] **A join that gave up leaves a stall behind it.** After joins
       of three projects from the Windows laptop were abandoned on 12
       November 2026, a join of the dissertation failed with nothing

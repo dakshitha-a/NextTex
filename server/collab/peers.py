@@ -71,6 +71,7 @@ from nexttex.history import now_ms
 from nexttex.project import shares_home
 
 from . import endpoint, history_sync, identity, paragraphs, transport, wire
+from .iroh_transport import said
 from .agreed import Agreed, state_of
 from .store import ARRIVED_LIMIT, _kept_both, _WELL_FORMED_ID as _WELL_FORMED_ID_RE
 
@@ -572,7 +573,7 @@ class PeerLink:
                     tally[1] += took - began
                     tally[2] = max(tally[2], took - began)
         except Exception as error:
-            why = f"{type(error).__name__}: {error}"[:300]
+            why = f"{type(error).__name__}: {said(error)}"[:300]
         finally:
             # Why each link ended, since a join that kept being dialled
             # again on the Windows laptop showed sixteen welcomes in ten

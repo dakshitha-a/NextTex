@@ -50,9 +50,36 @@ MAX_MESSAGE = 64 * 1024 * 1024
 #: every healthy idle link once a minute and redialled.
 READ_TIMEOUT = 90.0
 
+#: How much a stream gathers to send before `send` waits for the writer.
+WRITE_GATHER = 1024 * 1024
+
+#: How much one read asks noq for.
+READ_CHUNK = 1024 * 1024
+
+#: How much arrived and unparsed data the reader holds before it pauses,
+#: two of the largest messages so one can always be completed.
+READ_AHEAD = 2 * MAX_MESSAGE
+
+#: How long `close` lets the writer finish what was handed to it.
+FLUSH_TIMEOUT = 2.0
+
 
 class IrohStream:
-    """One bidirectional stream to one authenticated peer."""
+    """One bidirectional stream to one authenticated peer.
+
+    Writes are gathered and reads run ahead, both because of one rule in
+    noq, iroh's QUIC: a stream whose receive buffer holds more than 1024
+    separate pieces closes its whole connection, "too many gaps in stream
+    buffer", and every frame that arrived in a packet of its own is a piece
+    until the reader takes it. A join is hundreds of thousands of frames
+    of a few hundred bytes. Written one at a time, each left as a packet of
+    its own, and a joiner busy applying them, as the Windows laptop was at
+    90% CPU, fell 1024 behind within a second: every link of a large
+    paper's join broke, for hours, and on one fast machine never. So `send`
+    adds to a buffer that one writer task sends as one write, which leaves
+    as full packets, and one reader task takes whatever noq has as soon as
+    the loop is free, whatever the link is doing with the last message.
+    """
 
     def __init__(self, connection, bi, peer_id: str) -> None:
         self.connection = connection
@@ -62,62 +89,144 @@ class IrohStream:
         self._send = bi.send()
         self._recv = bi.recv()
         self.peer_id = peer_id
-        self._buffer = bytearray()
         self._closed = False
-        self._lock = asyncio.Lock()
-        #: Why the reader stopped, for the link's diagnostics line: it
-        #: used to end without a word whatever the cause, and a link to the
+        #: Why the stream ended, for the link's diagnostics line: it used
+        #: to end without a word whatever the cause, and a link to the
         #: Windows laptop that ended every few seconds said only "closed".
         self.ended = ""
+        self._outgoing = bytearray()
+        self._has_data = asyncio.Event()
+        self._room = asyncio.Event()
+        self._room.set()
+        self._writer: asyncio.Task | None = None
+        self._write_failed = False
+        self._incoming = bytearray()
+        self._arrived = asyncio.Event()
+        self._read_room = asyncio.Event()
+        self._read_room.set()
+        self._reader: asyncio.Task | None = None
+        self._done_reading = False
+        # Reading starts with the stream, not with its first reader: a
+        # connection's first frame waits on `Endpoint._dispatch`, and a
+        # joiner's link on its HELLO, while the sharer is already sending.
+        try:
+            self._reader = asyncio.get_running_loop().create_task(self._read())
+        except RuntimeError:
+            pass
 
     async def send(self, message: bytes) -> None:
-        if self._closed:
-            raise ConnectionError("closed")
-        async with self._lock:
-            await self._send.write_all(struct.pack(">I", len(message)) + message)
+        if self._closed or self._write_failed or self._done_reading:
+            raise ConnectionError(self.ended or "closed")
+        self._outgoing += struct.pack(">I", len(message))
+        self._outgoing += message
+        if self._writer is None:
+            self._writer = asyncio.create_task(self._write())
+        self._has_data.set()
+        while len(self._outgoing) >= WRITE_GATHER and not self._write_failed:
+            self._room.clear()
+            await self._room.wait()
+        if self._write_failed:
+            raise ConnectionError(self.ended or "closed")
+
+    async def _write(self) -> None:
+        while True:
+            await self._has_data.wait()
+            self._has_data.clear()
+            if self._outgoing:
+                data = bytes(self._outgoing)
+                self._outgoing.clear()
+                self._room.set()
+                try:
+                    await self._send.write_all(data)
+                except Exception as error:
+                    self._write_failed = True
+                    if not self.ended:
+                        self.ended = f"write failed: {type(error).__name__}: {said(error)}"[:300]
+                    self._room.set()
+                    return
+            if (self._closed or self._done_reading) and not self._outgoing:
+                return
+
+    async def _read(self) -> None:
+        try:
+            while not self._closed:
+                if len(self._incoming) >= READ_AHEAD:
+                    self._read_room.clear()
+                    await self._read_room.wait()
+                    continue
+                try:
+                    chunk = await asyncio.wait_for(
+                        self._recv.read(READ_CHUNK), timeout=READ_TIMEOUT
+                    )
+                except asyncio.TimeoutError:
+                    # A peer that declares a length and never sends the
+                    # bytes held its buffer open for ever, because nothing
+                    # else would close the stream. A minute and a half of
+                    # complete silence from a peer that is supposed to be
+                    # syncing is a dead connection; a live one is pinged.
+                    self.ended = self.ended or "read timed out"
+                    return
+                except Exception as error:
+                    self.ended = self.ended or (
+                        f"read failed: {type(error).__name__}: {said(error)}"[:300])
+                    return
+                if not chunk:
+                    self.ended = self.ended or "finished by the other end"
+                    return
+                self._incoming += chunk
+                self._arrived.set()
+        finally:
+            self._done_reading = True
+            self._arrived.set()
+            # The writer has nothing more to do for a stream nobody reads.
+            self._has_data.set()
 
     def __aiter__(self) -> AsyncIterator[bytes]:
         return self._messages()
 
     async def _messages(self) -> AsyncIterator[bytes]:
+        if self._reader is None:
+            self._reader = asyncio.create_task(self._read())
         while not self._closed:
-            try:
-                chunk = await asyncio.wait_for(
-                    self._recv.read(64 * 1024), timeout=READ_TIMEOUT
-                )
-            except asyncio.TimeoutError:
-                # A peer that declares a length and never sends the bytes
-                # held its buffer open for ever, because there was no
-                # timeout anywhere in this loop and nothing else would
-                # close the stream. A minute of complete silence from a
-                # peer that is supposed to be syncing is a dead
-                # connection; a live one has keepalives under it.
-                self.ended = "read timed out"
-                return
-            except Exception as error:
-                self.ended = f"read failed: {type(error).__name__}: {error}"[:300]
-                return
-            if not chunk:
-                self.ended = "finished by the other end"
-                return
-            self._buffer.extend(chunk)
-            while len(self._buffer) >= LENGTH:
-                (size,) = struct.unpack_from(">I", self._buffer, 0)
+            while len(self._incoming) >= LENGTH:
+                (size,) = struct.unpack_from(">I", self._incoming, 0)
                 if size > MAX_MESSAGE:
                     self.ended = f"a message of {size} bytes"
                     return
-                if len(self._buffer) < LENGTH + size:
+                if len(self._incoming) < LENGTH + size:
                     break
-                message = bytes(self._buffer[LENGTH:LENGTH + size])
-                del self._buffer[:LENGTH + size]
+                message = bytes(self._incoming[LENGTH:LENGTH + size])
+                del self._incoming[:LENGTH + size]
+                self._read_room.set()
                 yield message
+                if self._closed:
+                    return
+            if self._done_reading:
+                return
+            self._arrived.clear()
+            await self._arrived.wait()
 
     async def close(self) -> None:
+        if self._closed:
+            return
         self._closed = True
+        writer = self._writer
+        if writer is not None and not writer.done():
+            # What was handed to `send` before the close still goes, as it
+            # did when `send` returned only once noq had it: a removal's
+            # tombstone is the last thing its peer hears.
+            self._has_data.set()
+            try:
+                await asyncio.wait_for(asyncio.shield(writer), FLUSH_TIMEOUT)
+            except Exception:
+                writer.cancel()
         try:
             await self._send.finish()
         except Exception:
             pass
+        if self._reader is not None:
+            self._reader.cancel()
+        self._arrived.set()
 
 
 class IrohTransport:
@@ -183,6 +292,22 @@ class IrohTransport:
             except Exception:
                 pass
             self._endpoint = None
+
+
+def said(error: BaseException) -> str:
+    """What an error says. iroh's `IrohError` stringifies to nothing: its
+    text is behind `message()`, so a link to the Windows laptop that broke
+    every second logged "IrohError: " and nothing about why."""
+    text = str(error)
+    if text:
+        return text
+    message = getattr(error, "message", None)
+    if callable(message):
+        try:
+            return str(message())
+        except Exception:
+            pass
+    return ""
 
 
 def iroh_ticket(endpoint):
