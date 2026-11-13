@@ -381,6 +381,15 @@ class CollabStore:
         #: The manifest is the authority on a file's name, and following it
         #: means noticing when it has moved out from under what is on disk.
         self._named: dict[str, str] = {}
+        #: Paths whose deletion by somebody else `settle_paths` is following
+        #: right now, which `adopt` must not give fresh records. Moving a
+        #: file into the trash records its last version, the history asks
+        #: `key_for` for the key, and a file on disk with only a trashed
+        #: record reads there as one never adopted: the walk then minted a
+        #: record for every file of the batch still waiting to be followed,
+        #: and those were skipped as live and fetched back by the machine
+        #: that deleted them (the thesis, 13 November 2026).
+        self._following: set[str] = set()
         #: Set when the manifest changes, cleared by the next flush.
         self._paths_moved = False
         #: Bytes a peer sent for a binary record that is not on this disk,
@@ -1051,6 +1060,10 @@ class CollabStore:
         }
         for relative, kind, size in self._walk():
             seen.add(relative)
+            if relative in self._following:
+                # A file somebody else deleted, on its way to the trash
+                # here; see `_following`.
+                continue
             if relative in known:
                 # Left as it is, with one exception.  A project opened by a
                 # NextTex that called `.py` binary carries its scripts as
@@ -1811,6 +1824,21 @@ class CollabStore:
         """
         if self._closed:
             return
+        live = {
+            str(record.get("path") or "")
+            for record in self.files.values() if not record.get("trashed")
+        }
+        self._following = {
+            was for file_id, record in self.files.items()
+            if record.get("trashed")
+            and (was := self._named.get(file_id)) and was not in live
+        }
+        try:
+            self._settle_paths()
+        finally:
+            self._following = set()
+
+    def _settle_paths(self) -> None:
         for file_id, record in list(self.files.items()):
             path = record.get("path") or ""
             if not path:
