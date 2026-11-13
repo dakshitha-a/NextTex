@@ -355,13 +355,6 @@ OpenAI provider against OpenAI itself.
       loop stalls for seconds cannot read ahead of an old sender's small
       frames; then all arrived within three minutes, and every file of
       both papers matches the sharer.
-- [ ] **`test_a_broken_page_comes_back_to_the_agent_with_its_error_and_a_picture`
-      fails now and then on CI.** Twice on 12 November 2026, on 4.50.7
-      and on 4.50.11, the page check answered "had not read it back after
-      20 seconds" instead of the page's SyntaxError, and a re-run passed
-      both times. The browser on the runner is slower than 20 s to read a
-      page back at times; the test should give it longer, or the check
-      should be given a fake browser in this test.
 - [ ] **A join that gave up leaves a stall behind it.** After joins
       of three projects from the Windows laptop were abandoned on 12
       November 2026, a join of the dissertation failed with nothing

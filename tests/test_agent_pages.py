@@ -63,7 +63,12 @@ def test_a_page_wears_its_icon_and_is_read_back_and_changed_as_written(agent, mo
 
 
 @pytest.mark.skipif(page_check.find_browser() is None, reason="no Chromium-family browser here")
-def test_a_broken_page_comes_back_to_the_agent_with_its_error_and_a_picture(agent):
+def test_a_broken_page_comes_back_to_the_agent_with_its_error_and_a_picture(agent, monkeypatch):
+    # The check's own limit is for a writer waiting on a page. A CI runner
+    # starting a cold browser passed it twice on 12 November 2026 and the
+    # test answered "had not read it back after 20 seconds" instead of the
+    # error it is about, so this test gives the browser longer.
+    monkeypatch.setattr(page_check, "TIMEOUT", 90)
     answer = asyncio.run(agent.publish_tool({"name": "broken", "html": DOC.format(
         body='<div id="eq"></div>\n<script>\nfoo(1));\n</script>')}))
     assert "has problems" in text_of(answer) and "SyntaxError" in text_of(answer)
