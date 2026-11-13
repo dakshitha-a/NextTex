@@ -371,15 +371,13 @@ OpenAI provider against OpenAI itself.
       `opened` in under a second, not an offer, and the folder held ten
       of the fifty files with the link not connected. Found between two
       installs on this host on 12 November 2026.
-- [ ] **A join sends a sync step and a history ask for every record,
+- [x] **A join sends a sync step and a history ask for every record,
       deleted files included.** The NexusQC paper's manifest holds 2764
-      records for 51 files, and NX-TeraChem's 3057 for 188, so a joiner
-      works through thousands of frames before the first answer for a
-      live file. A joiner never had a deleted file, so it needs the
-      record's name and nothing else: no sync step, no history ask. The
-      first of the three cleanup steps below, and the cheapest; the
-      wait now runs while frames arrive, but this would make the join
-      itself as quick as a small project's.
+      records for 51 files, and NX-TeraChem's 3057 for 188, so a join
+      exchanged 23,796 sync frames for a 51-file paper. Since 4.50.13 a
+      deleted file's text is not synced and not marked offered, so a
+      restore offers it then; its history is still asked for, so a joiner
+      keeps a deleted file's past.
 - [ ] **A shared record keeps every deleted file for ever.** On 12
       November 2026 the NexusQC paper held 2713 deleted records and
       NX-TeraChem 2869, none of them on disk: a copy of a code repository

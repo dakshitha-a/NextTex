@@ -459,6 +459,15 @@ class PeerLink:
             doc_id = f"text/{file_id}"
             if doc_id in self.offered or record.get("kind") != "text":
                 continue
+            if record.get("trashed"):
+                # A deleted file's text is not synced, and it is not marked
+                # offered either, so a restore, which changes the manifest
+                # and sends the documents again, offers it then. The NexusQC
+                # paper held 2713 deleted files for 51 on disk, and a join
+                # spent 23,796 sync frames on them, two each way per file,
+                # for a joiner that never had any of them. Their history is
+                # still asked for below.
+                continue
             doc = store.document(doc_id)
             if doc is None:
                 continue
