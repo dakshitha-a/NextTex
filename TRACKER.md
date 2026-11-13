@@ -326,12 +326,32 @@ OpenAI provider against OpenAI itself.
       because telling a stale copy from a new file made under a deleted
       name needs a rule about what a match is, and a wrong match puts a
       writer's new file in the trash.
-- [ ] **The laptop's loop stalled 82 s in `want_files`.** On 13 November
-      2026 at 03:13 the laptop's event loop sat in `ntpath.realpath`,
-      called from `want_files` through `resolve_for_write` for every
-      blob record, on a project inside OneDrive. Left because it needs a
-      reproduction on Windows with OneDrive placeholders; the likely fix
-      is resolving off the loop or once per folder.
+- [x] **The laptop's loop stalled 82 s in `want_files`.** On 13 November
+      2026 the laptop's event loop sat in `want_files` for 82 s at 03:13
+      and for 111 s at 11:10, long enough for every link to go silent.
+      The look at the disk now runs in a thread, one pass per link at a
+      time with one more queued; `tests/collab/test_a_slow_disk_does_not_hold_the_links.py`.
+      Each call measured under a millisecond with the laptop quiet, so
+      what made a pass slow while OneDrive was busy is still unknown;
+      a long hold now records a later stack as `held_last` to say.
+- [ ] **A peer's mass deletion is followed on the loop.** `settle_paths`
+      moves every file a collaborator deleted into this machine's trash
+      from inside the flush, so the laptop's 104 files at 11:11 on
+      13 November 2026 held the loop for about 43 s. Left because moving
+      it out of `settle_paths` reopens the re-adoption of followed paths,
+      whose guard, `_following`, lives only for that call.
+- [ ] **A folder a peer deleted leaves empty folders behind.** The
+      follower trashes each file and leaves the directories, so the
+      laptop's thesis kept four empty chapter folders in its tree.
+- [ ] **Two updates can run at once on Windows.** A manual
+      `scripts/update.ps1` and the scheduled one ran together on the
+      laptop on 13 November 2026, ran it short of memory, and left the
+      interface unfetched and the server hung at startup. Neither
+      `update.ps1` nor `update.sh` takes a lock.
+- [ ] **A child process's output is read as cp1252 on Windows.** The
+      laptop's `server.err.log` holds repeated UnicodeDecodeErrors from a
+      subprocess reader thread; some reader opens a pipe in text mode
+      without naming an encoding.
 - [ ] **Deleting four folders from the tree raised React error #185.**
       The browser on dak-n4 logged "Maximum update depth exceeded" at
       03:12:10 on 13 November 2026, three seconds after four chapter

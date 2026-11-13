@@ -347,6 +347,12 @@ class PeerLink:
         self.wanted: dict[str, float] = {}
         #: Files asked for by manifest id, the same way.
         self.wanted_files: dict[str, float] = {}
+        #: The pass `want_files` makes, while one is running, and whether
+        #: another was asked for meanwhile. One at a time per link: every
+        #: manifest frame asks for a pass, and a deletion of a hundred
+        #: files arrives as a burst of them.
+        self._file_pass: asyncio.Task | None = None
+        self._file_pass_again = False
         #: Whether the other end said it can do the paragraph merge.
         self.can_merge = False
         #: Document id to the checkpoint this link's opening step 1 was sent
@@ -437,6 +443,11 @@ class PeerLink:
         table[key] = now
         return True
 
+    def _due_now(self, table: dict[str, float], key: str) -> bool:
+        """`_due` without noting anything: whether an ask would go out."""
+        now = asyncio.get_running_loop().time()
+        return now - table.get(key, -WANT_AGAIN) >= WANT_AGAIN
+
     async def send_documents(self) -> None:
         """Offer everything we have, and ask for everything we do not.
 
@@ -496,7 +507,33 @@ class PeerLink:
                 file_id, self.peer_id, self.network.marks.since(file_id),
             ))
 
-        await self.want_files()
+        self._ask_for_files()
+
+    def _ask_for_files(self) -> None:
+        """Run `want_files` beside the link, never more than one at once.
+
+        Beside, because awaiting it here would stop this link reading
+        frames for as long as the disk takes; one at a time, with at most
+        one more queued, because `send_documents` runs for every manifest
+        frame and each pass looks at every figure the manifest names.
+        """
+        if not self.alive:
+            return
+        if self._file_pass is not None and not self._file_pass.done():
+            self._file_pass_again = True
+            return
+
+        async def passes() -> None:
+            while True:
+                self._file_pass_again = False
+                try:
+                    await self.want_files()
+                except Exception:
+                    log.warning("asking a peer for missing files failed", exc_info=True)
+                if not (self._file_pass_again and self.alive):
+                    return
+
+        self._file_pass = asyncio.create_task(passes())
 
     async def want_files(self) -> None:
         """Ask for every binary the manifest names that this disk lacks.
@@ -512,6 +549,7 @@ class PeerLink:
         store = self.network.store
         if store.arrived_bytes() >= ARRIVED_LIMIT:
             return
+        candidates: list[tuple[str, str]] = []
         for file_id, record in list(store.files.items()):
             if record.get("kind") != "blob" or record.get("trashed"):
                 continue
@@ -524,12 +562,34 @@ class PeerLink:
             size = int(record.get("size") or 0)
             if size > wire.MAX_FRAME:
                 continue
-            relative = str(record.get("path") or "")
-            try:
-                target = store.project.resolve_for_write(relative)
-            except (PermissionError, OSError, ValueError):
+            if file_id in store.arrived or not self._due_now(self.wanted_files, file_id):
                 continue
-            if target.exists() or file_id in store.arrived:
+            candidates.append((file_id, str(record.get("path") or "")))
+        if not candidates:
+            return
+        # The disk is asked in a thread, with plain strings. Each look is a
+        # path resolved and a file statted, and on the Windows laptop's
+        # OneDrive folder a pass over a thesis's figures held the loop for
+        # 82 s on 13 November 2026, and for 111 s while a hundred deletions
+        # were being followed, long enough for every link to go silent.
+        project = store.project
+
+        def missing() -> list[tuple[str, str]]:
+            out = []
+            for file_id, relative in candidates:
+                try:
+                    if not project.resolve_for_write(relative).exists():
+                        out.append((file_id, relative))
+                except (PermissionError, OSError, ValueError):
+                    continue
+            return out
+
+        for file_id, relative in await asyncio.to_thread(missing):
+            # The manifest may have moved on while the disk was asked.
+            record = store.files.get(file_id)
+            if (not self.alive or record is None or record.get("trashed")
+                    or str(record.get("path") or "") != relative
+                    or file_id in store.arrived):
                 continue
             if self._due(self.wanted_files, file_id):
                 await self.send(wire.file_want(file_id))
@@ -604,6 +664,8 @@ class PeerLink:
                 self.outbox.put_nowait(None)
             if self._pump is not None:
                 self._pump.cancel()
+            if self._file_pass is not None:
+                self._file_pass.cancel()
             self.network.dropped(self)
 
     async def _keep_pinging(self) -> None:
