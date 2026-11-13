@@ -62,6 +62,9 @@ LAG_NOTE = 0.25
 #: the innermost frames are kept.
 HELD_NOTE = 2.0
 HELD_CHECK = 0.25
+#: While a hold lasts, the stack is taken again this often, and the last
+#: one taken goes in the line as `held_last`.
+HELD_AGAIN = 10.0
 HELD_FRAMES = 25
 SAMPLE_EVERY = 60.0
 ROUTES_EVERY = 300.0
@@ -429,8 +432,14 @@ class _Watchdog(threading.Thread):
     The stall of 29 October 2026 lasted 55 s with nothing in flight and
     the process at 88% CPU, and the log could say neither what ran nor
     where.  This thread reads `due`, when the sampler expects to wake, and
-    once the loop is `HELD_NOTE` seconds past it takes the stack once; the
+    once the loop is `HELD_NOTE` seconds past it takes the stack; the
     sampler's `lag` line carries it.
+
+    And again every `HELD_AGAIN` seconds while the hold lasts, the last of
+    which the line carries as `held_last` with how far into the hold it
+    was taken. One stack two seconds in could not apportion the Windows
+    laptop's 111 s hold of 13 November 2026, which a look for missing
+    figures began and a hundred deletions may have continued.
     """
 
     def __init__(self, loop_thread: int) -> None:
@@ -438,20 +447,33 @@ class _Watchdog(threading.Thread):
         self.loop_thread = loop_thread
         self.due: float | None = None
         self.held: list[str] | None = None
+        self.held_last: list[str] | None = None
+        self.held_last_at = 0.0
         self.taken_for: float | None = None
+        self._taken_at = 0.0
         self.done = threading.Event()
+
+    def _stack(self) -> list[str] | None:
+        try:
+            return _stack_of(self.loop_thread)
+        except Exception:
+            return None
 
     def run(self) -> None:
         while not self.done.wait(HELD_CHECK):
             due = self.due
-            if due is None or self.taken_for == due:
+            if due is None:
                 continue
-            if time.monotonic() - due > HELD_NOTE:
-                try:
-                    self.held = _stack_of(self.loop_thread)
-                except Exception:
-                    self.held = None
-                self.taken_for = due
+            now = time.monotonic()
+            if self.taken_for != due:
+                if now - due > HELD_NOTE:
+                    self.held = self._stack()
+                    self.held_last = None
+                    self.taken_for, self._taken_at = due, now
+            elif now - self._taken_at >= HELD_AGAIN:
+                self.held_last = self._stack()
+                self.held_last_at = now - due
+                self._taken_at = now
 
     def take(self, due: float) -> list[str] | None:
         """The stack taken while the loop was held past `due`, once."""
@@ -459,6 +481,13 @@ class _Watchdog(threading.Thread):
             return None
         held, self.held = self.held, None
         return held
+
+    def take_last(self, due: float) -> tuple[list[str], float] | None:
+        """The last stack taken during that hold, if a later one was."""
+        if self.taken_for != due or not self.held_last:
+            return None
+        last, self.held_last = self.held_last, None
+        return last, self.held_last_at
 
 
 async def watch() -> None:
@@ -490,6 +519,9 @@ async def watch() -> None:
                 held = watchdog.take(due)
                 if held:
                     fields["held_by"] = held
+                last = watchdog.take_last(due)
+                if last:
+                    fields["held_last"], fields["held_last_s"] = last[0], round(last[1], 1)
                 event("lag", ms=round(lag * 1000), inflight=_in_flight(now),
                       load=_load(), **fields)
             if now - last_sample >= SAMPLE_EVERY:

@@ -250,6 +250,39 @@ def test_a_long_stall_says_what_held_the_loop(log, monkeypatch):
     assert not any(thread.name == "nexttex-loop-watchdog" for thread in threading.enumerate())
 
 
+def test_a_long_stall_also_says_where_it_ended(log, monkeypatch):
+    """The Windows laptop's 111 s hold had one stack, taken two seconds
+    in, and could not say what held the loop for the other 109."""
+    monkeypatch.setattr(diag, "LAG_EVERY", 0.05)
+    monkeypatch.setattr(diag, "LAG_NOTE", 0.1)
+    monkeypatch.setattr(diag, "HELD_NOTE", 0.1)
+    monkeypatch.setattr(diag, "HELD_CHECK", 0.02)
+    monkeypatch.setattr(diag, "HELD_AGAIN", 0.2)
+
+    def a_look_for_missing_figures():
+        time.sleep(0.4)
+
+    def a_hundred_deletions_followed():
+        time.sleep(0.6)
+
+    async def run():
+        watcher = asyncio.create_task(diag.watch())
+        await asyncio.sleep(0.15)
+        a_look_for_missing_figures()
+        a_hundred_deletions_followed()
+        await asyncio.sleep(0.15)
+        watcher.cancel()
+        with pytest.raises(asyncio.CancelledError):
+            await watcher
+
+    asyncio.run(run())
+    held = [row for row in log("lag") if row.get("held_by")]
+    assert held, "no lag line carried the loop's stack"
+    assert any("a_look_for_missing_figures" in frame for frame in held[0]["held_by"])
+    assert any("a_hundred_deletions_followed" in frame for frame in held[0]["held_last"])
+    assert held[0]["held_last_s"] > 0.4
+
+
 def test_a_short_stall_takes_no_stack(log, monkeypatch):
     monkeypatch.setattr(diag, "LAG_EVERY", 0.05)
     monkeypatch.setattr(diag, "LAG_NOTE", 0.1)
