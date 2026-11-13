@@ -577,10 +577,13 @@ class PeerLink:
             # Why each link ended, since a join that kept being dialled
             # again on the Windows laptop showed sixteen welcomes in ten
             # minutes and nothing said what took the fifteen down.
-            if why == "closed" and self.dropped_why:
-                why = self.dropped_why
+            if why == "closed":
+                why = (self.dropped_why or str(getattr(self.stream, "ended", "") or "")
+                       or "closed")
             diag.event(
                 "peer-link", ended=why, peer=self.peer_id[:8], outbound=self.outbound,
+                share=str(self.network.share.share_id or "")[:8],
+                denied=str(self.network.last_error)[:200] if self.denied else "",
                 seconds=round(asyncio.get_running_loop().time() - opened, 1),
             )
             self.alive = False

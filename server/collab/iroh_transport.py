@@ -65,6 +65,10 @@ class IrohStream:
         self._buffer = bytearray()
         self._closed = False
         self._lock = asyncio.Lock()
+        #: Why the reader stopped, for the link's diagnostics line: it
+        #: used to end without a word whatever the cause, and a link to the
+        #: Windows laptop that ended every few seconds said only "closed".
+        self.ended = ""
 
     async def send(self, message: bytes) -> None:
         if self._closed:
@@ -81,20 +85,26 @@ class IrohStream:
                 chunk = await asyncio.wait_for(
                     self._recv.read(64 * 1024), timeout=READ_TIMEOUT
                 )
-            except (Exception, asyncio.TimeoutError):
+            except asyncio.TimeoutError:
                 # A peer that declares a length and never sends the bytes
                 # held its buffer open for ever, because there was no
                 # timeout anywhere in this loop and nothing else would
                 # close the stream. A minute of complete silence from a
                 # peer that is supposed to be syncing is a dead
                 # connection; a live one has keepalives under it.
+                self.ended = "read timed out"
+                return
+            except Exception as error:
+                self.ended = f"read failed: {type(error).__name__}: {error}"[:300]
                 return
             if not chunk:
+                self.ended = "finished by the other end"
                 return
             self._buffer.extend(chunk)
             while len(self._buffer) >= LENGTH:
                 (size,) = struct.unpack_from(">I", self._buffer, 0)
                 if size > MAX_MESSAGE:
+                    self.ended = f"a message of {size} bytes"
                     return
                 if len(self._buffer) < LENGTH + size:
                     break

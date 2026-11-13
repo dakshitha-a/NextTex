@@ -50,6 +50,10 @@ class Replayed:
     async def close(self) -> None:
         await self._stream.close()
 
+    @property
+    def ended(self) -> str:
+        return str(getattr(self._stream, "ended", "") or "")
+
     def __aiter__(self) -> AsyncIterator[bytes]:
         return self
 

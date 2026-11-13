@@ -151,3 +151,4 @@ async def test_a_link_says_why_it_ended(tmp_path):
         diag.uninstall()
     assert lines, "no link wrote why it ended"
     assert all(line["ended"] and "seconds" in line for line in lines)
+    assert all(line["share"] == alice.network.share.share_id[:8] for line in lines)
