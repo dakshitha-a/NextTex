@@ -1126,7 +1126,7 @@ class ProjectAgent:
         )
         display = path
         try:
-            display = str(Path(path).resolve().relative_to(self.root))
+            display = Path(path).resolve().relative_to(self.root).as_posix()
         except (ValueError, OSError):
             pass
         if why == "control":
@@ -1449,7 +1449,7 @@ class ProjectAgent:
                 )
                 if line is not None:
                     try:
-                        display = str(path.resolve().relative_to(self.root))
+                        display = path.resolve().relative_to(self.root).as_posix()
                     except (ValueError, OSError):
                         display = str(path)
                     await self._emit({
@@ -1746,7 +1746,7 @@ class ProjectAgent:
         if before == after:
             return {}
         try:
-            display = str(path.resolve().relative_to(self.root))
+            display = path.resolve().relative_to(self.root).as_posix()
         except (ValueError, OSError):
             display = str(path)
         self._edits.append(EditRecord(tool_name, display, before, after))
@@ -2323,7 +2323,7 @@ class ProjectAgent:
 
     def _display(self, path: Path) -> str:
         try:
-            return str(path.resolve().relative_to(self.root))
+            return path.resolve().relative_to(self.root).as_posix()
         except (ValueError, OSError):
             return str(path)
 

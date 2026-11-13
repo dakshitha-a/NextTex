@@ -249,7 +249,7 @@ class DependencyGraph:
 
     def _relative(self, path: Path) -> str | None:
         try:
-            return str(path.resolve().relative_to(self.root))
+            return path.resolve().relative_to(self.root).as_posix()
         except ValueError:
             return None
 

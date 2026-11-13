@@ -442,7 +442,7 @@ def scan(
         suffix = path.suffix.lower()
         if suffix not in STAMP_SUFFIXES:
             continue
-        relative = str(path.relative_to(root))
+        relative = path.relative_to(root).as_posix()
 
         if suffix in IMAGE_SUFFIXES:
             found.images.append(relative)

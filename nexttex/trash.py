@@ -284,7 +284,7 @@ class Trash:
         and both default to the ordinary case, which is that they did.
         """
         root = self.project_root.resolve()
-        relative = str(target.resolve().relative_to(root))
+        relative = target.resolve().relative_to(root).as_posix()
         members = self._members(target)
 
         files: list[TrashedFile] = []
@@ -293,7 +293,7 @@ class Trash:
                 size = member.stat().st_size
             except OSError:
                 continue
-            member_relative = str(member.resolve().relative_to(root))
+            member_relative = member.resolve().relative_to(root).as_posix()
             # Resolved while the file is still there and its record live,
             # so the key is the file's own and not whatever a later file
             # under this name is given.
@@ -314,7 +314,7 @@ class Trash:
         dirs: list[str] = []
         if target.is_dir():
             dirs = [
-                str(path.resolve().relative_to(root))
+                path.resolve().relative_to(root).as_posix()
                 for path in sorted(target.rglob("*"))
                 if path.is_dir() and not self._skipped(path, root)
             ]
@@ -372,15 +372,15 @@ class Trash:
             # Something is there now.  Put the old one beside it rather than
             # over it, and say which name it came back under.
             target = self._free_name(target, payload.is_dir())
-            renamed = str(target.relative_to(self.project_root))
+            renamed = target.relative_to(self.project_root).as_posix()
         target.parent.mkdir(parents=True, exist_ok=True)
         payload.rename(target)
 
         restored = [
-            str((target / Path(file.path).relative_to(entry.path)).relative_to(
-                self.project_root))
+            (target / Path(file.path).relative_to(entry.path)).relative_to(
+                self.project_root).as_posix()
             if entry.kind == "dir"
-            else str(target.relative_to(self.project_root))
+            else target.relative_to(self.project_root).as_posix()
             for file in entry.files
         ]
         # The past comes back with it, even under another name.  The log

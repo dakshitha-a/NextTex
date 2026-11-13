@@ -1125,7 +1125,7 @@ class OpenAIAgent:
             if start is None:
                 return "That folder is outside the project."
             found = [
-                str(path.relative_to(self.root))
+                path.relative_to(self.root).as_posix()
                 for path in sorted(start.rglob("*"))
                 if path.is_file() and ".nexttex" not in path.parts
                 and ".git" not in path.parts
@@ -1317,7 +1317,7 @@ class OpenAIAgent:
                         "that was already there." + note)
         said = (result.get("out") or "").strip()
         where = wanted or "figures/"
-        shown = str(target.relative_to(self.root))
+        shown = target.relative_to(self.root).as_posix()
         return (
             f"Drew {where} and saved the script as {shown}. Reference it "
             f"with \\includegraphics at width=\\linewidth, since it is "
@@ -1338,7 +1338,7 @@ class OpenAIAgent:
         if self._resolve(str(target)) is None:
             return f"{name} is outside this project."
         if not target.is_file():
-            shown = str(target.relative_to(self.root))
+            shown = target.relative_to(self.root).as_posix()
             return f"There is no {shown}. run_plot_script writes a new one."
         result = await self._run_script_file(target)
         if result.get("missing"):
@@ -1407,7 +1407,7 @@ class OpenAIAgent:
             if self.on_edit is not None:
                 await self._maybe(self.on_edit(target, before, after))
 
-        relative = str(target.relative_to(self.root))
+        relative = target.relative_to(self.root).as_posix()
         await self._emit({
             "type": "focus", "path": relative,
             "line": first_changed_line(before or "", after),
