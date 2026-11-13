@@ -18,11 +18,16 @@ from __future__ import annotations
 import hashlib
 import json
 import logging
+import time
 from pathlib import Path
 
 from nexttex.atomic import write_atomically
 
 log = logging.getLogger("nexttex.collab")
+
+#: The index is written at most this often while checkpoints keep coming;
+#: `flush` writes what is left.
+WRITE_EVERY = 2.0
 
 
 def read_uint(data: bytes, at: int) -> tuple[int, int]:
@@ -68,6 +73,8 @@ class Agreed:
                 }
         except (OSError, json.JSONDecodeError, AttributeError):
             pass
+        self._unsaved = False
+        self._written_at = 0.0
 
     def get(self, peer: str, doc_id: str) -> bytes | None:
         digest = self.index.get(peer, {}).get(doc_id)
@@ -87,13 +94,46 @@ class Agreed:
             self.dir.mkdir(parents=True, exist_ok=True)
             blob = self.dir / f"{digest}.y"
             if not blob.exists():
-                write_atomically(blob, state)
+                # A merge base, rebuilt at the next agreement if lost, so
+                # not flushed to disk: an fsync per document was most of a
+                # Windows laptop's ten-minute join.
+                write_atomically(blob, state, durable=False)
         except OSError:
             log.warning("could not keep what %s agreed on for %s", peer[:8], doc_id)
             return False
-        self.index.setdefault(peer, {})[doc_id] = digest
-        self._write()
+        docs = self.index.setdefault(peer, {})
+        before = docs.get(doc_id)
+        docs[doc_id] = digest
+        if before and not self._points_at(before):
+            # The one blob this may have orphaned, rather than a listing
+            # of the folder on every save, which made noting N documents
+            # cost N listings of up to N files.
+            try:
+                (self.dir / f"{before}.y").unlink(missing_ok=True)
+            except OSError:
+                pass
+        self._unsaved = True
+        if time.monotonic() - self._written_at >= WRITE_EVERY:
+            self.flush()
         return True
+
+    def _points_at(self, digest: str) -> bool:
+        return any(digest in docs.values() for docs in self.index.values())
+
+    def flush(self) -> None:
+        """Write the index if a save since the last write has not been.
+
+        Written on a timer rather than per save: a join notes a checkpoint
+        for every document, and rewriting the whole index each time was
+        quadratic in the project's records."""
+        if not self._unsaved:
+            return
+        self._unsaved = False
+        self._written_at = time.monotonic()
+        try:
+            write_atomically(self.index_path, json.dumps(self.index, indent=1), durable=False)
+        except OSError:
+            self._unsaved = True
 
     def keep_only(self, peers: set[str], doc_ids: set[str]) -> None:
         """Forget peers who are gone and documents that are, and the blobs
@@ -112,10 +152,13 @@ class Agreed:
             self._write()
 
     def _write(self) -> None:
+        """The index now, and every blob it no longer names gone."""
         try:
             write_atomically(self.index_path, json.dumps(self.index, indent=1))
         except OSError:
             return
+        self._unsaved = False
+        self._written_at = time.monotonic()
         live = {digest for docs in self.index.values() for digest in docs.values()}
         try:
             for blob in self.dir.glob("*.y"):

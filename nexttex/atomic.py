@@ -61,8 +61,14 @@ def write_atomically(
     *,
     encoding: str = "utf-8",
     mode: int | None = None,
+    durable: bool = True,
 ) -> None:
     """Replace `target` with `data`, or leave it exactly as it was.
+
+    `durable=False` skips the flushes to disk, for a cache that is
+    rebuilt when it is lost: still atomic against this process dying, not
+    against the machine losing power. An fsync per file was most of what
+    a Windows laptop spent noting thousands of sync checkpoints.
 
     `mode` is applied to the temporary file *before* the rename, so a file
     that holds a credential is never readable by anyone else, not even for
@@ -80,18 +86,21 @@ def write_atomically(
         if isinstance(data, str):
             with temp.open("w", encoding=encoding) as handle:
                 handle.write(data)
-                _flush_to_disk(handle)
+                if durable:
+                    _flush_to_disk(handle)
         else:
             with temp.open("wb") as handle:
                 handle.write(data)
-                _flush_to_disk(handle)
+                if durable:
+                    _flush_to_disk(handle)
         if mode is not None:
             temp.chmod(mode)
         # `os.replace` by name rather than `Path.replace`: on 3.10 pathlib
         # bound the function at import, so a test watching the order of
         # the rename against the two fsyncs could not see it there.
         os.replace(temp, target)
-        _flush_directory(target.parent)
+        if durable:
+            _flush_directory(target.parent)
     except OSError:
         # Never leave the scratch file behind: the tree would show it, and
         # the next save would trip over it.
