@@ -84,6 +84,12 @@ def test_miktex_engines_are_told_not_to_install_on_the_fly(tmp_path):
     assert fast[:2] == ["pdflatex", "--disable-installer"]
     full = scheduler.full_argv(tmp_path / "main.tex", "pdflatex", miktex=True)
     assert any("pdflatex --disable-installer" in part for part in full)
+    # MiKTeX reads no max_print_line from the environment, so the widths
+    # go as options, or the log wraps at 79 columns (13 November 2026).
+    for flag in ("--max-print-line=1000", "--error-line=254", "--half-error-line=238"):
+        assert flag in fast
+        assert any(f"pdflatex --disable-installer" in part and flag in part for part in full)
+    assert "--max-print-line=1000" not in " ".join(scheduler.fast_argv(tmp_path / "main.tex"))
     # And nothing changes for TeX Live.
     assert "--disable-installer" not in " ".join(scheduler.fast_argv(tmp_path / "main.tex"))
 

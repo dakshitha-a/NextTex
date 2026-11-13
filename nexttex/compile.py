@@ -235,6 +235,18 @@ def engine_for(main_source: str, setting: str = "") -> str:
 #: this the build fails at once on the missing file, which NextTex reads,
 #: and the Build drawer's Install is how a package arrives.
 NO_INSTALLER = "--disable-installer"
+
+#: The log widths `LOG_ENV` sets, as options, because MiKTeX reads no
+#: `max_print_line` from the environment: on the owner's laptop on 13
+#: November 2026 a missing package's "Emergency stop." came through as
+#: rows reading "Eme" and "==", the 79th column cutting each message off
+#: after a long Windows path.  Checked against MiKTeX's own pdftex manual.
+MIKTEX_LOG = (
+    f"--max-print-line={LOG_ENV['max_print_line']}",
+    f"--error-line={LOG_ENV['error_line']}",
+    f"--half-error-line={LOG_ENV['half_error_line']}",
+)
+MIKTEX_FLAGS = (NO_INSTALLER, *MIKTEX_LOG)
 ROOT = Path(__file__).resolve().parent.parent
 
 
@@ -1364,7 +1376,7 @@ class CompileScheduler:
         # and an option that says how to run it.  The inner flags are the
         # same for all three engines.
         mode, command = LATEXMK_ENGINE[engine]
-        flag = (" -shell-escape" if shell_escape else "") + (f" {NO_INSTALLER}" if miktex else "")
+        flag = (" -shell-escape" if shell_escape else "") + ("".join(f" {f}" for f in MIKTEX_FLAGS) if miktex else "")
         argv = ["latexmk", mode, "-interaction=nonstopmode", "-file-line-error"]
         if shell_escape:
             argv.append("-shell-escape")
@@ -1389,7 +1401,7 @@ class CompileScheduler:
         """One engine pass: what an ordinary edit gets."""
         return [
             engine, *(["-shell-escape"] if shell_escape else []),
-            *([NO_INSTALLER] if miktex else []),
+            *(MIKTEX_FLAGS if miktex else ()),
             "-interaction=nonstopmode", "-file-line-error",
             "-synctex=1", f"-jobname={self.paths.jobname}",
             f"-output-directory={self.paths.build_dir}", str(source_file),
