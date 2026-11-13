@@ -125,7 +125,31 @@ def manager_here() -> tuple[str, str]:
 MIKTEX_PACKAGE = {
     "amsart.cls": "amscls", "amsbook.cls": "amscls", "amsproc.cls": "amscls",
     "amsthm.sty": "amscls", "pifont.sty": "psnfss",
+    # The laptop on 13 November 2026: a thesis asking for newtxtext.sty
+    # was told no package provides it, because MiKTeX ships it in newtx.
+    "newtxtext.sty": "newtx", "newtxmath.sty": "newtx",
+    "amssymb.sty": "amsfonts", "tikz.sty": "pgf", "graphicx.sty": "graphics",
+    "subcaption.sty": "caption", "algpseudocode.sty": "algorithmicx",
+    "algorithmic.sty": "algorithms", "algorithm.sty": "algorithms",
+    "tabularx.sty": "tools", "longtable.sty": "tools", "array.sty": "tools",
+    "bm.sty": "tools", "xspace.sty": "tools", "mathptmx.sty": "psnfss",
+    "times.sty": "psnfss", "helvet.sty": "psnfss", "tgtermes.sty": "tex-gyre",
 }
+
+#: The shortest package name the prefix guess below will offer, so a
+#: stem never shrinks to a two-letter package that merely starts it.
+MIKTEX_PREFIX_MIN = 4
+
+
+def miktex_guess(stem: str, known: set[str]) -> str:
+    """The package MiKTeX lists whose name is the longest start of `stem`,
+    or "". A family of files often ships as one package named for their
+    common start, newtxtext.sty and newtxmath.sty in newtx, and MiKTeX
+    has no search from a file to its package to say so."""
+    for end in range(len(stem), MIKTEX_PREFIX_MIN - 1, -1):
+        if stem[:end] in known:
+            return stem[:end]
+    return ""
 LIST_TIMEOUT = 10
 
 
@@ -253,7 +277,7 @@ async def package_for_file(file: str) -> dict:
         if kind == "miktex":
             listed = await asyncio.to_thread(miktex_packages, path)
             if listed is not None and package not in listed[1]:
-                package = ""
+                package = miktex_guess(Path(file).stem, listed[1])
     else:
         try:
             code, output = await _run(

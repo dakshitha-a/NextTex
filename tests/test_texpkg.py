@@ -452,3 +452,16 @@ def test_a_stem_miktex_does_not_list_gets_no_button(monkeypatch):
     _miktex_lists(monkeypatch, "amscls false\nxstring false\n")
     assert asyncio.run(texpkg.package_for_file("pgfplots-nosuch.sty"))["package"] == ""
     assert asyncio.run(texpkg.package_for_file("xstring.sty"))["package"] == "xstring"
+
+
+def test_miktex_finds_the_package_a_family_of_files_ships_in(monkeypatch):
+    """The laptop on 13 November 2026: newtxtext.sty was said to come from
+    no package, because MiKTeX ships it in newtx."""
+    _miktex_lists(monkeypatch, "newtx false\nfontaxes false\n")
+    assert asyncio.run(texpkg.package_for_file("newtxtext.sty"))["package"] == "newtx"
+    # Not in the table: found as the longest start of the stem MiKTeX lists.
+    _miktex_lists(monkeypatch, "fontaxes false\nfontawesome5 false\n")
+    assert asyncio.run(texpkg.package_for_file("fontaxesextra.sty"))["package"] == "fontaxes"
+    # Never shrunk below four letters.
+    _miktex_lists(monkeypatch, "ae false\n")
+    assert asyncio.run(texpkg.package_for_file("aenothing.sty"))["package"] == ""
