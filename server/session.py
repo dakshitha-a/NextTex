@@ -565,6 +565,7 @@ class ProjectSession:
         # and all four have to exist first.
         self.collab = CollabStore(project, self)
         self.collab.adopt()
+        self.collab.forget_machinery()
         # The history is keyed by the manifest's file ids, and the store is
         # what knows them: bound here, once the store exists, and a store
         # still keyed by path slug is migrated on the way.

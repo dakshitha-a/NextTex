@@ -388,12 +388,12 @@ OpenAI provider against OpenAI itself.
       what tells a member who was away that the file is gone, so dropping
       it blindly lets that member's old copy bring the file back. Two
       passes, after the join fix above:
-      - **Records the current rules would never adopt** go without
-        coordination: anything under `IGNORED_DIRS`, a `pyvenv.cfg`
-        folder or `IGNORED_FILES`, since no member should hold them and a
-        member that does would not adopt them again. Done when opening a
-        project drops them from its manifest, with a test on a manifest
-        that lists a `.venv-fig/` file.
+      - [x] **Records the current rules would never adopt** go without
+        coordination: deleted ones under `IGNORED_DIRS`, a `pyvenv.cfg`
+        folder or `IGNORED_FILES`, dropped by `forget_machinery` when a
+        session opens the project, since 4.50.13. Only four records in
+        the seven papers qualified, the NexusQC paper's `.venv-fig/`; the
+        rest of the deleted records are real folders, for the step below.
       - **Other deleted records expire** once every member has agreed a
         state that has the file deleted, through the `Agreed` index each
         pair already keeps, and a grace period has passed, a few weeks.

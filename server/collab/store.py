@@ -77,14 +77,14 @@ import logging
 import re
 import secrets
 import threading
-from pathlib import Path
+from pathlib import Path, PurePosixPath
 from typing import Any, Callable
 
 from pycrdt import Doc, Map, Text
 
 from nexttex.atomic import read_text, write_atomically
 from nexttex.history import slug_for
-from nexttex.project import TEXT_SUFFIXES, Project
+from nexttex.project import IGNORED_DIRS, IGNORED_FILES, TEXT_SUFFIXES, VENV_MARKER, Project
 
 from . import paragraphs, persist
 
@@ -1334,6 +1334,38 @@ class CollabStore:
         record["trashed"] = True
         self._gone_pending.pop(file_id, None)
         return True
+
+    def forget_machinery(self) -> int:
+        """Drop deleted records of files NextTex would no longer adopt.
+
+        A NextTex before 7c96b5c, 14 September 2026, hid a virtual
+        environment only under the names `.venv` and `venv`, so the NexusQC
+        paper adopted `.venv-fig/` and kept its records after the folder
+        went. Such a record is no one's work, and nothing else ever removes
+        a record. Only deleted ones go: a live record is a file still on
+        some disk, and dropping it is not this method's decision. The
+        folder is gone by now, so a virtual environment is recognised by a
+        `pyvenv.cfg` record under it rather than on disk. Returns how many
+        were dropped. Run once when a project is opened.
+        """
+        paths = {str(r.get("path") or "") for r in self.files.values()}
+        venvs = {str(PurePosixPath(p).parent) for p in paths
+                 if PurePosixPath(p).name == VENV_MARKER}
+
+        def machinery(relative: str) -> bool:
+            path = PurePosixPath(relative)
+            if path.name in IGNORED_FILES:
+                return True
+            above = [str(p) for p in path.parents if str(p) != "."]
+            return any(PurePosixPath(d).name in IGNORED_DIRS or d in venvs for d in above)
+
+        gone = [file_id for file_id, record in list(self.files.items())
+                if record.get("trashed") and machinery(str(record.get("path") or ""))]
+        if gone:
+            with self.manifest.transaction():
+                for file_id in gone:
+                    del self.files[file_id]
+        return len(gone)
 
     def key_for(self, relative: str) -> str | None:
         """The key a path's history is filed under: the file's id.
