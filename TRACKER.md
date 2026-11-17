@@ -317,6 +317,12 @@ OpenAI provider against OpenAI itself.
 
 ### Known gaps, with a cost somebody will eventually pay
 
+- [ ] **The Figures list's first visit after a build still waits for
+      `pdfimages`.** Its answer is kept per build now, and the drawer
+      shows the previous list meanwhile, but the first ask after each
+      build takes about three seconds on the 32 MB thesis. Left because
+      warming it at the end of every build spends those seconds on builds
+      nobody opens the list after; worth it only if the wait is noticed.
 - [x] **The first rename or deletion after a project opens is
       followed.** `_named` started empty at open, so the first change to
       each record was taken as the baseline; a throwaway share on 13

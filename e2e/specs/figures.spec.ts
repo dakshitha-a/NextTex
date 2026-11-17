@@ -37,7 +37,12 @@ test("figures and tables are listed with their references, and a press opens one
   await lonely.click();
   await expect(tab.locator(".cm-activeLine")).toContainText("\\begin{table}");
 
-  // The choice is remembered.
+  // The choice is remembered when the drawer is closed and opened again,
+  // and across a reload.
+  await tab.getByTestId("bar-sections").click();
+  await expect(tab.getByTestId("structure-choice")).toBeHidden();
+  await tab.getByTestId("bar-sections").click();
+  await expect(tab.getByTestId("figures-list")).toBeVisible();
   await tab.reload();
   await expect(tab.locator(".cm-editor")).toBeVisible({ timeout: 45_000 });
   if ((await tab.getByTestId("drawer").getAttribute("data-drawer").catch(() => null)) !== "sections") {

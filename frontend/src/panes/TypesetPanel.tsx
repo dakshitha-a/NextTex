@@ -7,6 +7,12 @@ import { Empty, Pressable } from "../ui/controls";
 /** Sixteen pixels a level, as the Sections list beside it. */
 const INDENT = 16;
 
+/** The last list each project's document gave, by project and document.
+ *  The drawer mounts this panel afresh every time it opens, and the list
+ *  sat empty until the server answered again; now the last one shows at
+ *  once and the answer replaces it when it lands. */
+const kept = new Map<string, HeadingEntry[]>();
+
 /** The whole document in the preview, as its headings: every heading it
  *  reaches through every `\input` and `\include`, in the order a reader
  *  meets them, with its number and page from the last build.  A press
@@ -24,7 +30,9 @@ export default function TypesetPanel({
   const document = useStore((s) => s.activePreview);
   const builtAt = useStore((s) => s.pdfStamp);
   const tree = useStore((s) => s.tree);
-  const [entries, setEntries] = useState<HeadingEntry[] | null>(null);
+  const key = `${projectId}\n${document ?? ""}`;
+  const [answer, setAnswer] = useState<{ key: string; entries: HeadingEntry[] } | null>(null);
+  const entries = answer?.key === key ? answer.entries : kept.get(key) ?? null;
 
   // Asked when the drawer shows it, after each build, and when the files
   // change, which is when a chapter can come or go.
@@ -32,12 +40,16 @@ export default function TypesetPanel({
     if (!projectId) return;
     let cancelled = false;
     api.headings(projectId, document ?? "")
-      .then((answer) => !cancelled && setEntries(answer.entries))
-      .catch(() => !cancelled && setEntries([]));
+      .then((reply) => {
+        kept.set(key, reply.entries);
+        if (!cancelled) setAnswer({ key, entries: reply.entries });
+      })
+      // A failed ask leaves the list it had rather than emptying it.
+      .catch(() => !cancelled && !kept.has(key) && setAnswer({ key, entries: [] }));
     return () => {
       cancelled = true;
     };
-  }, [projectId, document, builtAt, tree]);
+  }, [projectId, document, key, builtAt, tree]);
 
   const base = useMemo(
     () => (entries?.length ? Math.min(...entries.map((entry) => entry.level)) : 0),

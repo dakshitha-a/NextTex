@@ -25,6 +25,7 @@ import tempfile
 import time
 import uuid
 import zipfile
+from concurrent.futures import ThreadPoolExecutor
 from functools import partial
 from contextlib import asynccontextmanager
 from dataclasses import dataclass, field
@@ -48,6 +49,7 @@ from nexttex import (
     plots, rename, report, submit, synctex, texpkg,
 )
 from nexttex.version import VERSION
+from nexttex.pdf_memo import PdfMemo
 from nexttex.pages import MAX_STATE_BYTES, Pages, policy as page_policy, stored as page_stored, themed
 from server.collab import identity as collab_identity
 from server.collab import transport as collab_transport
@@ -4950,8 +4952,7 @@ async def figures_list(project_id: str, document: str = ""):
         numbers = auxlabels.read(paths.build_dir, paths.jobname)
         rows: list[dict[str, str]] = []
         if paths.pdf.is_file():
-            listed = submit.run_pdfimages(paths.pdf)
-            rows = submit._image_rows(listed) if listed else []
+            rows = _PDF_MEMO.get(paths.pdf, "images", lambda: _picture_rows(paths.pdf)) or []
         return figures.listing(texts, state.path, numbers, rows)
 
     return {"document": state.path, "entries": await asyncio.to_thread(run)}
@@ -4978,14 +4979,26 @@ async def headings_list(project_id: str, document: str = ""):
         # there, and the forward search knows it: at most a few dozen of
         # them are asked, so a document of nothing but starred headings
         # does not hold the list up.
+        # Each answer is kept until the next build, and the ones not yet
+        # kept are asked side by side, since each is a process of its own.
         if paths.pdf.is_file():
-            for entry in [entry for entry in entries if entry["page"] is None][:HEADING_PAGE_LOOKUPS]:
-                places = synctex.source_to_pdf(
-                    paths.pdf, session.project.root / entry["file"], entry["line"],
-                    session.project.root, base=paths.workdir,
+            unpaged = [entry for entry in entries if entry["page"] is None][:HEADING_PAGE_LOOKUPS]
+
+            def page_of(entry: dict) -> int | None:
+                places = _PDF_MEMO.get(
+                    paths.pdf, ("forward", entry["file"], entry["line"]),
+                    lambda: synctex.source_to_pdf(
+                        paths.pdf, session.project.root / entry["file"], entry["line"],
+                        session.project.root, base=paths.workdir,
+                    ),
                 )
-                if places:
-                    entry["page"] = places[0].page
+                return places[0].page if places else None
+
+            if unpaged:
+                with ThreadPoolExecutor(max_workers=min(8, len(unpaged))) as pool:
+                    for entry, page in zip(unpaged, pool.map(page_of, unpaged)):
+                        if page is not None:
+                            entry["page"] = page
         return entries
 
     return {"document": state.path, "entries": await asyncio.to_thread(run)}
@@ -4994,6 +5007,17 @@ async def headings_list(project_id: str, document: str = ""):
 #: How many headings without a contents line the Typeset list asks the
 #: forward search for a page.
 HEADING_PAGE_LOOKUPS = 40
+
+#: What the drawer's lists asked about the last build's PDF: its pictures'
+#: resolutions and its starred headings' pages, kept until it is rebuilt.
+_PDF_MEMO = PdfMemo()
+
+
+def _picture_rows(pdf: Path) -> list[dict[str, str]] | None:
+    """`pdfimages -list` for the Figures list, parsed; `None` when the
+    tool could not answer, which the memo does not keep."""
+    listed = submit.run_pdfimages(pdf)
+    return submit._image_rows(listed) if listed is not None else None
 
 
 def _cited_entries(texts: dict[str, str]) -> list[dict]:

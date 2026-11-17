@@ -54,3 +54,7 @@ def test_a_starred_heading_takes_its_page_from_the_forward_search(client, projec
     entries = client.get(f"/api/projects/{opened['id']}/headings").json()["entries"]
     assert [(e["title"], e["page"]) for e in entries] == [("Acknowledgements", 3)]
     assert asked == [("main.tex", 3)]
+    # Asked once per build, not on every visit to the list.
+    entries = client.get(f"/api/projects/{opened['id']}/headings").json()["entries"]
+    assert [(e["title"], e["page"]) for e in entries] == [("Acknowledgements", 3)]
+    assert asked == [("main.tex", 3)]
