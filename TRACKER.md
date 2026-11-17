@@ -323,6 +323,12 @@ OpenAI provider against OpenAI itself.
       November 2026 lost a folder rename to it on the Windows laptop. The
       live records' paths are the baseline now;
       `tests/collab/test_a_rename_right_after_opening_is_followed.py`.
+- [ ] **A nested list is flattened into its parent.** A bullet indented
+      under a numbered item, as `1. A` then `   - x`, is read as another
+      item of the numbered list and takes a number. Found fixing the
+      chat's numbered lists with explanation lines on 17 November 2026;
+      left because nesting needs the item to hold blocks, not a line of
+      text, and both the chat and the Markdown pane draw from that shape.
 - [ ] **A deletion persisted but not followed before a machine closed
       is adopted back on open.** A record already flagged deleted when
       the manifest opens is left out of the baseline, so its file, still

@@ -24,9 +24,24 @@ export type Block =
   | { kind: "paragraph"; text: string; line: number }
   | { kind: "code"; text: string; language: string; line: number }
   | { kind: "heading"; text: string; level: number; line: number }
-  | { kind: "list"; items: string[]; lines: number[]; ordered: boolean; line: number }
+  | ListBlock
   | { kind: "quote"; text: string; line: number }
   | TableBlock;
+
+/** A list.  `start` is the number its first item was written with, so a
+ *  numbered list an unindented paragraph splits in two goes on counting
+ *  where it left off; it is 1 for a bulleted one.  An item's text keeps
+ *  one line per source line, its continuation lines with their indent
+ *  taken off and a blank line as an empty one, so `lines[i] + n` is the
+ *  source line of the item's `n`th line. */
+export type ListBlock = {
+  kind: "list";
+  items: string[];
+  lines: number[];
+  ordered: boolean;
+  start: number;
+  line: number;
+};
 
 /** A column's alignment, from the colons on the delimiter row; `null`
  *  when there are none, which draws as the start of the line. */
@@ -75,6 +90,21 @@ function alignOf(cell: string): Align {
   if (right) return "right";
   if (left) return "left";
   return null;
+}
+
+/** The start of a list item: a bullet, or a number with a full stop or
+ *  a bracket, then a space. */
+const MARKER = /^\s*([-*+]|\d+[.)])\s+/;
+
+/** Whether a line carries on the list item above it: indented by two
+ *  spaces or a tab, and not an item itself.  A model writes an item's
+ *  explanation under its title this way, three spaces in for "1. ".
+ *  An unindented line is not taken, though CommonMark's lazy
+ *  continuation would take one straight under an item, because "a list,
+ *  then a sentence" with no blank line between is the commoner thing for
+ *  a model to mean by it. */
+function continues(line: string): boolean {
+  return /^( {2,}| *\t)/.test(line) && line.trim() !== "" && !MARKER.test(line);
 }
 
 export function parseBlocks(source: string): Block[] {
@@ -130,16 +160,43 @@ export function parseBlocks(source: string): Block[] {
       continue;
     }
 
-    if (/^\s*([-*+]|\d+[.)])\s+/.test(line)) {
+    if (MARKER.test(line)) {
       const ordered = /^\s*\d/.test(line);
+      const start = ordered ? Number(/\d+/.exec(line)![0]) : 1;
       const items: string[] = [];
       const itemLines: number[] = [];
-      while (index < lines.length && /^\s*([-*+]|\d+[.)])\s+/.test(lines[index])) {
-        items.push(lines[index].replace(/^\s*([-*+]|\d+[.)])\s+/, ""));
-        itemLines.push(index + 1);
-        index += 1;
+      while (index < lines.length) {
+        const here = lines[index];
+        if (MARKER.test(here)) {
+          items.push(here.replace(MARKER, ""));
+          itemLines.push(index + 1);
+          index += 1;
+          continue;
+        }
+        if (continues(here)) {
+          items[items.length - 1] += `\n${here.trim()}`;
+          index += 1;
+          continue;
+        }
+        // A blank line ends the list only if what follows it is not more
+        // of the list: an indented paragraph of the last item, or another
+        // item of the same kind, which is how a loose list is written.
+        let next = index;
+        while (next < lines.length && !lines[next].trim()) next += 1;
+        if (next === index || next === lines.length) break;
+        const after = lines[next];
+        if (continues(after)) {
+          items[items.length - 1] += "\n".repeat(next - index + 1) + after.trim();
+          index = next + 1;
+          continue;
+        }
+        if (MARKER.test(after) && /^\s*\d/.test(after) === ordered) {
+          index = next;
+          continue;
+        }
+        break;
       }
-      blocks.push({ kind: "list", items, lines: itemLines, ordered, line: at });
+      blocks.push({ kind: "list", items, lines: itemLines, ordered, start, line: at });
       continue;
     }
 
@@ -164,7 +221,7 @@ export function parseBlocks(source: string): Block[] {
       lines[index].trim() &&
       !lines[index].startsWith("```") &&
       !/^(#{1,4})\s/.test(lines[index]) &&
-      !/^\s*([-*+]|\d+[.)])\s+/.test(lines[index]) &&
+      !MARKER.test(lines[index]) &&
       // A table may follow a sentence with no blank line between, as a
       // model often writes "Here they are:" straight above one.
       !tableAt(lines, index)
@@ -359,6 +416,7 @@ export function same(before: { block: Block }, after: { block: Block }): boolean
   if (one.kind === "list" && two.kind === "list") {
     return (
       one.ordered === two.ordered
+      && one.start === two.start
       && one.items.length === two.items.length
       && one.items.every((item, at) => item === two.items[at])
     );
@@ -442,6 +500,49 @@ export function Table(
   );
 }
 
+/** A list, for the chat and the Markdown pane alike.  An item of one
+ *  line is drawn as before; one with continuation lines keeps their
+ *  breaks, as a paragraph does, and one with a blank line inside it is
+ *  a run of paragraphs under the one marker.  An ordered list that does
+ *  not start at 1 says so with `start`, so a list split by a paragraph
+ *  goes on counting.
+ *
+ *  `withLines` writes the source line of the list and of each item into
+ *  `data-line`, which the Markdown pane reads on a double-click; `inset`
+ *  is the room for the markers, which the pane's wider measure gives
+ *  more of. */
+export function List(
+  { block, id, withLines = false, inset = "pl-5" }:
+  { block: ListBlock; id: string; withLines?: boolean; inset?: "pl-5" | "pl-6" },
+) {
+  const Tag = block.ordered ? "ol" : "ul";
+  return (
+    <Tag
+      className={`flex flex-col gap-1 ${inset} ${block.ordered ? "list-decimal" : "list-disc"}`}
+      start={block.ordered && block.start !== 1 ? block.start : undefined}
+      data-line={withLines ? block.line : undefined}
+    >
+      {block.items.map((item, at) => {
+        const parts = item.split(/\n\s*\n/);
+        const key = `${id}-${at}`;
+        return (
+          <li key={key} data-line={withLines ? block.lines[at] : undefined}>
+            {parts.length === 1 ? (
+              <span className="whitespace-pre-wrap">{inline(item, key)}</span>
+            ) : (
+              parts.map((part, n) => (
+                <p key={n} className="mt-2 whitespace-pre-wrap first:mt-0">
+                  {inline(part, `${key}-${n}`)}
+                </p>
+              ))
+            )}
+          </li>
+        );
+      })}
+    </Tag>
+  );
+}
+
 const Rendered = memo(function Rendered(
   { block, id: key }: { block: Block; id: string },
 ) {
@@ -460,20 +561,7 @@ const Rendered = memo(function Rendered(
       <div className="t-ui-lg text-ink">{inline(block.text, key)}</div>
     );
   }
-  if (block.kind === "list") {
-    const Tag = block.ordered ? "ol" : "ul";
-    return (
-      <Tag
-        className={`flex flex-col gap-1 pl-5 ${
-          block.ordered ? "list-decimal" : "list-disc"
-        }`}
-      >
-        {block.items.map((item, itemIndex) => (
-          <li key={`${key}-${itemIndex}`}>{inline(item, `${key}-${itemIndex}`)}</li>
-        ))}
-      </Tag>
-    );
-  }
+  if (block.kind === "list") return <List block={block} id={key} />;
   if (block.kind === "quote") {
     return (
       <blockquote className="border-l-2 border-line pl-3 italic text-ink-2">

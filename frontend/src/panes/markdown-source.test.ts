@@ -63,13 +63,13 @@ describe("skipping a block that did not change, lines included", () => {
   });
 
   it("notices a list whose items kept their text but not their lines", () => {
+    // A blank line between the items keeps one list, whose second item
+    // has moved down a line.
     const before = parseBlocks("- one\n- two")[0];
-    const after = parseBlocks("- one\n\n- two")[1];
+    const after = parseBlocks("- one\n\n- two")[0];
     if (before.kind !== "list" || after.kind !== "list") throw new Error("not lists");
-    // The second is a new list starting at line 3 with one item; compare
-    // a list that kept its start but not its second item's line instead.
-    const moved: Block = { ...before, lines: [1, 3] };
-    expect(sameWithLines(wrap(before), wrap(moved))).toBe(false);
-    expect(after.line).toBe(3);
+    expect(after.lines).toEqual([1, 3]);
+    expect(same(wrap(before), wrap(after))).toBe(true);
+    expect(sameWithLines(wrap(before), wrap(after))).toBe(false);
   });
 });

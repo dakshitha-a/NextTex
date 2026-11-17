@@ -2,8 +2,8 @@ import { memo, useEffect, useMemo, useRef } from "react";
 import { get, useStore } from "../store";
 import { busyTyping } from "../timing";
 import type { WordHint } from "./locate-word";
-import { lineOf, sameWithLines } from "./markdown-source";
-import { inline, parseBlocks, Table, type Block } from "./prose";
+import { itemLineOf, lineOf, sameWithLines } from "./markdown-source";
+import { inline, List, parseBlocks, Table, type Block } from "./prose";
 
 /** A Markdown file, rendered as it is typed.
  *
@@ -16,7 +16,7 @@ import { inline, parseBlocks, Table, type Block } from "./prose";
  *  the same place it publishes the section list, so a version being
  *  viewed from History renders that version.
  *
- *  The renderer is the chat's own, `parseBlocks`, `inline` and `Table`
+ *  The renderer is the chat's own, `parseBlocks`, `inline`, `List` and `Table`
  *  from `prose.tsx`: headings, paragraphs, lists, fenced code, quotes,
  *  pipe tables, and code, bold and italic within them.  Deliberately not
  *  a library, for the reason that file gives, and deliberately not more
@@ -65,21 +65,7 @@ const Rendered = memo(function Rendered({ block, id }: { block: Block; id: strin
       </pre>
     );
   }
-  if (block.kind === "list") {
-    const Tag = block.ordered ? "ol" : "ul";
-    return (
-      <Tag
-        className={`flex flex-col gap-1 pl-6 ${block.ordered ? "list-decimal" : "list-disc"}`}
-        data-line={block.line}
-      >
-        {block.items.map((item, index) => (
-          <li key={`${id}-${index}`} data-line={block.lines[index]}>
-            {inline(item, `${id}-${index}`)}
-          </li>
-        ))}
-      </Tag>
-    );
-  }
+  if (block.kind === "list") return <List block={block} id={id} withLines inset="pl-6" />;
   if (block.kind === "quote") {
     return (
       <blockquote className="border-l-2 border-line pl-3 italic text-ink-2" data-line={block.line}>
@@ -161,12 +147,18 @@ export default function Markdown({
     }
     const line = Number(target.dataset.line);
     if (!Number.isFinite(line) || line < 1) return;
-    // A list item's line and a table row's are their own; every other
-    // element's is its block's first, and the word picks the line
-    // inside the block.
-    const own = target.tagName === "LI" || target.tagName === "TR";
-    const block = own ? undefined : blocks.find((b) => b.line === line);
-    onNavigate(tab.path, block ? lineOf(block, word) : line, { word, before, after, plain: true });
+    // A table row's line is its own.  A list item's is its first, and
+    // the word picks among its continuation lines; every other element's
+    // is its block's first, and the word picks the line inside the block.
+    const at = target.tagName === "LI"
+      ? itemLineOf(blocks, line, word)
+      : target.tagName === "TR"
+        ? line
+        : (() => {
+            const block = blocks.find((b) => b.line === line);
+            return block ? lineOf(block, word) : line;
+          })();
+    onNavigate(tab.path, at, { word, before, after, plain: true });
   };
 
   return (

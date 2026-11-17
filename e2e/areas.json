@@ -5,7 +5,7 @@
     {
       "name": "the preview",
       "sources": ["frontend/src/panes/Pdf.tsx", "frontend/src/panes/pdf-*.ts", "frontend/src/panes/PageWindow.tsx", "frontend/src/panes/PreviewHeader.tsx", "frontend/src/page-window.ts", "frontend/src/follow-preview.ts", "frontend/src/panes/Markdown.tsx", "frontend/src/panes/markdown-source.ts", "frontend/src/panes/locate-on-page.ts", "frontend/src/panes/hold-place.ts", "nexttex/synctex.py", "frontend/src/paper-open.ts", "nexttex/paperpdfs.py"],
-      "specs": ["pdf-*", "preview-swap", "kept-pdf", "previews", "page-window", "appearance", "latex-links", "markdown-preview", "navigation", "inverse-word", "build-flash", "build-follow", "multidoc", "jump-to-page", "paper-pdfs", "left-off"]
+      "specs": ["pdf-*", "preview-swap", "kept-pdf", "previews", "page-window", "appearance", "latex-links", "markdown-preview", "navigation", "inverse-word", "build-flash", "build-follow", "multidoc", "jump-to-page", "paper-pdfs", "left-off", "reply-lists"]
     },
     {
       "name": "the frame and the panes",
@@ -30,7 +30,7 @@
     {
       "name": "the Claude column",
       "sources": ["frontend/src/panes/Chat.tsx", "frontend/src/panes/prose.tsx", "frontend/src/panes/katex-load.ts", "frontend/src/panes/ComposerMenus.tsx", "frontend/src/panes/ContextPanel.tsx", "frontend/src/panes/PastConversation.tsx", "frontend/src/panes/SessionView.tsx", "frontend/src/panes/session-words.ts", "frontend/src/panes/tool-*.ts", "frontend/src/panes/composer-height.ts", "frontend/src/panes/slash-prompts.ts", "frontend/src/panes/column-header.tsx", "frontend/src/panes/AgentButton.tsx", "frontend/src/panes/AgentSheet.tsx", "frontend/src/agent-*.ts", "frontend/src/arrive-source.ts", "server/transcript.py", "nexttex/conversation.py", "nexttex/agent.py", "nexttex/scripted_agent.py", "nexttex/openai_agent.py", "nexttex/providers.py", "nexttex/tools.py", "nexttex/permission_gate.py", "nexttex/arrive.py", "nexttex/prompts/**", "nexttex/pages.py", "nexttex/page_parts.py", "nexttex/page_check.py", "nexttex/page_icons.py"],
-      "specs": ["agent", "past-continue", "session", "agent-new-file", "agent-sheet", "agent-comments", "slash-commands", "turn-name", "arrive", "chat-layout", "openai-*", "sign-in", "scripts", "markdown-preview", "reply-links", "chat-maths", "spill", "page-maths", "page-state"]
+      "specs": ["agent", "past-continue", "session", "agent-new-file", "agent-sheet", "agent-comments", "slash-commands", "turn-name", "arrive", "chat-layout", "openai-*", "sign-in", "scripts", "markdown-preview", "reply-links", "reply-lists", "chat-maths", "spill", "page-maths", "page-state"]
     },
     {
       "name": "the drawers",

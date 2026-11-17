@@ -17,17 +17,33 @@ import { same, type Block } from "./prose";
  *  of text when nothing does, which is what a click on a bullet, on
  *  punctuation, or on a word the parser rewrote gets. */
 export function lineOf(block: Block, word: string): number {
-  const clean = normaliseWord(word);
-  // A list item is one line; the block's line is its first item's, and
-  // the item that was clicked is decided by the caller from its `<li>`.
-  // A table's rows are the same, from their `<tr>`.
+  // A list's items are found by `itemLineOf`, from the `<li>` that was
+  // clicked, and a table's rows are their own `<tr>`'s.
   const first = block.kind === "code" ? block.line + 1 : block.line;
-  if (!clean || block.kind === "list" || block.kind === "table") return first;
+  if (block.kind === "list" || block.kind === "table") return first;
+  return wordLine(block.text, first, word);
+}
+
+/** The source line of a word inside a list item, given the item's own
+ *  first line from its `<li>`: an item's text keeps one line per source
+ *  line, so the word's line in it counts down from there. */
+export function itemLineOf(blocks: Block[], line: number, word: string): number {
+  for (const block of blocks) {
+    if (block.kind !== "list") continue;
+    const at = block.lines.indexOf(line);
+    if (at >= 0) return wordLine(block.items[at], line, word);
+  }
+  return line;
+}
+
+function wordLine(text: string, first: number, word: string): number {
+  const clean = normaliseWord(word);
+  if (!clean) return first;
   const pattern = new RegExp(
     `(?<![\\p{L}\\p{N}])${clean.replace(/[.*+?^${}()|[\]\\]/g, "\\$&")}(?![\\p{L}\\p{N}])`,
     "iu",
   );
-  const lines = block.text.split("\n");
+  const lines = text.split("\n");
   for (let index = 0; index < lines.length; index += 1) {
     if (pattern.test(lines[index])) return first + index;
   }
