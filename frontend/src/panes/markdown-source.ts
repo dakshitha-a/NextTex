@@ -28,12 +28,27 @@ export function lineOf(block: Block, word: string): number {
  *  first line from its `<li>`: an item's text keeps one line per source
  *  line, so the word's line in it counts down from there. */
 export function itemLineOf(blocks: Block[], line: number, word: string): number {
-  for (const block of blocks) {
+  for (const block of everyBlock(blocks)) {
     if (block.kind !== "list") continue;
     const at = block.lines.indexOf(line);
     if (at >= 0) return wordLine(block.items[at], line, word);
   }
   return line;
+}
+
+/** The block a double-click on an element other than a list item or a
+ *  table row landed in, by the line in its `data-line`, looking inside
+ *  list items too.  A list is passed over: an item's first block starts
+ *  on the item's line, and the click was on that block. */
+export function blockAt(blocks: Block[], line: number): Block | undefined {
+  return everyBlock(blocks).find((block) => block.line === line && block.kind !== "list");
+}
+
+/** Every block, with the blocks inside list items after their list. */
+function everyBlock(blocks: Block[]): Block[] {
+  return blocks.flatMap((block) =>
+    block.kind === "list" ? [block, ...block.parts.flatMap(everyBlock)] : [block],
+  );
 }
 
 function wordLine(text: string, first: number, word: string): number {

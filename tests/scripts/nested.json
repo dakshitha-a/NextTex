@@ -1,0 +1,1 @@
+[{"kind": "text", "text": "Two steps:\n\n1. **Check the build**\n   - the log is clean\n   - the page count is right\n2. **Run it again**\n\n   ```sh\n   latexmk -pdf thesis.tex\n   ```\n\nThat is all.", "pieces": 4}]

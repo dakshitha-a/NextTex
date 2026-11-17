@@ -107,3 +107,58 @@ test("the Markdown preview's numbered items do the same, and a double-click find
   await view.locator("ol > li").nth(1).locator("strong").dblclick();
   await expect.poll(caret).toMatch(/^Ln 5, Col \d+$/);
 });
+
+test("a list or a fence under a numbered item is drawn inside it, and only the items are numbered", async ({ tab }) => {
+  await ask(tab, "nested", "How do I check the thesis?");
+  const chat = tab.getByTestId("chat");
+  await expect(chat.getByText("That is all.")).toBeVisible({ timeout: 20_000 });
+
+  const outer = chat.locator(".t-prose ol");
+  await expect(outer).toHaveCount(1);
+  await expect(outer.locator(":scope > li")).toHaveCount(2);
+  const bullets = outer.locator(":scope > li").first().locator("ul > li");
+  await expect(bullets).toHaveText(["the log is clean", "the page count is right"]);
+  const code = outer.locator(":scope > li").nth(1).locator("pre");
+  await expect(code).toHaveText("latexmk -pdf thesis.tex");
+
+  // The bullets and the fence sit inside the item's text column.
+  const title = await wordBox(outer.locator(":scope > li").first(), "Check");
+  const bullet = (await bullets.first().boundingBox())!;
+  const fence = (await code.boundingBox())!;
+  expect(bullet.x).toBeGreaterThan(title.x);
+  expect(Math.abs(fence.x - title.x)).toBeLessThan(2);
+});
+
+test("a double-click on a nested bullet or on code in an item finds its line", async ({
+  app, project, page,
+}) => {
+  writeFileSync(
+    join(project.root, "steps.md"),
+    [
+      "1. Check the build",       // 1
+      "   - the log is clean",    // 2
+      "   - the page count",      // 3
+      "2. Run it again:",         // 4
+      "",                         // 5
+      "   ```sh",                 // 6
+      "   latexmk -pdf thesis",   // 7
+      "   ```",                   // 8
+      "",
+    ].join("\n"),
+  );
+  await page.goto(`${app.base}/?token=${app.token}`);
+  await page.getByText("Projects", { exact: false }).first().waitFor();
+  await openProject(page, project.root);
+  await expect(page.locator(".cm-editor")).toBeVisible({ timeout: 30_000 });
+  await page.locator('[role="tree"] [data-path="steps.md"]').click();
+  const view = page.getByTestId("markdown-view");
+  await expect(view.locator("ol > li ul > li")).toHaveCount(2, { timeout: 15_000 });
+
+  const caret = () => page.getByText(/^Ln \d+, Col \d+$/).innerText();
+  const count = await wordBox(view.locator("ul > li").nth(1), "count");
+  await page.mouse.dblclick(count.x + count.width / 2, count.y + count.height / 2);
+  await expect.poll(caret).toMatch(/^Ln 3, Col \d+$/);
+  const latexmk = await wordBox(view.locator("pre"), "latexmk");
+  await page.mouse.dblclick(latexmk.x + latexmk.width / 2, latexmk.y + latexmk.height / 2);
+  await expect.poll(caret).toMatch(/^Ln 7, Col \d+$/);
+});

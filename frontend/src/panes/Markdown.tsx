@@ -2,7 +2,7 @@ import { memo, useEffect, useMemo, useRef } from "react";
 import { get, useStore } from "../store";
 import { busyTyping } from "../timing";
 import type { WordHint } from "./locate-word";
-import { itemLineOf, lineOf, sameWithLines } from "./markdown-source";
+import { blockAt, itemLineOf, lineOf, sameWithLines } from "./markdown-source";
 import { inline, List, parseBlocks, Table, type Block } from "./prose";
 
 /** A Markdown file, rendered as it is typed.
@@ -65,7 +65,17 @@ const Rendered = memo(function Rendered({ block, id }: { block: Block; id: strin
       </pre>
     );
   }
-  if (block.kind === "list") return <List block={block} id={id} withLines inset="pl-6" />;
+  if (block.kind === "list") {
+    return (
+      <List
+        block={block}
+        id={id}
+        withLines
+        inset="pl-6"
+        render={(part, at) => <Rendered block={part} id={at} />}
+      />
+    );
+  }
   if (block.kind === "quote") {
     return (
       <blockquote className="border-l-2 border-line pl-3 italic text-ink-2" data-line={block.line}>
@@ -155,7 +165,7 @@ export default function Markdown({
       : target.tagName === "TR"
         ? line
         : (() => {
-            const block = blocks.find((b) => b.line === line);
+            const block = blockAt(blocks, line);
             return block ? lineOf(block, word) : line;
           })();
     onNavigate(tab.path, at, { word, before, after, plain: true });
