@@ -382,7 +382,7 @@ export function inline(text: string, keyPrefix: string): ReactNode[] {
       nodes.push(
         <code
           key={key}
-          className="t-code-sm rounded-control bg-surface-2 px-0.75 py-px"
+          className="nx-code t-code-sm rounded-control bg-surface-2 px-0.75 py-px"
         >
           {token.slice(1, -1)}
         </code>,
@@ -598,7 +598,7 @@ const Rendered = memo(function Rendered(
   if (block.kind === "code") {
     return (
       <div className="group relative">
-        <pre className="t-code-sm overflow-x-auto rounded-control bg-surface-2 p-2">
+        <pre className="nx-code t-code-sm overflow-x-auto rounded-control bg-surface-2 p-2">
           {block.text}
         </pre>
         <CopyButton text={block.text} />
@@ -667,7 +667,7 @@ export default function Prose({ text }: { text: string }) {
   // re-renders for reasons that have nothing to do with any one message.
   const blocks = useMemo(() => parseBlocks(text), [text]);
   return (
-    <div className="t-prose flex flex-col gap-3 text-ink">
+    <div className="nx-reply t-prose flex flex-col gap-3 text-ink">
       {blocks.map((block, index) => (
         <Rendered key={`b${index}`} id={`b${index}`} block={block} />
       ))}

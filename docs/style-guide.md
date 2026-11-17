@@ -142,6 +142,12 @@ own box, so the prose around it keeps the column's width. A short cell,
 or one with no space in it such as a path, keeps its line; a cell long
 enough to be a sentence wraps, but no narrower than 12 rem.
 
+Code in prose, a span or a fenced block, sits on the step above its
+ground so its box shows. In the Markdown preview that is `--surface-2`
+on the white page. In the Claude column, which is itself `--surface-2`,
+it is `--surface`, the step the writer's own message sits on, given by
+`.nx-reply .nx-code` in `frontend/src/styles.css`.
+
 Maths in prose, a reply's or a README's, is `Maths` in
 `frontend/src/panes/prose.tsx`, set by KaTeX in its own Computer Modern
 face, the one exception to the single family, since an equation in

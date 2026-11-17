@@ -127,6 +127,21 @@ test("a list or a fence under a numbered item is drawn inside it, and only the i
   const fence = (await code.boundingBox())!;
   expect(bullet.x).toBeGreaterThan(title.x);
   expect(Math.abs(fence.x - title.x)).toBeLessThan(2);
+
+  // The fence's box shows on the column: code takes the step above the
+  // Claude column's ground, as the writer's own message does.
+  const ground = (el: Element) => getComputedStyle(el).backgroundColor;
+  const column = await chat.evaluate(ground);
+  const box = await code.evaluate(ground);
+  expect(box).not.toBe(column);
+  expect(box).toBe(await tab.evaluate(() => {
+    const probe = document.createElement("span");
+    probe.style.background = "var(--surface)";
+    document.body.append(probe);
+    const colour = getComputedStyle(probe).backgroundColor;
+    probe.remove();
+    return colour;
+  }));
 });
 
 test("a double-click on a nested bullet or on code in an item finds its line", async ({

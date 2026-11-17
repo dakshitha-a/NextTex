@@ -592,6 +592,14 @@ button { font: inherit; color: inherit; }
   .cm-editor .cm-ySelectionInfo { animation: none; opacity: 0; }
 }
 
+/* Code in a reply.  A reply is drawn on the Claude column's --surface-2,
+   which is the ground `inline` and the code block give code everywhere
+   else, so in the column a code span and a fence had no box at all and
+   the fence's Copy floated over nothing.  There code takes the step the
+   writer's own message sits on, --surface; on the Markdown pane's white
+   page --surface-2 is already the step and stays. */
+.nx-reply .nx-code { background: var(--surface); }
+
 /* The ground a sheet sits on.
  *
  * Built from black rather than from --surround, and with a different alpha
