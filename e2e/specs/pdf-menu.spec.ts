@@ -16,7 +16,12 @@ async function firstPage(tab: Page) {
   await expect.poll(async () => (await canvas.boundingBox())?.width ?? 0, { timeout: 15_000 }).toBeGreaterThan(0);
   // A page scrolled out of the pane has a box above or below the window,
   // and a click there lands on nothing (see menus-contrast.spec.ts).
-  await canvas.scrollIntoViewIfNeeded();
+  // Retried, because a change of fit draws the page again and replaces its
+  // canvas: a scroll begun on the old one ended "not attached to the DOM"
+  // in three runs of sixteen, on 4.52.9 as on the commit after it.
+  await expect(async () => {
+    await canvas.scrollIntoViewIfNeeded({ timeout: 2_000 });
+  }).toPass({ timeout: 20_000 });
   return (await canvas.boundingBox())!;
 }
 
