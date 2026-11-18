@@ -172,8 +172,10 @@ test("a collaborators chip that will not load leaves the window alone", async ({
   let loads = 0;
   mine.page.on("load", () => (loads += 1));
   const theirs = await open(false);
-  // The other window sees the chip, so a collaborator is present for both.
-  await expect(theirs.page.getByTestId("collaborators")).toBeVisible({ timeout: 20_000 });
+  // The other window has the chip, so a collaborator is present for both.
+  // Counted rather than seen: that window's source pane can open folded,
+  // which hides the strip the chip sits on.
+  await expect(theirs.page.getByTestId("collaborators")).toHaveCount(1, { timeout: 20_000 });
   await mine.page.waitForTimeout(3_000);
   await expect(mine.page.getByTestId("collaborators")).toHaveCount(0);
   await expect(mine.page.getByTestId("interface-failed")).toHaveCount(0);
