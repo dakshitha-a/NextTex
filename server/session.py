@@ -1254,6 +1254,8 @@ class ProjectSession:
             "language": config.language,
             "wordLimits": dict(config.word_limits),
             "keepAllVersions": config.keep_all_versions,
+            "notShared": list(config.not_shared),
+            "notSharedDefaults": config.not_shared_defaults,
         }
 
     def documents_payload(self) -> dict:

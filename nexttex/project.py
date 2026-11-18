@@ -221,6 +221,109 @@ IGNORED_FILES = {".DS_Store"}
 IGNORED_PREFIXES = (".nexttex-preview",)
 
 
+#: The leftovers of a TeX build, left out of a share when a `.tex` of the
+#: same stem is beside them. `.bbl` is not among them: a journal's upload
+#: can need it, and it is the one leftover a writer may mean to send.
+TEX_LEFTOVERS = (
+    ".synctex.gz", ".fdb_latexmk", ".run.xml",
+    ".aux", ".log", ".out", ".toc", ".lof", ".lot", ".fls", ".blg", ".bcf",
+)
+
+#: Folders of build output, left out of a share wherever they are.
+BUILD_FOLDERS = ("build", "out")
+
+#: The most patterns a project's list holds, and the longest one.
+NOT_SHARED_MOST = 200
+NOT_SHARED_LONGEST = 300
+
+
+def clean_not_shared(raw: object) -> list[str] | None:
+    """A not-shared list as kept, or None for one that is refused whole.
+
+    Each entry is a name, a `folder/`, a `*.ext`, or a path in the project,
+    `**` allowed. Never a path that leaves the project, an absolute one, or
+    one naming a drive: the list travels with the project to other
+    machines, and the matcher only ever compares names, but a list that
+    says `../` is a list somebody meant something else by.
+    """
+    if not isinstance(raw, list) or len(raw) > NOT_SHARED_MOST:
+        return None
+    kept: list[str] = []
+    for item in raw:
+        if not isinstance(item, str):
+            return None
+        pattern = item.strip().replace("\\", "/")
+        if not pattern or len(pattern) > NOT_SHARED_LONGEST:
+            return None
+        if pattern.startswith("/") or ":" in pattern or "\0" in pattern:
+            return None
+        if any(part == ".." for part in pattern.split("/")):
+            return None
+        if pattern not in kept:
+            kept.append(pattern)
+    return kept
+
+
+class NotShared:
+    """Whether a project path is one a share leaves out.
+
+    The project's own list from `nexttex.toml`, and, unless the writer
+    switched them off, the defaults: folders named `build` or `out`, and
+    TeX's leftovers beside a `.tex` of the same stem. A calculation's
+    `regen.log` has no `regen.tex` beside it and stays shared.
+
+    A pattern with no slash but a trailing one names a folder anywhere; with
+    none at all, a file or folder name anywhere, `*` allowed. One with a
+    slash inside is a path from the project's root, a folder and everything
+    in it when it ends in `/`, and `**` reaches across folders.
+    """
+
+    def __init__(self, root: Path, patterns: list[str], defaults: bool) -> None:
+        self.root = root
+        self.patterns = list(patterns)
+        self.defaults = defaults
+
+    def __call__(self, relative: str, is_dir: bool = False) -> bool:
+        from fnmatch import fnmatchcase
+
+        parts = [p for p in relative.split("/") if p]
+        if not parts:
+            return False
+        last = len(parts) - 1
+        for pattern in self.patterns:
+            folder = pattern.endswith("/")
+            body = pattern.rstrip("/")
+            if "/" in body:
+                glob = body.replace("**", "*")
+                for k in range(1, len(parts) + 1):
+                    if folder and not (k - 1 < last or is_dir):
+                        continue
+                    if fnmatchcase("/".join(parts[:k]), glob):
+                        return True
+            else:
+                for k, part in enumerate(parts):
+                    if folder and not (k < last or is_dir):
+                        continue
+                    if fnmatchcase(part, body):
+                        return True
+        if not self.defaults:
+            return False
+        for k, part in enumerate(parts):
+            if part in BUILD_FOLDERS and (k < last or is_dir):
+                return True
+        if is_dir:
+            return False
+        name = parts[-1]
+        for suffix in TEX_LEFTOVERS:
+            if name.endswith(suffix) and len(name) > len(suffix):
+                beside = self.root.joinpath(*parts[:-1], name[: -len(suffix)] + ".tex")
+                try:
+                    return beside.is_file()
+                except OSError:
+                    return False
+        return False
+
+
 def is_ours(name: str) -> bool:
     """Whether a file is NextTex's own machinery rather than the writer's."""
     return name in IGNORED_FILES or name.startswith(IGNORED_PREFIXES)
@@ -333,6 +436,11 @@ class ProjectConfig:
     check_command: str = ""
     # Directories excluded from the tree beyond the built-in list.
     exclude: list[str] = field(default_factory=list)
+    #: What a share leaves out, as `NotShared` reads it. Kept in this file
+    #: so every member agrees on it. A path on it is still in the tree.
+    not_shared: list[str] = field(default_factory=list)
+    #: Whether build folders and TeX's leftovers are left out as well.
+    not_shared_defaults: bool = True
     #: What an older `nexttex.toml` said the documents were: its `main` and
     #: then its `previews`, in that order.  Read once and never written.
     #: Which documents are on the preview strip is viewer state now, kept
@@ -419,6 +527,8 @@ class ProjectConfig:
             build_dir=cls._inside(section.get("build_dir")) or "build",
             check_command=section.get("check_command", ""),
             exclude=list(section.get("exclude", [])),
+            not_shared=clean_not_shared(section.get("not_shared", [])) or [],
+            not_shared_defaults=section.get("not_shared_defaults") is not False,
             inherited_documents=list(dict.fromkeys(inherited)),
             autocompile=bool(section.get("autocompile", True)),
             mark_errors=bool(section.get("mark_errors", True)),
@@ -530,6 +640,11 @@ class ProjectConfig:
         if self.exclude:
             listed = ", ".join(_toml(item) for item in self.exclude)
             lines.append(f"exclude = [{listed}]")
+        if self.not_shared:
+            listed = ", ".join(_toml(item) for item in self.not_shared)
+            lines.append(f"not_shared = [{listed}]")
+        if not self.not_shared_defaults:
+            lines.append("not_shared_defaults = false")
         if self.word_limits:
             lines.append("")
             lines.append("[project.limits]")
@@ -679,7 +794,10 @@ class Project:
                 return True
             return target != root and root not in target.parents
 
-        def walk(directory: Path, prefix: str, outside: bool = False) -> list[dict]:
+        not_shared = self.not_shared
+
+        def walk(directory: Path, prefix: str, outside: bool = False,
+                 held_out: bool = False) -> list[dict]:
             entries: list[dict] = []
             try:
                 with os.scandir(directory) as found:
@@ -710,13 +828,17 @@ class Project:
                 except OSError:
                     linked = False
                 out = outside or (linked and leaves(path))
+                unshared = (
+                    not out and (held_out or not_shared(relative, is_dir))
+                )
                 if is_dir:
                     entries.append({
                         "name": name,
                         "path": relative,
                         "type": "dir",
-                        "children": walk(path, relative + "/", out),
+                        "children": walk(path, relative + "/", out, unshared),
                         **({"link": "outside"} if out else {}),
+                        **({"notShared": True} if unshared else {}),
                     })
                 else:
                     try:
@@ -736,6 +858,7 @@ class Project:
                         # the file is, and not before.
                         "mtime": mtime,
                         **({"link": "outside"} if out else {}),
+                        **({"notShared": True} if unshared else {}),
                     })
             return entries
 
@@ -764,7 +887,19 @@ class Project:
             "language": self.config.language,
             "wordLimits": dict(self.config.word_limits),
             "keepAllVersions": self.config.keep_all_versions,
+            "notShared": list(self.config.not_shared),
+            "notSharedDefaults": self.config.not_shared_defaults,
         }
+
+    @property
+    def not_shared(self) -> NotShared:
+        """The matcher for what a share leaves out, as the config says now."""
+        key = (tuple(self.config.not_shared), self.config.not_shared_defaults)
+        held = getattr(self, "_not_shared", None)
+        if held is None or held[0] != key:
+            held = (key, NotShared(self.root, list(key[0]), key[1]))
+            self._not_shared = held
+        return held[1]
 
 
 # ---------------------------------------------------------------------------

@@ -505,10 +505,14 @@ OpenAI provider against OpenAI itself.
         after acknowledging, and a member who never acknowledges, who
         holds every later tombstone until removed from the share.
       Raised by Dakshitha on 12 November 2026.
-- [ ] **A per-project ignore list.** Dakshitha asked on 12 November 2026
+- [x] **A per-project ignore list.** Dakshitha asked on 12 November 2026
       for a way to keep scratch out of a shared project to begin with, so
       a cloned repository or a calculations folder is never shared, with
-      defaults for build output.
+      defaults for build output. Built on 17 November 2026 as the
+      not-shared list in `nexttex.toml`, with TeX's leftovers and build
+      folders left out by default and every member keeping their copy;
+      `tests/collab/test_what_a_project_does_not_share.py` and
+      `e2e/specs/not-shared.spec.ts`.
 - [x] **A text file that is not UTF-8 is shared as an empty file.** Same
       cause and same symptom as the link above: `read_text` returns
       nothing for it. One Latin-1 build log in the resume project showed

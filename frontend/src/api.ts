@@ -337,6 +337,11 @@ export type TreeNode = {
   size?: number;
   /** For files only: when it last changed, as the server's clock has it. */
   mtime?: number;
+  /** A link to somewhere outside the project, or anything under one,
+   *  which a share leaves out. */
+  link?: "outside";
+  /** On the project's not-shared list, or left out by its defaults. */
+  notShared?: boolean;
   children?: TreeNode[];
 };
 
@@ -1119,6 +1124,8 @@ const api = {
       language: string;
       wordLimits: Record<string, number>;
       keepAllVersions: boolean;
+      notShared: string[];
+      notSharedDefaults: boolean;
     }>,
   ) =>
     request<{
@@ -1135,6 +1142,8 @@ const api = {
       language: string;
       wordLimits: Record<string, number>;
       keepAllVersions: boolean;
+      notShared: string[];
+      notSharedDefaults: boolean;
     }>(`/projects/${id}/settings`, json(patch)),
   /** This machine's answer to a project that asks for shell escape. The
    *  project asks in its own toml; the answer is kept per project on the

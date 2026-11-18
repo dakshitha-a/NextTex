@@ -12975,3 +12975,36 @@ or a preview opened for the first time starts at the top. A double-click
 on the page, a jump from a diagnostic or a search still goes where it
 was asked to go. Switching to another preview tab now opens that
 document at its own place rather than at the scroll of the one before.
+
+## 131. What a shared project leaves out
+
+17 November 2026, at the writer's answers, drawn on the direction page's
+`#notshared` section first and built as drawn. Three things a share carried
+as empty files, or should never have carried: a link into another repository,
+fifteen of them in one paper's `refs/`; a Latin-1 build log; and TeX's own
+leftovers, which every member's build rewrites. The writer chose to leave the
+link out and mark it, to share such a log as its bytes, and to keep a list
+per project with the leftovers on it by default.
+
+A row the share leaves out ends in "not shared", in the third ink at t-micro,
+in the cell where an error count rests, and gives way to the actions button
+under the pointer as the count does. Its tooltip says why. A project nobody
+else holds says nothing, since nothing is being left out of anything. A
+row's menu offers **Stop sharing this** after Copy path, or **Share this
+again** for a path on the list as itself; a path the defaults leave out is
+shared again by switching the defaults off.
+
+This project, in Settings, holds the list: the entries as the kit's
+removable chips in the mono face, a field and a ghost Add under them, and the
+note "Each member keeps their own copy of these." Under it, "Leave out build
+files", on by default, with what it covers said when on and "They are shared
+like any other file." when off. The field is the kit's 32 px one where the
+drawing had 28; the drawing is the specification of the look and the kit of
+the size.
+
+A path put on the list is taken out of the shared record without a
+tombstone, so nobody's copy moves. A member on an older NextTex does not know
+the list and may share such a path again; a newer member keeps that record and
+writes, sends and asks for nothing under it, rather than dropping it again at
+every open, which the two would do to each other for ever.
+

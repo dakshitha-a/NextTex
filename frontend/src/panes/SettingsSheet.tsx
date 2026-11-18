@@ -19,10 +19,11 @@ import {
 } from "../appearance";
 import { shortcut } from "../keys";
 import { Button, IconButton } from "../ui/Button";
-import { Chip, ChipToggle, Heading, Pressable, Segmented, Stepper, Switch, useLabelId } from "../ui/controls";
+import { Chip, ChipToggle, Field, Heading, Pressable, Segmented, Stepper, Switch, useLabelId } from "../ui/controls";
 import { Sheet } from "../ui/Sheet";
 import { CloseIcon } from "../ui/icons";
 import { KEEP_ALL_OFF, KEEP_ALL_ON } from "../keep-all";
+import { setNotShared } from "../not-shared";
 import HostSettings from "./HostSettings";
 import { COMPACT_STEPS } from "./session-words";
 
@@ -527,6 +528,15 @@ export default function SettingsSheet({
               onChange={(keepAllVersions) => toggle({ keepAllVersions })}
               testid="settings-keep-all"
             />
+            <NotSharedRow projectId={projectId} list={project.notShared} />
+            <SwitchRow
+              title="Leave out build files"
+              checked={project.notSharedDefaults}
+              on="build and out folders, and .aux, .log and the like beside a .tex of the same name."
+              off="They are shared like any other file."
+              onChange={(notSharedDefaults) => void setNotShared(projectId, { notSharedDefaults })}
+              testid="settings-not-shared-defaults"
+            />
             {provider === "claude" ? <RemoteRow projectId={projectId} /> : null}
             {/* "" is the default and is drawn as pdflatex, so the row never
                 shows nothing pressed; picking pdflatex writes "" so the
@@ -670,6 +680,65 @@ function SwitchRow({
       </div>
       <Switch checked={checked} onChange={onChange} aria-labelledby={id} data-testid={testid} />
     </div>
+  );
+}
+
+/** What a share leaves out: the project's list from `nexttex.toml`, as
+ *  removable chips, and a field to add a name, a `folder/` or a `*.ext`.
+ *  Every member keeps their own copy of what is on it. */
+function NotSharedRow({ projectId, list }: { projectId: string; list: string[] }) {
+  const [entry, setEntry] = useState("");
+  const add = async () => {
+    const pattern = entry.trim();
+    if (!pattern || list.includes(pattern)) {
+      setEntry("");
+      return;
+    }
+    if (await setNotShared(projectId, { notShared: [...list, pattern] })) setEntry("");
+  };
+  return (
+    <SRow
+      title="Not shared with collaborators"
+      note="Each member keeps their own copy of these."
+      testid="settings-not-shared"
+    >
+      <div className="flex max-w-[60%] flex-col items-end gap-1.5">
+        {list.length ? (
+          <div className="flex flex-wrap justify-end gap-1.5">
+            {list.map((pattern) => (
+              <Chip
+                key={pattern}
+                mono
+                onRemove={() =>
+                  void setNotShared(projectId, { notShared: list.filter((item) => item !== pattern) })
+                }
+                removeLabel={`Share ${pattern} again`}
+              >
+                {pattern}
+              </Chip>
+            ))}
+          </div>
+        ) : null}
+        <div className="flex w-65 items-center gap-1.5">
+          <Field
+            frameClassName="min-w-0 flex-1"
+            value={entry}
+            placeholder="A name, a folder/ or *.ext"
+            aria-label="Add to what is not shared"
+            onChange={(event) => setEntry(event.target.value)}
+            onKeyDown={(event) => {
+              if (event.key === "Enter") {
+                event.preventDefault();
+                void add();
+              }
+            }}
+          />
+          <Button variant="ghost" onClick={() => void add()} disabled={!entry.trim()}>
+            Add
+          </Button>
+        </div>
+      </div>
+    </SRow>
   );
 }
 

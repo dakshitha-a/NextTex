@@ -17,6 +17,7 @@ import { countFiles } from "../tree";
 import { useOpenFolders } from "./open-folders";
 import { NX_PATH, iconFor, isBib, isData, isScript } from "./file-kinds";
 import api, { type TreeNode } from "../api";
+import { listedAsItself, setNotShared, toggledFor } from "../not-shared";
 import { readStored } from "../appearance";
 import { download, downloadPdf } from "../chrome";
 import { get, set, useStore } from "../store";
@@ -122,6 +123,10 @@ export default function FileTree({
    *  make what you see on opening depend on what you did last week, and the
    *  whole value of collapsed-on-open is that it is the same every time. */
   const [expanded, setExpanded] = useOpenFolders(useStore((state) => state.projectId));
+  // Whether anybody else holds this project: only then does a row say it
+  // is not shared, or its menu offer to stop sharing it.
+  const shared = useStore((state) => Boolean(state.share?.shared));
+  const notSharedList = useStore((state) => state.settings.notShared);
   /** Which file the menu is asking about clearing, if any. */
   const [purging, setPurging] = useState<string | null>(null);
   /** What the last clearing did, so the writer is told rather than left to
@@ -402,6 +407,11 @@ export default function FileTree({
         if (!(await copyText(absolutePath(get().projectRoot, node.path)))) {
           set({ error: "The browser would not let the path onto the clipboard." });
         }
+      } else if (action === "sharing") {
+        await setNotShared(projectId, {
+          notShared: toggledFor(get().settings.notShared, node.path, isDir(node)),
+        });
+        onRefresh();
       } else if (action === "duplicate") {
         await onDuplicate?.(node.path);
       } else if (action === "newfile" || action === "newfolder") {
@@ -859,6 +869,20 @@ export default function FileTree({
         <span className="nx-row-tail shrink-0">
           {errors > 0 ? (
             <span className="nx-row-when t-meta tnum text-error">{errors}</span>
+          ) : shared && (node.link === "outside" || node.notShared) ? (
+            // In the cell an error count rests in, giving way to the
+            // actions button the same way; the tooltip says why.
+            <span
+              className="nx-row-when t-micro text-ink-3"
+              data-testid="not-shared"
+              title={
+                node.link === "outside"
+                  ? "Not shared: a link to outside the project"
+                  : "Not shared: on this project's list"
+              }
+            >
+              not shared
+            </span>
           ) : null}
           <Pressable
             ref={menu === node.path ? menuButton : undefined}
@@ -987,6 +1011,16 @@ export default function FileTree({
               // or an editor beside it; a name-and-place item, so it sits
               // with them (asked for by the writer, 1 October 2026).
               ["copypath", "Copy path"],
+              // What a share carries is about this file's place, so it sits
+              // with the name-and-place items; a link out of the project is
+              // never shared, so it offers neither.
+              ...(shared && node.link !== "outside"
+                ? listedAsItself(notSharedList, node.path, isDirectory)
+                  ? [["sharing", "Share this again"]]
+                  : node.notShared
+                    ? []
+                    : [["sharing", "Stop sharing this"]]
+                : []),
               // A .bib file's reason to have a menu opened on it at all is
               // its contents, which is why this sits with the document
               // items rather than at the bottom with the file operations

@@ -897,6 +897,8 @@ export default function App() {
         language: typeof project.language === "string" ? project.language : "",
         wordLimits: limitsOf(project.wordLimits),
         keepAllVersions: project.keepAllVersions === true,
+        notShared: Array.isArray((project as any).notShared) ? (project as any).notShared : [],
+        notSharedDefaults: (project as any).notSharedDefaults !== false,
       },
       // The last project's import progress, which belongs to the last
       // project. It was left, so opening another one showed a papers

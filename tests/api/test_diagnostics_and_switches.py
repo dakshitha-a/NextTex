@@ -147,6 +147,8 @@ def test_the_three_switches_round_trip(client, project_dir, opened):
         "language": "",
         "wordLimits": {},
         "keepAllVersions": False,
+        "notShared": [],
+        "notSharedDefaults": True,
     }
 
     # Written, not just held in memory.  `save()` writes its optional fields
@@ -395,3 +397,20 @@ def test_keeping_every_version_is_a_project_setting(client, project_dir, opened)
     ).json()
     assert body["keepAllVersions"] is False
     assert server_main.session_for(project_id).history.keep_all() is False
+
+
+def test_the_not_shared_list_is_kept_and_refused_outside_the_project(client, opened, project_dir):
+    """The list of what a share leaves out travels in `nexttex.toml`, so an
+    entry that names somewhere outside the project is refused whole."""
+    project_id = opened["id"]
+    url = f"/api/projects/{project_id}/settings"
+    body = client.post(url, json={"notShared": ["scratch/", "*.dat"], "notSharedDefaults": False}).json()
+    assert body["notShared"] == ["scratch/", "*.dat"]
+    assert body["notSharedDefaults"] is False
+    written = (project_dir / "nexttex.toml").read_text(encoding="utf-8")
+    assert 'not_shared = ["scratch/", "*.dat"]' in written
+    assert "not_shared_defaults = false" in written
+    for escape in (["../outside"], ["/etc/"], ["C:/Windows"], ["a/../../b"], "scratch/", [3]):
+        refused = client.post(url, json={"notShared": escape})
+        assert refused.status_code in (400, 422), escape
+    assert client.post(f"/api/projects/{project_id}/open").json()["notShared"] == ["scratch/", "*.dat"]

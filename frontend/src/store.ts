@@ -380,6 +380,10 @@ export type State = {
     /** Whether the project's history keeps every version rather than
      *  thinning old ones; off by default. */
     keepAllVersions: boolean;
+    /** What a share leaves out, as `nexttex.toml` lists it, and whether
+     *  build folders and TeX's leftovers are left out as well. */
+    notShared: string[];
+    notSharedDefaults: boolean;
   };
   /** Which optional tools the machine has, fetched once per load; null
    *  until it answers.  The download menu and the submission panel read
@@ -524,6 +528,8 @@ const state: State = {
     autocompile: true, markErrors: true, markWarnings: false, engine: "", shellEscape: "off",
     pageLimit: 0, blind: false, pdfa: false, language: "", wordLimits: {},
     keepAllVersions: false,
+    notShared: [],
+    notSharedDefaults: true,
   },
   tools: null,
   agent: null,
@@ -1502,10 +1508,16 @@ function receive(event: any) {
           language: typeof event.language === "string" ? event.language : "",
           wordLimits: limitsOf(event.wordLimits),
           keepAllVersions: event.keepAllVersions === true,
+          notShared: Array.isArray(event.notShared)
+            ? event.notShared.filter((item: unknown) => typeof item === "string")
+            : [],
+          notSharedDefaults: event.notSharedDefaults !== false,
         };
         const was = state.settings as Record<string, unknown>;
         const moved = (Object.keys(settings) as (keyof typeof settings)[]).some(
-          (key) => key !== "wordLimits" && key !== "keepAllVersions" && was[key] !== settings[key],
+          (key) =>
+            key !== "wordLimits" && key !== "keepAllVersions" && key !== "notShared"
+            && key !== "notSharedDefaults" && was[key] !== settings[key],
         );
         if (moved) setStale();
         set({ settings });

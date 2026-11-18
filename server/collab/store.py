@@ -151,6 +151,10 @@ PROJECTED = "projected.json"
 #: binary still on disk under a deleted record from a new file of the
 #: same name, as `PROJECTED` does for text.
 BLOBS = "blobs.json"
+#: The not-shared rules this install last applied to the manifest: a list
+#: changing is what drops the records it newly covers, once, and not every
+#: time a member on an older NextTex adopts such a path again.
+NOT_SHARED_APPLIED = "not-shared-applied.json"
 
 
 def _sha(text: str) -> str:
@@ -421,6 +425,7 @@ class CollabStore:
         #: Links out of the project as the last walk found them, and the
         #: walk's modification times, for `adopt`.
         self._outside: set[str] = set()
+        self._unshared: set[str] = set()
         self._mtimes: dict[str, float] = {}
         #: `_not_utf8`'s answers, by path, size and modification time.
         self._utf8_seen: dict[tuple, bool] = {}
@@ -862,7 +867,10 @@ class CollabStore:
         # right, and it is how the person who shares a project puts their own
         # work into it in the first place.
         if not str(text) and (not had_a_log or not self.shared):
-            if self.seed_from_disk and not self._held_by_another(file_id, record["path"]):
+            if (
+                self.seed_from_disk and not self._held_by_another(file_id, record["path"])
+                and not self.not_shared(str(record["path"]))
+            ):
                 on_disk = self._read(record["path"])
                 if on_disk:
                     with doc.transaction(origin=FROM_DISK):
@@ -1235,6 +1243,9 @@ class CollabStore:
             self.files[self._new_id(relative, adopting=not shared)] = record
             known[relative] = record
 
+        self._drop_newly_unshared(known)
+        seen.update(self._unshared)
+
         # A record made for a link out of the project before links were
         # left out: retired, so a peer's empty copy goes to its trash. Not
         # followed here: `_trash_locally` resolves the path, which a link
@@ -1492,10 +1503,17 @@ class CollabStore:
         for one before links were left out."""
         found: list[tuple[str, str, int]] = []
         outside: set[str] = set()
+        unshared: set[str] = set()
         self._mtimes: dict[str, float] = {}
 
         def descend(node: dict) -> None:
             for child in node.get("children") or []:
+                if child.get("notShared"):
+                    if child.get("type") == "dir":
+                        unshared.update(_files_under(child))
+                    else:
+                        unshared.add(child["path"])
+                    continue
                 if child.get("link") == "outside":
                     if child.get("type") == "dir":
                         outside.update(_files_under(child))
@@ -1514,7 +1532,47 @@ class CollabStore:
 
         descend(self.project.tree())
         self._outside = outside
+        self._unshared = unshared
         return found
+
+    def not_shared(self, relative: str) -> bool:
+        """Whether the project's not-shared rules cover a path: its file is
+        this install's own, never written from, sent to or asked of a peer."""
+        try:
+            return bool(relative) and self.project.not_shared(relative)
+        except OSError:
+            return False
+
+    def _drop_newly_unshared(self, known: dict) -> None:
+        """Take the records the not-shared rules newly cover out of the
+        manifest, without a tombstone, so every member keeps their copy.
+
+        Only when the rules changed since this install last applied them,
+        defaults included, which is what an update to a NextTex that has
+        them is. A member on an older NextTex adopts such a path again and
+        sends its record; that record is kept, and the guards on writing,
+        sending and asking keep it inert here, rather than dropped again
+        at every open, which the two installs would do to each other for
+        ever."""
+        config = self.project.config
+        rules = json.dumps([sorted(config.not_shared), config.not_shared_defaults])
+        path = self.root / NOT_SHARED_APPLIED
+        try:
+            applied = path.read_text(encoding="utf-8")
+        except OSError:
+            applied = ""
+        if applied == rules:
+            return
+        for file_id, record in list(self.files.items()):
+            where = record.get("path")
+            if not record.get("trashed") and where in self._unshared:
+                del self.files[file_id]
+                self._named.pop(file_id, None)
+                known.pop(where, None)
+        try:
+            write_atomically(path, rules)
+        except OSError:
+            pass
 
     def _not_utf8(self, relative: str, size: int) -> bool:
         """Whether a file the tree calls text is not UTF-8, so a share
@@ -1786,6 +1844,10 @@ class CollabStore:
         the rest of the session, and in a shared project the trashing
         gossiped to everybody else.
         """
+        if self.not_shared(relative):
+            # This install's own file, whatever a record says: an edit to it
+            # reaches nobody.
+            return False
         if not gone:
             # The file is on the disk.  Whatever this tick has to say about
             # its contents, its *existence* answers a deletion that was
@@ -2084,6 +2146,10 @@ class CollabStore:
             if not path:
                 continue
             was = self._named.get(file_id)
+            if self.not_shared(path) or (was and self.not_shared(was)):
+                # This install's own copy: a peer's rename or deletion of
+                # it is not followed here.
+                continue
             if was is None:
                 # First sight of this file. Nothing to follow yet; this is
                 # the baseline the next change is measured against, and it
@@ -2521,6 +2587,11 @@ class CollabStore:
         authored = file_id in self._authored
         self._authored.discard(file_id)
         record = self.files.get(file_id)
+        if record is not None and self.not_shared(str(record.get("path") or "")):
+            # A record a member on an older NextTex sent for a path this
+            # project does not share: the file here is this install's own.
+            self.arrived.pop(file_id, None)
+            return
         if record is not None and file_id in self.arrived:
             self._write_file(file_id, record)
             return

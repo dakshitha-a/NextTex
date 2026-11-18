@@ -485,6 +485,7 @@ class PeerLink:
             file_id for file_id, record in list(store.files.items())
             if f"text/{file_id}" not in self.offered
             and record.get("kind") == "text" and not record.get("trashed")
+            and not store.not_shared(str(record.get("path") or ""))
         ]
         logs = store.unopened_logs(wanted)
         bases = self.network.agreed.paths_for(self.peer_id, [f"text/{f}" for f in wanted])
@@ -500,6 +501,10 @@ class PeerLink:
         for file_id, record in list(store.files.items()):
             doc_id = f"text/{file_id}"
             if doc_id in self.offered or record.get("kind") != "text":
+                continue
+            if store.not_shared(str(record.get("path") or "")):
+                # A record an older member sent for a path this project
+                # does not share: nothing of this install's copy goes out.
                 continue
             if record.get("trashed"):
                 # A deleted file's text is not synced, and it is not marked
@@ -582,6 +587,8 @@ class PeerLink:
         candidates: list[tuple[str, str, int]] = []
         for file_id, record in list(store.files.items()):
             if record.get("kind") != "blob" or record.get("trashed"):
+                continue
+            if store.not_shared(str(record.get("path") or "")):
                 continue
             # A recorded size of 0 is asked for all the same. The size is
             # written once, at adoption, and a figure adopted while its
@@ -984,6 +991,9 @@ class PeerLink:
             await self.send(wire.file_miss(file_id))
             return
         relative = str(record.get("path") or "")
+        if store.not_shared(relative):
+            await self.send(wire.file_miss(file_id))
+            return
         try:
             target = store.project.resolve(relative)
             if not target.is_file() or target.stat().st_size > wire.MAX_FRAME:
@@ -2063,6 +2073,8 @@ class PeerNetwork:
         if record is None or record.get("kind") != "blob" or record.get("trashed"):
             return False
         if str(record.get("path") or "") != path:
+            return False
+        if self.store.not_shared(path):
             return False
         try:
             target = self.store.project.resolve_for_write(path)

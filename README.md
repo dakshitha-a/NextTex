@@ -361,6 +361,16 @@ From then on, the two copies stay in step.
 | Someone wants out | Anyone can leave, and their copy stays theirs. |
 | A file was deleted long ago | Once everyone has seen it go, the shared record forgets it 30 days later, so joins stay quick. Your own copy keeps its history. |
 
+Some files are yours alone. A link to a file outside the project is not
+shared, since what it points at is not the project's to send. Nor are TeX's
+leftovers beside a document, such as `main.aux` and `main.log` beside
+`main.tex`, or folders named `build` or `out`. A file that is not UTF-8, such
+as an old program's log, is shared as it is, byte for byte. You can add to the
+list in *Settings*, under *This project*, or with *Stop sharing this* on a
+file's menu. The list is kept in `nexttex.toml`, so everyone in the project
+agrees on it. A file that goes on the list stays on every disk, and from then
+on each copy is its owner's. The file tree marks such a file *not shared*.
+
 ### The always-on host
 
 Your co-author writes at night, and you write in the morning. Without help,

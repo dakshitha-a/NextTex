@@ -81,7 +81,7 @@ from nexttex.trash import Trash
 from nexttex.project import (
     Project, ProjectConfig, Registry, id_for, instance_name, is_control_path,
     ignored_directory, is_ours, kind_of_file, under_ignored_directory,
-    PROJECT_STATES, clean_limits,
+    PROJECT_STATES, clean_limits, clean_not_shared,
 )
 from nexttex.symbols import walk_project
 from nexttex import bibcheck, bibfix, bundle, consistency, deps, figures, published, reply, export, lint_explain, prompts, search, texstyles, updates, usage, venues
@@ -6454,6 +6454,8 @@ async def set_project_settings(
     language: str | None = Body(None),
     wordLimits: dict | None = Body(None),
     keepAllVersions: bool | None = Body(None),
+    notShared: list | None = Body(None),
+    notSharedDefaults: bool | None = Body(None),
 ):
     """The three switches and the engine choice on the settings card, the
     two venue facts the submission panel sets, and the word limits the
@@ -6467,7 +6469,11 @@ async def set_project_settings(
     is the whole table, title to words, and replaces the one kept; a table
     with a pair `project.clean_limits` would drop is refused whole.
     `keepAllVersions` is the History drawer's switch that stops the
-    project's history thinning its older versions.
+    project's history thinning its older versions. `notShared` is the
+    whole list of what a share leaves out, as `project.clean_not_shared`
+    keeps it, refused whole when any entry leaves the project, and
+    `notSharedDefaults` whether build folders and TeX's leftovers are left
+    out too; either change is applied to the manifest at once.
     """
     session = session_for(project_id)
     config = session.project.config
@@ -6502,10 +6508,27 @@ async def set_project_settings(
         config.word_limits = kept
     if keepAllVersions is not None:
         config.keep_all_versions = bool(keepAllVersions)
+    sharing_moved = False
+    if notShared is not None:
+        kept = clean_not_shared(notShared)
+        if kept is None:
+            raise HTTPException(
+                400, "an entry is a name, a folder or a pattern inside the project",
+            )
+        sharing_moved = kept != config.not_shared
+        config.not_shared = kept
+    if notSharedDefaults is not None:
+        sharing_moved = sharing_moved or bool(notSharedDefaults) != config.not_shared_defaults
+        config.not_shared_defaults = bool(notSharedDefaults)
     try:
         config.save(session.project.root)
     except OSError as error:
         raise HTTPException(500, f"could not save the project settings: {error}")
+    if sharing_moved:
+        # Applied now rather than at the next open: a folder put on the
+        # list must stop syncing while the writer is looking at it.
+        session.collab.adopt()
+        session.collab.flush()
     settings = _project_settings(session)
     await session.events.publish({"type": "project_changed", **settings})
     return settings
