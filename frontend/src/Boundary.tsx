@@ -1,9 +1,15 @@
-import { Component, type ReactNode } from "react";
+import {
+  Component,
+  lazy,
+  useState,
+  type ComponentType,
+  type ReactNode,
+} from "react";
 import { Button } from "./ui/Button";
-import { worthReloading } from "./boundary-cause";
+import { probeChunk, reloadAfterProbe, worthReloading } from "./boundary-cause";
 import { record } from "./errors";
 import api from "./api";
-import { get } from "./store";
+import { get, subscribe } from "./store";
 
 /** What is on screen when part of the interface cannot be loaded.
  *
@@ -65,6 +71,21 @@ export default class Boundary extends Component<Props, State> {
     // was read as a deployment that had moved and the tab reloaded itself
     // onto the browser's error page, taking the editor with it.
     if (!worthReloading(error, get().connection)) return;
+    // And asked of the chunk itself. The socket can say "live" for most of
+    // a minute after the network has gone, and a failed import reads the
+    // same whether the file is gone or the way to it is. A server that
+    // answers, even with a 404, is one a reload reaches.
+    const message = String((error as Error)?.message ?? error ?? "");
+    void probeChunk(message).then((answer) => {
+      if (!reloadAfterProbe(answer)) {
+        this.setState({ serverGone: true });
+        return;
+      }
+      this.reloadOnce();
+    });
+  }
+
+  private reloadOnce(): void {
     // Once per version of the server, not once per tab.  The marker holds
     // the commit the tab reloaded onto, so a second update while the same
     // tab stays open reloads it again, as the first did; a chunk that
@@ -140,4 +161,84 @@ export default class Boundary extends Component<Props, State> {
       </div>
     );
   }
+}
+
+/** A piece of the interface the window can do without, which on failure
+ *  draws nothing instead of taking the window with it.
+ *
+ *  The collaborators chip at the end of the source strip is a chunk of its
+ *  own, and when it would not load the root boundary above replaced the
+ *  whole window, editor and all, for a chip. That happened ten times on
+ *  the laptop from 8 to 17 November 2026, with its network down. A piece
+ *  like that fails quietly: the error is recorded, nothing is drawn, and
+ *  once the connection has been down and is live again it is tried again.
+ */
+type QuietProps = { name: string; onRetry: () => void; children: ReactNode };
+
+export class Quiet extends Component<QuietProps, { failed: boolean }> {
+  state = { failed: false };
+  private unsubscribe: (() => void) | null = null;
+  private down = false;
+
+  static getDerivedStateFromError(): { failed: boolean } {
+    return { failed: true };
+  }
+
+  componentDidCatch(error: unknown): void {
+    const message = String((error as Error)?.message ?? error);
+    record("boundary", `optional ${this.props.name}: ${message}`,
+      (error as Error)?.stack ?? "");
+    this.down = get().connection !== "live";
+    this.unsubscribe?.();
+    this.unsubscribe = subscribe(() => {
+      if (get().connection !== "live") {
+        this.down = true;
+        return;
+      }
+      if (!this.down) return;
+      this.down = false;
+      this.unsubscribe?.();
+      this.unsubscribe = null;
+      this.props.onRetry();
+      this.setState({ failed: false });
+    });
+  }
+
+  componentWillUnmount(): void {
+    this.unsubscribe?.();
+    this.unsubscribe = null;
+  }
+
+  render() {
+    return this.state.failed ? null : this.props.children;
+  }
+}
+
+/** `lazy`, for a piece the window can do without: wrapped in `Quiet`, and
+ *  loaded afresh on a retry, since `lazy` keeps a failed import's rejection
+ *  for good. One lazy component is shared by every place that draws the
+ *  piece, so a second mount does not wait for it again. Still needs a
+ *  `Suspense` above it, as `lazy` does. */
+export function optional<C extends ComponentType<any>>(
+  name: string,
+  load: () => Promise<{ default: C }>,
+): C {
+  let Loaded = lazy(load) as unknown as ComponentType<any>;
+  function Optional(props: object) {
+    const [, rerender] = useState(0);
+    const drawn = Loaded;
+    return (
+      <Quiet
+        name={name}
+        onRetry={() => {
+          if (Loaded === drawn) Loaded = lazy(load) as unknown as ComponentType<any>;
+          rerender((n) => n + 1);
+        }}
+      >
+        <Loaded {...props} />
+      </Quiet>
+    );
+  }
+  Optional.displayName = `Optional(${name})`;
+  return Optional as unknown as C;
 }

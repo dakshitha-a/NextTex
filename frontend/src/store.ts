@@ -605,6 +605,15 @@ export function get(): State {
   return state;
 }
 
+/** Be told of every change, outside React: for a class component, such as
+ *  an error boundary, that watches the connection. Returns the unsubscribe. */
+export function subscribe(listener: () => void): () => void {
+  listeners.add(listener);
+  return () => {
+    listeners.delete(listener);
+  };
+}
+
 export function useStore<T>(select: (s: State) => T): T {
   return useSyncExternalStore(
     (listener) => {

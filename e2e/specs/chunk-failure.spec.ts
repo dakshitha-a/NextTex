@@ -30,9 +30,12 @@ test("a missing chunk does not leave a black window", async ({ browser }) => {
   const context = await browser.newContext({ viewport: { width: 1400, height: 900 } });
   const page = await context.newPage();
 
-  // Fail it every time, so the one automatic reload is used up and the
-  // message is what is left. In the real case the reload is the fix.
-  await page.route("**/assets/Pdf-*.js", (route) => route.abort());
+  // Gone every time, so the one automatic reload is used up and the
+  // message is what is left. In the real case the reload is the fix. A
+  // 404, as the server's static mount answers for a file an update
+  // replaced: the boundary asks for the chunk itself before reloading, and
+  // a request that cannot be made at all is a network, not an update.
+  await page.route("**/assets/Pdf-*.js", (route) => route.fulfill({ status: 404 }));
 
   await page.goto(`${app.base}/?token=${app.token}`);
   await page.getByText(project.root.split("/").pop()!, { exact: false })
@@ -70,7 +73,7 @@ test("it reloads itself once before giving up", async ({ browser }) => {
   // request kills the preload, which nothing is waiting on, and the import
   // that follows then succeeds and there is no fault to recover from.
   await page.route("**/assets/Pdf-*.js", (route) =>
-    loads <= 1 ? route.abort() : route.continue(),
+    loads <= 1 ? route.fulfill({ status: 404 }) : route.continue(),
   );
 
   await page.goto(`${app.base}/?token=${app.token}`);
@@ -101,7 +104,7 @@ test("a second update in the same tab reloads it again", async ({ browser }) => 
   await page.evaluate(() =>
     sessionStorage.setItem("nexttex.reloadedAfterChunkError", "0000000"));
   await page.route("**/assets/Pdf-*.js", (route) =>
-    loads <= 1 ? route.abort() : route.continue(),
+    loads <= 1 ? route.fulfill({ status: 404 }) : route.continue(),
   );
   await page.getByText(project.root.split("/").pop()!, { exact: false })
     .first().click();
@@ -116,7 +119,7 @@ test("a chunk that fails again on the same commit shows the screen", async ({ br
   const page = await context.newPage();
   let loads = 0;
   page.on("load", () => (loads += 1));
-  await page.route("**/assets/Pdf-*.js", (route) => route.abort());
+  await page.route("**/assets/Pdf-*.js", (route) => route.fulfill({ status: 404 }));
   await page.goto(`${app.base}/?token=${app.token}`);
   await page.getByText(project.root.split("/").pop()!, { exact: false })
     .first().click();
@@ -125,4 +128,59 @@ test("a chunk that fails again on the same commit shows the screen", async ({ br
   await page.waitForTimeout(2_000);
   expect(loads).toBe(2);
   await context.close();
+});
+
+test("a chunk the network dropped does not reload the tab", async ({ browser }) => {
+  // The laptop's tab reloaded ten times from 8 to 17 November 2026 with its
+  // network down and the socket not yet saying so. Asked for again, the
+  // chunk cannot be reached at all, so a reload would land on nothing.
+  const context = await browser.newContext({ viewport: { width: 1400, height: 900 } });
+  const page = await context.newPage();
+  let loads = 0;
+  page.on("load", () => (loads += 1));
+  await page.route("**/assets/Pdf-*.js", (route) => route.abort());
+  await page.goto(`${app.base}/?token=${app.token}`);
+  await page.getByText(project.root.split("/").pop()!, { exact: false })
+    .first().click();
+  await expect(page.getByTestId("interface-failed")).toBeVisible({ timeout: 45_000 });
+  await expect(page.getByTestId("interface-failed")).toContainText("not answering");
+  await page.waitForTimeout(2_000);
+  expect(loads).toBe(1);
+  await expect(page.locator(".cm-editor")).toBeVisible();
+  await context.close();
+});
+
+test("a collaborators chip that will not load leaves the window alone", async ({ browser }) => {
+  // The chip at the strip's end is a chunk of its own, and its failure
+  // replaced the whole window, editor and all.
+  const open = async (block: boolean) => {
+    const context = await browser.newContext({ viewport: { width: 1400, height: 900 } });
+    const page = await context.newPage();
+    if (block) {
+      await page.route("**/assets/Collaborators-*.js", (route) => route.abort());
+    }
+    await page.goto(`${app.base}/?token=${app.token}`);
+    await page.getByText(project.root.split("/").pop()!, { exact: false })
+      .first().click();
+    await page.getByText("main.tex", { exact: false }).first().click();
+    await expect(page.locator(".cm-content")).toContainText("documentclass", {
+      timeout: 30_000,
+    });
+    return { context, page };
+  };
+  const mine = await open(true);
+  let loads = 0;
+  mine.page.on("load", () => (loads += 1));
+  const theirs = await open(false);
+  // The other window sees the chip, so a collaborator is present for both.
+  await expect(theirs.page.getByTestId("collaborators")).toBeVisible({ timeout: 20_000 });
+  await mine.page.waitForTimeout(3_000);
+  await expect(mine.page.getByTestId("collaborators")).toHaveCount(0);
+  await expect(mine.page.getByTestId("interface-failed")).toHaveCount(0);
+  // The window is still the project's: its tree, and the editor mounted.
+  await expect(mine.page.getByRole("tree")).toBeVisible();
+  await expect(mine.page.locator(".cm-editor")).toHaveCount(1);
+  expect(loads).toBe(0);
+  await theirs.context.close();
+  await mine.context.close();
 });

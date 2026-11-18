@@ -1,4 +1,5 @@
 import { lazy, Suspense, useEffect, useRef, useState } from "react";
+import { optional } from "../Boundary";
 import { forgetProject } from "../remember";
 import api, {
   saveBlob,
@@ -36,10 +37,10 @@ import { onFrame } from "../timing";
 
 // Lazy, like the in-project tutorial: help text is not something a first
 // visit should have to download before the project list appears.
-const ScreenGuide = lazy(() => import("./tutorial/ScreenGuide"));
+const ScreenGuide = optional("ScreenGuide", () => import("./tutorial/ScreenGuide"));
 // The offer card likewise: it is on screen only between a join answering
 // and the writer deciding, and nobody reaches that from a cold start.
-const JoinOfferCard = lazy(() => import("./JoinOfferCard"));
+const JoinOfferCard = optional("JoinOfferCard", () => import("./JoinOfferCard"));
 // And the folder picker, which is behind a button most visits never press.
 const FolderPicker = lazy(() => import("./FolderPicker"));
 // The template browser is opened from one sheet's Change, so it waits
@@ -52,7 +53,7 @@ const SharePanel = lazy(() => import("./SharePanel"));
  *  for its state on mount, which a lazy mount does a frame later; at
  *  thirteen kilobytes it was the largest thing in the entry chunk that
  *  most visits never draw. */
-const UpdateFooter = lazy(() => import("./UpdateFooter"));
+const UpdateFooter = optional("UpdateFooter", () => import("./UpdateFooter"));
 import { classify, nameFor } from "../arrive-source";
 
 /** What each template is, in the words somebody choosing one would use.

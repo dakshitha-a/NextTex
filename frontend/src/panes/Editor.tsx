@@ -1,4 +1,5 @@
-import { Suspense, lazy, useCallback, useEffect, useRef, useState } from "react";
+import { Suspense, useCallback, useEffect, useRef, useState } from "react";
+import { optional } from "../Boundary";
 import { rememberCitations } from "../paper-open";
 import { setProjectMacros } from "./katex-load";
 import { macrosFrom } from "./math-hover";
@@ -60,9 +61,9 @@ import { noteTyping, onFrame } from "../timing";
  *  anything draws, the way every other surface behind a gesture in this app
  *  is: `bundle.initial_kb` counts only what a first visit has to
  *  download. */
-const SelectionActions = lazy(() => import("./SelectionActions"));
-const WordMenu = lazy(() => import("./WordMenu"));
-const EditorComments = lazy(() => import("./EditorComments"));
+const SelectionActions = optional("SelectionActions", () => import("./SelectionActions"));
+const WordMenu = optional("WordMenu", () => import("./WordMenu"));
+const EditorComments = optional("EditorComments", () => import("./EditorComments"));
 import { placeClear } from "./place-clear";
 import type { CommentsApi } from "./EditorComments";
 import { Pressable } from "../ui/controls";

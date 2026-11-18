@@ -4705,6 +4705,22 @@ not import a module says which module; a dead server does not. And the
 document socket already knows: `connection` is `offline` before any of this.
 `worthReloading` asks both questions, and the boundary asks it.
 
+The socket is slow to know, though. It can say `live` for most of a minute
+after a network has gone, and from 8 to 17 November 2026 the laptop's
+collaborators chip failed to load ten times in that minute, each time with
+its network down, and each time the whole window went and the tab reloaded
+onto nothing. So before reloading the boundary asks for the chunk itself,
+with `probeChunk`, past every cache: a server that answers, even with a 404,
+is one a reload reaches, and a request that cannot be made shows "NextTex is
+not answering" and stays. **A piece the window can do without fails on its
+own.** The collaborators chip, the history banner, the update footer, the
+screen guide, the join offer card, the editor's selection verbs, word menu
+and comments, the file card and the access card are made with `optional`
+in `Boundary.tsx` rather than `lazy`: inside a `Quiet` boundary that records
+the error, draws nothing, and tries a fresh import once the connection has
+been down and is live again, since `lazy` keeps a failed import's rejection
+for good.
+
 Once the tab stays, what it says has to be true as well. The failure screen
 explained every failure as an update that had happened while the tab was open,
 which is a confident and false account of a server somebody stopped, pointing

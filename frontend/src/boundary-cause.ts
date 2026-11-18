@@ -51,3 +51,36 @@ export function worthReloading(error: unknown, connection: Connection): boolean 
   if (connection === "offline") return false;
   return true;
 }
+
+/** What asking for the chunk itself said: an HTTP status, `"unreachable"`
+ *  when the request could not be made at all, or `"none"` when the
+ *  message names no chunk to ask for. */
+export type ProbeAnswer = number | "unreachable" | "none";
+
+/** Ask for the chunk the message names, past every cache.
+ *
+ *  A failed import says the same thing whether the file is gone from the
+ *  server or the network dropped on the way to it, and the document socket
+ *  takes up to a minute to notice a dead network. On the laptop, from 8 to
+ *  17 November 2026, the collaborators chip failed to load ten times, every
+ *  one of them while its network was down, and each reloaded the tab onto
+ *  nothing. A server that answers at all, with the file or with a 404, is
+ *  one a reload can reach; a request that cannot be made is not. */
+export async function probeChunk(
+  message: string,
+  fetcher: typeof fetch = fetch,
+): Promise<ProbeAnswer> {
+  const url = chunkUrlIn(message);
+  if (!url) return "none";
+  try {
+    const answer = await fetcher(url, { method: "HEAD", cache: "no-store" });
+    return answer.status;
+  } catch {
+    return "unreachable";
+  }
+}
+
+/** Whether a reload can help once the chunk has been asked for. */
+export function reloadAfterProbe(answer: ProbeAnswer): boolean {
+  return answer !== "unreachable";
+}

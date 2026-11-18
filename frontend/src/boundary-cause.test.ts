@@ -10,7 +10,7 @@
  *  until it reconnects.
  */
 import { describe, expect, test } from "vitest";
-import { chunkUrlIn, worthReloading } from "./boundary-cause";
+import { chunkUrlIn, probeChunk, reloadAfterProbe, worthReloading } from "./boundary-cause";
 
 const MOVED = new Error(
   "Failed to fetch dynamically imported module: http://127.0.0.1:8450/assets/Chat-9f2b.js",
@@ -61,5 +61,51 @@ describe("the module a message names", () => {
 
   test("does not swallow the punctuation after it", () => {
     expect(chunkUrlIn("failed (http://x/a.js).")).toBe("http://x/a.js");
+  });
+});
+
+describe("asking for the chunk before reloading", () => {
+  // The laptop's collaborators chip failed ten times from 8 to 17 November
+  // 2026 with its network down and the socket still saying live, and each
+  // failure reloaded the tab onto nothing.
+  const answering = (status: number) =>
+    (async () => new Response(null, { status })) as unknown as typeof fetch;
+  const dropped = (async () => {
+    throw new TypeError("Failed to fetch");
+  }) as unknown as typeof fetch;
+
+  test("a 404 is a moved deployment and reloads", async () => {
+    const answer = await probeChunk(MOVED.message, answering(404));
+    expect(answer).toBe(404);
+    expect(reloadAfterProbe(answer)).toBe(true);
+  });
+
+  test("a chunk that is there after all reloads, since the server answers", async () => {
+    expect(reloadAfterProbe(await probeChunk(MOVED.message, answering(200)))).toBe(true);
+  });
+
+  test("a request that cannot be made does not reload", async () => {
+    const answer = await probeChunk(MOVED.message, dropped);
+    expect(answer).toBe("unreachable");
+    expect(reloadAfterProbe(answer)).toBe(false);
+  });
+
+  test("a message with no chunk in it reloads as before", async () => {
+    const answer = await probeChunk(SAFARI.message, dropped);
+    expect(answer).toBe("none");
+    expect(reloadAfterProbe(answer)).toBe(true);
+  });
+
+  test("the probe asks past the cache, for headers only", async () => {
+    let seen: RequestInit | undefined;
+    let url = "";
+    const spy = (async (input: string, init?: RequestInit) => {
+      url = input;
+      seen = init;
+      return new Response(null, { status: 404 });
+    }) as unknown as typeof fetch;
+    await probeChunk(MOVED.message, spy);
+    expect(url).toBe("http://127.0.0.1:8450/assets/Chat-9f2b.js");
+    expect(seen).toEqual({ method: "HEAD", cache: "no-store" });
   });
 });

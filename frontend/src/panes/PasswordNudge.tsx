@@ -1,11 +1,12 @@
-import { Suspense, lazy, useEffect, useRef, useState } from "react";
+import { Suspense, useEffect, useRef, useState } from "react";
+import { optional } from "../Boundary";
 import api from "../api";
 import { readStored, writeStored } from "../appearance";
 import { IconButton, Button } from "../ui/Button";
 import { FloatingCard } from "../ui/FloatingCard";
 import { LockIcon } from "../ui/icons";
 
-const AccessCard = lazy(() => import("./AccessCard"));
+const AccessCard = optional("AccessCard", () => import("./AccessCard"));
 /** Named here rather than imported from the card, which is a lazy chunk:
  *  importing the constant would pull the whole card into the entry bundle
  *  and undo the reason it is lazy. */

@@ -1,4 +1,5 @@
 import { loadTemplateWithNeeds } from "./templates";
+import { optional } from "./Boundary";
 import { checkServerVersion, watchServerVersion } from "./server-version";
 import { Button, IconButton } from "./ui/Button";
 import { shellTheme } from "./ui/FloatingCard";
@@ -115,7 +116,7 @@ const loadSearch = () =>
     return module;
   });
 const SearchPanel = lazy(loadSearch);
-const ViewingBanner = lazy(() =>
+const ViewingBanner = optional("ViewingBanner", () =>
   import("./panes/History").then((m) => ({ default: m.ViewingBanner })),
 );
 import { type PdfHandle, type Reveal } from "./panes/Pdf";

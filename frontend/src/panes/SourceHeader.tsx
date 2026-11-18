@@ -1,4 +1,5 @@
-import { Suspense, lazy, useMemo, type ReactNode } from "react";
+import { Suspense, useMemo, type ReactNode } from "react";
+import { optional } from "../Boundary";
 import api from "../api";
 import { download } from "../chrome";
 import { Button } from "../ui/Button";
@@ -13,7 +14,7 @@ import { shortcut } from "../keys";
  *  It draws nothing at all until then, so the parent decides whether to
  *  mount it and the chunk follows: `bundle.initial_kb` is measured on the
  *  entry script and this is four kilobytes of it. */
-const Collaborators = lazy(() => import("./Collaborators"));
+const Collaborators = optional("Collaborators", () => import("./Collaborators"));
 
 /** The source pane's header: the open files as tabs, in one PaneHeader.
  *

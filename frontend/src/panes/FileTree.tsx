@@ -1,4 +1,5 @@
 import { absolutePath, copyText } from "../copy-path";
+import { optional } from "../Boundary";
 import {
   Suspense, lazy, useCallback, useEffect, useMemo, useRef, useState,
 } from "react";
@@ -34,7 +35,7 @@ const UploadStaging = lazy(() => import("./UploadStaging"));
 import { whatDidNotLand } from "../upload-report";
 import FolderChooser from "./FolderChooser";
 const PapersChooser = lazy(() => import("./PapersChooser"));
-const FileCard = lazy(() => import("./FileCard"));
+const FileCard = optional("FileCard", () => import("./FileCard"));
 
 /** A row's box, as the card that opens beside it needs it. */
 type Anchor = { left: number; top: number; bottom: number; width: number };
