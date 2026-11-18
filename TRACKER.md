@@ -103,6 +103,23 @@ though every installer since September enables it, so this host was a
 one-off. The next start said only "stopped without saying why"; a start
 on Linux or macOS now looks for a boot after the last heartbeat and
 names the machine instead.
+Reviewed again on 17 November, for 8 to 17 November, on dak-n4 only,
+since the laptop's log was not reachable: no crash, no server error.
+Four things to act on. The collaborators chip failed to load ten times
+and took the whole window with it, mostly while the laptop's network was
+down, and the page reloaded to no purpose; iroh's Python binding copies
+outgoing bytes one at a time, about 225 ms a megabyte here, and a whole
+file message went in one write, so a join held the sharer's loop for up
+to 6.5 s; thesis edits ran full passes of the whole document again, 906 s
+of them cancelled, with no record of why a pass was full; and one more
+React #185, the event already in the backlog. These, the backlog's open
+gaps, and the writer's four answers of 17 November on what a share
+carries are the run in hand, tracked at
+https://claude.ai/artifact/8NFy8wm4BzRe9Gv1Bw5MqQ. Seven items moved
+to *Deliberately not done* with their reasons. `goto` on a root off the
+strip was closed as not reproduced: two browser reproductions put the
+root on the strip, and `compile` adopting the root, in 4.50.4, removed the
+symptom the report needed.
 
 Before it, on 12 October 2026, at 4.33.0, the run on the page
 losing the writing in a reflowing thesis closed, at the writer's request.
@@ -317,12 +334,6 @@ OpenAI provider against OpenAI itself.
 
 ### Known gaps, with a cost somebody will eventually pay
 
-- [ ] **The Figures list's first visit after a build still waits for
-      `pdfimages`.** Its answer is kept per build now, and the drawer
-      shows the previous list meanwhile, but the first ask after each
-      build takes about three seconds on the 32 MB thesis. Left because
-      warming it at the end of every build spends those seconds on builds
-      nobody opens the list after; worth it only if the wait is noticed.
 - [x] **The first rename or deletion after a project opens is
       followed.** `_named` started empty at open, so the first change to
       each record was taken as the baseline; a throwaway share on 13
@@ -475,58 +486,6 @@ OpenAI provider against OpenAI itself.
       nothing for it. One Latin-1 build log in the resume project showed
       it. Left for the same decision, since adopting such a file as a blob
       would carry its bytes but take its editor away.
-- [ ] **A stale `previews` in `nexttex.toml` is ignored without a
-      word.** Once `.nexttex/previews.json` exists the toml's list is never
-      read, by design, so an entry naming a folder since renamed says
-      nothing. Reported by the resume project's agent on 8 November 2026
-      with the agent fix; left because the key is legacy and seeds a new
-      install only, so a warning would speak to almost nobody.
-- [ ] **`goto` on a root off the strip shows the file but not its
-      document.** The resume project's agent reported on 8 November 2026
-      that `goto` opened such a file in the editor and the document did
-      not join the strip. Traced the same day without finding the cause.
-      A browser was on the project and the writer was typing at the
-      call, 11:46:16, yet no browser asked for the strip to change; two
-      browser reproductions, a plain root and the writer's sequence of
-      following a root in a subfolder, closing its tab and reloading,
-      both put the root on the strip. The hypothesis left is a browser
-      strip that still listed the root while the server's did not: the
-      server answered "documents are: main.tex" at 11:45:54 and the
-      browser sent nine removals in the same five minutes, and with the
-      root on its own strip `followDecision` shows it without asking. A
-      spec that makes the two strips differ before `goto` would decide
-      it. `goto` now says when no editor window has the project open,
-      a gap found on the way, and `compile` adopting the root, in
-      4.50.4, removed the symptom the report needed.
-- [ ] **The agent cannot see what a reader did on a page.** A page's
-      `localStorage` is kept with the page since 1 November 2026, but
-      `read_page` gives back the page as written, not its storage, so an
-      agent asked what is left on a tracker cannot read the ticks. Left
-      because the first ask was for the ticks to survive; a `state` in
-      `read_page`'s answer is a small addition once a writer asks for it.
-- [ ] **Delete leaves Claude Code's copy of the session.** Past
-      conversations' Delete removes NextTex's record only, and says so.
-      Removing the CLI's own file under the home folder too would need
-      the CLI's folder naming, which is its business, not ours.
-- [ ] **An update repairs nothing an install step fixed.** `scripts/update.sh`
-      does not run the TeX extras step again, so a missing synctex stays
-      missing after an update that fixed the step, and it does not rewrite
-      the service, so a launch agent keeps the PATH it was written with.
-      Running `scripts/install.sh` again does both. Left on the owner's word
-      on 26 October 2026: there was one Mac install, and new ones start
-      from scratch.
-- [ ] **Remote control and the session's name use the SDK's private
-      control channel.** The SDK has no call for `remote_control` or
-      `rename_session`, so `_control` in `nexttex/agent.py` sends them
-      through `_query._send_control_request`. An SDK that renames it turns
-      both features off quietly; a public method should replace it when
-      one exists.
-- [ ] **A JPEG 2000 image of grey with an alpha channel is not
-      drawn.** pdf.js 6.3.289 fails it with "Cannot read properties of
-      undefined (reading 'length')" where poppler draws it; a
-      one-component grey or an RGB codestream is drawn. Found making the
-      fixture for `e2e/specs/pdf-decoders.spec.ts`; upstream's to fix,
-      and worth a look when pdfjs-dist moves.
 
 ### Measured and left, worth revisiting with a measurement
 
@@ -610,6 +569,47 @@ OpenAI provider against OpenAI itself.
 
 ### Deliberately not done, and worth revisiting only if something changes
 
+- [ ] **The Figures list's first visit after a build still waits for
+      `pdfimages`.** Its answer is kept per build now, and the drawer
+      shows the previous list meanwhile, but the first ask after each
+      build takes about three seconds on the 32 MB thesis. Left because
+      warming it at the end of every build spends those seconds on builds
+      nobody opens the list after; worth it only if the wait is noticed.
+- [ ] **A stale `previews` in `nexttex.toml` is ignored without a
+      word.** Once `.nexttex/previews.json` exists the toml's list is never
+      read, by design, so an entry naming a folder since renamed says
+      nothing. Reported by the resume project's agent on 8 November 2026
+      with the agent fix; left because the key is legacy and seeds a new
+      install only, so a warning would speak to almost nobody.
+- [ ] **The agent cannot see what a reader did on a page.** A page's
+      `localStorage` is kept with the page since 1 November 2026, but
+      `read_page` gives back the page as written, not its storage, so an
+      agent asked what is left on a tracker cannot read the ticks. Left
+      because the first ask was for the ticks to survive; a `state` in
+      `read_page`'s answer is a small addition once a writer asks for it.
+- [ ] **Delete leaves Claude Code's copy of the session.** Past
+      conversations' Delete removes NextTex's record only, and says so.
+      Removing the CLI's own file under the home folder too would need
+      the CLI's folder naming, which is its business, not ours.
+- [ ] **An update repairs nothing an install step fixed.** `scripts/update.sh`
+      does not run the TeX extras step again, so a missing synctex stays
+      missing after an update that fixed the step, and it does not rewrite
+      the service, so a launch agent keeps the PATH it was written with.
+      Running `scripts/install.sh` again does both. Left on the owner's word
+      on 26 October 2026: there was one Mac install, and new ones start
+      from scratch.
+- [ ] **Remote control and the session's name use the SDK's private
+      control channel.** The SDK has no call for `remote_control` or
+      `rename_session`, so `_control` in `nexttex/agent.py` sends them
+      through `_query._send_control_request`. An SDK that renames it turns
+      both features off quietly; a public method should replace it when
+      one exists.
+- [ ] **A JPEG 2000 image of grey with an alpha channel is not
+      drawn.** pdf.js 6.3.289 fails it with "Cannot read properties of
+      undefined (reading 'length')" where poppler draws it; a
+      one-component grey or an RGB codestream is drawn. Found making the
+      fixture for `e2e/specs/pdf-decoders.spec.ts`; upstream's to fix,
+      and worth a look when pdfjs-dist moves.
 - [ ] **A file linked in from outside is read by completion and refused by
       the editor.** Decided on 29 October 2026: TeX reads the link when it
       builds, so its labels resolve on the page and completion offers them;
