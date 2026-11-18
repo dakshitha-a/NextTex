@@ -579,7 +579,7 @@ class PeerLink:
         store = self.network.store
         if store.arrived_bytes() >= ARRIVED_LIMIT:
             return
-        candidates: list[tuple[str, str]] = []
+        candidates: list[tuple[str, str, int]] = []
         for file_id, record in list(store.files.items()):
             if record.get("kind") != "blob" or record.get("trashed"):
                 continue
@@ -594,7 +594,7 @@ class PeerLink:
                 continue
             if file_id in store.arrived or not self._due_now(self.wanted_files, file_id):
                 continue
-            candidates.append((file_id, str(record.get("path") or "")))
+            candidates.append((file_id, str(record.get("path") or ""), size))
         if not candidates:
             return
         # The disk is asked in a thread, with plain strings. Each look is a
@@ -606,9 +606,13 @@ class PeerLink:
 
         def missing() -> list[tuple[str, str]]:
             out = []
-            for file_id, relative in candidates:
+            for file_id, relative, size in candidates:
                 try:
-                    if not project.resolve_for_write(relative).exists():
+                    target = project.resolve_for_write(relative)
+                    # An empty file where the record has bytes is the
+                    # stand-in a text record left for a file that was not
+                    # UTF-8, and is asked for as though it were missing.
+                    if not target.exists() or (size and target.stat().st_size == 0):
                         out.append((file_id, relative))
                 except (PermissionError, OSError, ValueError):
                     continue
@@ -2064,7 +2068,7 @@ class PeerNetwork:
             target = self.store.project.resolve_for_write(path)
         except (PermissionError, OSError, ValueError):
             return False
-        if target.exists():
+        if target.exists() and not self.store._empty_stand_in(path, target, data):
             return False
         if not self.store.take_file(file_id, data):
             return False

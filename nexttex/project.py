@@ -669,7 +669,17 @@ class Project:
                     return False
             return False
 
-        def walk(directory: Path, prefix: str) -> list[dict]:
+        root = self.root.resolve()
+
+        def leaves(path: Path) -> bool:
+            """Whether a link resolves outside the project."""
+            try:
+                target = path.resolve()
+            except (OSError, RuntimeError):
+                return True
+            return target != root and root not in target.parents
+
+        def walk(directory: Path, prefix: str, outside: bool = False) -> list[dict]:
             entries: list[dict] = []
             try:
                 with os.scandir(directory) as found:
@@ -690,12 +700,23 @@ class Project:
                 if skipped(name, path, is_dir):
                     continue
                 relative = prefix + name
+                # A link to somewhere outside the project, or anything under
+                # one. Listed, since it is the writer's and TeX reads it,
+                # and marked: a share leaves it out, because what it points
+                # at is not the project's to send, and the path refused to
+                # read it, so a joiner got an empty file of its name.
+                try:
+                    linked = entry.is_symlink()
+                except OSError:
+                    linked = False
+                out = outside or (linked and leaves(path))
                 if is_dir:
                     entries.append({
                         "name": name,
                         "path": relative,
                         "type": "dir",
-                        "children": walk(path, relative + "/"),
+                        "children": walk(path, relative + "/", out),
+                        **({"link": "outside"} if out else {}),
                     })
                 else:
                     try:
@@ -714,6 +735,7 @@ class Project:
                         # So a thumbnail cached per file is redrawn when
                         # the file is, and not before.
                         "mtime": mtime,
+                        **({"link": "outside"} if out else {}),
                     })
             return entries
 

@@ -410,7 +410,7 @@ OpenAI provider against OpenAI itself.
       of the same tabs no longer write the strip from what they read
       before waiting, which could put back a tab the other had closed.
 
-- [ ] **A link out of the project is shared as an empty file.** The
+- [x] **A link out of the project is shared as an empty file.** The
       tree lists a symlink whose target is outside the project, `adopt`
       records it as text, and `Project.resolve` then refuses to read it,
       so a joiner gets an empty file of that name. Found on 12 November
@@ -420,7 +420,9 @@ OpenAI provider against OpenAI itself.
       through the link. Left because leaving such a link out of the
       manifest, or sending what it points at, is a decision about what a
       link in a shared project means, and records already shared would
-      need a migration either way.
+      need a migration either way. Decided by the writer on 17 November
+      2026: left out of the share and marked in the tree, and an old
+      record retired; `tests/collab/test_what_a_share_leaves_out.py`.
 - [x] **A join of a large paper from the Windows laptop never finishes:
       the link to the sharer breaks every few seconds.** With both
       installs on 4.50.10, every link of the NexusQC paper's share
@@ -507,11 +509,13 @@ OpenAI provider against OpenAI itself.
       for a way to keep scratch out of a shared project to begin with, so
       a cloned repository or a calculations folder is never shared, with
       defaults for build output.
-- [ ] **A text file that is not UTF-8 is shared as an empty file.** Same
+- [x] **A text file that is not UTF-8 is shared as an empty file.** Same
       cause and same symptom as the link above: `read_text` returns
       nothing for it. One Latin-1 build log in the resume project showed
       it. Left for the same decision, since adopting such a file as a blob
-      would carry its bytes but take its editor away.
+      would carry its bytes but take its editor away. Decided by the
+      writer on 17 November 2026: shared as its bytes, since the editor
+      already refuses such a file; an old text record is recorded again.
 
 ### Measured and left, worth revisiting with a measurement
 

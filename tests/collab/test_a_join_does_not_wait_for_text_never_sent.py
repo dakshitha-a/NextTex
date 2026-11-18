@@ -34,7 +34,10 @@ async def test_a_link_out_of_the_project_does_not_stall_the_join(tmp_path):
     alice.store.adopt()
     # Recorded with its size, then emptied before anybody joined.
     (alice.project.root / "emptied.tex").write_text("")
-    assert alice.store.files[alice.store.file_id_for("refs/notes.md")]["kind"] == "text"
+    # Since 17 November 2026 neither is a text record: the link is left
+    # out of the share, and the Latin-1 log goes as its bytes.
+    assert alice.store.file_id_for("refs/notes.md") is None
+    assert alice.store.files[alice.store.file_id_for("latin.log")]["kind"] == "blob"
 
     bob = Peer(tmp_path / "bob", {}).be("b" * 64)
     bob.store.holding = True
@@ -45,40 +48,6 @@ async def test_a_link_out_of_the_project_does_not_stall_the_join(tmp_path):
     assert reason == "", reason
     main_id = bob.store.file_id_for("main.tex")
     assert str(bob.store.body(main_id)) == "The chapter.\n"
-    await bob.close()
-    await alice.close()
-
-
-@pytest.mark.asyncio
-async def test_an_edit_from_a_joiner_never_writes_through_the_link(tmp_path):
-    """The joiner now holds an empty document where the sharer has a link
-    into another repository. Typing into it there must not reach that
-    repository: the sharer's projection resolves the path first, and a
-    path that leaves the project is refused."""
-    elsewhere = tmp_path / "another-repository"
-    elsewhere.mkdir()
-    (elsewhere / "notes.md").write_text("Somebody else's notes.\n")
-    alice = Peer(tmp_path / "alice").be("a" * 64)
-    (alice.project.root / "refs").mkdir()
-    (alice.project.root / "refs" / "notes.md").symlink_to(elsewhere / "notes.md")
-    alice.store.adopt()
-    bob = Peer(tmp_path / "bob", {}).be("b" * 64)
-    await join_up(alice, bob)
-    assert await until(lambda: bob.store.file_id_for("refs/notes.md") is not None)
-
-    file_id = bob.store.file_id_for("refs/notes.md")
-    text = bob.store.body(file_id)
-    with text.doc.transaction():
-        text += "Typed on the laptop.\n"
-    alice_id = alice.store.file_id_for("refs/notes.md")
-    assert await until(lambda: "Typed on the laptop" in str(alice.store.body(alice_id))), (
-        "the edit never reached the sharer, so nothing here was tested"
-    )
-    alice.store.flush()
-    await settle()
-
-    assert (elsewhere / "notes.md").read_text() == "Somebody else's notes.\n"
-    assert (alice.project.root / "refs" / "notes.md").is_symlink()
     await bob.close()
     await alice.close()
 

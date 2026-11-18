@@ -157,6 +157,17 @@ def _sha(text: str) -> str:
     return hashlib.sha256(text.encode("utf-8")).hexdigest()
 
 
+def _files_under(node: dict) -> list[str]:
+    """Every file path under a tree node."""
+    out: list[str] = []
+    for child in node.get("children") or []:
+        if child.get("type") == "dir":
+            out.extend(_files_under(child))
+        else:
+            out.append(child["path"])
+    return out
+
+
 def minimal_edit(before: str, after: str) -> tuple[int, int, str]:
     """(start, end, replacement) -- the smallest single splice turning one
     string into the other.
@@ -407,6 +418,12 @@ class CollabStore:
         self._deferred: dict[str, str] = {}
         #: Set when the manifest changes, cleared by the next flush.
         self._paths_moved = False
+        #: Links out of the project as the last walk found them, and the
+        #: walk's modification times, for `adopt`.
+        self._outside: set[str] = set()
+        self._mtimes: dict[str, float] = {}
+        #: `_not_utf8`'s answers, by path, size and modification time.
+        self._utf8_seen: dict[tuple, bool] = {}
         #: Logs read off the loop by `read_ahead`, by file id, for `body`
         #: to build from rather than read again; None for a file with no
         #: log. Taken once, by the first open.
@@ -1168,6 +1185,15 @@ class CollabStore:
                     self._paths_moved = True
                     self._schedule()
                     continue
+            if (
+                relative in known and known[relative].get("kind") == "text"
+                and size <= MAX_TEXT_BYTES and self._not_utf8(relative, size)
+            ):
+                # Recorded as text before a share looked at its bytes. Its
+                # document could never hold it, so peers were sent an empty
+                # file: retired, which moves the peers' empty copy to their
+                # trash, and recorded again below as the bytes it is.
+                known.pop(relative)["trashed"] = True
             if relative in known:
                 # Left as it is, with one exception.  A project opened by a
                 # NextTex that called `.py` binary carries its scripts as
@@ -1193,7 +1219,10 @@ class CollabStore:
             # re-deriving from the suffix keeps the two from disagreeing
             # about a file -- which would show as an openable file with no
             # shared document behind it.
-            textual = kind == "text" and size <= MAX_TEXT_BYTES
+            textual = (
+                kind == "text" and size <= MAX_TEXT_BYTES
+                and not self._not_utf8(relative, size)
+            )
             record = Map({
                 "path": relative,
                 "kind": "text" if textual else "blob",
@@ -1205,6 +1234,16 @@ class CollabStore:
             # and one id for both merged their two files into one (Q-009).
             self.files[self._new_id(relative, adopting=not shared)] = record
             known[relative] = record
+
+        # A record made for a link out of the project before links were
+        # left out: retired, so a peer's empty copy goes to its trash. Not
+        # followed here: `_trash_locally` resolves the path, which a link
+        # out of the project fails, so this machine's link stays.
+        for relative in self._outside:
+            record = known.get(relative)
+            if record is not None:
+                record["trashed"] = True
+                seen.add(relative)
 
         # A file listed but no longer on disk was deleted while this peer was
         # not looking.  Marked rather than removed: a map delete concurrent
@@ -1447,11 +1486,22 @@ class CollabStore:
                     self.body(file_id)
 
     def _walk(self) -> list[tuple[str, str, int]]:
-        """Every file in the project, as (path, kind, size)."""
+        """Every file in the project that a share carries, as (path, kind,
+        size). A link out of the project, and anything under one, is left
+        out and kept in `_outside`, for `adopt` to retire a record made
+        for one before links were left out."""
         found: list[tuple[str, str, int]] = []
+        outside: set[str] = set()
+        self._mtimes: dict[str, float] = {}
 
         def descend(node: dict) -> None:
             for child in node.get("children") or []:
+                if child.get("link") == "outside":
+                    if child.get("type") == "dir":
+                        outside.update(_files_under(child))
+                    else:
+                        outside.add(child["path"])
+                    continue
                 if child.get("type") == "dir":
                     descend(child)
                 else:
@@ -1460,9 +1510,30 @@ class CollabStore:
                         child.get("kind", "binary"),
                         int(child.get("size") or 0),
                     ))
+                    self._mtimes[child["path"]] = float(child.get("mtime") or 0.0)
 
         descend(self.project.tree())
+        self._outside = outside
         return found
+
+    def _not_utf8(self, relative: str, size: int) -> bool:
+        """Whether a file the tree calls text is not UTF-8, so a share
+        carries its bytes rather than an empty document. Asked once per
+        path, size and modification time."""
+        key = (relative, size, self._mtimes.get(relative, 0.0))
+        known = self._utf8_seen.get(key)
+        if known is not None:
+            return known
+        try:
+            data = self.project.resolve(relative).read_bytes()
+            data.decode("utf-8")
+            verdict = False
+        except UnicodeDecodeError:
+            verdict = True
+        except (OSError, ValueError):
+            return False
+        self._utf8_seen[key] = verdict
+        return verdict
 
     def _read(self, relative: str) -> str:
         try:
@@ -2539,7 +2610,7 @@ class CollabStore:
         except (PermissionError, OSError, ValueError):
             self._refused[file_id] = relative
             return
-        if path.exists():
+        if path.exists() and not self._empty_stand_in(relative, path, data):
             return
         try:
             path.parent.mkdir(parents=True, exist_ok=True)
@@ -2557,6 +2628,25 @@ class CollabStore:
             noted = getattr(session, "note_arrived", None)
             if noted is not None:
                 noted(relative)
+
+    def _empty_stand_in(self, relative: str, path: Path, data: bytes) -> bool:
+        """Whether the file in the way is the empty one a text record left.
+
+        A file that is not UTF-8 was once recorded as text, and a peer
+        wrote it as an empty file; recorded again as bytes, it arrives
+        here onto that empty file. Written over only when it is empty,
+        nothing live holds it as text, and there are bytes to put there.
+        """
+        if not data:
+            return False
+        try:
+            if path.stat().st_size != 0:
+                return False
+        except OSError:
+            return False
+        holder = self.file_id_for(relative)
+        record = self.files.get(holder) if holder else None
+        return record is None or record.get("kind") != "text"
 
     # --- shutting down ----------------------------------------------------
 
