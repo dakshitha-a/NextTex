@@ -61,7 +61,7 @@ def _run(args: list[str], cwd: Path) -> str:
             ["synctex", *args],
             cwd=str(cwd),
             capture_output=True,
-            text=True,
+            text=True, encoding="utf-8", errors="replace",
             timeout=TIMEOUT,
         )
     except (FileNotFoundError, OSError, subprocess.SubprocessError):

@@ -139,7 +139,7 @@ def launchd_loaded(label: str) -> bool:
     instance's label.
     """
     try:
-        done = subprocess.run(["launchctl", "list"], capture_output=True, text=True,
+        done = subprocess.run(["launchctl", "list"], capture_output=True, text=True, encoding="utf-8", errors="replace",
                               timeout=30, check=False)
     except (OSError, subprocess.SubprocessError):
         return False
@@ -188,7 +188,7 @@ def lingering(user: str) -> bool | None:
     logged in; None where there is no `loginctl` to ask."""
     try:
         done = subprocess.run(["loginctl", "show-user", user, "--property=Linger"],
-                              capture_output=True, text=True, timeout=10, check=False)
+                              capture_output=True, text=True, encoding="utf-8", errors="replace", timeout=10, check=False)
     except (OSError, subprocess.SubprocessError):
         return None
     if done.returncode != 0:
@@ -210,7 +210,7 @@ def start_at_boot(user: str) -> str:
         return "This machine already starts NextTex when it boots."
     try:
         done = subprocess.run(["loginctl", "enable-linger", user],
-                              capture_output=True, text=True, timeout=30, check=False)
+                              capture_output=True, text=True, encoding="utf-8", errors="replace", timeout=30, check=False)
     except (OSError, subprocess.SubprocessError):
         done = None
     if done is not None and done.returncode == 0 and lingering(user):

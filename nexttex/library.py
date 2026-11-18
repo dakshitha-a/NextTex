@@ -179,7 +179,7 @@ def text_of(pdf: Path, timeout: int = 120) -> str:
     try:
         result = subprocess.run(
             ["pdftotext", str(pdf), "-"],
-            capture_output=True, text=True, timeout=timeout,
+            capture_output=True, text=True, encoding="utf-8", errors="replace", timeout=timeout,
         )
     except (subprocess.SubprocessError, OSError):
         return ""

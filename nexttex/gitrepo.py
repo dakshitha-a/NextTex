@@ -80,7 +80,7 @@ def _run(root: Path, *arguments: str, timeout: int = TIMEOUT) -> str:
     try:
         result = subprocess.run(
             ["git", *arguments], cwd=root, capture_output=True,
-            text=True, timeout=timeout,
+            text=True, encoding="utf-8", errors="replace", timeout=timeout,
             # Never let git stop for a password prompt: on a headless server
             # nobody would ever see it, and the request would simply hang.
             env=_environment(),
@@ -456,7 +456,7 @@ def _ask_gh() -> tuple[bool, str]:
     if not shutil.which("gh"):
         return False, "The GitHub CLI is not installed."
     result = subprocess.run(
-        ["gh", "auth", "status"], capture_output=True, text=True, timeout=20
+        ["gh", "auth", "status"], capture_output=True, text=True, encoding="utf-8", errors="replace", timeout=20
     )
     if result.returncode != 0:
         return False, "The GitHub CLI is installed but not signed in."
@@ -488,7 +488,7 @@ def create_github(root: Path, name: str, private: bool = True) -> str:
     result = subprocess.run(
         ["gh", "repo", "create", name, visibility, "--source", ".",
          "--remote", "origin", "--push"],
-        cwd=root, capture_output=True, text=True, timeout=TIMEOUT,
+        cwd=root, capture_output=True, text=True, encoding="utf-8", errors="replace", timeout=TIMEOUT,
     )
     if result.returncode != 0:
         # A remembered yes may be what let this through, and a token that

@@ -93,7 +93,7 @@ def journal(unit: str, since: str) -> None:
         out = subprocess.run(
             [binary, "--user", "-u", unit, "--no-pager", "-q", "-o", "short-iso",
              "--since", since.replace("T", " ") or "-7d"],
-            capture_output=True, text=True, timeout=30).stdout
+            capture_output=True, text=True, encoding="utf-8", errors="replace", timeout=30).stdout
     except (OSError, subprocess.SubprocessError) as error:
         print(f"journalctl failed: {error}")
         return

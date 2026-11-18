@@ -167,7 +167,7 @@ def miktex_packages(path: str) -> tuple[set[str], set[str]] | None:
     try:
         done = subprocess.run(
             [path, "packages", "list", "--template={id} {isInstalled}"],
-            capture_output=True, text=True, timeout=LIST_TIMEOUT,
+            capture_output=True, text=True, encoding="utf-8", errors="replace", timeout=LIST_TIMEOUT,
         )
     except (subprocess.SubprocessError, OSError):
         return None

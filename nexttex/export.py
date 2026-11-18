@@ -441,7 +441,7 @@ def notes_sentence(notes: list[FigureNote], name: str) -> str:
 
 def _pandoc(command: list[str], cwd: Path, timeout: int) -> subprocess.CompletedProcess:
     try:
-        return subprocess.run(command, cwd=cwd, capture_output=True, text=True, timeout=timeout)
+        return subprocess.run(command, cwd=cwd, capture_output=True, text=True, encoding="utf-8", errors="replace", timeout=timeout)
     except subprocess.TimeoutExpired:
         raise ExportError(f"pandoc took more than {timeout} seconds and was stopped")
     except OSError as error:

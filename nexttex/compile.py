@@ -193,7 +193,7 @@ def engine_version(engine: str) -> str:
         return _VERSIONS[engine]
     try:
         out = subprocess.run(
-            [engine, "--version"], capture_output=True, text=True, timeout=10,
+            [engine, "--version"], capture_output=True, text=True, encoding="utf-8", timeout=10,
             errors="replace",
         )
         lines = (out.stdout or out.stderr or "").strip().splitlines()

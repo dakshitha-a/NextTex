@@ -161,7 +161,7 @@ def front_text(pdf: Path, timeout: int = 30) -> str:
     try:
         result = subprocess.run(
             ["pdftotext", "-f", "1", "-l", str(PAGES), str(pdf), "-"],
-            capture_output=True, text=True, timeout=timeout,
+            capture_output=True, text=True, encoding="utf-8", errors="replace", timeout=timeout,
         )
     except (subprocess.SubprocessError, OSError):
         return ""

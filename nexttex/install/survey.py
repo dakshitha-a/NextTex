@@ -287,7 +287,7 @@ def _version_at(exe, *args) -> str:
     argv = [str(exe), *(args or ["--version"])]
     try:
         out = subprocess.run(
-            [exe, *argv[1:]], capture_output=True, text=True, timeout=10,
+            [exe, *argv[1:]], capture_output=True, text=True, encoding="utf-8", timeout=10,
             errors="replace",
         )
     except (OSError, subprocess.SubprocessError):

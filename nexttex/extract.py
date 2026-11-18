@@ -80,12 +80,12 @@ def _pdf(path: Path) -> tuple[str, int | None]:
     try:
         result = subprocess.run(
             ["pdftotext", "-layout", str(path), "-"],
-            capture_output=True, text=True, timeout=120,
+            capture_output=True, text=True, encoding="utf-8", errors="replace", timeout=120,
         )
         pages = None
         if shutil.which("pdfinfo"):
             info = subprocess.run(
-                ["pdfinfo", str(path)], capture_output=True, text=True, timeout=30
+                ["pdfinfo", str(path)], capture_output=True, text=True, encoding="utf-8", errors="replace", timeout=30
             ).stdout
             for line in info.splitlines():
                 if line.startswith("Pages:"):

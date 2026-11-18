@@ -487,7 +487,7 @@ def _run(argv: list[str]) -> str | None:
     if not shutil.which(argv[0]):
         return None
     try:
-        done = subprocess.run(argv, capture_output=True, text=True, timeout=TOOL_TIMEOUT)
+        done = subprocess.run(argv, capture_output=True, text=True, encoding="utf-8", errors="replace", timeout=TOOL_TIMEOUT)
     except (subprocess.SubprocessError, OSError):
         return None
     return done.stdout if done.returncode == 0 else None

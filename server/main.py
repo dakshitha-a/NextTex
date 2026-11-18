@@ -6812,7 +6812,7 @@ async def words(
         try:
             out = subprocess.run(
                 argv + ([str(slice_file)] if slice_file is not None else []),
-                capture_output=True, text=True, timeout=45,
+                capture_output=True, text=True, encoding="utf-8", errors="replace", timeout=45,
                 cwd=session.project.root,
             ).stdout
         finally:
@@ -6904,7 +6904,7 @@ async def lint(project_id: str, path: str):
     try:
         out = await asyncio.to_thread(
             lambda: subprocess.run(
-                argv, capture_output=True, text=True, timeout=15,
+                argv, capture_output=True, text=True, encoding="utf-8", errors="replace", timeout=15,
                 cwd=session.project.root,
             ).stdout
         )
@@ -7867,7 +7867,7 @@ async def _run_update(report) -> None:
             # which on a machine with PowerShell 7 is a pwsh lineage.
             env=child_env(argv),
             cwd=INSTALL_ROOT, stdout=subprocess.PIPE, stderr=subprocess.STDOUT,
-            text=True, bufsize=1,
+            text=True, encoding="utf-8", errors="replace", bufsize=1,
         )
         assert process.stdout is not None
         for line in process.stdout:

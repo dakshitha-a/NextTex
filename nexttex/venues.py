@@ -203,7 +203,7 @@ def _present(names: list[str]) -> set[str] | None:
         return None
     try:
         done = subprocess.run(
-            [kpsewhich, *names], capture_output=True, text=True, timeout=TIMEOUT,
+            [kpsewhich, *names], capture_output=True, text=True, encoding="utf-8", errors="replace", timeout=TIMEOUT,
         )
     except (subprocess.SubprocessError, OSError):
         return None

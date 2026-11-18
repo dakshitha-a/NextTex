@@ -382,10 +382,11 @@ OpenAI provider against OpenAI itself.
       laptop on 13 November 2026, ran it short of memory, and left the
       interface unfetched and the server hung at startup. Neither
       `update.ps1` nor `update.sh` takes a lock.
-- [ ] **A child process's output is read as cp1252 on Windows.** The
+- [x] **A child process's output is read as cp1252 on Windows.** The
       laptop's `server.err.log` holds repeated UnicodeDecodeErrors from a
       subprocess reader thread; some reader opens a pipe in text mode
-      without naming an encoding.
+      without naming an encoding. Every one of them, 34 calls, now says
+      UTF-8 with replacement, held by `tests/test_child_output_is_utf8.py`.
 - [ ] **Deleting four folders from the tree raised React error #185.**
       The browser on dak-n4 logged "Maximum update depth exceeded" at
       03:12:10 on 13 November 2026, three seconds after four chapter

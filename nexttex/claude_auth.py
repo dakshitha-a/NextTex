@@ -136,7 +136,7 @@ def status() -> dict:
                 "reason": "The Claude CLI is not installed."}
     try:
         result = subprocess.run(
-            [binary, "auth", "status"], capture_output=True, text=True, timeout=30
+            [binary, "auth", "status"], capture_output=True, text=True, encoding="utf-8", errors="replace", timeout=30
         )
     except (subprocess.SubprocessError, OSError) as exc:
         return {"installed": True, "loggedIn": False, "reason": str(exc)}
@@ -484,7 +484,7 @@ def logout() -> dict:
         return {"ok": False, "error": "The Claude CLI is not installed."}
     try:
         result = subprocess.run(
-            [binary, "auth", "logout"], capture_output=True, text=True, timeout=30
+            [binary, "auth", "logout"], capture_output=True, text=True, encoding="utf-8", errors="replace", timeout=30
         )
     except (subprocess.SubprocessError, OSError) as exc:
         return {"ok": False, "error": str(exc)}

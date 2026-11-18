@@ -147,7 +147,7 @@ def tailscale_address() -> str | None:
     try:
         out = subprocess.run(
             ["tailscale", "status", "--json"],
-            capture_output=True, text=True, timeout=5,
+            capture_output=True, text=True, encoding="utf-8", errors="replace", timeout=5,
         ).stdout
         status = json.loads(out)
     except (OSError, ValueError, subprocess.SubprocessError):

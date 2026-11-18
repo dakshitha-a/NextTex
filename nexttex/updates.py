@@ -262,7 +262,7 @@ def node_available() -> tuple[bool, str]:
         return False, "Node is not installed, and rebuilding the interface needs it."
     try:
         raw = subprocess.run(
-            [binary, "-v"], capture_output=True, text=True, timeout=10
+            [binary, "-v"], capture_output=True, text=True, encoding="utf-8", errors="replace", timeout=10
         ).stdout.strip()
         major = int(raw.lstrip("v").split(".")[0])
     except (OSError, ValueError, subprocess.SubprocessError):

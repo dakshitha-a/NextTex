@@ -305,7 +305,7 @@ class Console:
                 stdin=subprocess.PIPE if shell_input is not None else subprocess.DEVNULL,
                 stdout=subprocess.PIPE,
                 stderr=subprocess.STDOUT,
-                text=True,
+                text=True, encoding="utf-8",
                 bufsize=1,
                 # Not optional.  tlmgr and the TinyTeX installer emit bytes
                 # that are not UTF-8 on a Windows console, and a

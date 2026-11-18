@@ -218,7 +218,7 @@ def _run(browser: str, extra: list[str], done=lambda out, err: False) -> tuple[s
     err: list[str] = []
     with tempfile.TemporaryDirectory() as profile:
         process = subprocess.Popen([browser, *_flags(profile), *extra], stdout=subprocess.PIPE,
-                                   stderr=subprocess.PIPE, text=True, errors="replace")
+                                   stderr=subprocess.PIPE, text=True, encoding="utf-8", errors="replace")
         readers = [threading.Thread(target=lambda: out.extend(process.stdout), daemon=True),
                    threading.Thread(target=lambda: err.extend(process.stderr), daemon=True)]
         for reader in readers:

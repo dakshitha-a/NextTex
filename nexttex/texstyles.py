@@ -30,7 +30,7 @@ def _tree(variable: str) -> Path | None:
     try:
         done = subprocess.run(
             ["kpsewhich", f"--var-value={variable}"],
-            capture_output=True, text=True, timeout=TIMEOUT,
+            capture_output=True, text=True, encoding="utf-8", errors="replace", timeout=TIMEOUT,
         )
     except (subprocess.SubprocessError, OSError):
         return None

@@ -162,7 +162,7 @@ def machine_restarted(since: float, until: float, booted=None) -> str | None:
 
 
 def _run(argv: list[str]) -> str:
-    return subprocess.run(argv, capture_output=True, text=True, timeout=10).stdout
+    return subprocess.run(argv, capture_output=True, text=True, encoding="utf-8", errors="replace", timeout=10).stdout
 
 
 def _write(state: Path, record: dict) -> None:

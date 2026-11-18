@@ -115,7 +115,7 @@ def journal(unit: str, lines: int = LOG_TAIL) -> str:
         result = subprocess.run(
             [binary, "--user", "-u", unit, "-n", str(lines), "--no-pager",
              "-o", "short-iso"],
-            capture_output=True, text=True, errors="replace", timeout=10,
+            capture_output=True, text=True, encoding="utf-8", errors="replace", timeout=10,
         )
     except (OSError, subprocess.SubprocessError) as error:
         return f"(journalctl failed: {error})"
@@ -180,7 +180,7 @@ def windows_events(task: str, days: int = 7, limit: int = 40) -> list:
     argv = [binary, "-NoProfile", "-NonInteractive", "-Command", script]
     try:
         result = subprocess.run(
-            argv, capture_output=True, text=True, errors="replace",
+            argv, capture_output=True, text=True, encoding="utf-8", errors="replace",
             timeout=30, env=child_env(argv),
         )
     except subprocess.TimeoutExpired:
@@ -248,7 +248,7 @@ def _git(root: Path, *arguments: str) -> str:
         return ""
     try:
         result = subprocess.run(
-            [binary, *arguments], cwd=str(root), capture_output=True, text=True,
+            [binary, *arguments], cwd=str(root), capture_output=True, text=True, encoding="utf-8",
             errors="replace", timeout=10,
             env={**os.environ, "GIT_TERMINAL_PROMPT": "0", "LC_ALL": "C"},
         )
@@ -368,7 +368,7 @@ def service_section(instance: str, from_server: bool) -> list:
         try:
             result = subprocess.run(
                 [binary, "--user", "is-active", unit], capture_output=True,
-                text=True, errors="replace", timeout=10,
+                text=True, encoding="utf-8", errors="replace", timeout=10,
             )
             rows.append(f"systemd unit   {unit}: {result.stdout.strip() or result.stderr.strip() or 'unknown'}")
         except (OSError, subprocess.SubprocessError) as error:
