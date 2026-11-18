@@ -444,12 +444,14 @@ OpenAI provider against OpenAI itself.
       whose join had been discarded. Not reproduced here; the next step
       is two installs on this host, one join abandoned mid-stream, then a
       second join of another share between the same two.
-- [ ] **Joining again into the folder of a join never accepted opens a
+- [x] **Joining again into the folder of a join never accepted opens a
       part of the project.** A second invite into a folder whose
       `.nexttex/collab/share.json` an unaccepted join had left answered
       `opened` in under a second, not an offer, and the folder held ten
       of the fifty files with the link not connected. Found between two
-      installs on this host on 12 November 2026.
+      installs on this host on 12 November 2026. `share.json` now says when the
+      share was accepted, and only an accepted or registered copy opens;
+      `tests/api/test_rejoin.py`.
 - [x] **A join sends a sync step and a history ask for every record,
       deleted files included.** The NexusQC paper's manifest holds 2764
       records for 51 files, and NX-TeraChem's 3057 for 188, so a join

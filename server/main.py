@@ -1827,6 +1827,15 @@ def _whole_copy(target: Path, share: str) -> dict | None:
         )
     if not (target / ".nexttex" / "collab" / "docs").is_dir():
         return None
+    # Only a copy somebody said yes to. A join that ended without an
+    # answer, the server stopped while the offer was up, leaves its
+    # `share.json` and part of the documents; opened as a whole copy, a
+    # second invite into that folder answered "opened" in under a second
+    # with ten of fifty files and no link (12 November 2026). A folder
+    # this install already lists is its own project whatever the record
+    # says, as every copy accepted before `accepted_at` existed is.
+    if not held.accepted_at and REGISTRY.path_for(id_for(target)) is None:
+        return None
     project = REGISTRY.add(str(target))
     session_for(project.id)
     _restart_watch()
@@ -2136,7 +2145,11 @@ async def accept_join(token: str = Body(..., embed=True)):
         if pending.rejoining:
             # Only now does the card point at the new folder.
             pending.network.share.card_dir = shares_home()
-            pending.network.share.save_card()
+        # Said yes to: from here `_whole_copy` may open this folder as the
+        # share's copy. Before it, the folder is a join waiting on its
+        # answer, or one that never had one.
+        pending.network.share.accepted_at = time.time()
+        pending.network.share.save()
     finally:
         await pending.release(keep=True)
     # Registered only now: a join that was never accepted leaves nothing

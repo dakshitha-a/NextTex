@@ -285,6 +285,33 @@ def test_a_whole_copy_is_opened_rather_than_offered(client, them, tmp_path):
     assert client.get(f"/api/projects/{project_id}/collab").json()["shared"] is True
 
 
+def test_a_join_never_accepted_is_offered_again_not_opened(client, them, tmp_path):
+    """A join that ended without an answer left `share.json` and part of
+    the documents, and a second invite into that folder answered "opened"
+    in under a second with ten of fifty files and no link (12 November
+    2026). It is offered again, and what that join left is set aside."""
+    _write_card(them["share"], them["network"].share.members, str(tmp_path / "gone"))
+    left = tmp_path / "left"
+    shutil.copytree(them["root"], left)
+    record = left / ".nexttex" / "collab" / "share.json"
+    held = json.loads(record.read_text())
+    held["accepted_at"] = 0.0
+    record.write_text(json.dumps(held))
+    (left / "notes.tex").unlink()
+
+    answer = client.post("/api/collab/rejoin",
+                         json={"share": them["share"], "path": str(left)})
+    assert answer.status_code == 200, answer.text
+    body = answer.json()
+    assert body.get("opened") is not True
+    assert sorted(f["path"] for f in body["files"]) == ["main.tex", "notes.tex"]
+    accepted = client.post("/api/collab/join/accept", json={"token": body["token"]}).json()
+    assert accepted["ok"] is True
+    assert (left / "notes.tex").read_text() == "Notes.\n"
+    # Accepted now, so the next time this folder is a whole copy.
+    assert json.loads(record.read_text())["accepted_at"] > 0
+
+
 def test_a_copy_of_another_share_is_refused(client, them, tmp_path):
     _write_card(them["share"], them["network"].share.members, str(tmp_path / "gone"))
     other = tmp_path / "other"

@@ -221,6 +221,12 @@ class Share:
         self.members: dict[str, dict] = {}
         self.invites: dict[str, dict] = {}
         self.joined_at: float = 0.0
+        #: When this install said yes to the share: at `begin_sharing`, or
+        #: when a join's offer was accepted. Zero for a join still waiting
+        #: for its answer, and for a join that ended without one but left
+        #: this file behind, which `_whole_copy` in `server/main.py` must
+        #: not open as though it were a project.
+        self.accepted_at: float = 0.0
         self.load()
 
     @property
@@ -258,6 +264,7 @@ class Share:
         self.members = dict(data.get("members") or {})
         self.invites = dict(data.get("invites") or {})
         self.joined_at = float(data.get("joined_at") or 0.0)
+        self.accepted_at = float(data.get("accepted_at") or 0.0)
 
     def save(self) -> None:
         self.path.parent.mkdir(parents=True, exist_ok=True)
@@ -266,6 +273,7 @@ class Share:
             "members": self.members,
             "invites": self.invites,
             "joined_at": self.joined_at,
+            "accepted_at": self.accepted_at,
         }, indent=2), mode=0o600)
         self.save_card()
 
@@ -1072,6 +1080,7 @@ class PeerNetwork:
             return
         self.share.share_id = secrets.token_hex(16)
         self.share.joined_at = time.time()
+        self.share.accepted_at = self.share.joined_at
         self.share.members[self.peer_id] = {
             "name": name, "added_by": self.peer_id, "at": time.time(),
         }
