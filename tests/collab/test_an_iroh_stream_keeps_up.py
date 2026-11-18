@@ -90,6 +90,38 @@ async def test_many_small_sends_leave_as_a_few_writes_in_order():
 
 
 @pytest.mark.asyncio
+async def test_a_large_message_leaves_in_slices_with_the_loop_turning_between():
+    # iroh's bindings copy what `write_all` is given one byte at a time on
+    # the loop, so a whole 64 MB file message in one call held the sharer's
+    # loop for seconds. It goes as slices now, in order, and other work runs
+    # between them.
+    from server.collab.iroh_transport import WRITE_SLICE
+
+    bi = Bi()
+    turns = []
+    writes_seen = []
+
+    async def ticker():
+        while True:
+            turns.append(len(bi.sent.writes))
+            await asyncio.sleep(0)
+
+    stream = IrohStream(None, bi, "b" * 64)
+    beat = asyncio.ensure_future(ticker())
+    message = bytes(range(256)) * (5 * 1024 * 1024 // 256)
+    await stream.send(message)
+    await stream.close()
+    beat.cancel()
+    assert b"".join(bi.sent.writes) == framed(message)
+    assert all(len(w) <= WRITE_SLICE for w in bi.sent.writes)
+    assert len(bi.sent.writes) >= len(framed(message)) // WRITE_SLICE
+    # The loop ran other work while the slices were going out, not only
+    # before the first or after the last.
+    between = {n for n in turns if 0 < n < len(bi.sent.writes)}
+    assert len(between) >= len(bi.sent.writes) // 2
+
+
+@pytest.mark.asyncio
 async def test_the_stream_reads_before_anybody_asks_for_a_message():
     messages = [b"x" * 200 for _ in range(50)]
     bi = Bi([b"".join(framed(m) for m in messages)])

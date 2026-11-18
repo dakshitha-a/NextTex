@@ -55,6 +55,14 @@ READ_TIMEOUT = 90.0
 #: How much a stream gathers to send before `send` waits for the writer.
 WRITE_GATHER = 1024 * 1024
 
+#: The most one `write_all` is handed. The bindings copy what they are
+#: given into Rust one byte at a time, on the loop, about 225 ms a
+#: megabyte on dak-n4 under its usual load, so a whole file message of
+#: tens of megabytes in one call held the sharer's loop for up to 6.5 s
+#: in the November log. A slice of this size costs about 60 ms, and the
+#: loop turns between slices.
+WRITE_SLICE = 256 * 1024
+
 #: How much one read asks noq for.
 READ_CHUNK = 1024 * 1024
 
@@ -139,7 +147,12 @@ class IrohStream:
                 self._outgoing.clear()
                 self._room.set()
                 try:
-                    await self._send.write_all(data)
+                    for start in range(0, len(data), WRITE_SLICE):
+                        if start:
+                            # A turn of the loop between slices, whether or
+                            # not noq made the last one wait.
+                            await asyncio.sleep(0)
+                        await self._send.write_all(data[start:start + WRITE_SLICE])
                 except Exception as error:
                     self._write_failed = True
                     if not self.ended:
