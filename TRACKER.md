@@ -377,11 +377,13 @@ OpenAI provider against OpenAI itself.
       `_prune_emptied` removes the folders a followed move or deletion
       leaves empty; asserted in `tests/collab/test_a_deleted_folder_stays_deleted.py`
       and `tests/collab/test_a_rename_right_after_opening_is_followed.py`.
-- [ ] **Two updates can run at once on Windows.** A manual
+- [x] **Two updates can run at once on Windows.** A manual
       `scripts/update.ps1` and the scheduled one ran together on the
       laptop on 13 November 2026, ran it short of memory, and left the
-      interface unfetched and the server hung at startup. Neither
-      `update.ps1` nor `update.sh` takes a lock.
+      interface unfetched and the server hung at startup. Both scripts
+      now hold `update.lock` beside the log for the run, and the update
+      button answers 409 while another holds it;
+      `tests/test_update_script.py` and `tests/api/test_update_routes.py`.
 - [x] **A child process's output is read as cp1252 on Windows.** The
       laptop's `server.err.log` holds repeated UnicodeDecodeErrors from a
       subprocess reader thread; some reader opens a pipe in text mode

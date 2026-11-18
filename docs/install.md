@@ -296,6 +296,12 @@ the last block is the one you want, and it is the one to send if you are asking
 for help. The report described in [bug-reports.md](bug-reports.md#writing-a-report)
 quotes that block for you.
 
+Only one update runs at a time. Each script holds `update.lock` beside the log
+while it runs, so an update started by hand while the scheduled one, or the
+one from the update sheet, is running stops at once and says which process
+has it, and the update sheet answers the same. A lock left by an update that
+was killed part way is taken over by the next one.
+
 ## Uninstalling
 
 Four things to remove, in this order: the service, the desktop shortcut,

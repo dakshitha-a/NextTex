@@ -117,6 +117,35 @@ def test_a_second_update_is_refused_while_one_runs(client, behind, monkeypatch):
     server_main.UPDATE_JOB.clear()
 
 
+def test_an_update_started_outside_the_server_refuses_another(
+        client, behind, monkeypatch, tmp_path):
+    """A manual `update.ps1` and the scheduled one ran together on the
+    laptop on 13 November 2026; the button must not make a third."""
+    import os
+
+    state = tmp_path / "state"
+    monkeypatch.setattr(server_main, "state_home", lambda: state)
+    lock = state / updates.UPDATE_LOCK
+    lock.mkdir(parents=True)
+    (lock / "pid").write_text(str(os.getpid()))
+    response = client.post("/api/update")
+    assert response.status_code == 409
+    assert f"process {os.getpid()}" in response.json()["detail"]
+    assert server_main.UPDATE_JOB.get("state") != "running"
+
+    # A lock its process left behind is not a running update.
+    gone = subprocess.Popen(["true"])
+    gone.wait()
+    (lock / "pid").write_text(str(gone.pid))
+    assert updates.update_running(state, windows=False) is None
+
+
+def test_a_windows_lock_nobody_holds_is_free(tmp_path):
+    (tmp_path / updates.UPDATE_LOCK).write_text("1234")
+    assert updates.update_running(tmp_path, windows=True) is None
+    assert updates.update_running(tmp_path / "nowhere", windows=True) is None
+
+
 def test_a_check_says_whether_one_is_running(client, behind):
     server_main.UPDATE_JOB.update({"state": "running", "log": [], "queue": []})
     assert client.get("/api/update").json()["updating"] is True

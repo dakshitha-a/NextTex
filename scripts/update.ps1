@@ -49,6 +49,38 @@ $stateHome = if ($env:XDG_DATA_HOME) { $env:XDG_DATA_HOME } else { Join-Path $HO
 $logDir = Join-Path $stateHome ('nexttex' + $(if ($env:NEXTTEX_INSTANCE) { "-$env:NEXTTEX_INSTANCE" } else { '' }))
 New-Item -ItemType Directory -Force -Path $logDir | Out-Null
 $logFile = Join-Path $logDir 'update.log'
+
+# One update at a time. A manual update and the scheduled one ran together
+# on this laptop on 13 November 2026, ran it short of memory, and left the
+# interface unfetched and the server hung at start. The lock is a file
+# beside the log held open for writing, and shared only for reading, for
+# the whole run; Windows lets it go the moment this process ends, however
+# it ends, so nothing is left to take over. The updated script this one
+# hands over to runs as a child while this holds it, and is told so
+# through NEXTTEX_UPDATE_LOCK. `server\main.py` refuses the update button
+# while the file is held.
+$lockFile = Join-Path $logDir 'update.lock'
+$lock = $null
+if (-not $env:NEXTTEX_UPDATE_LOCK) {
+  try {
+    $lock = [System.IO.File]::Open($lockFile, 'OpenOrCreate', 'ReadWrite', 'Read')
+    $bytes = [System.Text.Encoding]::ASCII.GetBytes("$PID")
+    $lock.SetLength(0)
+    $lock.Write($bytes, 0, $bytes.Length)
+    $lock.Flush()
+    $env:NEXTTEX_UPDATE_LOCK = $lockFile
+  } catch {
+    $other = ''
+    try { $other = (Get-Content -Raw -Path $lockFile).Trim() } catch { }
+    $line = "another update is running (process $other); not starting a second"
+    try {
+      Add-Content -Path $logFile -Value ("`n=== {0}  update.ps1`n  {1}" -f (Get-Date -Format 'yyyy-MM-ddTHH:mm:sszzz'), $line)
+    } catch { }
+    Write-Host "  $line"
+    exit 1
+  }
+}
+
 try { Start-Transcript -Path $logFile -Append | Out-Null } catch { }
 
 function Say  { param($m) Write-Host ''; Write-Host $m -ForegroundColor White }
@@ -395,4 +427,5 @@ try {
   exit 1
 } finally {
   try { Stop-Transcript | Out-Null } catch { }
+  if ($lock) { $lock.Dispose(); $lock = $null }
 }

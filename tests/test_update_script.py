@@ -269,6 +269,68 @@ def test_a_failure_before_the_hand_over_is_a_failure_too(tmp_path: Path) -> None
     assert "Dependencies" not in done.stdout, "the update carried on past a failed pull"
 
 
+def lock_of(work: Path) -> Path:
+    return work.parent / "state" / "nexttex-nothinglistenshere" / "update.lock"
+
+
+def test_a_second_update_refuses_while_one_runs(tmp_path: Path) -> None:
+    """A manual update and the scheduled one ran together on the laptop on
+    13 November 2026 and left its server hung at start."""
+    _, work = repositories(tmp_path)
+    lock = lock_of(work)
+    lock.mkdir(parents=True)
+    (lock / "pid").write_text(f"{os.getpid()}\n")
+
+    done = run(work)
+    assert done.returncode == 1
+    said = f"another update is running (process {os.getpid()})"
+    assert said in done.stderr
+    assert said in log_of(work).read_text()
+    assert "Fetching" not in done.stdout
+    # Still the other run's.
+    assert (lock / "pid").read_text().strip() == str(os.getpid())
+
+
+def test_a_lock_a_killed_update_left_is_taken_over(tmp_path: Path) -> None:
+    _, work = repositories(tmp_path)
+    gone = subprocess.Popen(["true"])
+    gone.wait()
+    lock = lock_of(work)
+    lock.mkdir(parents=True)
+    (lock / "pid").write_text(f"{gone.pid}\n")
+
+    done = run(work)
+    assert done.returncode == 0, done.stderr
+    assert not lock.exists()
+
+
+def test_the_lock_is_held_across_the_hand_over_and_let_go_after(tmp_path: Path) -> None:
+    origin, work = repositories(tmp_path)
+    release(origin, tmp_path, lambda text: text.replace(
+        '  note "python packages up to date"',
+        '  note "python packages up to date"\n  note "lock held by $(cat "$NEXTTEX_UPDATE_LOCK/pid")"',
+        1,
+    ))
+
+    done = run(work)
+    assert done.returncode == 0, done.stderr
+    assert "continuing with the updated script" in done.stdout
+    assert "lock held by " in done.stdout
+    assert not lock_of(work).exists()
+
+
+def test_a_failed_update_lets_the_lock_go(tmp_path: Path) -> None:
+    origin, work = repositories(tmp_path)
+    release(origin, tmp_path, lambda text: text.replace(
+        '  note "python packages up to date"',
+        '  note "python packages up to date"\n  false',
+        1,
+    ))
+    done = run(work)
+    assert done.returncode != 0
+    assert not lock_of(work).exists()
+
+
 def test_on_a_mac_the_launchd_agent_is_restarted(tmp_path: Path) -> None:
     """I-025.  Only systemd was asked whether the server was running, so on
     a Mac the script pulled, reinstalled, rebuilt, printed Done and left the

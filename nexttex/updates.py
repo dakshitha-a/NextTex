@@ -272,6 +272,53 @@ def node_available() -> tuple[bool, str]:
     return True, ""
 
 
+#: The update scripts' lock, in the state folder beside `update.log`: a
+#: folder holding `pid` from `update.sh`, a file held open for writing by
+#: `update.ps1`. On 13 November 2026 a manual `update.ps1` and the
+#: scheduled one ran together on the Windows laptop, ran it short of
+#: memory, and left the interface unfetched and the server hung at start.
+UPDATE_LOCK = "update.lock"
+
+
+def update_running(state: Path, windows: bool = os.name == "nt") -> int | None:
+    """The process id of an update script running for this install, -1
+    when one is running and its id cannot be read, or None.
+
+    On Windows the lock is a file `update.ps1` holds open for writing and
+    shares only for reading, so it is free the moment that process ends,
+    however it ends; opening it for writing fails while it is held. On
+    Linux and macOS it is a folder `update.sh` makes, which a run that was
+    killed leaves behind, so it counts only while the process it names is
+    alive."""
+    lock = state / UPDATE_LOCK
+    if windows:
+        if not lock.is_file():
+            return None
+        try:
+            with open(lock, "r+b"):
+                return None
+        except PermissionError:
+            try:
+                return int(lock.read_text(encoding="ascii").strip() or "-1")
+            except (OSError, ValueError):
+                return -1
+        except OSError:
+            return None
+    try:
+        pid = int((lock / "pid").read_text(encoding="ascii").strip())
+    except (OSError, ValueError):
+        return None
+    try:
+        os.kill(pid, 0)
+    except ProcessLookupError:
+        return None
+    except PermissionError:
+        return pid
+    except OSError:
+        return None
+    return pid
+
+
 def supervised() -> bool:
     """Whether something will start NextTex again if it stops on purpose.
 

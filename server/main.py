@@ -7718,6 +7718,14 @@ async def update_start():
     supervisor can start a new process."""
     if UPDATE_JOB.get("state") in ("running", "restarting"):
         raise HTTPException(409, "An update is already running.")
+    # One started outside this process too: by hand in a terminal, or by
+    # a scheduled task. Two at once ran the laptop short of memory and
+    # left its server hung at start.
+    other = await asyncio.to_thread(updates.update_running, state_home())
+    if other is not None:
+        who = f" (process {other})" if other > 0 else ""
+        raise HTTPException(
+            409, f"Another update is already running{who}. Wait for it to finish.")
     report = await asyncio.to_thread(UPDATES.get, True)
     if not report.can_update:
         # The reason first, and git's own words after it when the check

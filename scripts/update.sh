@@ -66,6 +66,51 @@ node_new_enough() {
 # usually "what did the last three updates do".
 UPDATE_LOG="${XDG_DATA_HOME:-$HOME/.local/share}/nexttex${INSTANCE:+-$INSTANCE}/update.log"
 
+# One update at a time.  A manual update and a scheduled one ran together
+# on the Windows laptop on 13 November 2026, ran it short of memory, and
+# left the interface unfetched and the server hung at start; nothing here
+# stopped this script doing the same.  The lock is a folder beside the
+# log, made with `mkdir`, which either makes it or finds it there, holding
+# the process id of the run that made it.  A folder whose process has
+# gone is from a run that was killed, and is taken over.  The run that
+# made it is the one that removes it, at its own exit: the hand-over to
+# the pulled script below happens inside it, and is told the lock is
+# already held through NEXTTEX_UPDATE_LOCK, the way NEXTTEX_UPDATE_LOGGED
+# tells it the log is open.  `server/main.py` refuses the update button
+# while the folder names a live process.
+UPDATE_LOCK="$(dirname "$UPDATE_LOG")/update.lock"
+OWN_LOCK=0
+take_lock() {
+  [ -n "${NEXTTEX_UPDATE_LOCK:-}" ] && return 0
+  mkdir -p "$(dirname "$UPDATE_LOCK")" 2>/dev/null || return 0
+  if ! mkdir "$UPDATE_LOCK" 2>/dev/null; then
+    other="$(cat "$UPDATE_LOCK/pid" 2>/dev/null || true)"
+    if [ -n "$other" ] && kill -0 "$other" 2>/dev/null; then
+      line="another update is running (process $other); not starting a second"
+      printf '\n=== %s  update.sh %s\n  %s\n' "$(date '+%Y-%m-%dT%H:%M:%S%z')" "$*" "$line" \
+        >> "$UPDATE_LOG" 2>/dev/null || true
+      printf '%s\n' "$line" >&2
+      exit 1
+    fi
+    # Left by a run that was killed: taken over.
+    rm -rf "$UPDATE_LOCK"
+    mkdir "$UPDATE_LOCK" 2>/dev/null || return 0
+  fi
+  printf '%s\n' "$$" > "$UPDATE_LOCK/pid"
+  OWN_LOCK=1
+  NEXTTEX_UPDATE_LOCK="$UPDATE_LOCK"
+  export NEXTTEX_UPDATE_LOCK
+  trap 'release_lock' EXIT
+  trap 'release_lock; exit 130' INT
+  trap 'release_lock; exit 143' TERM HUP
+}
+release_lock() {
+  if [ "$OWN_LOCK" = 1 ]; then
+    rm -rf "$UPDATE_LOCK"
+    OWN_LOCK=0
+  fi
+}
+
 # Everything below runs inside a function so bash parses the whole file
 # before executing any of it.  Without that, `git pull` replaces this
 # script while bash is part-way through reading it, and bash carries on
@@ -248,6 +293,8 @@ record() {  # record STATUS: where the wrapper will look for it
   fi
 }
 
+take_lock "$@"
+
 if [ -z "${NEXTTEX_UPDATE_LOGGED:-}" ] && mkdir -p "$(dirname "$UPDATE_LOG")" 2>/dev/null; then
   export NEXTTEX_UPDATE_LOGGED=1
   NEXTTEX_UPDATE_STATUS="$(mktemp 2>/dev/null || printf '%s' "${TMPDIR:-/tmp}/nexttex-update-status.$$")"
@@ -267,7 +314,7 @@ if [ -z "${NEXTTEX_UPDATE_LOGGED:-}" ] && mkdir -p "$(dirname "$UPDATE_LOG")" 2>
   rm -f "$NEXTTEX_UPDATE_STATUS"
   exit "${code:-1}"
 else
-  trap 'record $?' EXIT
+  trap 'code=$?; record $code; release_lock' EXIT
   main "$@"
   record 0
 fi
