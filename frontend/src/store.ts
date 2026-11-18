@@ -10,7 +10,7 @@ import { afterReconcile } from "./agent-state";
 import { agentChangedScript, resultFrom } from "./script-run";
 import { renamePaths } from "./tabs";
 import { learnKinds } from "./panes/file-kinds";
-import { noteHandled } from "./errors";
+import { noteHandled, record } from "./errors";
 import api, {
   clientId,
   type AgentSession,
@@ -566,7 +566,43 @@ export type Notice = { id: number; text: string };
 
 let noticeCounter = 0;
 
+/** How many writes one task may make before the store says so.
+ *
+ *  React stops a render loop after fifty nested updates with error #185,
+ *  "Maximum update depth exceeded", and its stack names only its own
+ *  `useSyncExternalStore` listener, never the component or effect that kept
+ *  writing. That is all the two loops logged on 29 October and 13 November
+ *  2026 could say, and neither was reproduced. A burst of writes like that
+ *  is recorded here, once a page, with the keys written and the stack of
+ *  the write that crossed the line, so the next one names its writer.
+ */
+export const WRITE_BURST = 40;
+let burst = 0;
+let burstKeys = new Set<string>();
+let burstSaid = false;
+
+/** Count one write, and say so once a page when a task makes too many. */
+export function countWrite(keys: string[]): void {
+  if (burst === 0) {
+    setTimeout(() => {
+      burst = 0;
+      burstKeys = new Set();
+    }, 0);
+  }
+  burst += 1;
+  for (const key of keys) burstKeys.add(key);
+  if (burst > WRITE_BURST && !burstSaid) {
+    burstSaid = true;
+    record(
+      "error",
+      `store written ${burst} times in one task: ${[...burstKeys].sort().join(", ")}`,
+      new Error("store write burst").stack ?? "",
+    );
+  }
+}
+
 export function set(patch: Partial<State>) {
+  countWrite(Object.keys(patch));
   // `error` is a single string and thirty call sites write to it, so a
   // second failure used to erase the first without a word: two uploads
   // refused, one message. Keeping the write API and turning it into a queue

@@ -396,8 +396,19 @@ OpenAI provider against OpenAI itself.
 - [ ] **Deleting four folders from the tree raised React error #185.**
       The browser on dak-n4 logged "Maximum update depth exceeded" at
       03:12:10 on 13 November 2026, three seconds after four chapter
-      folders were deleted through the trash. Left because the stack in
-      the log is minified and nobody has reproduced it yet.
+      folders were deleted through the trash, and once before, on 29
+      October, in a tab taking a storm of file changes. Mapped on 17
+      November 2026 against an exact rebuild of 4.51.0 with source maps,
+      the stack is React's own: `useSyncExternalStore`'s listener
+      re-rendering after a store write, fifty times in consecutive
+      commits, with no component named. Neither four folders deleted with
+      eight open tabs nor a storm of three hundred new files reproduced it
+      (`e2e/specs/folder-deletions.spec.ts`), and two readings of every
+      effect that writes the store found no synchronous loop. The store
+      now records a burst of more than forty writes in one task with the
+      keys and the stack, so the next one names its writer; and two closes
+      of the same tabs no longer write the strip from what they read
+      before waiting, which could put back a tab the other had closed.
 
 - [ ] **A link out of the project is shared as an empty file.** The
       tree lists a symlink whose target is outside the project, `adopt`

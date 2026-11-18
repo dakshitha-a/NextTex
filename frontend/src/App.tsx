@@ -1145,13 +1145,6 @@ export default function App() {
       extra: Partial<Parameters<typeof set>[0]> = {},
     ) => {
       const state = get();
-      // Read now, not after the `set` below: `get()` hands back the live
-      // state, so `state.activePath` is whatever was last written, and
-      // comparing against it after writing it never found a change.  A
-      // close of the tab in front then moved the strip and left the view
-      // on the closed file's text, which is what "the editor goes crazy
-      // when an open file is deleted" turned out to be.
-      const wasActive = state.activePath;
       const closing = paths.filter((path) => state.tabs.some((tab) => tab.path === path));
       if (!closing.length) {
         if (Object.keys(extra).length) set(extra);
@@ -1162,30 +1155,44 @@ export default function App() {
       // document already -- so a strip of twelve is one turn of the loop
       // rather than twelve.
       await Promise.all(closing.map((path) => editor.current?.close(path)));
-      const tabs = state.tabs.filter((tab) => !closing.includes(tab.path));
+      // Read again after the wait. A deletion closes its tabs twice over,
+      // once from the delete route's answer and once from the server's
+      // `gone`, and the two overlap: each wrote the strip from what it had
+      // read before waiting, so a later close put back tabs an earlier one
+      // had taken away, and left a file already gone in front. Four
+      // folders deleted in a row on 13 November 2026 ended in React's
+      // "Maximum update depth exceeded".
+      const now = get();
+      // Read before the `set` below, not after: `get()` hands back the live
+      // state, so `activePath` read after writing it never shows a change.
+      // A close of the tab in front then moved the strip and left the view
+      // on the closed file's text, which is what "the editor goes crazy
+      // when an open file is deleted" turned out to be.
+      const front = now.activePath;
+      const tabs = now.tabs.filter((tab) => !closing.includes(tab.path));
       const activePath =
         nextActive !== undefined
           ? nextActive
-          : wasActive && closing.includes(wasActive)
+          : front && closing.includes(front)
             ? (tabs[tabs.length - 1]?.path ?? null)
-            : wasActive;
+            : front;
       // A figure's `viewing` is set here rather than by the editor, which
       // has no buffer to park for one, so nothing else would clear it and
       // the banner would go on offering the past of a file that is gone.
-      const stillViewing = !viewingClosed(state.viewing, closing);
+      const stillViewing = !viewingClosed(now.viewing, closing);
       // Remembered before they go, so Mod-Alt-Shift-T can bring them back.
       closed.current = pushClosed(closed.current, closing);
       // The Markdown tab is its file's rendering and nothing else, so it
       // goes with the file, the way a followed document leaves with its
       // last file.  It stayed on the strip after its file's tab had gone,
       // showing the text of a file the editor no longer held.
-      const markdown = state.markdown;
+      const markdown = now.markdown;
       const markdownGoes = Boolean(markdown && closing.includes(markdown.path));
       set({
         ...(markdownGoes
           ? {
               markdown: null,
-              previewShowing: state.previewShowing === "markdown" ? "document" : state.previewShowing,
+              previewShowing: now.previewShowing === "markdown" ? "document" : now.previewShowing,
             }
           : {}),
         ...extra,
@@ -1201,7 +1208,7 @@ export default function App() {
       // document was refused, which the pane showed as offline, and the
       // open waited out its eight seconds and then put an empty document
       // on screen over whatever file was in front by then.
-      if (activePath && activePath !== wasActive && opensInEditor(get().tree, activePath)) {
+      if (activePath && activePath !== front && opensInEditor(get().tree, activePath)) {
         set({ pendingOpen: { path: activePath, nonce: Date.now() } });
       }
       // A document this window followed onto the strip leaves it with its
