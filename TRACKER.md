@@ -114,8 +114,14 @@ to 6.5 s; thesis edits ran full passes of the whole document again, 906 s
 of them cancelled, with no record of why a pass was full; and one more
 React #185, the event already in the backlog. These, the backlog's open
 gaps, and the writer's four answers of 17 November on what a share
-carries are the run in hand, tracked at
-https://claude.ai/artifact/8NFy8wm4BzRe9Gv1Bw5MqQ. Seven items moved
+carries made a run that closed on 18 November at 4.53.0, from 4.52.7, in
+four pushes: 4.52.8 for the log's own faults, 4.52.9 for what a share
+could lose or bring back, 4.52.10 for the loop during shared work, and
+4.53.0 for the list of what a project does not share. Two things stay
+open below: the abandoned join, which did not reproduce on one host, and
+React #185, which did not reproduce either and now names its writer when
+it comes. 4.52.9's bump commit also carries a two-line guard of the
+accept route that belonged in 79e3755, staged late. Seven items moved
 to *Deliberately not done* with their reasons. `goto` on a root off the
 strip was closed as not reproduced: two browser reproductions put the
 root on the strip, and `compile` adopting the root, in 4.50.4, removed the
@@ -393,6 +399,14 @@ OpenAI provider against OpenAI itself.
       subprocess reader thread; some reader opens a pipe in text mode
       without naming an encoding. Every one of them, 34 calls, now says
       UTF-8 with replacement, held by `tests/test_child_output_is_utf8.py`.
+- [ ] **Two browser specs still flake under the full check's load.**
+      `e2e/specs/pdf-menu.spec.ts`'s first case failed three runs in
+      sixteen on 4.52.9, its canvas redrawn under a scroll; the scroll is
+      retried since 1af7429 and it passed fifty-four of fifty-six alone,
+      but it still needed its retry once in 4.53.0's full check, as did
+      `e2e/specs/moved-project.spec.ts`'s Browse case. Left because both
+      pass on retry and neither touches what they test; the next look is
+      the trace of a failing run.
 - [ ] **Deleting four folders from the tree raised React error #185.**
       The browser on dak-n4 logged "Maximum update depth exceeded" at
       03:12:10 on 13 November 2026, three seconds after four chapter
