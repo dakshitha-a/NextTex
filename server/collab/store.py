@@ -407,6 +407,10 @@ class CollabStore:
         self._deferred: dict[str, str] = {}
         #: Set when the manifest changes, cleared by the next flush.
         self._paths_moved = False
+        #: Logs read off the loop by `read_ahead`, by file id, for `body`
+        #: to build from rather than read again; None for a file with no
+        #: log. Taken once, by the first open.
+        self._read_ahead: dict[str, bytes | None] = {}
         #: Bytes a peer sent for a binary record that is not on this disk,
         #: by file id, written by the next flush and never on receipt, so
         #: a binary lands the way a text document does, through the one
@@ -740,6 +744,25 @@ class CollabStore:
                 # One deaf listener must not stop the others hearing.
                 pass
 
+    def unopened_logs(self, file_ids) -> dict[str, Path]:
+        """Where the logs of those of `file_ids` not yet open are, on the
+        loop, for `read_ahead` to read in a thread."""
+        found = {}
+        for file_id in file_ids:
+            if file_id in self._body or file_id in self._read_ahead:
+                continue
+            try:
+                found[file_id] = self._text_path(file_id)
+            except ValueError:
+                continue
+        return found
+
+    def read_ahead(self, logs: dict[str, bytes | None]) -> None:
+        """Keep logs a thread read, for the documents' first open."""
+        for file_id, blob in logs.items():
+            if file_id not in self._body:
+                self._read_ahead[file_id] = blob
+
     def document(self, doc_id: str):
         """The document a socket asked for, by the name it uses.
 
@@ -800,7 +823,8 @@ class CollabStore:
             return None
 
         doc = Doc()
-        had_a_log = persist.load(log, doc) >= 0
+        had_a_log = persist.load(
+            log, doc, self._read_ahead.pop(file_id, persist.UNREAD)) >= 0
         text = _root(doc, "text", Text)
 
         self.texts[file_id] = doc

@@ -70,7 +70,7 @@ from nexttex.atomic import write_atomically
 from nexttex.history import now_ms
 from nexttex.project import shares_home
 
-from . import endpoint, history_sync, identity, paragraphs, transport, wire
+from . import endpoint, history_sync, identity, paragraphs, persist, transport, wire
 from .iroh_transport import said
 from . import forgetting
 from .agreed import Agreed, state_of
@@ -474,6 +474,28 @@ class PeerLink:
         if "manifest" not in self.offered:
             self.offered.add("manifest")
             await self.send(wire.sync("manifest", create_sync_message(store.manifest)))
+
+        # The disk first, in a thread: each document's log and the state
+        # last agreed with this peer. Opening seven shared projects after a
+        # restart held the Windows laptop's loop for 3 to 10 s at a time on
+        # 13 November 2026, reading them one `read_bytes` after another.
+        # Paths are taken here and the documents built here, since a
+        # document belongs to the loop; only the reading moves.
+        wanted = [
+            file_id for file_id, record in list(store.files.items())
+            if f"text/{file_id}" not in self.offered
+            and record.get("kind") == "text" and not record.get("trashed")
+        ]
+        logs = store.unopened_logs(wanted)
+        bases = self.network.agreed.paths_for(self.peer_id, [f"text/{f}" for f in wanted])
+        if logs or bases:
+            read_logs, read_bases = await asyncio.to_thread(
+                lambda: ({k: persist.read(p) for k, p in logs.items()},
+                         {k: persist.read(p) for k, p in bases.items()}))
+            store.read_ahead(read_logs)
+            self.network.agreed.read_ahead(self.peer_id, read_bases)
+            if not self.alive:
+                return
 
         for file_id, record in list(store.files.items()):
             doc_id = f"text/{file_id}"

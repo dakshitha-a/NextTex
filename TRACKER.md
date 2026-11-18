@@ -359,13 +359,16 @@ OpenAI provider against OpenAI itself.
       Each call measured under a millisecond with the laptop quiet, so
       what made a pass slow while OneDrive was busy is still unknown;
       a long hold now records a later stack as `held_last` to say.
-- [ ] **Opening seven shared projects stalls the laptop's loop for
+- [x] **Opening seven shared projects stalls the laptop's loop for
       seconds.** After each restart on 13 November 2026 the Windows
       laptop held its event loop for 3 to 10 s at a time while it opened
       and re-dialled its shared projects: `forget_machinery`, `adopt`,
       and `send_documents` reading document logs and agreed states with
-      `read_bytes` on the loop. Left because the stalls end within a
-      minute of starting and nothing was dropped.
+      `read_bytes` on the loop. The logs and agreed states are read in a
+      thread now; `_index_paths` measured 16 ms over 3000 records on
+      dak-n4 and was left;
+      `tests/collab/test_opening_reads_logs_off_the_loop.py`.
+
 - [x] **A peer's mass deletion is followed on the loop.** `settle_paths`
       moved every file a collaborator deleted into this machine's trash
       from inside the flush, so the laptop's 104 files at 11:11 on

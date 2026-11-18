@@ -44,7 +44,11 @@ COMPACT_RATIO = 8
 COMPACT_FLOOR = 64 * 1024
 
 
-def load(path: Path, doc: Doc) -> int:
+#: Passed as `blob` when the caller read nothing: the log is read here.
+UNREAD = object()
+
+
+def load(path: Path, doc: Doc, blob=UNREAD) -> int:
     """Apply everything in `path` to `doc`. Returns the bytes read, or -1.
 
     **-1 means there was no log at all**, and it is a different thing from 0,
@@ -55,9 +59,13 @@ def load(path: Path, doc: Doc) -> int:
     another person's machine -- and rebuilding it from disk would merge as a
     second, independent copy of every line.
     """
-    try:
-        blob = path.read_bytes()
-    except OSError:
+    if blob is UNREAD:
+        try:
+            blob = path.read_bytes()
+        except OSError:
+            return -1
+    if blob is None:
+        # Read by the caller, off the loop, and not there.
         return -1
     if len(blob) < HEADER or not blob.startswith(MAGIC):
         return 0
@@ -79,6 +87,15 @@ def load(path: Path, doc: Doc) -> int:
             pass
         offset += length
     return offset
+
+
+def read(path: Path) -> bytes | None:
+    """A log's bytes, or None when there is none: what `load` takes as
+    `blob` from a caller that read it in a thread."""
+    try:
+        return path.read_bytes()
+    except OSError:
+        return None
 
 
 def append(path: Path, update: bytes) -> None:

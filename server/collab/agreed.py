@@ -75,9 +75,32 @@ class Agreed:
             pass
         self._unsaved = False
         self._written_at = 0.0
+        #: States `read_ahead` was handed, by peer and doc id, with the
+        #: digest they were read under: (digest, bytes or None).
+        self._read: dict[str, dict[str, tuple]] = {}
+
+    def paths_for(self, peer: str, doc_ids) -> dict:
+        """Where the states agreed with `peer` for `doc_ids` are, by doc id,
+        for a thread to read; see `read_ahead`."""
+        known = self.index.get(peer, {})
+        held = self._read.get(peer, {})
+        return {
+            doc_id: self.dir / f"{known[doc_id]}.y"
+            for doc_id in doc_ids if known.get(doc_id) and doc_id not in held
+        }
+
+    def read_ahead(self, peer: str, states: dict) -> None:
+        """States a thread read, kept for one `get` each."""
+        held = self._read.setdefault(peer, {})
+        for doc_id, state in states.items():
+            held[doc_id] = (self.index.get(peer, {}).get(doc_id), state)
 
     def get(self, peer: str, doc_id: str) -> bytes | None:
         digest = self.index.get(peer, {}).get(doc_id)
+        held = self._read.get(peer, {}).pop(doc_id, None)
+        if held is not None and held[0] == digest:
+            # Read off the loop, and still the state agreed.
+            return held[1] if digest else None
         if not digest:
             return None
         try:
