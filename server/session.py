@@ -1529,7 +1529,7 @@ class ProjectSession:
                        waited_ms=round((started - asked) * 1000), scope=result.scope,
                        engine_pass=result.engine_pass, engine=result.engine,
                        settling=settling, errors=errors, recovered=result.recovered,
-                       cause=cause)
+                       cause=cause, full_because=list(result.full_because))
         else:
             # Logged too, with how long it ran and what replaced it: the
             # 27 October review found 36 s of a 78 s wait that no line
@@ -1541,7 +1541,8 @@ class ProjectSession:
                        waited_ms=round((started - asked) * 1000), scope=result.scope,
                        engine_pass=result.engine_pass, engine=result.engine,
                        settling=settling, errors=0, recovered="",
-                       cause=cause, superseded_by=replaced)
+                       cause=cause, superseded_by=replaced,
+                       full_because=list(result.full_because))
         # A superseded build carries no log.  Keeping its empty diagnostics
         # would clear the editor's error marks every time the user typed
         # during a compile, which is exactly when they are looking at them.

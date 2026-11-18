@@ -39,7 +39,8 @@ def test_the_review_summarises_a_log(tmp_path):
                    waited_ms=10, engine_pass="fast", settling=False, errors=0, cause="edit")
         diag.event("build", project="thesis", document="main.tex", outcome="cancelled",
                    ms=36000, waited_ms=0, engine_pass="full", settling=False, errors=0,
-                   cause="open", superseded_by="edit")
+                   cause="open", superseded_by="edit",
+                   full_because=["structure changed in chapters/intro.tex"])
         diag.event("turn", project="thesis", agent="ClaudeAgent", ended="success",
                    ms=42000, first_ms=3000, tools=4, errors=0)
         diag.event("client", error_kind="rejection", message="boom in /projects/abc/tree")
@@ -63,6 +64,8 @@ def test_the_review_summarises_a_log(tmp_path):
     assert "Counted as harmless: 7x ResizeObserver loop" in out
     assert "1x  a build for open replaced by one for edit" in out
     assert "What asked for them: {'edit': 1}" in out
+    assert "Why 1 full passes were full:" in out
+    assert "1x  structure changed in chapters/intro.tex  (36.0 s)" in out
     assert "stopped 1x: restarting for an update" in out
     assert "2x  exception (event loop): KeyError: 'x'" in out
     assert "at session.py:12 spawn" in out

@@ -99,7 +99,8 @@ def test_a_finished_build_is_recorded(client, opened, log):
 
     async def fake_build(focus=None, force_full=False, clean=False):
         return CompileResult(outcome=Outcome.OK, log=None, pdf=None, duration=1.25,
-                             scope="full", engine_pass="full")
+                             scope="full", engine_pass="full",
+                             full_because=("forced", "main file edited"))
 
     async def cancel():
         return None
@@ -111,6 +112,7 @@ def test_a_finished_build_is_recorded(client, opened, log):
     build = [row for row in log("build") if not row["settling"]][0]
     assert build["outcome"] == "ok" and build["ms"] == 1250
     assert build["document"] == "main.tex" and build["errors"] == 0
+    assert build["full_because"] == ["forced", "main file edited"]
 
 
 def test_a_finished_agent_turn_is_recorded(client, opened, log):

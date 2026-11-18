@@ -70,6 +70,56 @@ def test_without_a_baseline_it_assumes_the_worst(tmp_path):
     assert build._needs_full is True
 
 
+def test_each_reason_for_a_full_pass_is_named(tmp_path):
+    # Thesis edits ran whole-document passes in November, 906 s of them
+    # cancelled, and the build line could not say why.
+    build = scheduler(tmp_path)
+    assert build._full_because == ["first build"]
+    build._needs_full, build._full_because = False, []
+    build.note_edit(tmp_path / "ch.tex", CHAPTER + "More prose.\n", CHAPTER)
+    assert build._full_because == []
+    build.note_edit(tmp_path / "ch.tex", CHAPTER + "\\input{other}\n", CHAPTER)
+    build.note_edit(
+        tmp_path / "ch.tex", CHAPTER.replace("smith2020", "jones2021"), CHAPTER)
+    # A label is a reference too, already named.
+    build.note_edit(tmp_path / "ch.tex", CHAPTER + r"\label{sec:new}", CHAPTER)
+    build.note_edit(tmp_path / "references.bib", "@article{a,}", "")
+    build.note_edit(tmp_path / "main.tex", "x", "y")
+    build.note_edit(tmp_path / "ch.tex", CHAPTER, None)
+    build.note_edit(tmp_path / "ch.tex", None, CHAPTER)
+    # A second edit with the same reason is not listed twice.
+    build.note_edit(tmp_path / "main.tex", "x", "z")
+    assert build._full_because == [
+        "structure changed in ch.tex",
+        "references changed in ch.tex",
+        ".bib edited: references.bib",
+        "main file edited",
+        "no previous text for ch.tex",
+        "no text given for ch.tex",
+    ]
+
+
+@pytest.mark.asyncio
+async def test_a_full_build_reports_its_reasons(tmp_path, monkeypatch):
+    import nexttex.compile as compile_module
+    from nexttex.compile import Outcome
+
+    build = scheduler(tmp_path)
+    (tmp_path / "main.tex").write_text(
+        "\\documentclass{article}\\begin{document}x\\end{document}\n")
+    build._needs_full, build._full_because = False, []
+    build.note_edit(tmp_path / "main.tex", "x", "y")
+
+    async def no_engine(*args, **kwargs):
+        raise FileNotFoundError("latexmk")
+
+    monkeypatch.setattr(compile_module.asyncio, "create_subprocess_exec", no_engine)
+    result = await build.build(force_full=True)
+    assert result.outcome is Outcome.NO_ENGINE
+    assert result.engine_pass == "full"
+    assert result.full_because == ("forced", "main file edited")
+
+
 def test_fingerprint_ignores_where_the_keys_appear():
     a, b = reference_fingerprint(CHAPTER)
     moved, moved_labels = reference_fingerprint(

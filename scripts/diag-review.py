@@ -251,6 +251,18 @@ def work(rows: list[dict]) -> None:
     causes = Counter(r["cause"] for r in builds if r.get("cause"))
     if causes:
         print(f"\nWhat asked for them: {dict(causes.most_common())}")
+    # Why each full pass, finished or cancelled, was full: a reason names
+    # its file, so the count is by the reason with the file kept.
+    full = [r for r in every if r.get("engine_pass") == "full" and r.get("full_because")]
+    if full:
+        reasons = Counter(reason for r in full for reason in r["full_because"])
+        spent = defaultdict(int)
+        for row in full:
+            for reason in row["full_because"]:
+                spent[reason] += row.get("ms", 0)
+        print(f"\nWhy {len(full)} full passes were full:")
+        for reason, count in reasons.most_common(12):
+            print(f"  {count:>4}x  {reason}  ({spent[reason] / 1000:.1f} s)")
     if reused:
         print(f"{len(reused)} opens answered from the PDF on disk without a build")
     cancelled = [r for r in every if r["outcome"] == "cancelled"]

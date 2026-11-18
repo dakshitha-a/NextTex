@@ -284,6 +284,13 @@ class CompileResult:
     #: agent's report says so, so it does not go looking for a fault in
     #: the writer's source that a damaged build file caused.
     recovered: str = ""
+    #: Why a full pass was full, in the order the reasons arose: "main
+    #: file edited", "structure changed in chapters/intro.tex" and the
+    #: rest of `CompileScheduler._require_full`'s callers, or "forced" and "clean"
+    #: from the caller. Empty for a fast pass. The diagnostics log's build
+    #: line carries it, because thesis edits ran whole-document passes in
+    #: November, 906 s of them cancelled, and nothing said why.
+    full_because: tuple[str, ...] = ()
 
     def as_dict(self, diagnostics: list | None = None) -> dict:
         """`diagnostics`, when given, are the ones to send in place of the
@@ -735,6 +742,10 @@ class CompileScheduler:
         # Set when an edit touches citations, labels or the preamble; the
         # next build then takes the full path and clears it.
         self._needs_full = True   # the first build of a session always is
+        # Why `_needs_full` was raised since it was last cleared, in order,
+        # each reason once.
+        self._full_because: list[str] = ["first build"]
+        self._this_full_because: tuple[str, ...] = ()
         # Bumped every time that flag is raised.  A build reads it before it
         # starts and only clears the flag if nothing raised it again while
         # the build was running -- otherwise an edit made during an eight
@@ -768,28 +779,38 @@ class CompileScheduler:
         it whenever it can -- that is the difference between a one-second
         preview and a two-second one on every keystroke.
         """
+        name = self._named(path)
         if path.suffix.lower() == ".bib":
-            self._require_full()
+            self._require_full(f".bib edited: {name}")
             return
         if path.resolve() == self.paths.main.resolve():
-            self._require_full()
+            self._require_full("main file edited")
             return
         if text is None:
-            self._require_full()
+            self._require_full(f"no text given for {name}")
             return
         if previous is None:
             # No baseline to compare against; assume the worst once.
-            self._require_full()
+            self._require_full(f"no previous text for {name}")
             return
         if structure_fingerprint(text) != structure_fingerprint(previous):
-            self._require_full()
+            self._require_full(f"structure changed in {name}")
             return
         if reference_fingerprint(text) != reference_fingerprint(previous):
-            self._require_full()
+            self._require_full(f"references changed in {name}")
 
-    def _require_full(self) -> None:
+    def _named(self, path: Path) -> str:
+        """A path as the project names it, for a reason in the log."""
+        try:
+            return path.resolve().relative_to(self.paths.root.resolve()).as_posix()
+        except (ValueError, OSError):
+            return path.name
+
+    def _require_full(self, reason: str) -> None:
         self._needs_full = True
         self._full_mark += 1
+        if reason not in self._full_because:
+            self._full_because.append(reason)
 
     @property
     def needs_full(self) -> bool:
@@ -843,7 +864,9 @@ class CompileScheduler:
                 return CompileResult(Outcome.CANCELLED, None, None, 0.0, "full", "fast")
             scope_before = self._set_aside_pdf()
             try:
+                self._this_full_because = ()
                 result = await self._run(focus, force_full, clean)
+                result.full_because = self._this_full_because
                 if (
                     result.outcome in (Outcome.OK, Outcome.ERRORS)
                     and generation == self._generation
@@ -852,6 +875,7 @@ class CompileScheduler:
                     if why:
                         result = await self._run(None, True, True)
                         result.recovered = why
+                        result.full_because = (why,)
             finally:
                 kept = self._settle_pdf(scope_before)
             if kept:
@@ -956,7 +980,7 @@ class CompileScheduler:
         # sits above the preamble in the file the writer sees.
         engine = engine_for(main_source, self.engine_setting())
         if self._last_engine is not None and engine != self._last_engine:
-            self._require_full()
+            self._require_full("engine changed")
         self._last_engine = engine
         escape = self.shell_escape()
         if self._last_escape is not None and escape != self._last_escape:
@@ -964,9 +988,17 @@ class CompileScheduler:
         self._last_escape = escape
         force_rerun = self._rerun_pending
         if force_rerun:
-            self._require_full()
+            self._require_full("rerun asked")
         full_pass = force_full or self._needs_full
         mark = self._full_mark
+        because: list[str] = []
+        if clean:
+            because.append(recovered or "clean")
+        elif force_full:
+            because.append("forced")
+        if self._needs_full:
+            because.extend(self._full_because)
+        self._this_full_because = tuple(because) if full_pass else ()
 
         # \include writes one .aux per included file, mirrored under the
         # output directory; the engine will not create those directories.
@@ -1063,6 +1095,7 @@ class CompileScheduler:
 
         if full_pass and mark == self._full_mark:
             self._needs_full = False
+            self._full_because = []
         if force_rerun:
             # The engine ran to completion under the new state, so the
             # database latexmk keeps now agrees with it.
@@ -1286,13 +1319,13 @@ class CompileScheduler:
             self._unresolved_after_full = unresolved
             return
         if log.bibliography_stale:
-            self._require_full()
+            self._require_full("bibliography stale")
             return
         if (
             self._unresolved_after_full is not None
             and unresolved != self._unresolved_after_full
         ):
-            self._require_full()
+            self._require_full("unresolved keys changed")
 
     async def on_disk(self) -> CompileResult | None:
         """The last whole build, read back from disk, when it can stand.
