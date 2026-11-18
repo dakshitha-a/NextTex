@@ -441,9 +441,15 @@ OpenAI provider against OpenAI itself.
       dissertation's figures stopped arriving after two restarts of the
       laptop. A restart of the laptop and a join on its own then
       worked. The sharer still listed the laptop as connected to a share
-      whose join had been discarded. Not reproduced here; the next step
-      is two installs on this host, one join abandoned mid-stream, then a
-      second join of another share between the same two.
+      whose join had been discarded. Tried on 17 November 2026 over real
+      iroh between two identities on dak-n4, each with its own endpoint:
+      a share of twenty 2 MB figures joined and abandoned after 0.5, 1.5
+      and 4 s, three times in a row, then a second share joined between
+      the same two. Each time the sharer's link ended within a second and
+      the second join arrived in 0.5 s, so it does not reproduce on one
+      host with no relay and an idle joiner. What is left to try is the
+      laptop's shape: a relay between the two, and a joiner whose loop
+      is busy when it lets go.
 - [x] **Joining again into the folder of a join never accepted opens a
       part of the project.** A second invite into a folder whose
       `.nexttex/collab/share.json` an unaccepted join had left answered
