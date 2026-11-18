@@ -2148,8 +2148,10 @@ async def accept_join(token: str = Body(..., embed=True)):
         # Said yes to: from here `_whole_copy` may open this folder as the
         # share's copy. Before it, the folder is a join waiting on its
         # answer, or one that never had one.
-        pending.network.share.accepted_at = time.time()
-        pending.network.share.save()
+        share = getattr(pending.network, "share", None)
+        if share is not None:
+            share.accepted_at = time.time()
+            share.save()
     finally:
         await pending.release(keep=True)
     # Registered only now: a join that was never accepted leaves nothing
