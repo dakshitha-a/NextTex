@@ -140,6 +140,11 @@ FROM_AGENT = "agent"
 #: edited while the server was down from one the server had not finished
 #: writing when it went down.  See `_fold_outside_edit`.
 PROJECTED = "projected.json"
+#: The sha256 of the bytes this install last wrote or sent for each
+#: binary, by id, beside `PROJECTED` and never on the wire: what tells a
+#: binary still on disk under a deleted record from a new file of the
+#: same name, as `PROJECTED` does for text.
+BLOBS = "blobs.json"
 
 
 def _sha(text: str) -> str:
@@ -503,10 +508,16 @@ class CollabStore:
         #: simply not written yet when the server last stopped.
         self._projected: dict[str, str] = self._load_projected()
         self._projected_dirty = False
+        #: The same for binaries, from `BLOBS`.
+        self._blob_shas: dict[str, str] = self._load_digests(BLOBS)
+        self._blob_shas_dirty = False
 
     def _load_projected(self) -> dict[str, str]:
+        return self._load_digests(PROJECTED)
+
+    def _load_digests(self, name: str) -> dict[str, str]:
         try:
-            data = json.loads((self.root / PROJECTED).read_text(encoding="utf-8"))
+            data = json.loads((self.root / name).read_text(encoding="utf-8"))
         except (OSError, ValueError):
             return {}
         if not isinstance(data, dict):
@@ -521,6 +532,23 @@ class CollabStore:
         if self._projected.get(file_id) != digest:
             self._projected[file_id] = digest
             self._projected_dirty = True
+
+    def note_blob(self, file_id: str, digest: str) -> None:
+        """The sha256 of a binary's bytes as this install last wrote or
+        sent them, for `_stale_copy`."""
+        if digest and self._blob_shas.get(file_id) != digest:
+            self._blob_shas[file_id] = digest
+            self._blob_shas_dirty = True
+
+    def _save_blob_shas(self) -> None:
+        if not self._blob_shas_dirty or self.root_lost:
+            return
+        self._blob_shas_dirty = False
+        kept = {k: v for k, v in self._blob_shas.items() if k in self.files}
+        try:
+            write_atomically(self.root / BLOBS, json.dumps(kept, sort_keys=True))
+        except OSError:
+            self._blob_shas_dirty = True
 
     def _save_projected(self) -> None:
         """Write the projection record, once per flush rather than per file."""
@@ -661,9 +689,9 @@ class CollabStore:
         No fence here: `_rename_locally` and `_trash_locally` resolve both
         ends through `resolve_for_write` before they touch anything, and
         resolving every path of a large project at open is what held the
-        laptop's loop in OneDrive. A trashed record is left out; whether
-        a file still on disk under a deleted record's name is the same
-        file is the open question in TRACKER.md.
+        laptop's loop in OneDrive. A trashed record is left out here;
+        `adopt` names one whose file is still on disk when that file is
+        the copy this install last wrote, through `_stale_copy`.
         """
         for file_id, record in self.files.items():
             path = str(record.get("path") or "")
@@ -1085,12 +1113,27 @@ class CollabStore:
             for record in self.files.values()
             if not record.get("trashed")
         }
+        deleted: dict[str, list[str]] | None = None
         for relative, kind, size in self._walk():
             seen.add(relative)
             if relative in self._following:
                 # A file somebody else deleted, on its way to the trash
                 # here; see `_following`.
                 continue
+            if relative not in known:
+                if deleted is None:
+                    deleted = self._deleted_by_path()
+                stale = self._stale_copy(relative, deleted.get(relative, ()))
+                if stale:
+                    # Deleted, with the deletion agreed and persisted, and
+                    # this machine closed before it followed it. Named, so
+                    # the next flush follows it into the trash as it would
+                    # have, rather than a fresh record bringing it back
+                    # for everybody.
+                    self._named[stale] = relative
+                    self._paths_moved = True
+                    self._schedule()
+                    continue
             if relative in known:
                 # Left as it is, with one exception.  A project opened by a
                 # NextTex that called `.py` binary carries its scripts as
@@ -1148,6 +1191,50 @@ class CollabStore:
                     self._gone_pending.setdefault(file_id, "")
             if self._gone_pending:
                 self._schedule()
+
+    def _deleted_by_path(self) -> dict[str, list[str]]:
+        """Every deleted record's id, by its path."""
+        found: dict[str, list[str]] = {}
+        for file_id, record in self.files.items():
+            if record.get("trashed") and record.get("path"):
+                found.setdefault(str(record["path"]), []).append(file_id)
+        return found
+
+    def _stale_copy(self, relative: str, candidates) -> str:
+        """The id of the deleted record whose file `relative` still is, or "".
+
+        A record already deleted when the manifest opens was left out of
+        the baseline, so its file, still on this disk, was never followed
+        into the trash, and `adopt` gave the file a fresh record that
+        brought it back for everybody; found while fixing the thesis's
+        returning figures on 13 November 2026. The file is the deleted
+        one only when its bytes are exactly what this install last wrote
+        or sent for that record: a text file by `_projected`, a binary by
+        `_blob_shas`. A binary with no digest, from before the digests
+        were kept, and an empty file, which matches any empty record, are
+        new files and are adopted, since a wrong match puts a writer's new
+        file in the trash.
+        """
+        for file_id in candidates:
+            record = self.files.get(file_id) or {}
+            if record.get("kind") == "text":
+                want = self._projected.get(file_id)
+                if not want:
+                    continue
+                text = self._read(relative)
+                if text and _sha(text) == want:
+                    return file_id
+            else:
+                want = self._blob_shas.get(file_id)
+                if not want:
+                    continue
+                try:
+                    data = self.project.resolve(relative).read_bytes()
+                except (OSError, ValueError):
+                    continue
+                if data and hashlib.sha256(data).hexdigest() == want:
+                    return file_id
+        return ""
 
     # --- a copy that already has files ------------------------------------
 
@@ -2270,6 +2357,7 @@ class CollabStore:
             self._dirty |= failed
             self._schedule()
         self._save_projected()
+        self._save_blob_shas()
         self._compact()
 
     def _write(self, file_id: str) -> None:
@@ -2377,6 +2465,7 @@ class CollabStore:
         except OSError:
             return
         self._named[file_id] = relative
+        self.note_blob(file_id, hashlib.sha256(data).hexdigest())
         session = self.session
         if session is not None:
             session.mark_written(path)

@@ -955,11 +955,19 @@ class PeerLink:
             if not target.is_file() or target.stat().st_size > wire.MAX_FRAME:
                 await self.send(wire.file_miss(file_id))
                 return
-            data = await asyncio.to_thread(target.read_bytes)
+            data, digest = await asyncio.to_thread(_read_and_hash, target)
         except (PermissionError, OSError, ValueError):
             await self.send(wire.file_miss(file_id))
             return
+        # What this install sent is what a deletion of it would find on
+        # this disk, so it is kept for `CollabStore._stale_copy`.
+        store.note_blob(file_id, digest)
         await self.send(wire.file_have(file_id, relative, data))
+
+
+def _read_and_hash(target) -> tuple[bytes, str]:
+    data = target.read_bytes()
+    return data, hashlib.sha256(data).hexdigest()
 
 
 class PeerNetwork:

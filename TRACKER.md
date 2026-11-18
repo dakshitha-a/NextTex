@@ -340,16 +340,17 @@ OpenAI provider against OpenAI itself.
       November 2026 lost a folder rename to it on the Windows laptop. The
       live records' paths are the baseline now;
       `tests/collab/test_a_rename_right_after_opening_is_followed.py`.
-- [ ] **A deletion persisted but not followed before a machine closed
+- [x] **A deletion persisted but not followed before a machine closed
       is adopted back on open.** A record already flagged deleted when
       the manifest opens is left out of the baseline, so its file, still
-      on this disk, is never followed into the trash, and `adopt` then
-      gives that file a fresh record that brings it back for everybody.
+      on this disk, was never followed into the trash, and `adopt` then
+      gave that file a fresh record that brought it back for everybody.
       Found while fixing the thesis's returning figures on 13 November
-      2026; left
-      because telling a stale copy from a new file made under a deleted
-      name needs a rule about what a match is, and a wrong match puts a
-      writer's new file in the trash.
+      2026. The rule for a match, from 17 November: the file's bytes are
+      exactly what this install last wrote or sent for that record, by
+      `projected.json` for text and a new `blobs.json` for binaries; an
+      empty file or a binary with no digest is a new file;
+      `tests/collab/test_a_deletion_persisted_before_closing_is_followed.py`.
 - [x] **The laptop's loop stalled 82 s in `want_files`.** On 13 November
       2026 the laptop's event loop sat in `want_files` for 82 s at 03:13
       and for 111 s at 11:10, long enough for every link to go silent.
