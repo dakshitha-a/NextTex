@@ -366,12 +366,12 @@ OpenAI provider against OpenAI itself.
       and `send_documents` reading document logs and agreed states with
       `read_bytes` on the loop. Left because the stalls end within a
       minute of starting and nothing was dropped.
-- [ ] **A peer's mass deletion is followed on the loop.** `settle_paths`
-      moves every file a collaborator deleted into this machine's trash
+- [x] **A peer's mass deletion is followed on the loop.** `settle_paths`
+      moved every file a collaborator deleted into this machine's trash
       from inside the flush, so the laptop's 104 files at 11:11 on
-      13 November 2026 held the loop for about 43 s. Left because moving
-      it out of `settle_paths` reopens the re-adoption of followed paths,
-      whose guard, `_following`, lives only for that call.
+      13 November 2026 held the loop for about 43 s. A batch is now
+      followed from a task, a file a turn, with `_following` kept for the
+      whole batch; `tests/collab/test_a_mass_deletion_is_followed_off_the_flush.py`.
 - [x] **A folder a peer deleted leaves empty folders behind.** The
       follower trashed or moved each file and left the directories, so
       the laptop's thesis kept four empty chapter folders in its tree.

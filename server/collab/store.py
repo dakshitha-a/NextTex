@@ -139,6 +139,12 @@ FROM_AGENT = "agent"
 #: sha256 of the text.  What lets an opening store tell a file somebody
 #: edited while the server was down from one the server had not finished
 #: writing when it went down.  See `_fold_outside_edit`.
+#: More deletions than this to follow in one flush are followed from a
+#: task, a file a turn of the loop, rather than inside the flush: the
+#: laptop's 104 files at 11:11 on 13 November 2026 held its loop for about
+#: 43 s, every link with it.
+FOLLOW_INLINE = 8
+
 PROJECTED = "projected.json"
 #: The sha256 of the bytes this install last wrote or sent for each
 #: binary, by id, beside `PROJECTED` and never on the wire: what tells a
@@ -395,6 +401,10 @@ class CollabStore:
         #: and those were skipped as live and fetched back by the machine
         #: that deleted them (the thesis, 13 November 2026).
         self._following: set[str] = set()
+        #: Deletions handed to `_follow_later` and not yet followed, by
+        #: file id, with the path each is followed from. Their paths stay
+        #: in `_following` until the task has done with them.
+        self._deferred: dict[str, str] = {}
         #: Set when the manifest changes, cleared by the next flush.
         self._paths_moved = False
         #: Bytes a peer sent for a binary record that is not on this disk,
@@ -1966,13 +1976,14 @@ class CollabStore:
             was for file_id, record in self.files.items()
             if record.get("trashed")
             and (was := self._named.get(file_id)) and was not in live
-        }
+        } | set(self._deferred.values())
         try:
             self._settle_paths()
         finally:
-            self._following = set()
+            self._following = set(self._deferred.values())
 
     def _settle_paths(self) -> None:
+        gone: list[tuple[str, str]] = []
         for file_id, record in list(self.files.items()):
             path = record.get("path") or ""
             if not path:
@@ -2003,10 +2014,57 @@ class CollabStore:
                 # live one by construction.
                 if self.file_id_for(was) is not None:
                     continue
-                if self._trash_locally(was):
-                    self._named.pop(file_id, None)
+                if file_id not in self._deferred:
+                    gone.append((file_id, was))
             elif path != was:
                 self._rename_locally(file_id, was, path)
+        if len(gone) > FOLLOW_INLINE and self._loop_here():
+            for file_id, was in gone:
+                self._deferred[file_id] = was
+                self._following.add(was)
+            self._loop.create_task(self._follow_later(gone))
+            return
+        for file_id, was in gone:
+            if self._trash_locally(was):
+                self._named.pop(file_id, None)
+
+    def _loop_here(self) -> bool:
+        """Whether this is the store's loop, running, on its thread."""
+        try:
+            return asyncio.get_running_loop() is self._loop
+        except RuntimeError:
+            return False
+
+    async def _follow_later(self, gone: list[tuple[str, str]]) -> None:
+        """Follow a batch of deletions a file at a time, letting the loop
+        run between them. Each is asked again as it comes up, since the
+        manifest can move while the batch waits: a restore brings a record
+        back, and a new file can take a path."""
+        try:
+            for file_id, was in gone:
+                await asyncio.sleep(0)
+                if self._closed or self.holding:
+                    break
+                record = self.files.get(file_id)
+                if (
+                    record is None or not record.get("trashed")
+                    or self._named.get(file_id) != was
+                    or self.file_id_for(was) is not None
+                ):
+                    self._deferred.pop(file_id, None)
+                    self._following.discard(was)
+                    continue
+                if self._trash_locally(was):
+                    self._named.pop(file_id, None)
+                self._deferred.pop(file_id, None)
+                self._following.discard(was)
+        finally:
+            for file_id, was in gone:
+                if self._deferred.pop(file_id, None) is not None:
+                    self._following.discard(was)
+            # Anything left, by a close or a hold, the next flush settles.
+            self._paths_moved = True
+            self._schedule()
 
     def _rename_locally(self, file_id: str, was: str, now_called: str) -> None:
         try:
