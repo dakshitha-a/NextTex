@@ -70,9 +70,37 @@ ABBREV = {
 }
 
 
+# A LaTeX accent over one letter, `\'o`, `{\'o}`, `\'{o}`, `\v{s}` or
+# `\v s`, is that letter for comparison: the record spells the name in
+# Unicode, and NFKD below reduces it to the same letter.  Left alone, the
+# backslash and braces were stripped and the accent mark became a space,
+# so Cach{\'o}n folded to "cach on" and failed the first-author match.
+_SYMBOL_ACCENT = re.compile(r"\\['`^\"~=.]\s*\{?\s*\\?([A-Za-z])\s*\}?")
+_LETTER_ACCENT = re.compile(r"\\[uvHckrdbt](?:\s*\{\s*\\?([A-Za-z])\s*\}|\s+\\?([A-Za-z]))")
+_LATEX_LETTER = re.compile(r"\\(ss|ae|AE|oe|OE|aa|AA|o|O|l|L|i|j)(?![A-Za-z])\s*")
+_LATEX_LETTERS = {"ss": "ss", "ae": "ae", "AE": "AE", "oe": "oe", "OE": "OE",
+                  "aa": "a", "AA": "A", "o": "o", "O": "O", "l": "l", "L": "L",
+                  "i": "i", "j": "j"}
+# Letters NFKD leaves whole, since they are letters of their own rather
+# than a letter and a mark: Ørsted, Łukasz, Gauß.
+_WHOLE_LETTERS = str.maketrans({
+    "ø": "o", "Ø": "O", "ł": "l", "Ł": "L", "ß": "ss", "æ": "ae", "Æ": "AE",
+    "œ": "oe", "Œ": "OE", "đ": "d", "Đ": "D", "ı": "i", "þ": "th", "Þ": "Th",
+    "ð": "d", "Ð": "D",
+})
+
+
+def unlatex(text):
+    """Accented letters written in LaTeX, as the plain letters they are."""
+    text = _LETTER_ACCENT.sub(lambda m: m.group(1) or m.group(2), text)
+    text = _SYMBOL_ACCENT.sub(lambda m: m.group(1), text)
+    return _LATEX_LETTER.sub(lambda m: _LATEX_LETTERS[m.group(1)], text)
+
+
 def fold(text):
     """Lowercase ASCII, no accents, no punctuation -- for comparison."""
     text = html.unescape(re.sub(r"<[^>]+>", "", text or ""))
+    text = unlatex(text).translate(_WHOLE_LETTERS)
     text = unicodedata.normalize("NFKD", text)
     text = "".join(c for c in text if not unicodedata.combining(c))
     text = re.sub(r"[\{\}\\$]", "", text)

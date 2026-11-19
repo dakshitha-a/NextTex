@@ -296,3 +296,33 @@ def test_verifying_looks_up_four_entries_at_once_and_keeps_their_order(tmp_path,
     assert most[0] == references.CHECKED_AT_ONCE
     assert [p["key"] for p in result["problems"]] == [f"k{i:02d}" for i in range(12)]
     assert took < 12 * 0.05
+
+
+@pytest.mark.parametrize("bib, record", [
+    (r"Cach{\'o}n, A.", "Cachón"),
+    (r"Cach\'{o}n, A.", "Cachón"),
+    (r"Cach\'on, A.", "Cachón"),
+    (r"{\v S}ponar, J.", "Šponar"),
+    (r"\v{C}ech, E.", "Čech"),
+    (r"M{\"u}ller, K.", "Müller"),
+    (r"Erd\H{o}s, P.", "Erdős"),
+    (r"Pe{\~n}a, R.", "Peña"),
+    (r"Ba\c cik, Z.", "Baçik"),
+    (r"{\O}rsted, H.", "Ørsted"),
+    (r"{\L}ojasiewicz, S.", "Łojasiewicz"),
+    (r"Gau{\ss}, C. F.", "Gauß"),
+    ("Cachón, A.", "Cachón"),
+])
+def test_an_accented_surname_matches_its_record_however_it_is_written(bib, record):
+    """`Cach{\\'o}n` folded to "cach on" and failed the first-author match
+    against Crossref's "Cachón": the braces and backslash were stripped and
+    the accent became a space (the thesis, 19 November 2026)."""
+    checker = references._load("verify_bib")
+    assert checker.first_surname(bib) == checker.fold(record)
+    assert " " not in checker.first_surname(bib)
+
+
+def test_a_title_with_latex_accents_matches_its_unicode_record():
+    checker = references._load("verify_bib")
+    assert checker.squash(r"Sch{\"o}dinger's {\'e}tude of Erd\H{o}s") == \
+        checker.squash("Schödinger's étude of Erdős")
