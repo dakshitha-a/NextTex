@@ -208,6 +208,9 @@ PACE = {
     "www.googleapis.com": (0.2, 2, 2),
     "": (0.2, 2, 2),
 }
+#: The hosts that ask a client to name a contact, and the only ones sent
+#: it: Crossref's and OpenAlex's polite pools.
+CONTACT_HOSTS = ("api.crossref.org", "api.openalex.org")
 #: Tries after a 429 or a 503 before the host counts as refusing.
 RETRIES = 3
 #: The longest a refused request waits to try again.  A host asking for
@@ -296,6 +299,15 @@ def polite_get(url, get=None, **kwargs):
     host = (urlsplit(url).hostname or "").lower()
     gate = _gate(host)
     kwargs.setdefault("timeout", TIMEOUT)
+    # The contact rides in the User-Agent, and every script sends its UA
+    # to every host. Only the two services that ask for it are given it;
+    # it was going to doi.org, arXiv, Semantic Scholar and the catalogues
+    # too, though the setting says "Sent to them only".
+    headers = dict(kwargs.get("headers") or {})
+    agent = headers.get("User-Agent")
+    if agent and host not in CONTACT_HOSTS:
+        headers["User-Agent"] = re.sub(r" \(mailto:[^)]*\)", "", agent)
+        kwargs["headers"] = headers
     for attempt in range(RETRIES + 1):
         # A host still inside a long refusal is not asked again: waiting it
         # out would hold each entry for minutes, and asking anyway would

@@ -90,9 +90,17 @@ def set_contact(address: str) -> None:
     global _CONTACT
     _CONTACT = address.strip()
     for name in ("verify_bib", "lit_search", "bib_from_doi"):
-        module = sys.modules.get(f"nexttex._vendor_{name}")
-        if module is not None:
-            _apply_contact(module)
+        # Under NextTex's name, and under the plain one a script that
+        # imports another loads it by, which can come first.
+        for key in (f"nexttex._vendor_{name}", name):
+            module = sys.modules.get(key)
+            if module is not None and _is_vendored(module, name):
+                _apply_contact(module)
+
+
+def _is_vendored(module, name: str) -> bool:
+    found = getattr(module, "__file__", "") or ""
+    return bool(found) and Path(found).resolve() == (_VENDOR / f"{name}.py").resolve()
 
 
 def _apply_contact(module) -> None:

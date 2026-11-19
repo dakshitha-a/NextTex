@@ -607,3 +607,41 @@ def test_openalex_is_sent_a_contact_address_only_when_there_is_one(monkeypatch):
     lit.search_openalex("x", None, (None, None), 5)
     assert "mailto" not in urls[0]
     assert "mailto=writer%40example.org" in urls[1]
+
+
+def test_the_contact_goes_only_to_crossref_and_openalex(monkeypatch):
+    """The setting says "Sent to them only", and the address rode in the
+    User-Agent every script sends to every host (19 November 2026)."""
+    checker = references._load("verify_bib")
+    references.set_contact("a.writer@uni.ac.uk")
+    sent: dict[str, str] = {}
+
+    class Answer:
+        status_code = 200
+
+    def get(url, **kwargs):
+        host = url.split("/")[2]
+        sent[host] = (kwargs.get("headers") or {}).get("User-Agent", "")
+        return Answer()
+
+    for host in [name for name in checker.PACE if name]:
+        checker.polite_get(f"https://{host}/x", get=get, headers={"User-Agent": checker.UA})
+    assert set(sent) == {name for name in checker.PACE if name}
+    for host, agent in sent.items():
+        if host in ("api.crossref.org", "api.openalex.org"):
+            assert agent.endswith("(mailto:a.writer@uni.ac.uk)"), host
+        else:
+            assert "a.writer" not in agent and agent.startswith("nexttex-"), host
+    references.set_contact("")
+
+
+def test_a_contact_reaches_a_script_loaded_under_its_plain_name(monkeypatch):
+    import sys
+
+    references._load("lit_search")
+    plain = sys.modules["verify_bib"]
+    references.set_contact("a.writer@uni.ac.uk")
+    assert plain.MAILTO == "a.writer@uni.ac.uk"
+    references.set_contact("")
+    assert plain.MAILTO is None
+

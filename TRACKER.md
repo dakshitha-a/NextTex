@@ -340,6 +340,17 @@ OpenAI provider against OpenAI itself.
 
 ### Known gaps, with a cost somebody will eventually pay
 
+- [ ] **An older member's save drops `[project.hide_warnings]`.**
+      `ProjectConfig.save` writes only the keys it knows, so a co-author
+      on NextTex before 4.54.0 who changes any project setting erases the
+      hidden warnings for everyone. It costs a few Hides again, and every
+      member updating ends it, so nothing was built for it.
+- [ ] **The Papers drawer's search says the source asked for, not the
+      one that answered.** `references.search` falls back when a source
+      refuses, and the route still answers `source` as the writer chose
+      it. The results are real papers either way; saying "from OpenAlex"
+      would need a line in the drawer, a visible change for another run.
+
 - [x] **The first rename or deletion after a project opens is
       followed.** `_named` started empty at open, so the first change to
       each record was taken as the baseline; a throwaway share on 13
