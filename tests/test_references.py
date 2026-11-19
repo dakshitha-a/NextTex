@@ -645,3 +645,34 @@ def test_a_contact_reaches_a_script_loaded_under_its_plain_name(monkeypatch):
     references.set_contact("")
     assert plain.MAILTO is None
 
+
+def test_a_host_refusing_with_a_medium_wait_is_given_up_on_quickly(tmp_path, monkeypatch):
+    """A 429 asking for ten seconds, every time: each entry retried four
+    times and waited each one out, five entries in a row, minutes in one
+    tool call, all of it sent at a host that was refusing."""
+    checker = references._load("verify_bib")
+    clock = [1000.0]
+    slept: list[float] = []
+    asked: list[str] = []
+
+    def sleep(seconds):
+        slept.append(seconds)
+        clock[0] += seconds
+
+    class Session:
+        def get(self, url, **_):
+            asked.append(url)
+            return _Refused(retry_after="10")
+
+    monkeypatch.setattr(checker, "HTTP", Session())
+    monkeypatch.setattr(checker, "PACING", True)
+    monkeypatch.setattr(checker.time, "sleep", sleep)
+    monkeypatch.setattr(checker.time, "monotonic", lambda: clock[0])
+    monkeypatch.setattr(references, "CHECKED_AT_ONCE", 1)
+    bib = tmp_path / "references.bib"
+    bib.write_text("".join(f"@article{{k{i},\n  doi = {{10.1/{i}}},\n}}\n" for i in range(20)),
+                   encoding="utf-8")
+    result = references.verify(bib)
+    assert len(result["unchecked"]) == 20 and result["problems"] == []
+    assert len(asked) == checker.RETRIES + 1, "only the first entry asked"
+    assert sum(slept) <= 40

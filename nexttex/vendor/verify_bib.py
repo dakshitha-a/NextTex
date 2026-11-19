@@ -323,6 +323,12 @@ def polite_get(url, get=None, **kwargs):
         # The hold is the wait: the next turn, this request's or another
         # thread's, starts once it is over.
         wait = _retry_after(r, attempt)
+        if attempt == RETRIES:
+            # Refused every time it was asked: held past `LONGEST_WAIT`, so
+            # the next entries are told at once instead of each waiting out
+            # four more refusals. A medium wait, five to thirty seconds,
+            # otherwise held one tool call for minutes.
+            wait = max(wait, 2 * LONGEST_WAIT)
         gate.hold(wait)
         if attempt == RETRIES or wait > LONGEST_WAIT:
             raise RateLimited(host, wait)
