@@ -115,3 +115,37 @@ def test_the_log_parser_records_every_file_the_engine_opened(tmp_path):
     parsed = parse(log, tmp_path, tmp_path / "main.tex")
     opened = {p.name for p in parsed.opened}
     assert {"main.tex", "01.tex", "article.cls"} <= opened
+
+
+def test_the_agents_build_is_never_scoped_to_the_writers_chapter(
+    client, opened, project_dir
+):
+    """The agent builds to check its own work. Scoped to the chapter the
+    writer had open, its build of the thesis reported 95 pages and that
+    chapter's warnings as the whole document (19 November 2026)."""
+    from server.main import SESSIONS
+
+    session = SESSIONS[opened["id"]]
+    state = session.documents["main.tex"]
+    state.compiler._needs_full = False
+    session._focus = project_dir / "chapters" / "01.tex"
+    # The template has no chapters; this one belongs to main.tex.
+    session._owns = lambda state, path: path == session._focus
+    asked: list = []
+
+    async def fake_build(focus=None, force_full=False, clean=False):
+        asked.append(focus)
+        return result(project_dir, "full", ["main.tex"], [])
+
+    async def cancel():
+        return None
+
+    state.compiler.build = fake_build
+    state.compiler.cancel = cancel
+
+    async def run():
+        await session.compile(document="main.tex", cause="edit")
+        await session.compile(document="main.tex", cause="agent")
+
+    asyncio.run(run())
+    assert asked == [session._focus, None]

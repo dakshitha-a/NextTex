@@ -24,6 +24,15 @@ things go to be forgotten rather than a list anybody reads.
 
 ## In hand
 
+**Notes from the thesis session, from 19 November 2026.** Seven notes on
+the agent's tools after a day of use. Done: the agent's `compile` builds
+the whole document rather than the writer's chapter. Left: warnings listed
+twice after a chapter build; accented names failing the first-author
+match; reference checks rate-limited by Crossref and reported as FAIL;
+no record cache; arXiv DOIs costing a Crossref request; `find_papers`
+sending `mailto=None` and not falling back; a contact address setting;
+the drawer's "not checked" line; hiding a known warning per document.
+
 **Watching the live install, from 18 October 2026.** The writer asked for
 a continuous record of errors, failures, crashes and slow spots on the
 install they use every day, to be left running for a couple of days and

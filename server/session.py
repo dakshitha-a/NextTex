@@ -1508,8 +1508,13 @@ class ProjectSession:
         # ever finish.
         await state.compiler.cancel()
         # The scoping hint only means anything to the document that reads
-        # the file it points at.
-        focus = self._focus if self._owns(state, self._focus) else None
+        # the file it points at, and never to the agent: it builds to check
+        # its own work, and an `\includeonly` slice of the chapter the
+        # writer has open answered the thesis's agent with 95 pages and one
+        # chapter's warnings for a 310-page document, as though that were
+        # the whole of it.
+        focus = (self._focus if cause != "agent" and self._owns(state, self._focus)
+                 else None)
         # The project's slot first, then the machine's: a project never
         # holds a machine slot while it waits for its own queue.
         visible = state.path == self.visible

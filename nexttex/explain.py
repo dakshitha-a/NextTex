@@ -418,6 +418,13 @@ def compile_report(document: str, payload: dict) -> str:
     head = f"{name}: " + (f"{pages} pages, " if pages else "")
     seconds = (payload.get("durationMs") or 0) / 1000
     line = head + ", ".join(counts) + f", {seconds:.1f} s"
+    scope = payload.get("scope")
+    if scope and scope != "full":
+        # The agent's own build is never scoped, but a build the writer's
+        # typing started can supersede it and hand it this result instead.
+        line += (f". This build typeset only {scope} (\\includeonly), so the "
+                 "page and warning counts are for that part; compile again "
+                 "for the whole document")
     if payload.get("bibliographyStale"):
         line += ". The engine asked for the bibliography to be rerun; the next build will."
     if payload.get("recovered"):

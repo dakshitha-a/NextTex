@@ -267,3 +267,19 @@ def test_the_summary_names_the_missing_package_file_its_card_installs():
     assert summarise([
         {"severity": "error", "message": "! Missing $ inserted.", "file": "main.tex", "line": 1},
     ])["missingFile"] == ""
+
+
+def test_a_build_report_says_when_it_typeset_only_part_of_the_document():
+    """The thesis's agent was told "95 pages, 0 errors" for a 310-page
+    thesis: the build was an `\\includeonly` slice of the chapter the writer
+    had open, and the report said nothing about that (19 November 2026)."""
+    from nexttex.explain import compile_report
+
+    payload = {
+        "outcome": "ok", "durationMs": 2000, "pages": 95, "scope": "chapters/04",
+        "errorCount": 0, "warningCount": 2, "diagnostics": [],
+    }
+    line = compile_report("main.tex", payload)
+    assert line.startswith("main.tex: 95 pages, 0 errors, 2 warnings, 2.0 s. ")
+    assert "only chapters/04" in line and "whole document" in line
+    assert "only" not in compile_report("main.tex", {**payload, "scope": "full"})
