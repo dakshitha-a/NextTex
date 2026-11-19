@@ -26,8 +26,8 @@ things go to be forgotten rather than a list anybody reads.
 
 **Notes from the thesis session, from 19 November 2026.** Seven notes on
 the agent's tools after a day of use. Done: the agent's `compile` builds
-the whole document rather than the writer's chapter. Left: warnings listed
-twice after a chapter build; accented names failing the first-author
+the whole document rather than the writer's chapter, and a chapter build
+no longer lists the main file's warnings twice. Left: accented names failing the first-author
 match; reference checks rate-limited by Crossref and reported as FAIL;
 no record cache; arXiv DOIs costing a Crossref request; `find_papers`
 sending `mailto=None` and not falling back; a contact address setting;

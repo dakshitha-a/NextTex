@@ -149,3 +149,24 @@ def test_the_agents_build_is_never_scoped_to_the_writers_chapter(
 
     asyncio.run(run())
     assert asked == [session._focus, None]
+
+
+def test_a_scoped_build_does_not_list_the_main_files_warnings_twice(
+    client, opened, project_dir
+):
+    """A scoped build compiles the stand-in, so its log names the stand-in
+    as opened, not main.tex, while its diagnostics are remapped to main.tex.
+    The old main.tex rows were then kept as unopened and the new ones added
+    beside them: the thesis's agent saw main.tex lines 55, 89 and 154 twice
+    in one listing (19 November 2026)."""
+    from server.main import SESSIONS
+
+    session = SESSIONS[opened["id"]]
+    shadow = session.documents["main.tex"].paths.shadow.relative_to(project_dir)
+    warning = ("warning", "Suppressing link with empty target", "main.tex", 55)
+    build(session, result(project_dir, "full", ["main.tex", "chapters/01.tex"], [warning]))
+
+    scoped = build(session, result(
+        project_dir, "chapters/01", [str(shadow), "chapters/01.tex"], [warning]))
+    assert [(d["file"], d["line"]) for d in scoped["diagnostics"]] == [("main.tex", 55)]
+    assert scoped["warningCount"] == 1

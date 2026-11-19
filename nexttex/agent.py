@@ -2339,7 +2339,15 @@ class ProjectAgent:
         if not items:
             return self._text("The last build produced no errors or warnings.")
         by_document: dict[str, list[dict]] = {}
+        seen: set[tuple] = set()
         for d in items:
+            # The same row twice says nothing the first did not, and the
+            # thesis's agent once read main.tex's warnings twice over.
+            same = (d.get("document"), d.get("file"), d.get("line"),
+                    d.get("severity"), d.get("message"))
+            if same in seen:
+                continue
+            seen.add(same)
             by_document.setdefault(str(d.get("document") or ""), []).append(d)
         lines: list[str] = []
         for document, found in by_document.items():

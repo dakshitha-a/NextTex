@@ -266,3 +266,19 @@ def test_the_prompt_keeps_edits_of_the_writing_out_of_the_shell(tmp_path):
     past the check that the text being changed is still there."""
     options = agent(tmp_path, voice=False)._options()
     assert "never with sed, a Python" in options.system_prompt
+
+
+def test_the_diagnostics_tool_lists_a_repeated_row_once(tmp_path):
+    """The thesis's agent read main.tex lines 55, 89 and 154 twice in one
+    listing (19 November 2026). The session no longer keeps the duplicate,
+    and the tool drops one if it ever comes back."""
+    row = {"severity": "warning", "file": "main.tex", "line": 55,
+           "message": "Suppressing link with empty target", "document": "main.tex"}
+    subject = ProjectAgent(tmp_path, tmp_path / ".nexttex",
+                           diagnostics=lambda: [row, dict(row), {**row, "line": 89}])
+    text = subject.diagnostics_tool({})["content"][0]["text"]
+    assert text.splitlines() == [
+        "main.tex:",
+        "  warning: main.tex:55, Suppressing link with empty target",
+        "  warning: main.tex:89, Suppressing link with empty target",
+    ]

@@ -1687,6 +1687,13 @@ class ProjectSession:
             self.relative_or_none(str(path))
             for path in (result.log.opened if result.log else ())
         }
+        # A scoped build compiles the stand-in, not the main file, and its
+        # diagnostics are remapped to the main file. Opening the stand-in is
+        # opening the main file: without this the main file's old rows were
+        # kept beside the new ones, and every one of its warnings was
+        # listed twice (the thesis, 19 November 2026).
+        if self.relative_or_none(str(state.paths.shadow)) in opened:
+            opened.add(state.path)
         kept = [
             item for item in state.diagnostics
             if item.get("file") and item["file"] not in opened
