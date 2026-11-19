@@ -539,3 +539,71 @@ def test_a_lookup_that_got_no_answer_is_not_kept(tmp_path, monkeypatch):
     bib.write_text("@article{a,\n  doi = {10.1/A},\n  title = {T},\n}\n", encoding="utf-8")
     assert references.verify(bib)["unchecked"] == ["a"]
     assert not (tmp_path / "records.json").exists()
+
+
+def test_a_search_moves_to_the_next_source_when_one_is_refusing(monkeypatch):
+    """Crossref, then OpenAlex, then Semantic Scholar answered 429 within a
+    few calls for the thesis session, and `find_papers` returned the first
+    refusal as an error (19 November 2026)."""
+    lit = references._load("lit_search")
+    checker = references._load("verify_bib")
+
+    def refusing(query, author, years, rows):
+        raise checker.RateLimited("api.crossref.org", 60)
+
+    monkeypatch.setattr(lit, "search_crossref", refusing)
+    monkeypatch.setattr(lit, "search_openalex",
+                        lambda q, a, y, r: [{"title": "From OpenAlex", "doi": "10.1/oa"}])
+    found, answered, refused = references.search_any("conical intersections")
+    assert answered == "openalex"
+    assert [(item["title"], item["source"]) for item in found] == [("From OpenAlex", "openalex")]
+    assert len(refused) == 1 and refused[0].startswith("Crossref did not answer")
+    assert references.search("conical intersections")[0]["source"] == "openalex"
+
+    # Every source refusing is still an error, the last refusal.
+    monkeypatch.setattr(lit, "search_openalex", refusing)
+    monkeypatch.setattr(lit, "search_semanticscholar", refusing)
+    with pytest.raises(checker.RateLimited):
+        references.search_any("conical intersections")
+
+
+def test_a_search_that_fails_for_another_reason_does_not_fall_back(monkeypatch):
+    lit = references._load("lit_search")
+    asked: list[str] = []
+
+    def broken(query, author, years, rows):
+        raise KeyError("message")
+
+    monkeypatch.setattr(lit, "search_crossref", broken)
+    monkeypatch.setattr(lit, "search_openalex",
+                        lambda *a: asked.append("openalex") or [])
+    with pytest.raises(KeyError):
+        references.search_any("anything")
+    assert asked == []
+
+
+def test_openalex_is_sent_a_contact_address_only_when_there_is_one(monkeypatch):
+    """With none set, the request went out with `mailto=None`."""
+    lit = references._load("lit_search")
+    urls: list[str] = []
+
+    class Answer:
+        status_code = 200
+
+        def raise_for_status(self):
+            pass
+
+        def json(self):
+            return {"results": []}
+
+    def fake_get(url, **_):
+        urls.append(url)
+        return Answer()
+
+    monkeypatch.setattr(lit.requests, "get", fake_get)
+    monkeypatch.setattr(lit, "MAILTO", None)
+    lit.search_openalex("x", None, (None, None), 5)
+    monkeypatch.setattr(lit, "MAILTO", "writer@example.org")
+    lit.search_openalex("x", None, (None, None), 5)
+    assert "mailto" not in urls[0]
+    assert "mailto=writer%40example.org" in urls[1]

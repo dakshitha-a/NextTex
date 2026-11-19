@@ -2061,20 +2061,24 @@ class ProjectAgent:
                     found = await asyncio.to_thread(
                         references.cited_by, str(args["cited_by"]), limit
                     )
+                    note = ""
                 else:
-                    found = await asyncio.to_thread(
-                        references.search,
+                    found, answered, refused = await asyncio.to_thread(
+                        references.search_any,
                         str(args.get("query", "")),
                         source=str(args.get("source") or "crossref"),
                         author=str(args.get("author") or ""),
                         years=str(args.get("years") or ""),
                         limit=limit,
                     )
+                    # Which source answered, when it is not the one asked.
+                    note = (f"{'; '.join(refused)}. These came from "
+                            f"{references.SOURCE_NAMES[answered]}.\n" if refused else "")
             except Exception as error:
                 return self._text(f"The search failed: {error}")
             if not found:
-                return self._text("Nothing matched.")
-            lines = []
+                return self._text(note + "Nothing matched.")
+            lines = [note.strip()] if note else []
             for item in found:
                 authors = item.get("authors") or ""
                 lines.append(

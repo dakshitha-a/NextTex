@@ -31,10 +31,10 @@ longer lists the main file's warnings twice; accented names written in
 LaTeX match their records; reference lookups keep each service's pace,
 retry a refusal, and report a lookup that got no answer as not checked
 rather than FAIL; records found are kept for a month, so a re-check asks
-only for new entries; arXiv and Zenodo DOIs go straight to doi.org.
-Left: `find_papers` sending `mailto=None` and not falling back; a
-contact address setting; the drawer's "not checked" line, without which
-the drawer reads an all-unchecked check as all matching; hiding a known
+only for new entries; arXiv and Zenodo DOIs go straight to doi.org; a
+paper search moves to the next source when one refuses. Left: a contact
+address setting; the drawer's "not checked" line, without which the
+drawer reads an all-unchecked check as all matching; hiding a known
 warning per document.
 
 **Watching the live install, from 18 October 2026.** The writer asked for

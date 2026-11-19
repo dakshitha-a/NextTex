@@ -57,6 +57,13 @@ def _load(name: str):
     return module
 
 
+#: The literature sources, in the order a refused one falls back through.
+SOURCES = ("crossref", "openalex", "semanticscholar")
+#: Each source by the name a writer would know it by.
+SOURCE_NAMES = {"crossref": "Crossref", "openalex": "OpenAlex",
+                "semanticscholar": "Semantic Scholar"}
+
+
 def search(
     query: str,
     *,
@@ -65,25 +72,61 @@ def search(
     years: str = "",
     limit: int = 10,
 ) -> list[dict]:
-    """Papers matching a query, each with the DOI its record carries."""
+    """Papers matching a query, each with the DOI its record carries and
+    the `source` that answered."""
+    return search_any(query, source=source, author=author, years=years, limit=limit)[0]
+
+
+def search_any(
+    query: str,
+    *,
+    source: str = "crossref",
+    author: str = "",
+    years: str = "",
+    limit: int = 10,
+) -> tuple[list[dict], str, list[str]]:
+    """`search`, falling back through the other sources when one gives no
+    answer: the results, the source that answered, and a sentence for each
+    source that did not.
+
+    Crossref, OpenAlex and Semantic Scholar all answered 429 within a few
+    calls of each other for the thesis session, and the tool returned the
+    first refusal as an error rather than asking the next source (19
+    November 2026). A source that answers with nothing is an answer, and
+    is not fallen back from.
+    """
     lit = _load("lit_search")
+    checker = _load("verify_bib")
     # The scripts take a (from, to) pair, with None for an open end.
     span = lit.year_filter(years) if years else (None, None)
-    finder = {
+    finders = {
         "crossref": lit.search_crossref,
         "openalex": lit.search_openalex,
         "semanticscholar": lit.search_semanticscholar,
-    }.get(source)
-    if finder is None:
+    }
+    if source not in finders:
         raise ValueError(f"unknown source: {source}")
-    results = finder(query, author or None, span, max(1, min(limit, 25)))
-    # Publishers register supplementary files as their own DOIs; citing one
-    # cites a spreadsheet rather than the paper.
-    return [
-        item for item in results
-        if not re.search(r"\.s\d{3}$", str(item.get("doi") or ""))
-        and item.get("type") != "component"
-    ]
+    refused: list[str] = []
+    last: Exception | None = None
+    for name in [source] + [other for other in SOURCES if other != source]:
+        try:
+            results = finders[name](query, author or None, span, max(1, min(limit, 25)))
+        except Exception as error:
+            if not checker.unreachable(error):
+                raise
+            refused.append(f"{SOURCE_NAMES[name]} did not answer ({error})")
+            last = error
+            continue
+        # Publishers register supplementary files as their own DOIs; citing
+        # one cites a spreadsheet rather than the paper.
+        kept = [
+            {**item, "source": name} for item in results
+            if not re.search(r"\.s\d{3}$", str(item.get("doi") or ""))
+            and item.get("type") != "component"
+        ]
+        return kept, name, refused
+    assert last is not None
+    raise last
 
 
 _DOI = re.compile(r"^(?:https?://(?:dx\.)?doi\.org/)?(10\.\d{4,9}/\S+)$", re.I)

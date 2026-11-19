@@ -147,7 +147,10 @@ def search_openalex(query, author, years, rows):
         filters.append(f"raw_author_name.search:{author}")
     if filters:
         params["filter"] = ",".join(filters)
-    params["mailto"] = MAILTO
+    # Only when there is one: unset, this sent the literal "None" as the
+    # contact address (the thesis, 19 November 2026).
+    if MAILTO:
+        params["mailto"] = MAILTO
 
     r = polite_get(get=requests.get, url="https://api.openalex.org/works?" + urlencode(params),
                      headers={"User-Agent": UA}, timeout=TIMEOUT)
