@@ -72,7 +72,14 @@ export default function PapersPanel({
   /** A book's "check it against the title page", by its ISBN, once added. */
   const [addedChecks, setAddedChecks] = useState<Record<string, string>>({});
   const [report, setReport] = useState<
-    { checked: number; problems: LibraryProblem[]; by_hand?: string[] } | null
+    {
+      checked: number;
+      problems: LibraryProblem[];
+      by_hand?: string[];
+      unchecked?: string[];
+      retry_after?: number;
+      refusing?: string[];
+    } | null
   >(null);
   /** Entries marked checked by hand from the report, and any refusal. */
   const [marked, setMarked] = useState<Record<string, string>>({});
@@ -448,7 +455,11 @@ export default function PapersPanel({
         {report ? (
           <div data-testid="papers-report">
             {report.problems.length === 0 ? (
-              <p className="nx-note">{report.checked} entries, all matching their records.</p>
+              <p className="nx-note" data-testid="papers-report-matched">
+                {report.unchecked?.length
+                  ? `${report.checked - report.unchecked.length - (report.by_hand?.length ?? 0)} entries match their records.`
+                  : `${report.checked} entries, all matching their records.`}
+              </p>
             ) : (
               <>
                 <p className="nx-note !text-warn">
@@ -495,6 +506,25 @@ export default function PapersPanel({
                 ))}
               </>
             )}
+            {report.unchecked?.length ? (
+              // Neither a problem nor a pass, and not in the warning
+              // colour: a rate limit is not a bad reference, which is how
+              // the thesis's 236 refusals read until 19 November 2026.
+              <div className="nx-note" data-testid="papers-unchecked">
+                <p>
+                  {report.unchecked.length} not checked:{" "}
+                  {report.refusing?.length
+                    ? `${report.refusing.join(" and ")} ${report.refusing.length === 1 ? "is" : "are"} refusing for now.`
+                    : "their records could not be reached."}{" "}
+                  Check again in about {Math.max(1, Math.ceil((report.retry_after ?? 0) / 60))}{" "}
+                  {Math.max(1, Math.ceil((report.retry_after ?? 0) / 60)) === 1 ? "minute" : "minutes"}.
+                </p>
+                <p className="t-code-sm text-ink-3">
+                  {report.unchecked.slice(0, 3).join(", ")}
+                  {report.unchecked.length > 3 ? `, and ${report.unchecked.length - 3} more` : ""}
+                </p>
+              </div>
+            ) : null}
             {report.by_hand?.length ? (
               // Apart from both the lookups that passed and the problems:
               // nothing was looked up, and the writer vouched for them.

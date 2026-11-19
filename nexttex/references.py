@@ -46,6 +46,7 @@ def _load(name: str):
     plain = sys.modules.get(name)
     if plain is not None and Path(getattr(plain, "__file__", "") or "").resolve() == path.resolve():
         sys.modules[key] = plain
+        _apply_contact(plain)
         return plain
     spec = importlib.util.spec_from_file_location(key, path)
     if spec is None or spec.loader is None:
@@ -54,6 +55,7 @@ def _load(name: str):
     sys.modules[key] = module
     sys.modules.setdefault(name, module)
     spec.loader.exec_module(module)
+    _apply_contact(module)
     return module
 
 
@@ -62,6 +64,42 @@ SOURCES = ("crossref", "openalex", "semanticscholar")
 #: Each source by the name a writer would know it by.
 SOURCE_NAMES = {"crossref": "Crossref", "openalex": "OpenAlex",
                 "semanticscholar": "Semantic Scholar"}
+
+
+#: The address the vendored scripts send as their contact, from the
+#: install's settings; `NEXTTEX_CONTACT` in the environment wins over it.
+_CONTACT = ""
+#: Just enough of an address to be one: a name, an @, a dotted domain.
+CONTACT_SHAPE = re.compile(r"^[^@\s]+@[^@\s]+\.[^@\s]+$")
+
+
+def contact() -> tuple[str, bool]:
+    """The contact address in use, and whether the environment set it."""
+    import os
+
+    from_environment = os.environ.get("NEXTTEX_CONTACT", "").strip()
+    return (from_environment or _CONTACT), bool(from_environment)
+
+
+def set_contact(address: str) -> None:
+    """Give every vendored script `address` as its contact, or none.
+
+    The scripts compute `MAILTO` and `UA` when they are loaded, from the
+    environment alone, so a setting has to be applied to each module, now
+    and to any loaded later (`_apply_contact` in `_load`)."""
+    global _CONTACT
+    _CONTACT = address.strip()
+    for name in ("verify_bib", "lit_search", "bib_from_doi"):
+        module = sys.modules.get(f"nexttex._vendor_{name}")
+        if module is not None:
+            _apply_contact(module)
+
+
+def _apply_contact(module) -> None:
+    address, _ = contact()
+    base = re.sub(r" \(mailto:.*\)$", "", getattr(module, "UA", "") or "")
+    module.MAILTO = address or None
+    module.UA = base + (f" (mailto:{address})" if address else "")
 
 
 def search(
@@ -497,6 +535,7 @@ def verify(bib_path: Path) -> dict:
         # Seconds until the services that refused will answer again, so
         # the writer is told when to try rather than just "later".
         "retry_after": round(checker.refusing_for()) if unchecked else 0,
+        "refusing": checker.refusing() if unchecked else [],
         "report": buffer.getvalue()[-4000:],
     }
 
@@ -511,8 +550,10 @@ def said(result: dict) -> str:
     if unchecked:
         minutes = max(1, -(-int(result.get("retry_after") or 0) // 60))
         shown = ", ".join(unchecked[:10]) + (", ..." if len(unchecked) > 10 else "")
-        waiting = (f" {len(unchecked)} could not be checked, because the services "
-                   f"that hold their records did not answer or are rate-limiting "
+        who = result.get("refusing") or []
+        why = (f"{' and '.join(who)} {'is' if len(who) == 1 else 'are'} rate-limiting"
+               if who else "the services that hold their records did not answer")
+        waiting = (f" {len(unchecked)} could not be checked, because {why} "
                    f"({shown}). These are not failures: run the check again in "
                    f"about {minutes} minute{'s' if minutes != 1 else ''}.")
     looked = result["checked"] - len(unchecked) - len(by_hand)

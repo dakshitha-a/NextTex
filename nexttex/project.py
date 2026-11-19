@@ -404,6 +404,59 @@ def _toml(value: str) -> str:
 MAX_LIMITS = 200
 MAX_TITLE = 300
 
+#: The most warning shapes one document hides, and the longest one: the
+#: table travels in `nexttex.toml`, and a warning longer than this is not
+#: one a writer chose to hide by its words.
+HIDDEN_MOST = 50
+HIDDEN_LONGEST = 300
+_NUMBERS = re.compile(r"\d+(?:\.\d+)?")
+
+
+def warning_shape(message: str) -> str:
+    """A warning with its numbers as `#`, so hiding one hides its kind:
+    "Overfull \\hbox (3.2pt too wide) in paragraph at lines 12--14" and
+    its every other width and line read the same."""
+    return _NUMBERS.sub("#", " ".join(str(message or "").split()))
+
+
+def hidden_by(message: str, shapes: list[str]) -> bool:
+    """Whether a warning is one of the shapes a document hides. A shape is
+    found anywhere in the warning, so a hand-written fragment of one, as an
+    agent or a writer might put in the file, hides it too."""
+    shaped = warning_shape(message)
+    return any(shape and shape in shaped for shape in shapes)
+
+
+def clean_hidden_warnings(raw: object) -> dict[str, list[str]] | None:
+    """`raw` as the hidden-warnings table, document to shapes, or None when
+    it is not one. A document is a path inside the project; a shape is
+    kept in `warning_shape`'s form, at most `HIDDEN_LONGEST` characters,
+    `HIDDEN_MOST` to a document."""
+    if not isinstance(raw, dict):
+        return None
+    kept: dict[str, list[str]] = {}
+    for document, shapes in raw.items():
+        if not isinstance(document, str) or not isinstance(shapes, list):
+            return None
+        path = document.strip().replace("\\", "/")
+        if (not path or path.startswith("/") or ":" in path or "\0" in path
+                or any(part == ".." for part in path.split("/"))):
+            return None
+        listed: list[str] = []
+        for shape in shapes:
+            if not isinstance(shape, str):
+                return None
+            shape = warning_shape(shape)
+            if not shape or len(shape) > HIDDEN_LONGEST:
+                return None
+            if shape not in listed:
+                listed.append(shape)
+        if len(listed) > HIDDEN_MOST:
+            return None
+        if listed:
+            kept[path] = listed
+    return kept
+
 
 def clean_limits(raw: object) -> dict[str, int] | None:
     """`raw` as word limits, or None when it is not a table of them.
@@ -441,6 +494,11 @@ class ProjectConfig:
     not_shared: list[str] = field(default_factory=list)
     #: Whether build folders and TeX's leftovers are left out as well.
     not_shared_defaults: bool = True
+    #: Warnings a document's builds leave out, document path to the shapes
+    #: `warning_shape` gives: noise the writer has seen and set aside, such
+    #: as hyperref's "Suppressing link with empty target" in a chapter
+    #: that numbers itself with `\newlabel`. Never errors.
+    hide_warnings: dict[str, list[str]] = field(default_factory=dict)
     #: What an older `nexttex.toml` said the documents were: its `main` and
     #: then its `previews`, in that order.  Read once and never written.
     #: Which documents are on the preview strip is viewer state now, kept
@@ -529,6 +587,7 @@ class ProjectConfig:
             exclude=list(section.get("exclude", [])),
             not_shared=clean_not_shared(section.get("not_shared", [])) or [],
             not_shared_defaults=section.get("not_shared_defaults") is not False,
+            hide_warnings=clean_hidden_warnings(section.get("hide_warnings", {})) or {},
             inherited_documents=list(dict.fromkeys(inherited)),
             autocompile=bool(section.get("autocompile", True)),
             mark_errors=bool(section.get("mark_errors", True)),
@@ -650,6 +709,12 @@ class ProjectConfig:
             lines.append("[project.limits]")
             for title, words in self.word_limits.items():
                 lines.append(f"{_toml(title)} = {int(words)}")
+        if self.hide_warnings:
+            lines.append("")
+            lines.append("[project.hide_warnings]")
+            for document, shapes in self.hide_warnings.items():
+                listed = ", ".join(_toml(shape) for shape in shapes)
+                lines.append(f"{_toml(document)} = [{listed}]")
         # `main` and `previews` are not written.  A toml that still has them
         # loses them on its first save, after the session has read them
         # into `.nexttex/previews.json`; see `inherited_documents`.
@@ -889,6 +954,8 @@ class Project:
             "keepAllVersions": self.config.keep_all_versions,
             "notShared": list(self.config.not_shared),
             "notSharedDefaults": self.config.not_shared_defaults,
+            "hiddenWarnings": {document: list(shapes)
+                               for document, shapes in self.config.hide_warnings.items()},
         }
 
     @property

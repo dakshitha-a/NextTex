@@ -4,6 +4,7 @@ import { connect, set, useStore } from "../store";
 import Boundary from "../Boundary";
 import Logo from "../Logo";
 import type { PageWindowRequest } from "../page-window";
+import { hiddenOf } from "../warning-shape";
 
 /** The typeset page on its own, for a second monitor.
  *
@@ -58,6 +59,7 @@ export default function PageWindow({ request }: { request: PageWindowRequest }) 
             keepAllVersions: project.keepAllVersions === true,
             notShared: Array.isArray((project as any).notShared) ? (project as any).notShared : [],
             notSharedDefaults: (project as any).notSharedDefaults !== false,
+            hiddenWarnings: hiddenOf((project as any).hiddenWarnings),
           },
         });
         connect(request.projectId);

@@ -129,6 +129,12 @@ class Settings:
     # which at a million tokens let one conversation reach 736,000 and
     # read most of them back at every step.
     compact_percent: int = 60
+    # The address reference lookups give Crossref and OpenAlex, which put
+    # a request that names one in a faster, less rate-limited pool. Empty
+    # unless the writer gives one: it is never guessed from git or the
+    # sign-in, since it goes to services outside this machine.
+    # `NEXTTEX_CONTACT` wins over it.
+    contact_email: str = ""
 
     def kept_root(self) -> Path:
         """Where a host keeps the projects its writers share with it."""

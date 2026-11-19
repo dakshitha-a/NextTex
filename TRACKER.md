@@ -24,19 +24,6 @@ things go to be forgotten rather than a list anybody reads.
 
 ## In hand
 
-**Notes from the thesis session, from 19 November 2026.** Seven notes on
-the agent's tools after a day of use. Done: the agent's `compile` builds
-the whole document rather than the writer's chapter; a chapter build no
-longer lists the main file's warnings twice; accented names written in
-LaTeX match their records; reference lookups keep each service's pace,
-retry a refusal, and report a lookup that got no answer as not checked
-rather than FAIL; records found are kept for a month, so a re-check asks
-only for new entries; arXiv and Zenodo DOIs go straight to doi.org; a
-paper search moves to the next source when one refuses. Left: a contact
-address setting; the drawer's "not checked" line, without which the
-drawer reads an all-unchecked check as all matching; hiding a known
-warning per document.
-
 **Watching the live install, from 18 October 2026.** The writer asked for
 a continuous record of errors, failures, crashes and slow spots on the
 install they use every day, to be left running for a couple of days and

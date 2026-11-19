@@ -24,6 +24,7 @@ import { Sheet } from "../ui/Sheet";
 import { CloseIcon } from "../ui/icons";
 import { KEEP_ALL_OFF, KEEP_ALL_ON } from "../keep-all";
 import { setNotShared } from "../not-shared";
+import { showWarnings } from "../hidden-warnings";
 import HostSettings from "./HostSettings";
 import { COMPACT_STEPS } from "./session-words";
 
@@ -517,6 +518,9 @@ export default function SettingsSheet({
               off="They stay in the diagnostics list."
               onChange={(markWarnings) => toggle({ markWarnings })}
             />
+            {Object.keys(project.hiddenWarnings).length ? (
+              <HiddenWarningsRow projectId={projectId} table={project.hiddenWarnings} />
+            ) : null}
             {/* The History drawer's foot has the same switch.  Both
                 sentences matter here: off says what thinning does, on
                 says what keeping everything still does not keep. */}
@@ -614,6 +618,7 @@ export default function SettingsSheet({
               </SRow>
             ) : null}
             {provider === "claude" ? <CompactRow /> : null}
+            <ContactRow />
             <HostSettings />
           </>
         ) : null}
@@ -742,6 +747,42 @@ function NotSharedRow({ projectId, list }: { projectId: string; list: string[] }
   );
 }
 
+/** What each document hides from its builds, set by Hide on a warning in
+ *  the build drawer and kept in nexttex.toml; a chip's cross shows that
+ *  kind again from the next build. Only drawn when there is something to
+ *  list, since Hide is where an entry starts. */
+function HiddenWarningsRow({
+  projectId,
+  table,
+}: {
+  projectId: string;
+  table: Record<string, string[]>;
+}) {
+  return (
+    <SRow
+      title="Hidden warnings"
+      note="Warnings like these are left out of this project's builds. Errors never are."
+      testid="settings-hidden-warnings"
+    >
+      <div className="flex max-w-[60%] flex-wrap justify-end gap-1.5">
+        {Object.entries(table).flatMap(([document, shapes]) =>
+          shapes.map((shape) => (
+            <Chip
+              key={`${document}\u0000${shape}`}
+              mono
+              title={`${document}: ${shape}`}
+              onRemove={() => void showWarnings(projectId, document, shape)}
+              removeLabel={`Show ${shape} in ${document} again`}
+            >
+              <span className="block max-w-60 truncate">{`${document}: ${shape}`}</span>
+            </Chip>
+          )),
+        )}
+      </div>
+    </SRow>
+  );
+}
+
 /** Remote control, the same value as the Session view's switch: kept on
  *  this computer only, though it sits in This project, since it opens a
  *  connection from this writer's account and a co-author's copy of a
@@ -804,6 +845,78 @@ function CompactRow() {
           }
         }}
       />
+    </SRow>
+  );
+}
+
+/** The address reference lookups name. Crossref and OpenAlex put a
+ *  request that says who is asking in a faster pool that refuses less;
+ *  without one the thesis's check was refused within seconds. Never
+ *  filled in for the writer, since it leaves this machine. */
+function ContactRow() {
+  const [saved, setSaved] = useState<string | null>(null);
+  const [fixed, setFixed] = useState(false);
+  const [entry, setEntry] = useState("");
+  const [problem, setProblem] = useState("");
+  useEffect(() => {
+    api
+      .contact()
+      .then((answer) => {
+        setSaved(answer.address);
+        setEntry(answer.address);
+        setFixed(answer.fromEnvironment);
+      })
+      .catch(() => undefined);
+  }, []);
+  if (saved === null) return null;
+  const save = async () => {
+    try {
+      const answer = await api.setContact(entry.trim());
+      setSaved(answer.address);
+      setEntry(answer.address);
+      setProblem("");
+    } catch (error: any) {
+      setProblem(error.message);
+    }
+  };
+  const changed = entry.trim() !== saved;
+  return (
+    <SRow
+      title="Contact for reference lookups"
+      note={
+        problem ? (
+          <span className="text-error">{problem}</span>
+        ) : fixed ? (
+          "Set by NEXTTEX_CONTACT on this computer."
+        ) : (
+          "Crossref and OpenAlex answer sooner, and refuse less, when a lookup says who is asking. Sent to them only."
+        )
+      }
+      testid="settings-contact"
+    >
+      <div className="flex w-65 items-center gap-1.5">
+        <Field
+          frameClassName="min-w-0 flex-1"
+          type="email"
+          value={entry}
+          disabled={fixed}
+          placeholder="you@example.org"
+          aria-label="Contact for reference lookups"
+          data-testid="settings-contact-field"
+          onChange={(event) => setEntry(event.target.value)}
+          onKeyDown={(event) => {
+            if (event.key === "Enter" && changed) {
+              event.preventDefault();
+              void save();
+            }
+          }}
+        />
+        {changed && !fixed ? (
+          <Button variant="ghost" data-testid="settings-contact-save" onClick={() => void save()}>
+            Save
+          </Button>
+        ) : null}
+      </div>
     </SRow>
   );
 }

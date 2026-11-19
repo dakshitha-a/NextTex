@@ -117,6 +117,9 @@ export type CompileResult = {
   pdfKept?: boolean;
   /** Warnings the server left out of `diagnostics` past its cap. */
   omittedWarnings?: number;
+  /** Warnings this build left out because its document hides them in
+   *  nexttex.toml. */
+  hiddenWarnings?: number;
 };
 
 /** One row of the submission check: the drawer's row shape with a kind
@@ -1103,6 +1106,12 @@ const api = {
       checked: number;
       problems: LibraryProblem[];
       by_hand?: string[];
+      /** Entries whose lookup got no answer: not problems, not passes. */
+      unchecked?: string[];
+      /** Seconds until the services that refused will answer again. */
+      retry_after?: number;
+      /** Those services, by name. */
+      refusing?: string[];
       report: string;
     }>(`/projects/${id}/library/verify`, json({})),
   loadTemplate: (id: string, name = "basic") =>
@@ -1126,6 +1135,7 @@ const api = {
       keepAllVersions: boolean;
       notShared: string[];
       notSharedDefaults: boolean;
+      hiddenWarnings: Record<string, string[]>;
     }>,
   ) =>
     request<{
@@ -1512,6 +1522,11 @@ const api = {
    *  carries none, so whoever opens it gets their own system's. */
   pageUrlThemed: (id: string, name: string) =>
     `/api/projects/${id}/pages/${encodeURIComponent(name)}?theme=${document.documentElement.dataset.theme === "light" ? "light" : "dark"}`,
+  /** The address reference lookups give Crossref and OpenAlex, and
+   *  whether the environment set it, which the field cannot change. */
+  contact: () => request<{ address: string; fromEnvironment: boolean }>("/settings/contact"),
+  setContact: (address: string) =>
+    request<{ address: string; fromEnvironment: boolean }>("/settings/contact", json({ address })),
   /** Where every project's Claude session summarizes its conversation. */
   setCompactPercent: (percent: number) =>
     request<{ compactPercent: number }>("/agent/compact", json({ percent })),

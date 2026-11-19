@@ -1066,6 +1066,12 @@ engine = "xelatex"      # or "lualatex"; pdflatex when the line is absent
 shell_escape = true     # asks for -shell-escape; each computer still says yes once
 page_limit = 8          # the venue's limit, for Before you submit; absent means none
 blind = true            # an author, an affiliation or an acknowledgement is a finding
+
+# Warnings a document's builds leave out, written by "Hide warnings like
+# this" on an opened warning in the Build drawer. A number in one stands
+# for any number, and errors are never hidden.
+[project.hide_warnings]
+"chapter1-standalone.tex" = ["Suppressing link with empty target"]
 ```
 
 There is no main file to name. Every `.tex` with a `\documentclass` and a

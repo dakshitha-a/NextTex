@@ -13008,3 +13008,45 @@ the list and may share such a path again; a newer member keeps that record and
 writes, sends and asks for nothing under it, rather than dropping it again at
 every open, which the two would do to each other for ever.
 
+
+## 132. Reference lookups and hidden warnings
+
+19 November 2026, from the thesis session's notes, drawn on the direction
+page's `#lookups` section first. Its reference check was refused by Crossref
+within seconds and read as 236 bad references, and its standalone chapters'
+builds were full of a warning it could do nothing about.
+
+**Contact for reference lookups**, in Settings, This install, after the
+writing agent: a 240 px field with "you@example.org" as its placeholder and a
+ghost Save beside it only while what is typed differs from what is kept; Enter
+saves too. Its note says what it is for and where it goes: "Crossref and
+OpenAlex answer sooner, and refuse less, when a lookup says who is asking.
+Sent to them only." It is empty until the writer gives an address, and never
+filled in for them. Set by `NEXTTEX_CONTACT` on the machine, the field is
+disabled and the note says so. Something that is not an address is refused
+in the note's place, in the error ink.
+
+**Not checked**, in the Papers drawer's check report: entries whose lookup got
+no answer are neither problems nor passes. Under the problems, a note in the
+second ink, never the warning ink, says how many, who is refusing and when to
+try again, "40 not checked: Crossref is refusing for now. Check again in about
+2 minutes.", with the first three keys in the mono and "and 37 more" under it.
+With no problems the first line counts only what was looked up, "211 entries
+match their records."; with problems it keeps its own line.
+
+**Hide warnings like this**, a quiet inline button on a line of its own in an
+opened build warning, under what the row says. It is not at the row's end
+beside Fix and Copy: rendered there, a third verb widened the column every row
+keeps for them and squeezed every message in a 240 px drawer. It hides that
+warning's kind, its numbers read as any number, for its document, in
+`nexttex.toml`; the row goes at once. A note at the foot of the list says
+"2 warnings hidden in this document." with a quiet Show, which takes the
+document's list away and rebuilds, since the build left them out. With
+several documents on the strip the note names the document. Errors, and the
+rows the checks add, never offer it.
+
+**Hidden warnings**, in Settings, This project, after Mark warnings in the
+text, drawn only when something is hidden: each document and warning as a
+removable mono chip, cut short with an ellipsis, its whole text in the
+tooltip, and the note "Warnings like these are left out of this project's
+builds. Errors never are."

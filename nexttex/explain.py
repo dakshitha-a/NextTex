@@ -414,6 +414,8 @@ def compile_report(document: str, payload: dict) -> str:
         counts.append(f"{len(referred)} undefined references")
     if payload.get("overfull"):
         counts.append(f"{payload['overfull']} overfull boxes")
+    if payload.get("hiddenWarnings"):
+        counts.append(f"{payload['hiddenWarnings']} warnings hidden by nexttex.toml")
     pages = payload.get("pages")
     head = f"{name}: " + (f"{pages} pages, " if pages else "")
     seconds = (payload.get("durationMs") or 0) / 1000

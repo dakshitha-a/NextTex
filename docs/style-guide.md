@@ -355,7 +355,9 @@ else.
   own under the message, there at rest, since it is what the row is for.
   Fix and Copy keep the row's end under the pointer: hidden, their
   column keeps its width, so a long verb there would squeeze every
-  message in the drawer.
+  message in the drawer. Nothing else joins them: an action that is not
+  the row's purpose, such as hiding a warning's kind, is a quiet inline
+  button in the opened row, under what it says.
 - A row that does something and holds buttons is a plain element with
   a real button for its own act and the others beside it, never a
   `role="button"` around buttons, which a screen reader cannot get

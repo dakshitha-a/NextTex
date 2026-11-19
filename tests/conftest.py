@@ -107,3 +107,4 @@ def _reference_lookups_unpaced():
     references.CACHE_RECORDS = True
     references.RECORDS_FILE = None
     references._CACHES.clear()
+    references.set_contact("")

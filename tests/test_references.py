@@ -448,10 +448,10 @@ def test_a_rate_limited_check_stops_asking_and_says_when_to_try_again(tmp_path, 
     # stopped the rest from being tried at all.
     assert len(asked) == 1, "a host still refusing is not asked again"
     assert 85 <= result["retry_after"] <= 90
+    assert result["refusing"] == ["Crossref"]
     said = references.said(result)
-    assert "40 could not be checked" in said
+    assert said.startswith("40 could not be checked, because Crossref is rate-limiting")
     assert "not failures" in said and "about 2 minutes" in said
-    assert said.startswith("40 could not be checked")
     assert "problems" not in said
 
 

@@ -81,7 +81,7 @@ from nexttex.trash import Trash
 from nexttex.project import (
     Project, ProjectConfig, Registry, id_for, instance_name, is_control_path,
     ignored_directory, is_ours, kind_of_file, under_ignored_directory,
-    PROJECT_STATES, clean_limits, clean_not_shared,
+    PROJECT_STATES, clean_hidden_warnings, clean_limits, clean_not_shared,
 )
 from nexttex.symbols import walk_project
 from nexttex import bibcheck, bibfix, bundle, consistency, deps, figures, published, reply, export, lint_explain, prompts, search, texstyles, updates, usage, venues
@@ -112,6 +112,7 @@ WATCH_RESTART: list[asyncio.Event] = []
 WATCH_WAKE: asyncio.Event | None = None
 SETTINGS = Settings.load()
 REGISTRY = Registry()
+references.set_contact(SETTINGS.contact_email)
 
 # Where this install lives, which is the thing an update updates.  The
 # override exists for the browser tests, which need a repository whose
@@ -6456,6 +6457,7 @@ async def set_project_settings(
     keepAllVersions: bool | None = Body(None),
     notShared: list | None = Body(None),
     notSharedDefaults: bool | None = Body(None),
+    hiddenWarnings: dict | None = Body(None),
 ):
     """The three switches and the engine choice on the settings card, the
     two venue facts the submission panel sets, and the word limits the
@@ -6474,6 +6476,9 @@ async def set_project_settings(
     keeps it, refused whole when any entry leaves the project, and
     `notSharedDefaults` whether build folders and TeX's leftovers are left
     out too; either change is applied to the manifest at once.
+    `hiddenWarnings` is the whole table of warnings each document's builds
+    leave out, document to shapes, as `project.clean_hidden_warnings`
+    keeps it, refused whole when a document leaves the project.
     """
     session = session_for(project_id)
     config = session.project.config
@@ -6520,6 +6525,15 @@ async def set_project_settings(
     if notSharedDefaults is not None:
         sharing_moved = sharing_moved or bool(notSharedDefaults) != config.not_shared_defaults
         config.not_shared_defaults = bool(notSharedDefaults)
+    if hiddenWarnings is not None:
+        kept = clean_hidden_warnings(hiddenWarnings)
+        if kept is None:
+            raise HTTPException(
+                400, "a hidden warning is a document in the project and the words of a warning",
+            )
+        config.hide_warnings = kept
+        for document in kept:
+            session.hide_now(document)
     try:
         config.save(session.project.root)
     except OSError as error:
@@ -7490,6 +7504,28 @@ async def delete_page(project_id: str, name: str):
     if not Pages(session.project.state_dir).delete(name):
         raise HTTPException(404, "no such page")
     return {"deleted": name}
+
+
+@app.get("/api/settings/contact")
+async def contact_get():
+    """The address reference lookups name, and whether the environment
+    set it, in which case the field is not the writer's to change."""
+    address, from_environment = references.contact()
+    return {"address": address, "fromEnvironment": from_environment}
+
+
+@app.post("/api/settings/contact")
+async def contact_set(address: str = Body("", embed=True)):
+    """Set or clear the contact for reference lookups. Never filled in on
+    the writer's behalf: Crossref and OpenAlex are told it, so it is the
+    writer's to give."""
+    address = address.strip()
+    if address and (len(address) > 254 or not references.CONTACT_SHAPE.match(address)):
+        raise HTTPException(400, "That is not an email address. Give one, or leave it empty.")
+    SETTINGS.contact_email = address
+    SETTINGS.save()
+    references.set_contact(address)
+    return await contact_get()
 
 
 @app.post("/api/agent/compact")

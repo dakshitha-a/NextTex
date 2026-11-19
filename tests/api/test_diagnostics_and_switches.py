@@ -149,6 +149,7 @@ def test_the_three_switches_round_trip(client, project_dir, opened):
         "keepAllVersions": False,
         "notShared": [],
         "notSharedDefaults": True,
+        "hiddenWarnings": {},
     }
 
     # Written, not just held in memory.  `save()` writes its optional fields

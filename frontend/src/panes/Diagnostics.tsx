@@ -5,6 +5,7 @@ import { Button } from "../ui/Button";
 import { get, set, useStore } from "../store";
 import api from "../api";
 import { Pressable, Select } from "../ui/controls";
+import { hiddenBy, hideWarning, showWarnings } from "../hidden-warnings";
 
 /** The Build drawer's body: the build's state, what to fix, and the way
  *  to build again.
@@ -163,7 +164,23 @@ export default function Diagnostics({
   onFix?: (text: string) => void;
   onRebuild: (full: boolean) => void;
 }) {
-  const compile = useStore((s) => s.diagnostics);
+  const built = useStore((s) => s.diagnostics);
+  // Warnings a document hides by nexttex.toml. The server leaves them out
+  // of each build; the ones a Hide has just added are left out here too,
+  // so the row goes at once rather than at the next build.
+  const hiddenTable = useStore((s) => s.settings.hiddenWarnings);
+  const [compile, hiddenHere] = useMemo(() => {
+    const counted: Record<string, number> = {};
+    const kept = built.filter((item) => {
+      const document = item.document ?? "";
+      const shapes = hiddenTable[document] ?? [];
+      if (item.severity !== "warning" || !shapes.length) return true;
+      if (!hiddenBy(item.message ?? "", shapes)) return true;
+      counted[document] = (counted[document] ?? 0) + 1;
+      return false;
+    });
+    return [kept, counted] as const;
+  }, [built, hiddenTable]);
   // Written by the server with no model involved: which error is the cause
   // and which are its consequences.  A writer running NextTex without an
   // agent still gets told where to start.
@@ -405,11 +422,46 @@ export default function Diagnostics({
                       {item.context}
                     </pre>
                   ) : null}
+                  {/* A build warning the writer has seen and set aside, such
+                      as hyperref's empty-target links in a chapter that
+                      numbers itself: hidden for its document, with its
+                      kind, in nexttex.toml. Here in the opened row rather
+                      than beside Fix and Copy, whose column every row
+                      keeps at its width: a third verb there squeezed every
+                      message in the drawer. Never an error, never a
+                      check's row. */}
+                  {item.severity === "warning" && !(item as { source?: string }).source && !half && item.document ? (
+                    <Button
+                      variant="quiet"
+                      size="inline"
+                      className="-ml-1.5 mt-1"
+                      data-testid="diagnostic-hide"
+                      title="Hide warnings like this in this document"
+                      onClick={(event) => {
+                        event.stopPropagation();
+                        const projectId = get().projectId;
+                        if (projectId) void hideWarning(projectId, item.document!, item.message ?? "");
+                      }}
+                    >
+                      Hide warnings like this
+                    </Button>
+                  ) : null}
                 </div>
               ) : null}
             </div>
           );
   };
+
+  /** Per document that hides any, how many it hid: the ones this drawer
+   *  left out since the last build and the ones that build left out. */
+  const hiddenNotes = Object.keys(hiddenTable)
+    .map((document) => ({
+      document,
+      count:
+        (hiddenHere[document] ?? 0) +
+        (result?.document === document ? (result?.hiddenWarnings ?? 0) : 0),
+    }))
+    .filter(({ document, count }) => count > 0 && (!only || only === document));
 
   // Errors from half an edit at the foot, apart from the rest; see renderRow.
   const steady = rows.filter((row) => !row.transient);
@@ -560,6 +612,28 @@ export default function Diagnostics({
           </div>
         ) : null}
       </div>
+      {hiddenNotes.map(({ document, count }) => (
+        <p className="nx-note flex items-baseline gap-1" data-testid="build-hidden" key={document}>
+          <span>
+            {count} {count === 1 ? "warning" : "warnings"} hidden in{" "}
+            {previews.length > 1 ? document : "this document"}.
+          </span>
+          <Button
+            variant="quiet"
+            size="inline"
+            data-testid="build-hidden-show"
+            onClick={() => {
+              const projectId = get().projectId;
+              if (!projectId) return;
+              // The server left them out of the last build, so only a
+              // build can bring them back.
+              void showWarnings(projectId, document).then((ok) => ok && onRebuild(false));
+            }}
+          >
+            Show
+          </Button>
+        </p>
+      ))}
       {result?.omittedWarnings ? (
         <p className="nx-note" data-testid="build-omitted">
           And {result.omittedWarnings.toLocaleString("en")} more{" "}

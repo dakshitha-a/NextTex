@@ -508,6 +508,12 @@ never written.
    A book's ISBN, or its title and first author when a book entry has no
    ISBN, goes to `openlibrary.org`, and to `www.googleapis.com` when Open
    Library does not know it. Neither is sent a contact address or a key.
+   None of them is sent your email address unless you give one under
+   **Contact for reference lookups** in Settings, This install. Crossref
+   and OpenAlex answer sooner and refuse less when a lookup says who is
+   asking, so a long bibliography checks better with one. Lookups keep
+   each service's pace, and an entry a refusing service could not look up
+   is reported as not checked rather than as a problem.
 3. **The installer**, and only what its plan said: TinyTeX from `yihui.org`
    and `tinytex.yihui.org`, the Claude CLI from `claude.ai` if you chose it,
    and `uv` from `astral.sh` when this machine's Python cannot make a virtual

@@ -47,7 +47,7 @@ from nexttex.conversation import (
 )
 from nexttex.project import (
     CONFIG_NAME, IGNORED_DIRS, PreviewList, Project, ProjectConfig,
-    guess_document, is_ours, under_ignored_directory,
+    guess_document, hidden_by, is_ours, under_ignored_directory,
 )
 
 log = logging.getLogger("nexttex.session")
@@ -521,7 +521,7 @@ class ProjectSession:
             revise_memory=self.context.revise_memory,
             editor_state=lambda: self._editor_state,
             diagnostics=lambda: self._diagnostics,
-            compile_now=lambda **kw: self.compile(cause="agent", **kw),
+            compile_now=self._compile_for_agent,
             documents=lambda: list(self.documents),
             adopt_document=self.adopt_document,
             run_script=lambda path: self.scripts.run(
@@ -1256,6 +1256,8 @@ class ProjectSession:
             "keepAllVersions": config.keep_all_versions,
             "notShared": list(config.not_shared),
             "notSharedDefaults": config.not_shared_defaults,
+            "hiddenWarnings": {document: list(shapes)
+                               for document, shapes in config.hide_warnings.items()},
         }
 
     def documents_payload(self) -> dict:
@@ -1388,10 +1390,23 @@ class ProjectSession:
         an absolute path here silently matches nothing and the error marks
         never appear beside the line that caused them.
         """
-        kept, omitted = _capped(result.log.diagnostics if result.log else [])
+        document = document or self.visible
+        found = result.log.diagnostics if result.log else []
+        # The warnings this document hides by `nexttex.toml`, left out
+        # before anything else is counted; never an error.
+        shapes = self.project.config.hide_warnings.get(document) or []
+        hidden = 0
+        if shapes:
+            shown = [d for d in found
+                     if not (d.severity == "warning" and hidden_by(d.message, shapes))]
+            hidden, found = len(found) - len(shown), shown
+        kept, omitted = _capped(found)
         payload = result.as_dict(diagnostics=kept)
-        payload["document"] = document or self.visible
+        payload["document"] = document
         payload["omittedWarnings"] = omitted
+        if hidden:
+            payload["warningCount"] = max(0, payload.get("warningCount", 0) - hidden)
+            payload["hiddenWarnings"] = hidden
         # Each file made relative once. It was once per diagnostic, each
         # resolving the file and the project root again, which on a draft
         # with 72,000 warnings held the loop for fifteen seconds (Q-043).
@@ -1416,6 +1431,27 @@ class ProjectSession:
         payload["summary"] = summarise(payload["diagnostics"])
         payload.pop("pdf", None)   # a server path the browser cannot use
         return payload
+
+    async def _compile_for_agent(self, **kwargs) -> dict:
+        """The agent's `compile`: a build, answered with what the browser
+        is sent, so the agent's counts leave out what the writer hid, and
+        its files are the project's relative paths."""
+        result = await self.compile(cause="agent", **kwargs)
+        state = self.document_for(kwargs.get("document"))
+        return await self.client_payload(result, state.path)
+
+    def hide_now(self, document: str) -> None:
+        """Take what the document now hides out of the diagnostics already
+        held, so the agent stops seeing them before the next build."""
+        state = self.documents.get(document)
+        shapes = self.project.config.hide_warnings.get(document) or []
+        if state is None or not shapes:
+            return
+        state.diagnostics = [
+            item for item in state.diagnostics
+            if not (item.get("severity") == "warning"
+                    and hidden_by(str(item.get("message") or ""), shapes))
+        ]
 
     async def client_payload(self, result: CompileResult, document: str = "") -> dict:
         """`as_client_dict` in a worker thread: annotating and relating a

@@ -317,6 +317,20 @@ def polite_get(url, get=None, **kwargs):
     raise RateLimited(host, 0.0)  # not reached
 
 
+#: The hosts by the names a writer knows them by.
+HOST_NAMES = {"api.crossref.org": "Crossref", "doi.org": "doi.org",
+              "export.arxiv.org": "arXiv", "openlibrary.org": "Open Library",
+              "www.googleapis.com": "Google Books", "api.openalex.org": "OpenAlex",
+              "api.semanticscholar.org": "Semantic Scholar"}
+
+
+def refusing():
+    """The services holding back right now, by name, in a stable order."""
+    held = {HOST_NAMES.get(host, host) for (host, _), gate in list(_GATES.items())
+            if gate.held_for() > 0}
+    return sorted(held)
+
+
 def refusing_for():
     """Seconds until every host that refused is willing again, or 0."""
     return max((gate.held_for() for gate in list(_GATES.values())), default=0.0)

@@ -62,6 +62,7 @@ import {
   type Tab,
   useStore,
 } from "./store";
+import { hiddenOf } from "./warning-shape";
 import { type EditorHandle } from "./panes/Editor";
 // The workspace's three heavy panes, fetched when a project opens rather
 // than with the projects screen, which draws none of them. CodeMirror came
@@ -899,6 +900,7 @@ export default function App() {
         keepAllVersions: project.keepAllVersions === true,
         notShared: Array.isArray((project as any).notShared) ? (project as any).notShared : [],
         notSharedDefaults: (project as any).notSharedDefaults !== false,
+        hiddenWarnings: hiddenOf((project as any).hiddenWarnings),
       },
       // The last project's import progress, which belongs to the last
       // project. It was left, so opening another one showed a papers

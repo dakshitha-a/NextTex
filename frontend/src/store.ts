@@ -11,6 +11,7 @@ import { agentChangedScript, resultFrom } from "./script-run";
 import { renamePaths } from "./tabs";
 import { learnKinds } from "./panes/file-kinds";
 import { noteHandled, record } from "./errors";
+import { hiddenOf } from "./warning-shape";
 import api, {
   clientId,
   type AgentSession,
@@ -384,6 +385,9 @@ export type State = {
      *  build folders and TeX's leftovers are left out as well. */
     notShared: string[];
     notSharedDefaults: boolean;
+    /** Warnings each document's builds leave out, document to shapes, as
+     *  `nexttex.toml` lists them; see `hidden-warnings.ts`. */
+    hiddenWarnings: Record<string, string[]>;
   };
   /** Which optional tools the machine has, fetched once per load; null
    *  until it answers.  The download menu and the submission panel read
@@ -530,6 +534,7 @@ const state: State = {
     keepAllVersions: false,
     notShared: [],
     notSharedDefaults: true,
+    hiddenWarnings: {},
   },
   tools: null,
   agent: null,
@@ -1512,12 +1517,13 @@ function receive(event: any) {
             ? event.notShared.filter((item: unknown) => typeof item === "string")
             : [],
           notSharedDefaults: event.notSharedDefaults !== false,
+          hiddenWarnings: hiddenOf(event.hiddenWarnings),
         };
         const was = state.settings as Record<string, unknown>;
         const moved = (Object.keys(settings) as (keyof typeof settings)[]).some(
           (key) =>
             key !== "wordLimits" && key !== "keepAllVersions" && key !== "notShared"
-            && key !== "notSharedDefaults" && was[key] !== settings[key],
+            && key !== "notSharedDefaults" && key !== "hiddenWarnings" && was[key] !== settings[key],
         );
         if (moved) setStale();
         set({ settings });

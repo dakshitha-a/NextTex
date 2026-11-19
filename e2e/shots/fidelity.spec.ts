@@ -197,6 +197,26 @@ async function labelKnown(tab: Page, name: string) {
   await tab.waitForTimeout(800);
 }
 
+/** main.tex with two of hyperref's empty-target warnings and one other,
+ *  built, and the Build drawer open on them. */
+async function noisyBuild(tab: Page) {
+  if (!ctx) throw new Error("no project");
+  fs.writeFileSync(path.join(ctx.root, "main.tex"), [
+    "\\documentclass{article}",
+    "\\begin{document}",
+    "Text.",
+    "\\PackageWarning{hyperref}{Suppressing link with empty target}",
+    "\\PackageWarning{hyperref}{Suppressing link with empty target}",
+    "\\PackageWarning{demo}{A warning worth keeping}",
+    "\\end{document}",
+    "",
+  ].join("\n"));
+  await showDrawer(tab, "build");
+  await tab.getByTestId("build-rebuild").click();
+  await tab.getByTestId("diagnostics").getByText(/Suppressing link with empty target/).first()
+    .waitFor({ timeout: 60_000 });
+}
+
 const SURFACES: Record<string, Surface> = {
   "host-settings": {
     // "This install" with host mode on, as the direction page's "The
@@ -476,6 +496,78 @@ const SURFACES: Record<string, Surface> = {
       await tab.getByTestId("appearance").click();
       await tab.getByTestId("settings-group-project").click();
       return tab.getByTestId("settings-sheet");
+    },
+    close: escape,
+  },
+  "settings-contact": {
+    // "Reference lookups and hidden warnings" (#lookups), drawing 1: the
+    // contact row in This install, an address typed and not yet saved.
+    open: async (tab) => {
+      await tab.getByTestId("appearance").click();
+      await tab.getByTestId("settings-group-install").click();
+      await tab.getByTestId("settings-contact-field").fill("a.writer@uni.ac.uk");
+      return tab.getByTestId("settings-contact");
+    },
+    close: escape,
+  },
+  "papers-unchecked": {
+    // #lookups, drawing 2: a check Crossref refused part of.
+    open: async (tab) => {
+      await tab.route("**/library/verify", (route) =>
+        route.fulfill({
+          status: 200,
+          contentType: "application/json",
+          body: JSON.stringify({
+            checked: 252, by_hand: [], report: "", retry_after: 95, refusing: ["Crossref"],
+            problems: [{ key: "Kumar2020", issues: ["title mismatch (62%) for doi:10.1021/acs.jpca.0c01234"] }],
+            unchecked: ["Cachon2021", "Smith2019", "Lee2020", ...Array.from({ length: 37 }, (_, at) => `k${at}`)],
+          }),
+        }),
+      );
+      await showDrawer(tab, "papers");
+      await tab.getByTestId("papers-verify").click();
+      await tab.getByTestId("papers-unchecked").waitFor();
+      return tab.getByTestId("papers-report");
+    },
+  },
+  "build-hide-open": {
+    // #lookups, drawing 3a: a build warning opened, with Hide under it.
+    open: async (tab) => {
+      await noisyBuild(tab);
+      const row = tab.getByTestId("diagnostics").locator("div.group")
+        .filter({ hasText: "Suppressing link with empty target" }).first();
+      await row.getByText("Suppressing link with empty target").click();
+      await tab.mouse.move(0, 0);
+      return tab.getByTestId("drawer");
+    },
+  },
+  "build-hidden-note": {
+    // #lookups, drawing 3b: the note once two are hidden.
+    open: async (tab) => {
+      await noisyBuild(tab);
+      const row = tab.getByTestId("diagnostics").locator("div.group")
+        .filter({ hasText: "Suppressing link with empty target" }).first();
+      await row.getByText("Suppressing link with empty target").click();
+      await row.getByTestId("diagnostic-hide").click();
+      await tab.getByTestId("build-hidden").waitFor();
+      await tab.mouse.move(0, 0);
+      return tab.getByTestId("drawer");
+    },
+  },
+  "settings-hidden-warnings": {
+    // #lookups, drawing 3c: the list in This project.
+    open: async (tab) => {
+      if (ctx) {
+        await fetch(`${ctx.base}/api/projects/${ctx.id}/settings`, {
+          method: "POST",
+          headers: { "content-type": "application/json", "x-nexttex-token": ctx.token },
+          body: JSON.stringify({ hiddenWarnings: {
+            "chapter1-standalone.tex": ["Suppressing link with empty target"] } }),
+        });
+      }
+      await tab.getByTestId("appearance").click();
+      await tab.getByTestId("settings-group-project").click();
+      return tab.getByTestId("settings-hidden-warnings");
     },
     close: escape,
   },
