@@ -332,15 +332,29 @@ def unreachable(exc):
     return isinstance(exc, requests.HTTPError) and status is not None and status >= 500
 
 
+#: DOI prefixes registered with DataCite, which Crossref answers 404 for
+#: every time: arXiv's and Zenodo's.  Asking Crossref first cost a request
+#: per preprint, and when Crossref was refusing, the refusal came before
+#: the doi.org request that would have answered (the thesis, 19 November
+#: 2026).
+NOT_CROSSREF = ("10.48550/", "10.5281/")
+
+
+def not_crossref(doi):
+    """Whether a DOI is one Crossref never holds, so doi.org is asked first."""
+    return doi.strip().lower().startswith(NOT_CROSSREF)
+
+
 def crossref(doi):
     """The record behind a DOI: Crossref's, or, for a DOI Crossref does
     not hold (arXiv, Zenodo, a dataset), the CSL JSON doi.org negotiates
     from whichever agency does, folded into Crossref's shape."""
-    url = f"https://api.crossref.org/works/{quote(doi, safe='')}"
-    r = polite_get(url, headers={"User-Agent": UA}, timeout=TIMEOUT)
-    if r.status_code != 404:
-        r.raise_for_status()
-        return r.json()["message"]
+    if not not_crossref(doi):
+        url = f"https://api.crossref.org/works/{quote(doi, safe='')}"
+        r = polite_get(url, headers={"User-Agent": UA}, timeout=TIMEOUT)
+        if r.status_code != 404:
+            r.raise_for_status()
+            return r.json()["message"]
     r = polite_get(f"https://doi.org/{quote(doi, safe='/')}",
                  headers={"User-Agent": UA, "Accept": "application/vnd.citationstyles.csl+json"},
                  timeout=TIMEOUT, allow_redirects=True)

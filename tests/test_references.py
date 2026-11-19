@@ -194,12 +194,46 @@ def test_a_doi_crossref_does_not_hold_is_asked_of_doi_org(monkeypatch):
         })
 
     monkeypatch.setattr(fetch.requests, "get", fake_get)
-    result = references.entry_for("10.48550/arXiv.2401.00001", "")
+    # A dataset's DOI, at a DataCite prefix NextTex does not know.
+    result = references.entry_for("10.17632/abcd1234.1", "")
     assert result["added"] is True
     assert result["key"] == "Doe2024preprint"
     assert "A preprint" in result["entry"]
     hosts = [url.split("/")[2] for url, _ in asked]
     assert hosts == ["api.crossref.org", "doi.org", "api.crossref.org", "doi.org"]
+
+    # An arXiv DOI is never Crossref's, so Crossref is not asked
+    # (the thesis, 19 November 2026).
+    asked.clear()
+    assert references.entry_for("10.48550/arXiv.2401.00001", "")["added"] is True
+    assert [url.split("/")[2] for url, _ in asked] == ["doi.org", "doi.org"]
+
+
+def test_an_arxiv_doi_is_checked_at_doi_org_without_asking_crossref(monkeypatch):
+    checker = references._load("verify_bib")
+    asked: list[str] = []
+
+    class Answer:
+        status_code = 200
+
+        def raise_for_status(self):
+            pass
+
+        def json(self):
+            return {"title": "Attention Is All You Need",
+                    "author": [{"family": "Vaswani"}], "issued": {"date-parts": [[2017]]}}
+
+    class Session:
+        def get(self, url, **_):
+            asked.append(url)
+            return Answer()
+
+    monkeypatch.setattr(checker, "HTTP", Session())
+    status, messages = checker.check({"key": "v", "fields": {
+        "doi": "10.48550/arXiv.1706.03762", "title": "Attention is all you need",
+        "author": "Vaswani, Ashish and others", "year": "2017"}})
+    assert (status, messages) == ("ok", [])
+    assert [url.split("/")[2] for url in asked] == ["doi.org"]
 
 
 def test_a_doi_nobody_holds_is_refused(monkeypatch):
