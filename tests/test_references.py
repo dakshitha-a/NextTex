@@ -326,3 +326,131 @@ def test_a_title_with_latex_accents_matches_its_unicode_record():
     checker = references._load("verify_bib")
     assert checker.squash(r"Sch{\"o}dinger's {\'e}tude of Erd\H{o}s") == \
         checker.squash("Schödinger's étude of Erdős")
+
+
+class _Refused:
+    def __init__(self, status=429, retry_after="1"):
+        self.status_code = status
+        self.headers = {"Retry-After": retry_after}
+
+    def raise_for_status(self):
+        raise AssertionError("a refusal is never read as an answer")
+
+
+class _Record:
+    status_code = 200
+    headers: dict = {}
+
+    def __init__(self, title="A real paper", family="Cachón"):
+        self._message = {"title": [title], "author": [{"family": family}],
+                         "issued": {"date-parts": [[2020]]}}
+
+    def raise_for_status(self):
+        pass
+
+    def json(self):
+        return {"message": self._message}
+
+
+def test_a_refused_lookup_is_tried_again_after_the_wait_it_asked_for(monkeypatch):
+    checker = references._load("verify_bib")
+    answers = [_Refused(retry_after="2"), _Refused(retry_after="2"), _Record()]
+    slept: list[float] = []
+
+    class Session:
+        def get(self, url, **_):
+            return answers.pop(0)
+
+    monkeypatch.setattr(checker, "HTTP", Session())
+    monkeypatch.setattr(checker, "PACING", True)
+    monkeypatch.setattr(checker.time, "sleep", slept.append)
+    meta = checker.crossref("10.1/x")
+    assert meta["title"] == ["A real paper"]
+    assert [round(s) for s in slept if s >= 1] == [2, 2]
+
+
+def test_a_host_that_keeps_refusing_is_reported_as_refusing_not_as_a_bad_entry(monkeypatch):
+    checker = references._load("verify_bib")
+
+    class Session:
+        def get(self, url, **_):
+            return _Refused(retry_after="120")
+
+    monkeypatch.setattr(checker, "HTTP", Session())
+    status, messages = checker.check(
+        {"key": "a", "fields": {"doi": "10.1/x", "title": "A real paper"}})
+    assert status == "unchecked"
+    assert "rate limited" in messages[0] and "2 min" in messages[0]
+
+
+def test_a_rate_limited_check_stops_asking_and_says_when_to_try_again(tmp_path, monkeypatch):
+    """Crossref answered 429 to nearly all of the thesis's 258 entries and
+    the check reported "236 of 258 entries have problems", every one FAIL
+    (19 November 2026). A refusal is "not checked" now, the check stops
+    asking after five in a row, and it says when to try again."""
+    checker = references._load("verify_bib")
+    asked: list[str] = []
+
+    class Session:
+        def get(self, url, **_):
+            asked.append(url)
+            return _Refused(retry_after="90")
+
+    monkeypatch.setattr(checker, "HTTP", Session())
+    monkeypatch.setattr(references, "CHECKED_AT_ONCE", 1)
+    bib = tmp_path / "references.bib"
+    bib.write_text(
+        "".join(f"@article{{k{i:02d},\n  doi = {{10.1/{i}}},\n  title = {{T}},\n}}\n"
+                for i in range(40))
+        + "@misc{old,\n  title = {A thesis},\n  verified = {manual},\n}\n",
+        encoding="utf-8",
+    )
+    result = references.verify(bib)
+    assert result["problems"] == []
+    assert len(result["unchecked"]) == 40
+    assert result["by_hand"] == ["old"]
+    # The first refusal asked for 90 s, longer than is worth waiting, so
+    # nothing asked Crossref again, and five entries in a row unchecked
+    # stopped the rest from being tried at all.
+    assert len(asked) == 1, "a host still refusing is not asked again"
+    assert 85 <= result["retry_after"] <= 90
+    said = references.said(result)
+    assert "40 could not be checked" in said
+    assert "not failures" in said and "about 2 minutes" in said
+    assert said.startswith("40 could not be checked")
+    assert "problems" not in said
+
+
+def test_lookups_to_one_host_keep_its_pace(monkeypatch):
+    """Crossref's public pool takes one request at a time; four threads
+    asking at once had it refusing nearly everything."""
+    import threading
+    import time
+
+    checker = references._load("verify_bib")
+    monkeypatch.setattr(checker, "MAILTO", None)
+    monkeypatch.setattr(checker, "PACING", True)
+    monkeypatch.setitem(checker.PACE, "api.crossref.org", (0.05, 1, 3))
+    lock = threading.Lock()
+    running, most, starts = [0], [0], []
+
+    class Session:
+        def get(self, url, **_):
+            with lock:
+                running[0] += 1
+                most[0] = max(most[0], running[0])
+                starts.append(time.monotonic())
+            time.sleep(0.01)
+            with lock:
+                running[0] -= 1
+            return _Record()
+
+    monkeypatch.setattr(checker, "HTTP", Session())
+    threads = [threading.Thread(target=checker.crossref, args=(f"10.1/{i}",)) for i in range(6)]
+    for thread in threads:
+        thread.start()
+    for thread in threads:
+        thread.join()
+    assert most[0] == 1
+    gaps = [b - a for a, b in zip(sorted(starts), sorted(starts)[1:])]
+    assert min(gaps) >= 0.045

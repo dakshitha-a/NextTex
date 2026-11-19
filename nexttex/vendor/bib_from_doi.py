@@ -27,7 +27,7 @@ from urllib.parse import quote
 import requests
 
 sys.path.insert(0, str(Path(__file__).resolve().parent))
-from verify_bib import isbn_record, normalise_isbn, parse_bib  # noqa: E402  (same directory)
+from verify_bib import isbn_record, normalise_isbn, parse_bib, polite_get  # noqa: E402  (same directory)
 
 # Crossref and OpenAlex ask callers to identify themselves, and reward the
 # ones that do with a faster, less rate-limited pool.  This used to be the
@@ -72,13 +72,13 @@ def fetch_bibtex(doi):
     Crossref does not hold.
     """
     url = f"https://api.crossref.org/works/{quote(doi, safe='')}/transform/application/x-bibtex"
-    r = requests.get(url, headers={"User-Agent": UA, "Accept": "application/x-bibtex"},
+    r = polite_get(get=requests.get, url=url, headers={"User-Agent": UA, "Accept": "application/x-bibtex"},
                      timeout=TIMEOUT)
     if r.status_code != 404:
         r.raise_for_status()
         r.encoding = "utf-8"
         return r.text.strip()
-    r = requests.get(f"https://doi.org/{quote(doi, safe='/')}",
+    r = polite_get(get=requests.get, url=f"https://doi.org/{quote(doi, safe='/')}",
                      headers={"User-Agent": UA, "Accept": "application/x-bibtex"},
                      timeout=TIMEOUT, allow_redirects=True)
     if r.status_code == 404:
@@ -97,11 +97,11 @@ def fetch_metadata(doi):
     answers, so the key is made from the BibTeX fields instead.
     """
     url = f"https://api.crossref.org/works/{quote(doi, safe='')}"
-    r = requests.get(url, headers={"User-Agent": UA}, timeout=TIMEOUT)
+    r = polite_get(get=requests.get, url=url, headers={"User-Agent": UA}, timeout=TIMEOUT)
     if r.status_code != 404:
         r.raise_for_status()
         return r.json()["message"]
-    r = requests.get(f"https://doi.org/{quote(doi, safe='/')}",
+    r = polite_get(get=requests.get, url=f"https://doi.org/{quote(doi, safe='/')}",
                      headers={"User-Agent": UA, "Accept": "application/vnd.citationstyles.csl+json"},
                      timeout=TIMEOUT, allow_redirects=True)
     if r.status_code == 404:

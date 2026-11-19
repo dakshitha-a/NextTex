@@ -21,6 +21,8 @@ carries an identifier is checked against it whatever it says.
 Report symbols:
     ok       record matches
     hand     no identifier, marked verified = {manual}
+    ----     not checked: the lookup got no answer (rate limited,
+             timed out, a server error); run again later
     WARN     record found, a field differs (often just formatting)
     FAIL     no DOI/ISBN/arXiv ID, the identifier does not resolve,
              or the record is a different work
@@ -186,16 +188,160 @@ def first_surname(author_field):
 HTTP = requests.Session()
 
 
+# Every request goes through `polite_get`, which keeps to what each service
+# asks of its clients.  Four lookups at once with no pacing and no contact
+# address had Crossref answering 429 to nearly every one of 258 entries,
+# and the check read each refusal as a reference that failed (the thesis,
+# 19 November 2026).  A host not listed here gets the last line.
+#
+#: host: (seconds between requests, at once without a contact address,
+#: at once with one).  Crossref's public pool allows one request at a
+#: time and its polite pool three; arXiv asks for three seconds between
+#: requests; Semantic Scholar, without a key, about one a second.
+PACE = {
+    "api.crossref.org": (0.2, 1, 3),
+    "doi.org": (0.2, 2, 2),
+    "api.openalex.org": (0.1, 2, 4),
+    "api.semanticscholar.org": (1.0, 1, 1),
+    "export.arxiv.org": (3.0, 1, 1),
+    "openlibrary.org": (0.3, 1, 1),
+    "www.googleapis.com": (0.2, 2, 2),
+    "": (0.2, 2, 2),
+}
+#: Tries after a 429 or a 503 before the host counts as refusing.
+RETRIES = 3
+#: The longest a refused request waits to try again.  A host asking for
+#: longer is reported as refusing, with the wait it asked for.
+LONGEST_WAIT = 30.0
+#: Off only in the test suite, which would otherwise sleep through arXiv's
+#: three seconds wherever a stub stands in for it.
+PACING = True
+
+
+class RateLimited(Exception):
+    """A host refused with 429 or 503 every time it was asked."""
+
+    def __init__(self, host, retry_after):
+        self.host, self.retry_after = host, retry_after
+        super().__init__(f"{host} is refusing requests for now (rate limited); "
+                         f"try again in about {max(1, round(retry_after / 60))} min")
+
+
+class _Gate:
+    """One host's turn-taking: how many at once, and how far apart."""
+
+    def __init__(self, interval, at_once):
+        import threading
+        self.interval = interval
+        self.slots = threading.BoundedSemaphore(at_once)
+        self.lock = threading.Lock()
+        self.next_at = 0.0
+
+    def wait_turn(self):
+        with self.lock:
+            now = time.monotonic()
+            at = max(now, self.next_at)
+            self.next_at = at + self.interval
+        if PACING and at > now:
+            time.sleep(at - now)
+
+    def hold(self, seconds):
+        """Nobody asks this host again for `seconds`."""
+        with self.lock:
+            self.next_at = max(self.next_at, time.monotonic() + seconds)
+
+    def held_for(self):
+        with self.lock:
+            return max(0.0, self.next_at - time.monotonic())
+
+
+_GATES = {}
+
+
+def _gate(host):
+    """The gate for a host, at the concurrency the contact address earns.
+    Read at each request, since NextTex sets the address after loading."""
+    interval, plain, polite = PACE.get(host, PACE[""])
+    at_once = polite if MAILTO else plain
+    key = (host, at_once)
+    if key not in _GATES:
+        _GATES[key] = _Gate(interval, at_once)
+    return _GATES[key]
+
+
+def _retry_after(response, attempt):
+    """Seconds the host asked for, or a doubling guess when it did not say."""
+    raw = (getattr(response, "headers", None) or {}).get("Retry-After", "")
+    try:
+        return max(0.0, float(raw))
+    except (TypeError, ValueError):
+        pass
+    try:
+        from email.utils import parsedate_to_datetime
+        from datetime import datetime, timezone
+        when = parsedate_to_datetime(raw)
+        return max(0.0, (when - datetime.now(timezone.utc)).total_seconds())
+    except (TypeError, ValueError, IndexError):
+        return 2.0 * (2 ** attempt)
+
+
+def polite_get(url, get=None, **kwargs):
+    """`get(url, **kwargs)` at the host's pace, retried on 429 and 503.
+
+    `get` defaults to the shared session's; the other scripts pass their
+    own `requests.get`.  Raises `RateLimited` when the host still refuses
+    after `RETRIES` tries, or asks for a wait longer than `LONGEST_WAIT`.
+    """
+    from urllib.parse import urlsplit
+    host = (urlsplit(url).hostname or "").lower()
+    gate = _gate(host)
+    kwargs.setdefault("timeout", TIMEOUT)
+    for attempt in range(RETRIES + 1):
+        # A host still inside a long refusal is not asked again: waiting it
+        # out would hold each entry for minutes, and asking anyway would
+        # only lengthen the refusal.
+        held = gate.held_for()
+        if held > LONGEST_WAIT:
+            raise RateLimited(host, held)
+        with gate.slots:
+            gate.wait_turn()
+            r = (get or HTTP.get)(url, **kwargs)
+        if getattr(r, "status_code", 200) not in (429, 503):
+            return r
+        # The hold is the wait: the next turn, this request's or another
+        # thread's, starts once it is over.
+        wait = _retry_after(r, attempt)
+        gate.hold(wait)
+        if attempt == RETRIES or wait > LONGEST_WAIT:
+            raise RateLimited(host, wait)
+    raise RateLimited(host, 0.0)  # not reached
+
+
+def refusing_for():
+    """Seconds until every host that refused is willing again, or 0."""
+    return max((gate.held_for() for gate in list(_GATES.values())), default=0.0)
+
+
+def unreachable(exc):
+    """Whether a lookup failed for want of an answer rather than with one:
+    refused, timed out, not connected, or a server error.  Such an entry is
+    not checked, which is a different thing from failing the check."""
+    if isinstance(exc, (RateLimited, requests.Timeout, requests.ConnectionError)):
+        return True
+    status = getattr(getattr(exc, "response", None), "status_code", None)
+    return isinstance(exc, requests.HTTPError) and status is not None and status >= 500
+
+
 def crossref(doi):
     """The record behind a DOI: Crossref's, or, for a DOI Crossref does
     not hold (arXiv, Zenodo, a dataset), the CSL JSON doi.org negotiates
     from whichever agency does, folded into Crossref's shape."""
     url = f"https://api.crossref.org/works/{quote(doi, safe='')}"
-    r = HTTP.get(url, headers={"User-Agent": UA}, timeout=TIMEOUT)
+    r = polite_get(url, headers={"User-Agent": UA}, timeout=TIMEOUT)
     if r.status_code != 404:
         r.raise_for_status()
         return r.json()["message"]
-    r = HTTP.get(f"https://doi.org/{quote(doi, safe='/')}",
+    r = polite_get(f"https://doi.org/{quote(doi, safe='/')}",
                  headers={"User-Agent": UA, "Accept": "application/vnd.citationstyles.csl+json"},
                  timeout=TIMEOUT, allow_redirects=True)
     if r.status_code == 404:
@@ -210,7 +356,7 @@ def crossref(doi):
 
 def arxiv(arxiv_id):
     url = f"https://export.arxiv.org/api/query?id_list={quote(arxiv_id, safe='')}"
-    r = HTTP.get(url, headers={"User-Agent": UA}, timeout=TIMEOUT)
+    r = polite_get(url, headers={"User-Agent": UA}, timeout=TIMEOUT)
     r.raise_for_status()
     m = re.search(r"<entry>.*?<title>(.*?)</title>", r.text, re.DOTALL)
     if not m:
@@ -245,7 +391,7 @@ def isbn_record(isbn):
     for Szabo and Ostlund, 9780486691862) and lower-case titles, so an
     entry built from one is for the writer to check against the title page.
     """
-    r = HTTP.get("https://openlibrary.org/api/books",
+    r = polite_get("https://openlibrary.org/api/books",
                  params={"bibkeys": f"ISBN:{isbn}", "format": "json", "jscmd": "data"},
                  headers={"User-Agent": UA}, timeout=TIMEOUT)
     r.raise_for_status()
@@ -260,7 +406,7 @@ def isbn_record(isbn):
                 "publisher": ", ".join(p.get("name", "") for p in rec.get("publishers", [])),
                 "place": ", ".join(p.get("name", "") for p in rec.get("publish_places", [])),
                 "source": "Open Library"}
-    r = HTTP.get("https://www.googleapis.com/books/v1/volumes",
+    r = polite_get("https://www.googleapis.com/books/v1/volumes",
                  params={"q": f"isbn:{isbn}"}, headers={"User-Agent": UA}, timeout=TIMEOUT)
     r.raise_for_status()
     items = r.json().get("items") or []
@@ -283,7 +429,7 @@ def isbn_for(title, author=""):
     params = {"title": title, "limit": 1, "fields": "isbn,title"}
     if author:
         params["author"] = author
-    r = HTTP.get("https://openlibrary.org/search.json", params=params,
+    r = polite_get("https://openlibrary.org/search.json", params=params,
                  headers={"User-Agent": UA}, timeout=TIMEOUT)
     r.raise_for_status()
     docs = r.json().get("docs") or []
@@ -323,6 +469,8 @@ def check(entry):
         try:
             meta = crossref(doi)
         except Exception as exc:
+            if unreachable(exc):
+                return "unchecked", [f"not checked, the DOI lookup got no answer: {exc}"]
             return "FAIL", [f"Crossref lookup failed: {exc}"]
         if meta is None:
             return "FAIL", [f"DOI does not resolve at Crossref or doi.org: {doi}"]
@@ -331,6 +479,8 @@ def check(entry):
         try:
             meta = arxiv(eprint)
         except Exception as exc:
+            if unreachable(exc):
+                return "unchecked", [f"not checked, arXiv gave no answer: {exc}"]
             return "FAIL", [f"arXiv lookup failed: {exc}"]
         if meta is None:
             return "FAIL", [f"arXiv ID not found: {eprint}"]
@@ -342,6 +492,8 @@ def check(entry):
         try:
             meta = isbn_record(isbn)
         except Exception as exc:
+            if unreachable(exc):
+                return "unchecked", [f"not checked, the catalogue gave no answer: {exc}"]
             return "FAIL", [f"ISBN lookup failed: {exc}"]
         if meta is None:
             return "FAIL", [f"ISBN not found in Open Library or Google Books: {isbn}"]
@@ -438,15 +590,16 @@ def main():
             dupes.add(e["key"])
         seen.add(e["key"])
 
-    counts = {"ok": 0, "hand": 0, "WARN": 0, "FAIL": 0}
+    # `polite_get` paces the requests, so there is no sleep here.
+    counts = {"ok": 0, "hand": 0, "WARN": 0, "FAIL": 0, "unchecked": 0}
     for e in entries:
         status, msgs = check(e)
         counts[status] += 1
-        marker = {"ok": "ok  ", "hand": "hand", "WARN": "WARN", "FAIL": "FAIL"}[status]
+        marker = {"ok": "ok  ", "hand": "hand", "WARN": "WARN", "FAIL": "FAIL",
+                  "unchecked": "----"}[status]
         print(f"{marker}  {e['key']}")
         for m in msgs:
             print(f"        {m}")
-        time.sleep(0.2)
 
     if dupes:
         print(f"\nFAIL  duplicate citation keys: {', '.join(sorted(dupes))}")
@@ -455,9 +608,13 @@ def main():
     total = len(entries)
     print(f"\n{total} entr{'y' if total == 1 else 'ies'}: "
           f"{counts['ok']} ok, {counts['hand']} checked by hand, "
-          f"{counts['WARN']} warning, {counts['FAIL']} failed")
+          f"{counts['WARN']} warning, {counts['FAIL']} failed, "
+          f"{counts['unchecked']} not checked")
 
-    if counts["FAIL"] or (args.strict and counts["WARN"]):
+    if counts["unchecked"]:
+        print(f"\n{counts['unchecked']} could not be looked up (no answer, or rate "
+              "limited). They are not failures; run the check again later.")
+    if counts["FAIL"] or counts["unchecked"] or (args.strict and counts["WARN"]):
         print("\nreferences.bib is NOT clean -- fix the entries above before citing them.")
         return 1
     print("\nreferences.bib verified against publisher records.")

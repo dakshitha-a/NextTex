@@ -85,3 +85,19 @@ def _a_fresh_machine_build_limit():
     MACHINE_BUILDS._active = 0
     MACHINE_BUILDS._waiting = []
     yield
+
+
+@pytest.fixture(autouse=True)
+def _reference_lookups_unpaced():
+    """The reference scripts keep each service's pace, three seconds apart
+    for arXiv, and remember a host that refused. Every lookup in the suite
+    is a stub, so each test starts with no pace and nothing refused; the
+    tests of the pacing itself switch it back on."""
+    from nexttex.references import _load
+
+    checker = _load("verify_bib")
+    checker.PACING = False
+    checker._GATES.clear()
+    yield
+    checker.PACING = True
+    checker._GATES.clear()

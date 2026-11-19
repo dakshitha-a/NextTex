@@ -32,6 +32,13 @@ from urllib.parse import quote, urlencode
 
 import requests
 
+from pathlib import Path
+sys.path.insert(0, str(Path(__file__).resolve().parent))
+# Each host's pace and its 429s are the checker's to keep, one set of
+# gates for every script, so a search and a check never both hammer
+# Crossref at once.
+from verify_bib import RateLimited, polite_get  # noqa: E402,F401  (same directory)
+
 # Crossref and OpenAlex ask callers to identify themselves, and reward the
 # ones that do with a faster, less rate-limited pool.  This used to be the
 # author's own email address, which was fine while this was one person's
@@ -105,7 +112,7 @@ def search_crossref(query, author, years, rows):
     if filters:
         params["filter"] = ",".join(filters)
 
-    r = requests.get("https://api.crossref.org/works?" + urlencode(params),
+    r = polite_get(get=requests.get, url="https://api.crossref.org/works?" + urlencode(params),
                      headers={"User-Agent": UA}, timeout=TIMEOUT)
     r.raise_for_status()
     out = []
@@ -142,7 +149,7 @@ def search_openalex(query, author, years, rows):
         params["filter"] = ",".join(filters)
     params["mailto"] = MAILTO
 
-    r = requests.get("https://api.openalex.org/works?" + urlencode(params),
+    r = polite_get(get=requests.get, url="https://api.openalex.org/works?" + urlencode(params),
                      headers={"User-Agent": UA}, timeout=TIMEOUT)
     r.raise_for_status()
     out = []
@@ -171,7 +178,7 @@ def search_semanticscholar(query, author, years, rows):
     lo, hi = years
     if lo or hi:
         params["year"] = f"{lo or ''}-{hi or ''}"
-    r = requests.get("https://api.semanticscholar.org/graph/v1/paper/search?"
+    r = polite_get(get=requests.get, url="https://api.semanticscholar.org/graph/v1/paper/search?"
                      + urlencode(params), headers={"User-Agent": UA}, timeout=TIMEOUT)
     r.raise_for_status()
     out = []
@@ -195,7 +202,7 @@ def search_semanticscholar(query, author, years, rows):
 
 def cited_by(doi, rows):
     """Papers that cite a given DOI -- how a literature review grows."""
-    r = requests.get(
+    r = polite_get(get=requests.get, url=
         f"https://api.semanticscholar.org/graph/v1/paper/DOI:{quote(doi, safe='')}/citations?"
         + urlencode({"limit": rows,
                      "fields": "title,year,authors,venue,externalIds,citationCount"}),

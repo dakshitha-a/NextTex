@@ -28,11 +28,13 @@ things go to be forgotten rather than a list anybody reads.
 the agent's tools after a day of use. Done: the agent's `compile` builds
 the whole document rather than the writer's chapter; a chapter build no
 longer lists the main file's warnings twice; accented names written in
-LaTeX match their records. Left: reference checks rate-limited by
-Crossref and reported as FAIL; no record cache; arXiv DOIs costing a
-Crossref request; `find_papers` sending `mailto=None` and not falling
-back; a contact address setting; the drawer's "not checked" line; hiding
-a known warning per document.
+LaTeX match their records; reference lookups keep each service's pace,
+retry a refusal, and report a lookup that got no answer as not checked
+rather than FAIL. Left: no record cache; arXiv DOIs costing a Crossref
+request; `find_papers` sending `mailto=None` and not falling back; a
+contact address setting; the drawer's "not checked" line, without which
+the drawer reads an all-unchecked check as all matching; hiding a known
+warning per document.
 
 **Watching the live install, from 18 October 2026.** The writer asked for
 a continuous record of errors, failures, crashes and slow spots on the

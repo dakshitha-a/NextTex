@@ -20,6 +20,7 @@ import importlib.util
 import io
 import re
 import sys
+import threading
 from concurrent.futures import ThreadPoolExecutor
 from contextlib import redirect_stdout
 from pathlib import Path
@@ -277,9 +278,15 @@ def add(doi: str, bib_path: Path) -> dict:
     return result
 
 
-#: Entries looked up at once. Few enough to stay polite to Crossref and
-#: arXiv, which ask clients not to hammer them.
+#: Entries looked up at once. Each host's own limit is kept by
+#: `polite_get` in the vendored checker, so four at once means a Crossref
+#: entry, a book and a preprint can be asked about together, not that
+#: Crossref is asked four times at once.
 CHECKED_AT_ONCE = 4
+#: Lookups in a row that got no answer before the rest are not asked:
+#: a service refusing the fifth will refuse the two hundredth, and asking
+#: anyway only lengthens the wait it asks for.
+GIVE_UP_AFTER = 5
 
 
 def verify(bib_path: Path) -> dict:
@@ -289,18 +296,41 @@ def verify(bib_path: Path) -> dict:
         return {"checked": 0, "problems": [], "report": "no bibliography file"}
     entries = checker.parse_bib(bib_path.read_text(encoding="utf-8"))
     problems: list[dict] = []
+    unchecked: list[str] = []
     buffer = io.StringIO()
+    in_a_row = [0]
+    lock = threading.Lock()
+    given_up = threading.Event()
+
+    def one(entry: dict) -> tuple[str, list[str]]:
+        fields = entry.get("fields") or {}
+        looks_up = any(fields.get(name, "").strip() for name in ("doi", "isbn", "eprint"))
+        if looks_up and given_up.is_set():
+            return "unchecked", ["not asked: the services stopped answering"]
+        status, messages = checker.check(entry)
+        if looks_up:
+            with lock:
+                in_a_row[0] = in_a_row[0] + 1 if status == "unchecked" else 0
+                if in_a_row[0] >= GIVE_UP_AFTER:
+                    given_up.set()
+        return status, messages
+
     with redirect_stdout(buffer), ThreadPoolExecutor(max_workers=CHECKED_AT_ONCE) as pool:
         # Four at a time, each a request or two to the publisher's record,
         # where one at a time a hundred entries waited on a hundred round
         # trips in a row. `map` keeps the entries' order.
-        verdicts = pool.map(checker.check, entries)
+        verdicts = pool.map(one, entries)
         by_hand: list[str] = []
         for entry, (status, messages) in zip(entries, verdicts):
             # Checked by hand is neither a problem nor a lookup that passed,
             # and the report keeps it apart from both.
             if status == "hand":
                 by_hand.append(entry.get("key", "?"))
+                continue
+            # Nor is a lookup that got no answer: a rate limit is not 236
+            # bad references, which is how it read until 19 November 2026.
+            if status == "unchecked":
+                unchecked.append(entry.get("key", "?"))
                 continue
             # `check` answers a status and its messages, and the status is
             # the verdict: a manually verified entry comes back "ok" with a
@@ -325,6 +355,10 @@ def verify(bib_path: Path) -> dict:
         "checked": len(entries),
         "problems": problems,
         "by_hand": by_hand,
+        "unchecked": unchecked,
+        # Seconds until the services that refused will answer again, so
+        # the writer is told when to try rather than just "later".
+        "retry_after": round(checker.refusing_for()) if unchecked else 0,
         "report": buffer.getvalue()[-4000:],
     }
 
@@ -334,7 +368,21 @@ def said(result: dict) -> str:
     by_hand = result.get("by_hand") or []
     hand = (f" {len(by_hand)} have nothing to look up and were checked by hand "
             f"({', '.join(by_hand)})." if by_hand else "")
+    unchecked = result.get("unchecked") or []
+    waiting = ""
+    if unchecked:
+        minutes = max(1, -(-int(result.get("retry_after") or 0) // 60))
+        shown = ", ".join(unchecked[:10]) + (", ..." if len(unchecked) > 10 else "")
+        waiting = (f" {len(unchecked)} could not be checked, because the services "
+                   f"that hold their records did not answer or are rate-limiting "
+                   f"({shown}). These are not failures: run the check again in "
+                   f"about {minutes} minute{'s' if minutes != 1 else ''}.")
+    looked = result["checked"] - len(unchecked) - len(by_hand)
     if not result["problems"]:
+        if unchecked:
+            passed = (f"The {looked} entries that could be looked up match their "
+                      "records." if looked else "")
+            return (passed + waiting + hand).strip()
         return (f"All {result['checked']} entries check out against their "
                 f"published records.{hand}")
     lines = [f"{len(result['problems'])} of {result['checked']} entries have problems:{hand}"]
@@ -348,6 +396,8 @@ def said(result: dict) -> str:
             line += (" If the writer has checked the source itself, they can mark "
                      "it checked by hand; do not write verified = {manual} yourself.")
         lines.append(line)
+    if waiting:
+        lines.append(waiting.strip())
     return "\n".join(lines)
 
 
