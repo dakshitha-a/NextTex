@@ -454,3 +454,54 @@ def test_lookups_to_one_host_keep_its_pace(monkeypatch):
     assert most[0] == 1
     gaps = [b - a for a, b in zip(sorted(starts), sorted(starts)[1:])]
     assert min(gaps) >= 0.045
+
+
+def test_a_recheck_asks_only_for_what_it_has_not_seen_and_still_compares(tmp_path, monkeypatch):
+    """A re-run of the check asked Crossref for every entry again. The
+    records it found are kept by identifier now, never the verdicts: an
+    entry whose title changed since is compared with the kept record and
+    fails, without a request."""
+    checker = references._load("verify_bib")
+    asked: list[str] = []
+
+    class Session:
+        def get(self, url, **_):
+            asked.append(url)
+            return _Record(title="A real paper", family="Cachón")
+
+    monkeypatch.setattr(checker, "HTTP", Session())
+    monkeypatch.setattr(references, "CACHE_RECORDS", True)
+    monkeypatch.setattr(references, "RECORDS_FILE", tmp_path / "records.json")
+    bib = tmp_path / "references.bib"
+    entry = "@article{{a,\n  doi = {{10.1/A}},\n  title = {{{title}}},\n  author = {{Cach{{\\'o}}n, A.}},\n}}\n"
+    bib.write_text(entry.format(title="A real paper"), encoding="utf-8")
+
+    assert references.verify(bib)["problems"] == []
+    assert len(asked) == 1
+    kept = (tmp_path / "records.json").read_text(encoding="utf-8")
+    assert "doi:10.1/a" in kept and "reference" not in kept
+
+    references._CACHES.clear()      # as a restart would
+    assert references.verify(bib)["problems"] == []
+    assert len(asked) == 1, "the kept record answered"
+
+    bib.write_text(entry.format(title="Something else entirely"), encoding="utf-8")
+    problems = references.verify(bib)["problems"]
+    assert [p["key"] for p in problems] == ["a"] and "title mismatch" in problems[0]["issues"][0]
+    assert len(asked) == 1
+
+
+def test_a_lookup_that_got_no_answer_is_not_kept(tmp_path, monkeypatch):
+    checker = references._load("verify_bib")
+
+    class Session:
+        def get(self, url, **_):
+            return _Refused(503, "1")
+
+    monkeypatch.setattr(checker, "HTTP", Session())
+    monkeypatch.setattr(references, "CACHE_RECORDS", True)
+    monkeypatch.setattr(references, "RECORDS_FILE", tmp_path / "records.json")
+    bib = tmp_path / "references.bib"
+    bib.write_text("@article{a,\n  doi = {10.1/A},\n  title = {T},\n}\n", encoding="utf-8")
+    assert references.verify(bib)["unchecked"] == ["a"]
+    assert not (tmp_path / "records.json").exists()

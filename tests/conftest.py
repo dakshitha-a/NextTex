@@ -90,14 +90,20 @@ def _a_fresh_machine_build_limit():
 @pytest.fixture(autouse=True)
 def _reference_lookups_unpaced():
     """The reference scripts keep each service's pace, three seconds apart
-    for arXiv, and remember a host that refused. Every lookup in the suite
-    is a stub, so each test starts with no pace and nothing refused; the
-    tests of the pacing itself switch it back on."""
-    from nexttex.references import _load
+    for arXiv, remember a host that refused, and keep the records they
+    fetch in the state directory. Every lookup in the suite is a stub, so
+    each test starts with no pace, nothing refused and no records kept;
+    the tests of those switch them back on."""
+    from nexttex import references
 
-    checker = _load("verify_bib")
+    checker = references._load("verify_bib")
     checker.PACING = False
     checker._GATES.clear()
+    references.CACHE_RECORDS = False
     yield
     checker.PACING = True
     checker._GATES.clear()
+    checker.RECORDS = None
+    references.CACHE_RECORDS = True
+    references.RECORDS_FILE = None
+    references._CACHES.clear()

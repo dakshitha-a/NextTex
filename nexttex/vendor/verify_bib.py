@@ -440,6 +440,27 @@ def isbn_for(title, author=""):
     return None
 
 
+#: Somewhere to keep records already fetched, with `get(kind, id)` and
+#: `put(kind, id, record)`, or None.  NextTex gives it one; the script on
+#: its own has none.  Only a record that was found is kept, never a
+#: verdict: the comparison below runs every time, so an entry edited since
+#: is checked against the record anew.
+RECORDS = None
+
+
+def looked_up(kind, ident, fetch):
+    """`fetch(ident)`, or the record `RECORDS` already holds for it."""
+    store = RECORDS
+    if store is not None:
+        kept = store.get(kind, ident)
+        if kept is not None:
+            return kept
+    meta = fetch(ident)
+    if meta is not None and store is not None:
+        store.put(kind, ident, meta)
+    return meta
+
+
 def record_year(meta):
     for field in ("published-print", "published-online", "issued", "created"):
         parts = (meta.get(field) or {}).get("date-parts") or []
@@ -467,7 +488,7 @@ def check(entry):
 
     if doi:
         try:
-            meta = crossref(doi)
+            meta = looked_up("doi", doi, crossref)
         except Exception as exc:
             if unreachable(exc):
                 return "unchecked", [f"not checked, the DOI lookup got no answer: {exc}"]
@@ -477,7 +498,7 @@ def check(entry):
         source = f"doi:{doi}"
     elif eprint and "arxiv" in archive:
         try:
-            meta = arxiv(eprint)
+            meta = looked_up("arxiv", eprint, arxiv)
         except Exception as exc:
             if unreachable(exc):
                 return "unchecked", [f"not checked, arXiv gave no answer: {exc}"]
@@ -490,7 +511,7 @@ def check(entry):
         if not isbn:
             return "FAIL", [f"malformed ISBN: {isbn_raw}"]
         try:
-            meta = isbn_record(isbn)
+            meta = looked_up("isbn", isbn, isbn_record)
         except Exception as exc:
             if unreachable(exc):
                 return "unchecked", [f"not checked, the catalogue gave no answer: {exc}"]

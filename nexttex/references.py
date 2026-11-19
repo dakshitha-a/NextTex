@@ -18,9 +18,11 @@ from __future__ import annotations
 
 import importlib.util
 import io
+import json
 import re
 import sys
 import threading
+import time
 from concurrent.futures import ThreadPoolExecutor
 from contextlib import redirect_stdout
 from pathlib import Path
@@ -288,6 +290,95 @@ CHECKED_AT_ONCE = 4
 #: anyway only lengthens the wait it asks for.
 GIVE_UP_AFTER = 5
 
+#: How long a record fetched for a check is used before it is fetched
+#: again. A publisher's record barely changes; a re-check of a bibliography
+#: that has not changed should not cost 258 requests.
+RECORD_DAYS = 30
+#: Off in the test suite, which would otherwise keep records in the
+#: developer's own state directory.
+CACHE_RECORDS = True
+#: Where the records are kept, when not in the state directory: the tests.
+RECORDS_FILE: Path | None = None
+#: The fields `check` reads from a record. A Crossref record carries its
+#: whole reference list too, often more than all of these together.
+_RECORD_FIELDS = ("title", "subtitle", "author", "issued", "published-print",
+                  "published-online", "created", "container-title", "publisher",
+                  "source")
+
+
+class RecordCache:
+    """Records fetched for a check, by identifier, install-wide.
+
+    A record, never a verdict: `check` compares the entry against it every
+    time, so an entry edited since is judged afresh. Only a record that was
+    found is kept; a lookup that failed or got no answer is asked again.
+    """
+
+    def __init__(self, path: Path) -> None:
+        self.path = path
+        self.lock = threading.Lock()
+        self.records: dict | None = None
+        self.changed = False
+
+    def _all(self) -> dict:
+        if self.records is None:
+            try:
+                loaded = json.loads(self.path.read_text(encoding="utf-8"))
+            except (OSError, ValueError):
+                loaded = {}
+            self.records = loaded if isinstance(loaded, dict) else {}
+        return self.records
+
+    @staticmethod
+    def _key(kind: str, ident: str) -> str:
+        return f"{kind}:{ident.strip().lower()}"
+
+    def get(self, kind: str, ident: str) -> dict | None:
+        with self.lock:
+            kept = self._all().get(self._key(kind, ident))
+        if not isinstance(kept, dict) or not isinstance(kept.get("record"), dict):
+            return None
+        if time.time() - float(kept.get("at") or 0) > RECORD_DAYS * 86400:
+            return None
+        return kept["record"]
+
+    def put(self, kind: str, ident: str, record: dict) -> None:
+        slim = {name: record[name] for name in _RECORD_FIELDS if name in record}
+        if isinstance(slim.get("author"), list):
+            slim["author"] = [{"family": a.get("family", "")} for a in slim["author"][:1]
+                              if isinstance(a, dict)]
+        with self.lock:
+            self._all()[self._key(kind, ident)] = {"at": time.time(), "record": slim}
+            self.changed = True
+
+    def save(self) -> None:
+        with self.lock:
+            if not self.changed or self.records is None:
+                return
+            fresh = time.time() - RECORD_DAYS * 86400
+            self.records = {key: kept for key, kept in self.records.items()
+                            if isinstance(kept, dict) and float(kept.get("at") or 0) > fresh}
+            try:
+                self.path.parent.mkdir(parents=True, exist_ok=True)
+                write_atomically(self.path, json.dumps(self.records))
+                self.changed = False
+            except OSError:
+                pass
+
+
+_CACHES: dict[Path, RecordCache] = {}
+
+
+def _record_cache() -> RecordCache | None:
+    if not CACHE_RECORDS:
+        return None
+    from .paths import state_home
+
+    path = RECORDS_FILE or state_home() / "reference-records.json"
+    if path not in _CACHES:
+        _CACHES[path] = RecordCache(path)
+    return _CACHES[path]
+
 
 def verify(bib_path: Path) -> dict:
     """Re-check every entry against the record it claims to come from."""
@@ -295,6 +386,8 @@ def verify(bib_path: Path) -> dict:
     if not bib_path.exists():
         return {"checked": 0, "problems": [], "report": "no bibliography file"}
     entries = checker.parse_bib(bib_path.read_text(encoding="utf-8"))
+    records = _record_cache()
+    checker.RECORDS = records
     problems: list[dict] = []
     unchecked: list[str] = []
     buffer = io.StringIO()
@@ -351,6 +444,8 @@ def verify(bib_path: Path) -> dict:
                 if unidentified and entry.get("type", "").lower() == "book":
                     problem["isbn"] = _suggested_isbn(checker, fields)
                 problems.append(problem)
+    if records is not None:
+        records.save()
     return {
         "checked": len(entries),
         "problems": problems,
