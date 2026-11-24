@@ -114,6 +114,12 @@ log = logging.getLogger("nexttex.collab")
 # only has to coalesce a burst of keystrokes into one write, so it can be
 # shorter without costing anything.
 PROJECT_DEBOUNCE = 0.12
+#: The longest a file that could not be written waits for its next try.
+#: Each failure in a row doubles the wait from `PROJECT_DEBOUNCE`, so a
+#: chapter OneDrive holds for a moment is written a moment later, and one
+#: a program keeps open costs a try every few seconds rather than eight a
+#: second, each a failed rename, for as long as it stays open.
+RETRY_MOST = 5.0
 
 # A text file bigger than this is carried as a blob rather than as a shared
 # document.  A CRDT costs per character, and a generated `.bbl` or a pasted
@@ -521,6 +527,7 @@ class CollabStore:
         # the document, and it is noticed from inside a transaction.
         self._grown: set[str] = set()
         self._timer: asyncio.TimerHandle | None = None
+        self._failures = 0
         self._closed = False
         # Told whenever a document moves, with the update that moved it.
         # A list rather than one slot: the browsers watching this project and
@@ -2021,7 +2028,8 @@ class CollabStore:
             loop = asyncio.get_running_loop()
         except RuntimeError:
             return
-        self._timer = loop.call_later(PROJECT_DEBOUNCE, self._fire)
+        wait = min(PROJECT_DEBOUNCE * 2 ** self._failures, RETRY_MOST)
+        self._timer = loop.call_later(wait, self._fire)
 
     def _fire(self) -> None:
         self._timer = None
@@ -2571,15 +2579,18 @@ class CollabStore:
             except Exception:
                 # A read-only directory, a disk that filled up, a path that
                 # is not a file, or a file OneDrive or a virus scanner held
-                # open past `write_atomically`'s own retries, which Windows
-                # reports as "Access is denied". The document is still
-                # correct and still shared; only this peer's copy of the
-                # file is behind, and it is put back in the queue so the
-                # next write tries again.
+                # open, which Windows reports as "Access is denied". The
+                # document is still correct and still shared; only this
+                # peer's copy of the file is behind, and it is put back in
+                # the queue so a later write tries again, backing off to
+                # `RETRY_MOST`.
                 failed.add(file_id)
         if failed:
+            self._failures += 1
             self._dirty |= failed
             self._schedule()
+        else:
+            self._failures = 0
         self._save_projected()
         self._save_blob_shas()
         self._compact()
