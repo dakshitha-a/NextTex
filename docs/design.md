@@ -4719,7 +4719,14 @@ and comments, the file card and the access card are made with `optional`
 in `Boundary.tsx` rather than `lazy`: inside a `Quiet` boundary that records
 the error, draws nothing, and tries a fresh import once the connection has
 been down and is live again, since `lazy` keeps a failed import's rejection
-for good.
+for good. It also tries on a clock, after five seconds and then doubling to
+five minutes, because a laptop that wakes from standby for a few seconds
+fails the fetch without the connection ever going down; that left the chip
+missing until a reload three times from 20 to 24 November 2026. And a
+browser keeps a failed module import too, rejecting the same URL again
+without a request, so `freshAfterFailure` in `boundary-cause.ts` makes each
+retry import the URL the failure named with a `?retry=N` query of its own.
+Until then no retry had ever fetched anything.
 
 Once the tab stays, what it says has to be true as well. The failure screen
 explained every failure as an update that had happened while the tab was open,

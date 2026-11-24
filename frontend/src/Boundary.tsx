@@ -6,7 +6,9 @@ import {
   type ReactNode,
 } from "react";
 import { Button } from "./ui/Button";
-import { probeChunk, reloadAfterProbe, worthReloading } from "./boundary-cause";
+import {
+  freshAfterFailure, probeChunk, reloadAfterProbe, worthReloading,
+} from "./boundary-cause";
 import { record } from "./errors";
 import api from "./api";
 import { get, subscribe } from "./store";
@@ -172,12 +174,24 @@ export default class Boundary extends Component<Props, State> {
  *  the laptop from 8 to 17 November 2026, with its network down. A piece
  *  like that fails quietly: the error is recorded, nothing is drawn, and
  *  once the connection has been down and is live again it is tried again.
+ *
+ *  And on a clock, since the connection need not go down at all: three
+ *  times from 20 to 24 November 2026 the laptop woke from standby for a
+ *  few seconds, the chip's fetch failed in them with the Wi-Fi not yet up,
+ *  and the stream never noticed, so the chip stayed missing until a
+ *  reload. A failure is tried again after `QUIET_RETRY` ms, doubling to
+ *  `QUIET_RETRY_MOST`, for as long as the piece is on screen.
  */
+export const QUIET_RETRY = 5_000;
+export const QUIET_RETRY_MOST = 300_000;
+
 type QuietProps = { name: string; onRetry: () => void; children: ReactNode };
 
 export class Quiet extends Component<QuietProps, { failed: boolean }> {
   state = { failed: false };
   private unsubscribe: (() => void) | null = null;
+  private timer: number | null = null;
+  private failures = 0;
   private down = false;
 
   static getDerivedStateFromError(): { failed: boolean } {
@@ -186,10 +200,17 @@ export class Quiet extends Component<QuietProps, { failed: boolean }> {
 
   componentDidCatch(error: unknown): void {
     const message = String((error as Error)?.message ?? error);
-    record("boundary", `optional ${this.props.name}: ${message}`,
-      (error as Error)?.stack ?? "");
+    // Recorded the first time; the retries that follow fail the same way
+    // while the network is away, and a line each would bury the log.
+    if (this.failures === 0) {
+      record("boundary", `optional ${this.props.name}: ${message}`,
+        (error as Error)?.stack ?? "");
+    }
+    const wait = Math.min(QUIET_RETRY * 2 ** this.failures, QUIET_RETRY_MOST);
+    this.failures += 1;
     this.down = get().connection !== "live";
-    this.unsubscribe?.();
+    this.stopWaiting();
+    this.timer = window.setTimeout(() => this.retry(), wait);
     this.unsubscribe = subscribe(() => {
       if (get().connection !== "live") {
         this.down = true;
@@ -197,16 +218,25 @@ export class Quiet extends Component<QuietProps, { failed: boolean }> {
       }
       if (!this.down) return;
       this.down = false;
-      this.unsubscribe?.();
-      this.unsubscribe = null;
-      this.props.onRetry();
-      this.setState({ failed: false });
+      this.retry();
     });
   }
 
-  componentWillUnmount(): void {
+  private retry(): void {
+    this.stopWaiting();
+    this.props.onRetry();
+    this.setState({ failed: false });
+  }
+
+  private stopWaiting(): void {
     this.unsubscribe?.();
     this.unsubscribe = null;
+    if (this.timer !== null) window.clearTimeout(this.timer);
+    this.timer = null;
+  }
+
+  componentWillUnmount(): void {
+    this.stopWaiting();
   }
 
   render() {
@@ -217,12 +247,17 @@ export class Quiet extends Component<QuietProps, { failed: boolean }> {
 /** `lazy`, for a piece the window can do without: wrapped in `Quiet`, and
  *  loaded afresh on a retry, since `lazy` keeps a failed import's rejection
  *  for good. One lazy component is shared by every place that draws the
- *  piece, so a second mount does not wait for it again. Still needs a
- *  `Suspense` above it, as `lazy` does. */
+ *  piece, so a second mount does not wait for it again. A retry asks the
+ *  network again rather than the browser's memory of the failure, through
+ *  `freshAfterFailure`. Still needs a `Suspense` above it, as `lazy` does. */
 export function optional<C extends ComponentType<any>>(
   name: string,
-  load: () => Promise<{ default: C }>,
+  firstLoad: () => Promise<{ default: C }>,
 ): C {
+  const load = freshAfterFailure(
+    firstLoad,
+    (url) => import(/* @vite-ignore */ url) as Promise<{ default: C }>,
+  );
   let Loaded = lazy(load) as unknown as ComponentType<any>;
   function Optional(props: object) {
     const [, rerender] = useState(0);

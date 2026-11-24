@@ -34,6 +34,39 @@ export function chunkUrlIn(message: string): string {
   return found ? found[0].replace(/[)\].,]+$/, "") : "";
 }
 
+/** A loader for a chunk that asks the network again after a failure.
+ *
+ *  A browser keeps a module import that failed: a second `import()` of
+ *  the same URL rejects at once, with the same error and no request, which
+ *  Chromium does to this day. So retrying `load` after the network came
+ *  back could never succeed, and a chip that failed while a laptop woke
+ *  from standby stayed missing until the page was reloaded. After a
+ *  failure that names its URL, the next attempt imports that URL with a
+ *  query of its own, which the browser treats as a module it has not seen.
+ *  The shared chunks it imports keep their own URLs, so it shares the
+ *  page's store and React with everything else. */
+export function freshAfterFailure<T>(
+  load: () => Promise<T>,
+  importer: (url: string) => Promise<T>,
+): () => Promise<T> {
+  let failed = "";
+  let attempt = 0;
+  return () => {
+    let trying: Promise<T>;
+    if (failed) {
+      attempt += 1;
+      trying = importer(`${failed.split(/[?#]/)[0]}?retry=${attempt}`);
+    } else {
+      trying = load();
+    }
+    return trying.catch((error: unknown) => {
+      const url = chunkUrlIn(String((error as Error)?.message ?? error));
+      if (url) failed = url;
+      throw error;
+    });
+  };
+}
+
 /**
  * Whether reloading is worth trying.
  *

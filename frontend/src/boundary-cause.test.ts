@@ -10,7 +10,9 @@
  *  until it reconnects.
  */
 import { describe, expect, test } from "vitest";
-import { chunkUrlIn, probeChunk, reloadAfterProbe, worthReloading } from "./boundary-cause";
+import {
+  chunkUrlIn, freshAfterFailure, probeChunk, reloadAfterProbe, worthReloading,
+} from "./boundary-cause";
 
 const MOVED = new Error(
   "Failed to fetch dynamically imported module: http://127.0.0.1:8450/assets/Chat-9f2b.js",
@@ -107,5 +109,47 @@ describe("asking for the chunk before reloading", () => {
     await probeChunk(MOVED.message, spy);
     expect(url).toBe("http://127.0.0.1:8450/assets/Chat-9f2b.js");
     expect(seen).toEqual({ method: "HEAD", cache: "no-store" });
+  });
+});
+
+describe("loading a chunk again after it failed", () => {
+  const URL = "https://100.76.35.76:8450/assets/Collaborators-fzFzlrNV.js";
+  const failure = (url: string) =>
+    Promise.reject(new TypeError(`Failed to fetch dynamically imported module: ${url}`));
+
+  test("the first attempt is the bundle's own, and a retry asks for the URL afresh", async () => {
+    const asked: string[] = [];
+    let bundle = 0;
+    let network = false;
+    const load = freshAfterFailure(
+      () => {
+        bundle += 1;
+        return failure(URL);
+      },
+      (url) => {
+        asked.push(url);
+        return network ? Promise.resolve("loaded") : failure(url);
+      },
+    );
+    await expect(load()).rejects.toThrow(URL);
+    await expect(load()).rejects.toThrow("retry=1");
+    network = true;
+    await expect(load()).resolves.toBe("loaded");
+    expect(bundle).toBe(1);
+    expect(asked).toEqual([`${URL}?retry=1`, `${URL}?retry=2`]);
+  });
+
+  test("a failure that names no URL is retried the bundle's way", async () => {
+    let bundle = 0;
+    const load = freshAfterFailure(
+      () => {
+        bundle += 1;
+        return Promise.reject(new Error("Importing a module script failed."));
+      },
+      () => Promise.reject(new Error("not asked")),
+    );
+    await expect(load()).rejects.toThrow("module script");
+    await expect(load()).rejects.toThrow("module script");
+    expect(bundle).toBe(2);
   });
 });

@@ -15,6 +15,8 @@ import { startServer, seedProject, type Instance } from "../server";
  */
 
 let app: Instance;
+/** The chip's chunk, and the same chunk asked for again with a query. */
+const COLLABORATORS = /\/assets\/Collaborators-[^/?]+\.js(\?.*)?$/;
 let project: { id: string; root: string };
 
 test.beforeAll(async () => {
@@ -157,7 +159,7 @@ test("a collaborators chip that will not load leaves the window alone", async ({
     const context = await browser.newContext({ viewport: { width: 1400, height: 900 } });
     const page = await context.newPage();
     if (block) {
-      await page.route("**/assets/Collaborators-*.js", (route) => route.abort());
+      await page.route(COLLABORATORS, (route) => route.abort());
     }
     await page.goto(`${app.base}/?token=${app.token}`);
     await page.getByText(project.root.split("/").pop()!, { exact: false })
@@ -185,4 +187,37 @@ test("a collaborators chip that will not load leaves the window alone", async ({
   expect(loads).toBe(0);
   await theirs.context.close();
   await mine.context.close();
+});
+
+test("a collaborators chip that failed once comes back by itself", async ({ browser }) => {
+  // The laptop woke from standby for a few seconds, the chip's fetch
+  // failed with the Wi-Fi not yet up, and the stream never noticed, so
+  // the chip stayed missing until a reload. It is now tried again on a
+  // clock, and the browser fetches the chunk afresh.
+  const theirs = await browser.newContext({ viewport: { width: 1400, height: 900 } });
+  const theirPage = await theirs.newPage();
+  await theirPage.goto(`${app.base}/?token=${app.token}`);
+  await theirPage.getByText(project.root.split("/").pop()!, { exact: false }).first().click();
+
+  const context = await browser.newContext({ viewport: { width: 1400, height: 900 } });
+  const page = await context.newPage();
+  let attempts = 0;
+  await page.route(COLLABORATORS, (route) => {
+    attempts += 1;
+    return attempts === 1 ? route.abort("internetdisconnected") : route.continue();
+  });
+  let loads = 0;
+  page.on("load", () => (loads += 1));
+  await page.goto(`${app.base}/?token=${app.token}`);
+  await page.getByText(project.root.split("/").pop()!, { exact: false }).first().click();
+  await page.getByText("main.tex", { exact: false }).first().click();
+  await expect(page.locator(".cm-content")).toContainText("documentclass", { timeout: 30_000 });
+  await expect.poll(() => attempts, { timeout: 20_000 }).toBeGreaterThanOrEqual(1);
+  // Counted rather than seen, as above: the strip can open folded.
+  await expect(page.getByTestId("collaborators")).toHaveCount(1, { timeout: 20_000 });
+  expect(attempts).toBe(2);
+  expect(loads).toBe(1);
+  await expect(page.getByTestId("interface-failed")).toHaveCount(0);
+  await theirs.close();
+  await context.close();
 });
