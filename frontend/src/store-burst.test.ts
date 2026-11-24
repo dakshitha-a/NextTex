@@ -17,7 +17,19 @@ const { set, WRITE_BURST } = await import("./store");
 
 afterEach(() => {
   vi.useRealTimers();
+  vi.unstubAllGlobals();
 });
+
+/** The project stream, with the messages handed over by the test. */
+class FakeStream {
+  static last: FakeStream | null = null;
+  onopen: (() => void) | null = null;
+  onmessage: ((event: { data: string }) => void) | null = null;
+  constructor() {
+    FakeStream.last = this;
+  }
+  close() {}
+}
 
 describe("a burst of writes", () => {
   test("a task's ordinary writes say nothing", async () => {
@@ -42,5 +54,30 @@ describe("a burst of writes", () => {
       `store written ${WRITE_BURST + 1} times in one task: error, spellingNote`,
     );
     expect(recorded[0].stack).toContain("store write burst");
+  });
+
+  test("a backlog of server events in one task is not a burst", async () => {
+    // A store of its own: the one above has already said its once a page.
+    vi.resetModules();
+    const store = await import("./store");
+    recorded.length = 0;
+    vi.useFakeTimers();
+    vi.stubGlobal("EventSource", FakeStream);
+    store.connect("p1");
+    const stream = FakeStream.last!;
+    // An agent turn's worth, each event setting `activity`, all at once,
+    // as a laptop back from standby received them.
+    for (let n = 0; n < WRITE_BURST * 2; n++) {
+      const type = n % 2 ? "thinking_end" : "thinking";
+      stream.onmessage!({ data: JSON.stringify({ type }) });
+    }
+    store.disconnect();
+    expect(recorded).toEqual([]);
+    // And a loop of writes in one task still is.
+    vi.runAllTimers();
+    for (let n = 0; n <= WRITE_BURST; n++) store.set({ spellingNote: `loop ${n}` });
+    expect(recorded.map((item) => item.message)).toEqual([
+      `store written ${WRITE_BURST + 1} times in one task: spellingNote`,
+    ]);
   });
 });

@@ -592,14 +592,14 @@ let burst = 0;
 let burstKeys = new Set<string>();
 let burstSaid = false;
 
+function endBurst(): void {
+  burst = 0;
+  burstKeys = new Set();
+}
+
 /** Count one write, and say so once a page when a task makes too many. */
 export function countWrite(keys: string[]): void {
-  if (burst === 0) {
-    setTimeout(() => {
-      burst = 0;
-      burstKeys = new Set();
-    }, 0);
-  }
+  if (burst === 0) setTimeout(endBurst, 0);
   burst += 1;
   for (const key of keys) burstKeys.add(key);
   if (burst > WRITE_BURST && !burstSaid) {
@@ -1057,6 +1057,12 @@ export function connect(projectId: string) {
     } catch {
       return;
     }
+    // Each event from the server starts its own count. A browser can hand
+    // a backlog of them to one task: on 24 November 2026 a laptop coming
+    // back from standby delivered an agent turn's worth at once, and the
+    // `activity` they set in turn was reported as a burst. A loop inside
+    // the handling of one event is still counted whole.
+    endBurst();
     const began = performance.now();
     receive(payload);
     noteHandled(payload?.type, began, performance.now() - began);
