@@ -165,6 +165,67 @@ FRONTEND = Path(__file__).resolve().parent.parent / "frontend" / "dist"
 _LISTENERS = 0
 _BACKGROUND: list[asyncio.Task] = []
 
+#: Set by `server/run.py` when the server begins to stop. An event stream
+#: never finishes by itself, and uvicorn waits for open responses before
+#: it stops, so every open tab held a stop until systemd killed the
+#: process 90 s later. The streams end at this instead.
+class _Stopping:
+    """`asyncio.Event`, without its tie to the first loop that waits on it:
+    made at import, and the test suite runs the app on many loops."""
+
+    def __init__(self) -> None:
+        self._set = False
+        self._waiters: set[asyncio.Future] = set()
+
+    def is_set(self) -> bool:
+        return self._set
+
+    def set(self) -> None:
+        self._set = True
+        for waiter in list(self._waiters):
+            waiter.get_loop().call_soon_threadsafe(
+                lambda w=waiter: w.done() or w.set_result(None))
+
+    def clear(self) -> None:
+        self._set = False
+
+    async def wait(self) -> None:
+        if self._set:
+            return
+        waiter = asyncio.get_running_loop().create_future()
+        self._waiters.add(waiter)
+        try:
+            await waiter
+        finally:
+            self._waiters.discard(waiter)
+
+
+STOPPING = _Stopping()
+
+#: What `_next_or_stop` returns when the server is stopping.
+STOPPED = object()
+
+
+async def _next_or_stop(queue: asyncio.Queue, timeout: float):
+    """The queue's next item, `None` after `timeout` seconds with nothing,
+    or `STOPPED` once the server is stopping."""
+    if STOPPING.is_set():
+        return STOPPED
+    getting = asyncio.ensure_future(queue.get())
+    stopping = asyncio.ensure_future(STOPPING.wait())
+    try:
+        await asyncio.wait({getting, stopping}, timeout=timeout,
+                           return_when=asyncio.FIRST_COMPLETED)
+    finally:
+        stopping.cancel()
+        if not getting.done():
+            getting.cancel()
+    # An item that arrived is never dropped, even in the instant the stop
+    # began: the stop is noticed at the next call.
+    if getting.done() and not getting.cancelled():
+        return getting.result()
+    return STOPPED if STOPPING.is_set() else None
+
 
 @asynccontextmanager
 async def lifespan(app: FastAPI):
@@ -8008,9 +8069,10 @@ async def update_stream():
             if UPDATE_JOB.get("step"):
                 yield f"data: {json.dumps({'type': 'step', 'label': UPDATE_JOB['step']})}\n\n"
             while True:
-                try:
-                    event = await asyncio.wait_for(queue.get(), timeout=15)
-                except asyncio.TimeoutError:
+                event = await _next_or_stop(queue, 15)
+                if event is STOPPED:
+                    break
+                if event is None:
                     yield ": keepalive\n\n"
                     continue
                 yield f"data: {json.dumps(event)}\n\n"
@@ -8237,20 +8299,24 @@ async def events(project_id: str, request: Request):
             while True:
                 if await request.is_disconnected():
                     return
-                try:
-                    event = await asyncio.wait_for(queue.get(), timeout=15)
-                    if event is CLOSED:
-                        # The server gave up on this subscriber because it
-                        # had stopped reading.  Ending the response is what
-                        # makes EventSource reconnect and re-read state; the
-                        # alternative is keepalives on a queue nothing
-                        # writes to, which looks alive and is not.
-                        return
-                    yield f"data: {_json.dumps(event)}\n\n"
-                except asyncio.TimeoutError:
+                event = await _next_or_stop(queue, 15)
+                if event is STOPPED:
+                    # The server is stopping; the tab reconnects to the
+                    # next one, as it does after any restart.
+                    return
+                if event is None:
                     # A comment frame keeps intermediaries from closing an
                     # idle stream, and tells us when the client has gone.
                     yield ": keepalive\n\n"
+                    continue
+                if event is CLOSED:
+                    # The server gave up on this subscriber because it
+                    # had stopped reading.  Ending the response is what
+                    # makes EventSource reconnect and re-read state; the
+                    # alternative is keepalives on a queue nothing
+                    # writes to, which looks alive and is not.
+                    return
+                yield f"data: {_json.dumps(event)}\n\n"
         finally:
             session.events.unsubscribe(queue)
 

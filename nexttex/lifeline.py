@@ -25,7 +25,9 @@ import os
 import re
 import subprocess
 import sys
+import threading
 import time
+import traceback
 from datetime import datetime, timezone
 from pathlib import Path
 
@@ -211,3 +213,93 @@ current: Lifeline | None = None
 def stopped(why: str) -> None:
     if current is not None:
         current.stopped(why)
+
+
+#: When a stop that has not finished is written down, with where every
+#: thread and task is, and when it is ended regardless. systemd kills a
+#: unit 90 s after SIGTERM and leaves nothing behind to say what it was
+#: waiting for; on 18 November 2026 it did that to a server whose
+#: diagnostics said it was idle, so the end is made here first, with a
+#: record of what was still running.
+SLOW_STOP = 15.0
+LONGEST_STOP = 45.0
+#: Frames kept from each stack, innermost last.
+STOP_FRAMES = 12
+
+_stop_watch: threading.Thread | None = None
+
+
+def _where_threads_are() -> dict[str, list[str]]:
+    frames = sys._current_frames()
+    held: dict[str, list[str]] = {}
+    for thread in threading.enumerate():
+        if thread is threading.current_thread():
+            continue
+        frame = frames.get(thread.ident or -1)
+        if frame is None:
+            continue
+        stack = traceback.extract_stack(frame)[-STOP_FRAMES:]
+        held[thread.name] = [f"{e.filename}:{e.lineno} {e.name}" for e in stack]
+    return held
+
+
+def _where_tasks_are(loop) -> list[str]:
+    """Each unfinished task on the loop and the line it is waiting at.
+
+    Read from another thread, which asyncio does not promise to allow, so
+    anything it raises costs the list and nothing else."""
+    import asyncio
+
+    found: list[str] = []
+    try:
+        for task in list(asyncio.all_tasks(loop)):
+            if task.done():
+                continue
+            stack = task.get_stack(limit=STOP_FRAMES)
+            where = (f"{stack[-1].f_code.co_filename}:{stack[-1].f_lineno} "
+                     f"{stack[-1].f_code.co_name}") if stack else "not started"
+            found.append(f"{task.get_name()} {getattr(task.get_coro(), '__qualname__', '?')} at {where}")
+    except Exception as error:      # a set that changed under us, say
+        found.append(f"could not list the tasks: {error!r}")
+    return found
+
+
+def stop_deadline(loop=None, slow: float = SLOW_STOP, longest: float = LONGEST_STOP,
+                  end=os._exit) -> None:
+    """Start the clock on a stop, once a process.
+
+    At `slow` seconds a stop still going writes `slow-stop` to the
+    diagnostics log and its stacks to stderr; at `longest` it writes
+    `stop-forced` and ends the process. A stop that finishes first ends the
+    process and this thread with it, since it is a daemon."""
+    global _stop_watch
+    if _stop_watch is not None:
+        return
+
+    def watch() -> None:
+        time.sleep(slow)
+        threads = _where_threads_are()
+        tasks = _where_tasks_are(loop) if loop is not None else []
+        diag.event("slow-stop", after_s=slow, threads=threads, tasks=tasks)
+        try:
+            print(f"NextTex has been stopping for {slow:.0f} s; still running:",
+                  file=sys.stderr)
+            for name, stack in threads.items():
+                print(f"  thread {name}", *(f"    {line}" for line in stack),
+                      sep="\n", file=sys.stderr)
+            for line in tasks:
+                print(f"  task {line}", file=sys.stderr)
+            sys.stderr.flush()
+        except Exception:
+            pass
+        time.sleep(max(longest - slow, 0.0))
+        diag.event("stop-forced", after_s=longest)
+        try:
+            print(f"NextTex did not stop within {longest:.0f} s, so it ends here.",
+                  file=sys.stderr, flush=True)
+        except Exception:
+            pass
+        end(0)
+
+    _stop_watch = threading.Thread(target=watch, name="nexttex-stop-deadline", daemon=True)
+    _stop_watch.start()

@@ -136,7 +136,28 @@ class _Server(uvicorn.Server):
         except (ValueError, TypeError):
             name = str(sig)
         lifeline.stopped(f"asked to stop ({name})")
+        # And a limit on how long the stop may take; see
+        # `lifeline.stop_deadline`.
+        lifeline.stop_deadline(_LOOP)
         super().handle_exit(sig, frame)
+
+    async def shutdown(self, sockets=None) -> None:
+        # The event streams end first, so the wait for open responses
+        # below is a wait for nothing; `GRACE` is for anything else.
+        from server import main
+
+        main.STOPPING.set()
+        await super().shutdown(sockets)
+
+
+#: The loop the servers run on, for the stop deadline's list of tasks.
+_LOOP: asyncio.AbstractEventLoop | None = None
+
+#: How long a stop waits for open responses before cancelling them. Every
+#: open tab holds an event stream that never finishes by itself, and
+#: uvicorn's default is to wait for it for ever, so a stop with a tab open
+#: lasted until systemd killed the process 90 s later.
+GRACE = 3
 
 
 def tailscale_address() -> str | None:
@@ -187,6 +208,8 @@ def _log_warnings_to_stderr() -> None:
 
 
 async def serve(settings: Settings) -> None:
+    global _LOOP
+    _LOOP = asyncio.get_running_loop()
 
     servers: list[uvicorn.Server] = []
     urls: list[str] = []
@@ -203,6 +226,7 @@ async def serve(settings: Settings) -> None:
         config = uvicorn.Config(
             "server.main:app", host="127.0.0.1", port=settings.port,
             log_level="warning", access_log=False, proxy_headers=False,
+            timeout_graceful_shutdown=GRACE,
         )
         servers.append(_Server(config))
         urls.append(f"http://127.0.0.1:{settings.port}")
@@ -222,6 +246,7 @@ async def serve(settings: Settings) -> None:
                 "server.main:app", host=remote, port=settings.port,
                 ssl_certfile=settings.certfile, ssl_keyfile=settings.keyfile,
                 log_level="warning", access_log=False, proxy_headers=False,
+                timeout_graceful_shutdown=GRACE,
             )
             servers.append(_Server(config))
             urls.append(f"https://{remote}:{settings.port}")
