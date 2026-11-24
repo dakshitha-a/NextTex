@@ -548,6 +548,24 @@ OpenAI provider against OpenAI itself.
 
 ### Measured and left, worth revisiting with a measurement
 
+- [ ] **A whole-document word count costs texcount's 1.3 s.** The live
+      install's word count route took over 2 s four times from 18 to 24
+      November 2026, all on a host loaded past 30, and 1.3 s when it was
+      idle: texcount itself, over a 55,000-word thesis, run again after
+      every build because some file changed. Counting each file apart and
+      remembering the counts would make a recount a fifth of a second, but
+      the sum came to 54,827 where texcount said 54,784 for the whole, and
+      a second number that disagrees is what the route exists to prevent.
+      Revisit if the 43 words can be explained and closed.
+
+- [ ] **The server's memory stays where its busiest hour left it.** The
+      live install rose from 248 MB to 654 MB over 19 and 20 November
+      2026 and then held at 572 MB through four idle days, which is a
+      high-water mark rather than a leak: Python keeps memory it has freed.
+      Revisit if a sample ever shows it climbing while idle, or if 600 MB
+      matters on a smaller machine, where `malloc_trim` after a big build
+      is the first thing to measure.
+
 - [ ] **The log parser stays Python.** Asked on 24 October 2026 what a
       Rust rewrite would buy: the build is TeX's time, and the parser,
       the one hot Python loop, now reads a real 0.14 MB thesis log in
