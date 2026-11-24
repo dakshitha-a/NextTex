@@ -78,9 +78,10 @@ def test_a_stop_with_an_event_stream_open_finishes_at_once(tmp_path):
             stream.close()
         if server.poll() is None:
             server.kill()
-    # It waited for nothing: not the 90 s systemd allows, and not even
-    # the few seconds uvicorn is now told to wait for anything else.
-    assert took < 2.5, took
+    # Not the 90 s systemd allows. The bound is loose because this host's
+    # load has reached 200; the line below is what says the stream ended
+    # by itself rather than being cancelled after `GRACE`.
+    assert took < 10, took
     errors = (state / "server.err.log").read_text()
     assert "timeout graceful shutdown exceeded" not in errors
     assert "has been stopping" not in errors

@@ -549,9 +549,9 @@ OpenAI provider against OpenAI itself.
 ### Measured and left, worth revisiting with a measurement
 
 - [ ] **A whole-document word count costs texcount's 1.3 s.** The live
-      install's word count route took over 2 s four times from 18 to 24
-      November 2026, all on a host loaded past 30, and 1.3 s when it was
-      idle: texcount itself, over a 55,000-word thesis, run again after
+      install's word count route took over 2 s nine times from 13 to 24
+      November 2026, most with the host's load past 19, and 1.3 s when it
+      was idle: texcount itself, over a 55,000-word thesis, run again after
       every build because some file changed. Counting each file apart and
       remembering the counts would make a recount a fifth of a second, but
       the sum came to 54,827 where texcount said 54,784 for the whole, and
