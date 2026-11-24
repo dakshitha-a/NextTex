@@ -264,6 +264,17 @@ def clean_not_shared(raw: object) -> list[str] | None:
     return kept
 
 
+
+class PathRefused(PermissionError):
+    """A path the project refuses, as opposed to one the system does.
+
+    A `PermissionError` so that every route catching that answers it as
+    before. Kept apart because the two need different handling where a
+    write is retried: the collaboration store never retries a refused
+    path, since it names the same place next time, and until 24 November
+    2026 it took the operating system's "Access is denied" for one of
+    these, which on Windows is OneDrive holding a file for a moment."""
+
 class NotShared:
     """Whether a project path is one a share leaves out.
 
@@ -773,7 +784,7 @@ class Project:
         candidate = (self.root / relative).resolve()
         root = self.root.resolve()
         if candidate != root and root not in candidate.parents:
-            raise PermissionError(f"path escapes the project: {relative}")
+            raise PathRefused(f"path escapes the project: {relative}")
         return candidate
 
     def resolve_for_write(self, relative: str) -> Path:
@@ -786,7 +797,7 @@ class Project:
         """
         target = self.resolve(relative)
         if is_control_path(target.relative_to(self.root.resolve())):
-            raise PermissionError(f"not a file this project accepts: {relative}")
+            raise PathRefused(f"not a file this project accepts: {relative}")
         return target
 
     def relative(self, path: Path) -> str:

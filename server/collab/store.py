@@ -85,7 +85,9 @@ from pycrdt import Doc, Map, Text
 
 from nexttex.atomic import read_text, write_atomically
 from nexttex.history import slug_for
-from nexttex.project import IGNORED_DIRS, IGNORED_FILES, TEXT_SUFFIXES, VENV_MARKER, Project
+from nexttex.project import (
+    IGNORED_DIRS, IGNORED_FILES, TEXT_SUFFIXES, VENV_MARKER, PathRefused, Project,
+)
 
 from . import paragraphs, persist
 
@@ -2555,7 +2557,7 @@ class CollabStore:
         for file_id in pending:
             try:
                 self._write(file_id)
-            except PermissionError as refusal:
+            except PathRefused as refusal:
                 # The path fence, or the control-file rule beside it.  This
                 # one is *not* retried: retrying is for a write that might
                 # succeed later, and a record naming `../../.ssh/config` or
@@ -2568,9 +2570,12 @@ class CollabStore:
                 log.warning("refused a shared file: %s", refusal)
             except Exception:
                 # A read-only directory, a disk that filled up, a path that
-                # is not a file. The document is still correct and still
-                # shared; only this peer's copy of the file is behind, and
-                # it is put back in the queue so the next write tries again.
+                # is not a file, or a file OneDrive or a virus scanner held
+                # open past `write_atomically`'s own retries, which Windows
+                # reports as "Access is denied". The document is still
+                # correct and still shared; only this peer's copy of the
+                # file is behind, and it is put back in the queue so the
+                # next write tries again.
                 failed.add(file_id)
         if failed:
             self._dirty |= failed

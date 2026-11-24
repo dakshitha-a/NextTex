@@ -10,6 +10,7 @@ stayed in the project where the file tree would show it.
 from __future__ import annotations
 
 import os
+import time
 from pathlib import Path
 
 SUFFIX = ".nexttex-tmp"
@@ -55,6 +56,28 @@ def _flush_directory(directory: Path) -> None:
         os.close(handle)
 
 
+#: How long, in all, a rename on Windows keeps trying past a file that
+#: something else has open. OneDrive, a virus scanner and the search
+#: indexer each open a file for a moment after it changes, and Windows
+#: refuses to replace a file that is open without sharing delete, with
+#: "Access is denied". The laptop's log had seven of those in a week on a
+#: thesis kept under OneDrive, each one a collaborator's edit not written.
+REPLACE_PATIENCE = (0.05, 0.1, 0.2, 0.4)
+
+
+def _replace(temp: Path, target: Path, sleep=time.sleep, windows: bool | None = None) -> None:
+    if windows is None:
+        windows = os.name == "nt"
+    waits = REPLACE_PATIENCE if windows else ()
+    for wait in waits:
+        try:
+            os.replace(temp, target)
+            return
+        except PermissionError:
+            sleep(wait)
+    os.replace(temp, target)
+
+
 def write_atomically(
     target: Path,
     data: str | bytes,
@@ -98,7 +121,7 @@ def write_atomically(
         # `os.replace` by name rather than `Path.replace`: on 3.10 pathlib
         # bound the function at import, so a test watching the order of
         # the rename against the two fsyncs could not see it there.
-        os.replace(temp, target)
+        _replace(temp, target)
         if durable:
             _flush_directory(target.parent)
     except OSError:

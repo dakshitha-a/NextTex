@@ -1,5 +1,7 @@
 """Writing a file without ever leaving it half-written."""
 
+import os
+
 import pytest
 
 from nexttex.atomic import NotAFile, read_text, write_atomically
@@ -120,3 +122,45 @@ def test_a_unique_name_keeps_a_file_suffix_and_a_folder_name_whole(tmp_path):
     assert unique_name(tmp_path / "v1.2", "restored", directory=True).name == "v1.2 (restored)"
     (tmp_path / "v1.2 (copy)").mkdir()
     assert unique_name(tmp_path / "v1.2", "copy").name == "v1.2 (copy 2)"
+
+
+def test_a_file_held_open_on_windows_is_replaced_once_it_is_let_go(tmp_path, monkeypatch):
+    """OneDrive, a virus scanner or the indexer opens a file for a moment
+    after it changes, and Windows refuses to replace it meanwhile with
+    "Access is denied"."""
+    from nexttex import atomic
+
+    target = tmp_path / "chapter.tex"
+    temp = tmp_path / "chapter.tex.nexttex-tmp"
+    temp.write_text("new")
+    real = os.replace
+    refusals = {"left": 2}
+    slept: list[float] = []
+
+    def held(source, destination):
+        if refusals["left"]:
+            refusals["left"] -= 1
+            raise PermissionError(13, "Access is denied")
+        real(source, destination)
+
+    monkeypatch.setattr(atomic.os, "replace", held)
+    atomic._replace(temp, target, sleep=slept.append, windows=True)
+    assert target.read_text() == "new"
+    assert slept == list(atomic.REPLACE_PATIENCE[:2])
+
+
+def test_a_file_held_for_good_still_fails_and_elsewhere_nothing_waits(tmp_path, monkeypatch):
+    from nexttex import atomic
+
+    def refused(source, destination):
+        raise PermissionError(13, "Access is denied")
+
+    monkeypatch.setattr(atomic.os, "replace", refused)
+    slept: list[float] = []
+    with pytest.raises(PermissionError):
+        atomic._replace(tmp_path / "a", tmp_path / "b", sleep=slept.append, windows=True)
+    assert slept == list(atomic.REPLACE_PATIENCE)
+    slept.clear()
+    with pytest.raises(PermissionError):
+        atomic._replace(tmp_path / "a", tmp_path / "b", sleep=slept.append, windows=False)
+    assert slept == []
