@@ -159,7 +159,10 @@ test("a collaborators chip that will not load leaves the window alone", async ({
     const context = await browser.newContext({ viewport: { width: 1400, height: 900 } });
     const page = await context.newPage();
     if (block) {
-      await page.route(COLLABORATORS, (route) => route.abort());
+      // The first attempt fails; every retry hangs, as a fetch does on a
+      // network that is not back yet, so the chip stays suspended.
+      await page.route(COLLABORATORS, (route) =>
+        route.request().url().includes("retry=") ? new Promise<void>(() => {}) : route.abort());
     }
     await page.goto(`${app.base}/?token=${app.token}`);
     await page.getByText(project.root.split("/").pop()!, { exact: false })
@@ -178,7 +181,9 @@ test("a collaborators chip that will not load leaves the window alone", async ({
   // Counted rather than seen: that window's source pane can open folded,
   // which hides the strip the chip sits on.
   await expect(theirs.page.getByTestId("collaborators")).toHaveCount(1, { timeout: 20_000 });
-  await mine.page.waitForTimeout(3_000);
+  // Past the first timed retry, which is still waiting on the network: the
+  // window around the chip stays as it was while it waits.
+  await mine.page.waitForTimeout(8_000);
   await expect(mine.page.getByTestId("collaborators")).toHaveCount(0);
   await expect(mine.page.getByTestId("interface-failed")).toHaveCount(0);
   // The window is still the project's: its tree, and the editor mounted.

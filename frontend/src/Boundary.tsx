@@ -1,6 +1,7 @@
 import {
   Component,
   lazy,
+  Suspense,
   useState,
   type ComponentType,
   type ReactNode,
@@ -249,7 +250,8 @@ export class Quiet extends Component<QuietProps, { failed: boolean }> {
  *  for good. One lazy component is shared by every place that draws the
  *  piece, so a second mount does not wait for it again. A retry asks the
  *  network again rather than the browser's memory of the failure, through
- *  `freshAfterFailure`. Still needs a `Suspense` above it, as `lazy` does. */
+ *  `freshAfterFailure`. It brings its own `Suspense`, with nothing as its
+ *  fallback, so loading it never hides what is around it. */
 export function optional<C extends ComponentType<any>>(
   name: string,
   firstLoad: () => Promise<{ default: C }>,
@@ -270,7 +272,11 @@ export function optional<C extends ComponentType<any>>(
           rerender((n) => n + 1);
         }}
       >
-        <Loaded {...props} />
+        {/* Its own, so that a retry, which suspends again while the
+            chunk is fetched, hides this piece and nothing around it. */}
+        <Suspense fallback={null}>
+          <Loaded {...props} />
+        </Suspense>
       </Quiet>
     );
   }
